@@ -235,23 +235,23 @@ def compute_hilbert_phase(
     #     * Kalman 1-D random-walk — adaptief, geen vaste cutoff. Tweede keuze.
     #     * EMA — backward-compat fallback (legacy gedrag).
     pre_filter_name = str(pre_filter).lower().strip()
+    # Phase 0: beide prefilters kwamen uit de INTERNE module
+    # ..execution.market_impact en werden bij een ImportError stilzwijgend
+    # vervangen door een EMA. De aanroeper vroeg expliciet om Ehlers of Kalman -
+    # juist omdat een EMA fase-lag introduceert die voor MFT-fasedetectie
+    # dodelijk is - en kreeg precies die EMA terug, zonder melding.
     if pre_filter_name in ("ehlers", "super_smoother"):
-        try:
-            from ..execution.market_impact import ehlers_super_smoother as _ehlers
-            ema = _ehlers(close.astype(np.float64), period=float(ehlers_period))
-        except ImportError:
-            # Fall through naar EMA (backward compat)
-            pre_filter_name = "ema"
+        from ..execution.market_impact import ehlers_super_smoother as _ehlers
+
+        ema = _ehlers(close.astype(np.float64), period=float(ehlers_period))
     if pre_filter_name == "kalman":
-        try:
-            from ..execution.market_impact import kalman_smoother_1d as _kalman
-            ema = _kalman(
-                close.astype(np.float64),
-                process_var=float(kalman_process_var),
-                obs_var=float(kalman_obs_var),
-            )
-        except ImportError:
-            pre_filter_name = "ema"
+        from ..execution.market_impact import kalman_smoother_1d as _kalman
+
+        ema = _kalman(
+            close.astype(np.float64),
+            process_var=float(kalman_process_var),
+            obs_var=float(kalman_obs_var),
+        )
     if pre_filter_name == "ema" or pre_filter_name not in ("ehlers", "super_smoother", "kalman"):
         # EMA (causale low-pass): α = 2 / (N+1). Backward-compat fallback.
         alpha = 2.0 / (float(smoothing_span) + 1.0)

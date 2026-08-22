@@ -18,12 +18,9 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-try:
-    from catboost import CatBoostClassifier, Pool
-    _CATBOOST_OK = True
-except ImportError:
-    _CATBOOST_OK = False
-    logger.warning("CatBoost niet beschikbaar — Judge training uitgeschakeld.")
+# Phase 0: catboost is een harde dependency. De except-tak schakelde de
+# Judge-training in zijn geheel uit met alleen een warning.
+from catboost import CatBoostClassifier, Pool
 
 
 def build_judge_features(

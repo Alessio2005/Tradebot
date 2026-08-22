@@ -37,7 +37,7 @@ dependencies = [
     "hmmlearn>=0.3",       # 3-state Gaussian HMM (L3) - GEEN EMA-fallback
     # ML
     "catboost>=1.2",
-    "scikit-learn>=1.3",
+    "scikit-learn>=1.6",   # sklearn.frozen.FrozenEstimator
     "optuna>=3.4",
     # Data
     "pyarrow>=14",
@@ -52,6 +52,10 @@ dependencies = [
     # Ingestion (verplicht vanaf Phase 1 - crypto ingestion is geen extra)
     "requests>=2.31",
     "aiohttp>=3.9",
+    "websockets>=12.0",       # live L1/aggtrade feed - geen urllib-fallback
+    # Observability (L13). Hard: een monitoring-laag die stilzwijgend no-op
+    # wordt, is erger dan geen monitoring-laag.
+    "prometheus-client>=0.20",
     # Utility
     "python-dateutil>=2.8",
 ]

@@ -22,6 +22,8 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
+from ..utils.failfast import has_module
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["ExperimentTracker", "TrialRecord"]
@@ -104,12 +106,14 @@ class ExperimentTracker:
     # ------------------------------------------------------------------
 
     def _try_import_mlflow(self) -> bool:
-        try:
-            import mlflow  # type: ignore[import]  # noqa: F401
-            return True
-        except ImportError:
-            logger.debug("MLflow not installed — using JSONL backend only.")
-            return False
+        """True wanneer MLflow beschikbaar is om NAAST de JSONL-ledger te spiegelen.
+
+        Phase 0: dit is een toegestane capability-probe, geen modeldegradatie.
+        De JSONL-ledger is en blijft de autoriteit; MLflow is een extra spiegel.
+        Uitgevoerd via `has_module` (find_spec) zodat er geen try/except aan te
+        pas komt.
+        """
+        return has_module("mlflow")
 
     # ------------------------------------------------------------------
     # Run lifecycle

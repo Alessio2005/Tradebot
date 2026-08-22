@@ -846,15 +846,12 @@ class MetaLabelingEngine:
         )
         _vwpf_check = None
         if _vwpf_active:
-            try:
-                from ..execution.market_impact import vwpf_check as _vwpf_check_imported
-                _vwpf_check = _vwpf_check_imported
-            except ImportError:
-                logger.warning(
-                    "MetaLabelingEngine: VWPF gevraagd maar market_impact "
-                    "module niet beschikbaar — VWPF-gate uitgeschakeld."
-                )
-                _vwpf_active = False
+            # Phase 0: de except-tak zette _vwpf_active=False en schakelde de
+            # VWPF-gate volledig uit terwijl de aanroeper er expliciet om vroeg.
+            # market_impact is een interne module.
+            from ..execution.market_impact import vwpf_check as _vwpf_check_imported
+
+            _vwpf_check = _vwpf_check_imported
 
         n_vwpf_failed: int = 0
         n_funding_flipped: int = 0
@@ -1017,11 +1014,16 @@ class MetaLabelingEngine:
             # de train sample-weights — events die overlappen met test-events krijgen lagere
             # uniqueness, ook al zijn die test-events in productie onbekend.
             # Als train_indices=None (standalone use), val terug op globale variant met warning.
-            try:
-                from ..cv.uniqueness import (
-                    get_average_uniqueness,
-                    get_average_uniqueness_per_fold,
-                )
+            # Phase 0: `..cv.uniqueness` is een interne module. De except-tak
+            # gaf UNIFORME gewichten (np.ones) terug, waarmee de AFML
+            # uniqueness-weging - de correctie voor overlappende labels - in
+            # zijn geheel verdween zonder dat dit in enig rapport zichtbaar was.
+            from ..cv.uniqueness import (
+                get_average_uniqueness,
+                get_average_uniqueness_per_fold,
+            )
+
+            if True:
                 t1_series = pd.Series(
                     np.clip(t1_indices_filtered, 0, n_bars - 1).astype(np.int32),
                     index=df_index[idx_clipped],
@@ -1037,11 +1039,6 @@ class MetaLabelingEngine:
                         "CPCV-split om leakage in sample-weights te vermijden."
                     )
                     real_uniqueness = get_average_uniqueness(df_index, t1_series)
-            except ImportError:
-                logger.warning(
-                    "get_average_uniqueness niet beschikbaar — terugvallen op uniforme gewichten."
-                )
-                real_uniqueness = np.ones(len(idx), dtype=np.float64)
 
             w = sample_weight_fn(
                 timestamps_pd,
