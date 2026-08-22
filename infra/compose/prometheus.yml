@@ -1,0 +1,20 @@
+# Prometheus scrape config for tradebot-live engine.
+# Engine should expose /metrics on port 8000 (asyncio aiohttp server).
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    tradebot_env: live
+
+scrape_configs:
+  - job_name: tradebot_live
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["live_engine:8000"]
+        labels:
+          service: live_engine
+          component: asyncio_loop
+
+  - job_name: prometheus_self
+    static_configs:
+      - targets: ["localhost:9090"]

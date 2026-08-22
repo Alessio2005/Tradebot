@@ -1,0 +1,50 @@
+{
+  "unit": "cm_tsmom_xasset",
+  "wave": 27,
+  "evaluated_utc": "2026-08-10",
+  "panel": "market_data_parquet/xasset/tr_panel.parquet (26 ETF/ETC total-return series, 2004-01-02 -> 2026-08-07)",
+  "prior": "Moskowitz, Ooi & Pedersen (2012), J. Fin. Econ. 104(2), 228-250",
+  "cost_model": "1.0bp commission + 3.0bp half-spread per side, 0.50%/yr borrow on the short book",
+
+  "gates_completed": [
+    "KG-B1 in-sample",
+    "KG-B2 residual alpha",
+    "KG-B3 out-of-sample"
+  ],
+
+  "net_sharpe": 0.487,
+  "gross_sharpe": 0.543,
+  "net_cagr": 0.020,
+  "ann_vol": 0.042,
+  "max_drawdown": 0.114,
+  "calmar": 0.173,
+  "dd_over_vol": 2.717,
+  "years_positive_frac": 0.739,
+  "sample_years": 22.56,
+
+  "alpha_p": 0.0793,
+  "alpha_ann_strict": 0.014,
+  "alpha_t_strict": 1.75,
+  "alpha_p_nominal": 0.0199,
+  "alpha_t_nominal": 2.33,
+
+  "wf_sharpe": 0.675,
+  "is_sharpe": 0.395,
+  "sharpe_decay": -0.709,
+  "bootstrap_p_positive": 0.993,
+  "abs_rho_vs_book": 0.006,
+
+  "n_eff": 5.19,
+  "n_instruments": 26,
+
+  "verdict": "ARCHIVED — gate not met",
+  "failed": [
+    "KG-B2: strict G4 (controls for passive exposure to the same panel) t=1.75 < 2.0, p=0.079"
+  ],
+  "passed": [
+    "KG-B1: net_sharpe 0.487 >= 0.40, years_positive_frac 0.739 >= 0.60, and dd_over_vol 2.717 is inside the W28 re-derived q0.95 shape cap for Sharpe 0.487 over 22.6y",
+    "KG-B3: wf_sharpe 0.675, decay -71% (OOS better than IS), bootstrap 0.993, rho vs crypto book 0.006"
+  ],
+  "w28_revision": "The KG-B1 shape criterion was re-derived in Wave 28 step 0.3b (BEFORE any new unit was measured) after the constants 'dd_over_vol <= 2.5' and 'calmar >= 0.25' were shown to rest on the stationary drawdown formula sigma^2/(2mu) rather than the expected MAXIMUM drawdown — they rejected 99.7% of strategies that genuinely have Sharpe 0.40 over this horizon. Under the corrected criterion cm_tsmom clears KG-B1. THE VERDICT IS UNCHANGED: its registered reopening condition requires a re-derived threshold AND a G4-strict pass, and G4-strict (t=1.75) is untouched by the re-derivation. cm_tsmom stays ARCHIVED on KG-B2, which was always the substantive reason.",
+  "notes": "alpha_p is deliberately the STRICT specification (S3). The nominal Mandate factorset (S1/S2) passes at t=2.33/2.26; reporting only that would be the self-factor error this program already logged. Not a falsification: the premium is present (faithful MOM loading +0.119 t=14.5, 17/23 years positive, OOS > IS, rho~0 to the crypto book) but does not clear the pre-registered bar."
+}

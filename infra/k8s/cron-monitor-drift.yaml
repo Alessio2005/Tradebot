@@ -1,0 +1,49 @@
+# =============================================================================
+# CronJob — hourly feature-drift monitor.
+# Runs apps/monitor_drift.py; alerts to Slack on PSI > 0.20 (CRITICAL).
+# Schedule: every hour at :05 to avoid colliding with bar-close at :00.
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hourly-monitor-drift
+  namespace: tradebot
+  labels:
+    app.kubernetes.io/component: monitoring
+spec:
+  schedule: "5 * * * *"
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 5
+
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+          containers:
+            - name: monitor-drift
+              image: tradebot/runner:0.5.0
+              command: ["python", "-m", "apps.monitor_drift"]
+              workingDir: /opt/tradebot
+              envFrom:
+                - configMapRef: { name: tradebot-config }
+                - secretRef:    { name: tradebot-binance }
+              resources:
+                requests: { cpu: "500m", memory: "1Gi" }
+                limits:   { cpu: "1",    memory: "2Gi" }
+              volumeMounts:
+                - { name: artefacts, mountPath: /opt/tradebot/artefacts, readOnly: true }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem:   true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - name: artefacts
+              persistentVolumeClaim: { claimName: tradebot-artefacts }

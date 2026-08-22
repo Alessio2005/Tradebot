@@ -1,0 +1,133 @@
+name: Paper-Trade Smoke
+
+# 24-hour paper-trade simulation over the previous 7 calendar days of bars.
+# Runs every Monday 02:00 UTC and on push to main / release branches.
+# Acceptance: zero exceptions; circuit-breaker not triggered; equity > 0;
+# audit-log contains ≥ 1 complete order cycle (place→fill→reconcile).
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"          # weekly Monday 02:00 UTC
+  workflow_dispatch:
+  push:
+    branches: [main, "release/**"]
+    paths:
+      - "src/tradebot/live/**"
+      - "src/tradebot/oms/**"
+      - "src/tradebot/compliance/**"
+      - "apps/live_trader.py"
+      - "conf/**"
+      - ".github/workflows/paper-trade-ci.yml"
+
+env:
+  PYTHON_VERSION: "3.11"
+  TRADEBOT_LIVE_STATE_DIR: ${{ github.workspace }}/.tradebot_state
+  NUMBA_CACHE_DIR:         ${{ github.workspace }}/.numba_cache
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: paper-trade-${{ github.ref }}
+  cancel-in-progress: false        # never cancel a running paper-trade
+
+jobs:
+  smoke:
+    name: 7-day paper-trade smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0           # full history → count_git_commits() works
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install runtime deps
+        run: |
+          python -m pip install --upgrade pip wheel
+          pip install -e ".[dev,ingestion]" --no-cache-dir
+          pip install dvc>=3.30
+
+      - name: Restore artefact cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            artefacts/
+            .dvc/cache
+          key: paper-trade-artefacts-${{ runner.os }}-${{ hashFiles('dvc.yaml','params.yaml') }}
+          restore-keys: |
+            paper-trade-artefacts-${{ runner.os }}-
+
+      - name: Restore numba cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.NUMBA_CACHE_DIR }}
+          key: numba-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('src/tradebot/bars/_kernels.py','src/tradebot/cv/uniqueness.py') }}
+
+      - name: Doctor pre-flight
+        run: python -m apps.doctor
+
+      - name: DVC repro (pull cached artefacts)
+        run: |
+          dvc repro || dvc repro --force
+        env:
+          DVC_NO_ANALYTICS: "1"
+
+      - name: Run paper-trade smoke (24 h)
+        run: |
+          mkdir -p "${TRADEBOT_LIVE_STATE_DIR}"
+          pytest -m e2e tests/e2e/test_paper_trade_smoke.py -q --tb=short \
+            --timeout=3600 -o log_cli=true -o log_cli_level=INFO
+
+      - name: Generate post-trade report
+        if: always()
+        run: |
+          python scripts/paper_trade_report.py \
+            --state-dir "${TRADEBOT_LIVE_STATE_DIR}" \
+            --output     paper_trade_report.md || true
+
+      - name: Verify circuit-breaker not triggered
+        run: |
+          python - <<'PY'
+          import json, os, sys, pathlib
+          state = pathlib.Path(os.environ["TRADEBOT_LIVE_STATE_DIR"])
+          cb_log = state / "circuit_log.jsonl"
+          if not cb_log.exists():
+              print("circuit_log.jsonl absent — clean run.")
+              sys.exit(0)
+          lines = cb_log.read_text(encoding="utf-8").splitlines()
+          if not lines:
+              print("circuit_log.jsonl empty — clean run.")
+              sys.exit(0)
+          last = json.loads(lines[-1])
+          print(f"Circuit breaker fired: {last.get('halt_reason')}")
+          print(f"Equity at halt:        {last.get('equity')}")
+          sys.exit(1)
+          PY
+
+      - name: Upload state artefacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-trade-state-${{ github.run_id }}
+          path: |
+            ${{ env.TRADEBOT_LIVE_STATE_DIR }}/
+            paper_trade_report.md
+          retention-days: 30
+
+      - name: Slack notification on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then exit 0; fi
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"🔴 paper-trade-ci FAILED — run ${{ github.run_id }} on ${{ github.ref }}\"}" \
+            "${SLACK_WEBHOOK_URL}"

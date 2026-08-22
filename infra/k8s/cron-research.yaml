@@ -1,0 +1,65 @@
+# =============================================================================
+# CronJob — nightly DVC repro (stage 0-5 of the research pipeline).
+# Runs at 02:00 UTC every day. Image: tradebot/runner:0.5.0 (built from
+# infra/docker/Dockerfile.runner). Triggers full feature build, tuning, training
+# and backtest. Models that pass DSR gate are tagged in the registry.
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-dvc-repro
+  namespace: tradebot
+  labels:
+    app.kubernetes.io/component: research-pipeline
+spec:
+  schedule: "0 2 * * *"   # daily 02:00 UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 1800
+
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 21600   # 6h ceiling
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: tradebot
+            app.kubernetes.io/component: dvc-repro
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile: { type: RuntimeDefault }
+
+          containers:
+            - name: runner
+              image: tradebot/runner:0.5.0
+              imagePullPolicy: IfNotPresent
+              command: ["dvc", "repro"]
+              args:    ["--force"]
+              workingDir: /opt/tradebot
+              envFrom:
+                - configMapRef: { name: tradebot-config }
+              env:
+                - name: DVC_CACHE_DIR
+                  value: /opt/tradebot/artefacts/.dvc/cache
+              resources:
+                requests: { cpu: "2",   memory: "8Gi" }
+                limits:   { cpu: "4",   memory: "16Gi" }
+              volumeMounts:
+                - { name: artefacts, mountPath: /opt/tradebot/artefacts }
+                - { name: data,      mountPath: /opt/tradebot/data }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem:   true
+                capabilities: { drop: ["ALL"] }
+
+          volumes:
+            - name: artefacts
+              persistentVolumeClaim: { claimName: tradebot-artefacts }
+            - name: data
+              persistentVolumeClaim: { claimName: tradebot-artefacts }

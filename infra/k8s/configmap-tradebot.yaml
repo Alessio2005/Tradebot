@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tradebot-config
+  namespace: tradebot
+data:
+  # Hydra overrides loaded at runtime. Keep secrets in Secret objects (see secret-binance.yaml).
+  TRADEBOT_LIVE_STATE_DIR: /opt/tradebot/state
+  PYTHONPATH:              /opt/tradebot/src:/opt/tradebot
+  NUMBA_CACHE_DIR:         /opt/tradebot/.numba_cache
+  TZ:                      UTC
+  # Default DAG-stage symbols (override per job)
+  TRADEBOT_SYMBOLS:        "BTCUSDT,ETHUSDT,SOLUSDT"
+  # Logging
+  PYTHONUNBUFFERED:        "1"
+  LOG_LEVEL:               INFO

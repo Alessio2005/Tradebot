@@ -1,0 +1,106 @@
+# conf/symbols/AVAXUSDT.yaml
+# Per-asset overrides for AVAXUSDT (Avalanche).
+#
+# Vol-profiel: ~85-100% annualized (vergelijkbaar met SOL, hogere tail-risk door
+# subnet-failures en bridge-exploits). CUSUM-multiplier boven SOL (2.0) om
+# niet-structurele intrabar-wicks te filteren bij liquidatiecascades.
+asset_class: crypto
+binance_symbol: AVAXUSDT
+
+# CUSUM event-filter — AVAX heeft extremere fat-tails dan SOL (Avalanche subnet
+# failures, bridge-exploits tot 20% instant drop). Hogere drempel houdt alleen
+# echte structurele events over; targets ~5-8 events/dag op 1h bars.
+cusum_threshold_multiplier: 2.2
+
+# Label-horizon (in micro bars). AVAX momentum decayt sneller dan SOL:
+# meer retailgedreven dan institutionele DeFi-flow.
+label_horizon: 16
+label_t_min: 4
+label_t_max: 16
+label_min_tstat: 2.2
+label_pt_width: 2.0
+label_sl_width: 1.0
+label_candidate_horizons: [10, 14, 20]
+
+# Spread: AVAX orderboek iets dunner dan SOL op Binance perp.
+# Empirische Binance-perp 2023-2025 round-trip ≈ 10-14bp → conservatief 12bp.
+spread: 0.0012                  # round-trip 12bp
+half_spread: 0.0005             # voor PrimaryScout.from_config (5bp one-way)
+
+# Sample-weight time-decay: 120 dagen.
+# AVAX subnet-lanceringen en ecosystem-shifts zorgen voor snelle regime-rotaties
+# (~3-4 maanden cycli). Tussen ETH (180d) en SOL (90d) in.
+sample_weight_decay_days: 120
+
+# Gap-risk ATR-multiple: 2.0
+# Avalanche bridge-exploits (Wormhole, Nomad) en subnet-failures → 10-20% gap-downs
+# mogelijk. Minder dan SOL (2.5) omdat Avalanche zelf stabieler is dan Solana-validators.
+gap_atr_multiple: 2.0
+
+# Spearman dedup threshold: 0.20
+# AVAX features zijn idiosyncratisch genoeg (subnet-metrics, AVAX-staking apr) om
+# meer feature-diversiteit te bewaren dan BTC/ETH.
+spearman_cluster_threshold: 0.20
+
+# CPCV bar-space purging: t_max=16 → purge_bars=17
+cpcv_purge_bars: 17
+
+# Bandit adaptatiesnelheid — vergelijkbaar met SOL maar iets trager; AVAX heeft
+# minder abrupte network-outages dan Solana.
+bandit_gamma_max: 0.993
+
+# Leverage caps — conservatief door gap-risk (subnet/bridge events).
+max_leverage: 1.5
+max_portfolio_leverage: 1.5
+max_portfolio_leverage_bidir: 3.0
+
+# Optuna trial-budget
+optuna_trials: 200
+
+# Adaptive SL-barrier (wick-gebaseerd): 0.30
+# Bij subnet-failures en bridge-exploits is de intrabar wick-ratio een directe
+# proxy voor jump-intensiteit. Minder agressief dan SOL (0.5) maar noodzakelijk.
+# Formule: SL_eff = sl_width × (1 + 0.30 × wick_score)
+sl_jump_max_mult: 0.3
+
+# Asset-niveau drawdown circuit-breaker: 15%
+# AVAX fat-tail events rechtvaardigen vroege positie-reductie; gelijk aan SOL.
+dd_breaker_threshold: 0.15
+
+# =============================================================================
+# SHORT-MODEL VERBETERING (Agent C — 2026-05-22)
+# Root cause: AVAXUSDT_SHORT vuurde 0 actieve signalen in 2026 bear-markt
+# (max_prob=0.378). Drie oorzaken:
+#   1. cusum_threshold_multiplier=2.2 is te hoog voor bear-regime: DOWN-impulsen
+#      worden gefilterd als "ruis" terwijl ze structurele SHORT-entries zijn.
+#      Verlaging naar 1.6 geeft ~2× meer events met behoud van structurele kwaliteit.
+#   2. label_pt_width=2.0 is te groot voor SHORT in trending bear-markten:
+#      SHORT trades bereiken PT sneller (trend-versterking) → verkleinde PT
+#      betekent meer label=1 samples → betere SHORT-training.
+#   3. label_sl_width=1.0 is te ruim voor SHORT: een SHORT die 1×ATR tegen zit
+#      is al een fout signaal in een bear-trend → tighter SL geeft schonere
+#      negatieve voorbeelden.
+# Implementatie: SHORT-specifieke CUSUM en label-parameters.
+# OPGELET: train_cpcv.py + tune_hparams.py lezen label_pt_width/sl_width
+# NIET side-specifiek. Deze YAML-keys zijn nu beschikbaar voor een toekomstige
+# patch die side="SHORT" check toevoegt in _build_target_store().
+# Zie ook de conf_config.yaml aanbevelingen onderaan dit bestand.
+# =============================================================================
+
+# SHORT-specifieke CUSUM drempel (lager = meer DOWN events worden meegenomen)
+# In bear-markt: DOWN-impulsen zijn het signaal, niet de ruis.
+# Default cusum_threshold_multiplier=2.2 filtert te veel SHORT-entries weg.
+# Aanbevolen waarde voor SHORT: 1.6 (geeft ~2× meer events vs 2.2)
+cusum_threshold_multiplier_short: 1.6
+
+# SHORT-specifieke label barriers (asymmetrisch t.o.v. LONG)
+# Bear-trend: price valt sneller dan bull-bounce → kleiner PT is realistischer.
+# Tighter SL: SHORT die direct SL raakt is een FOUT signaal (goed negatief voorbeeld).
+label_pt_width_short: 1.5    # vs 2.0 voor LONG (bear-trends overshooten minder dan bull-bounces)
+label_sl_width_short: 0.8    # vs 1.0 voor LONG (tight SL voor SHORT = schonere labels)
+
+# SHORT min_conf override (voor wanneer tune_hparams SHORT-specifiek search range ondersteunt)
+# Gemiddelde gecalibreerde SHORT prob = ~0.20-0.30. Min_conf=0.35 (global default)
+# is al te hoog voor weinig-signaal SHORT modellen.
+# Aanbevolen max voor SHORT Optuna search: 0.42 (zie conf_config.yaml aanbevelingen).
+min_conf_short_max: 0.42

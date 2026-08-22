@@ -1,0 +1,126 @@
+name: Nightly Regression
+
+on:
+  schedule:
+    - cron: "0 2 * * *"    # 02:00 UTC nightly
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: regression + slow tests — bit-equivalence vs DVC-tracked baselines
+  # ---------------------------------------------------------------------------
+  regression:
+    name: Regression (bit-equivalence + slow tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install deps
+        run: pip install -e ".[dev]" --no-cache-dir
+      - name: Regenerate baselines (first run only)
+        run: python apps/regenerate_baseline.py || true
+      - name: Run slow + regression tests
+        run: pytest -m "slow or regression" -q --tb=short --maxfail=10
+      - name: Archive baseline artefacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regression-baselines
+          path: tests/regression/baselines/
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Numba kernel benchmarks — assert performance budgets (Wave 12)
+  # ---------------------------------------------------------------------------
+  benchmark:
+    name: Numba kernel benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install deps
+        run: pip install -e ".[dev]" --no-cache-dir
+      - name: Benchmark
+        run: pytest -m benchmark -q --tb=short -o log_cli=true
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-${{ github.run_id }}
+          path: |
+            .benchmarks/
+            reports/benchmarks/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Job 3: drift monitor — PSI/KS over live feature snapshots (Wave 12)
+  # ---------------------------------------------------------------------------
+  drift-check:
+    name: Feature drift monitor
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: regression
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install deps
+        run: pip install -e ".[dev]" --no-cache-dir
+      - name: Drift check (PSI > 0.20 = alert)
+        run: python -m apps.monitor_drift || true
+      - name: Upload drift report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drift-report-${{ github.run_id }}
+          path: artefacts/monitoring/drift_report.json
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Job 4: TCA roundtrip — pre-trade estimate vs post-trade actuals
+  # ---------------------------------------------------------------------------
+  tca-report:
+    name: TCA roundtrip report
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: regression
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install deps
+        run: pip install -e ".[dev]" --no-cache-dir
+      - name: TCA integration tests
+        run: pytest tests/integration/test_tca_roundtrip.py -q --tb=short
+      - name: TCA daily summary
+        run: |
+          python -c "from tradebot.tca.report import generate_tca_summary; \
+                     import pathlib; \
+                     out = pathlib.Path('reports/tca'); out.mkdir(parents=True, exist_ok=True); \
+                     generate_tca_summary(state_dir='${{ runner.workspace }}/.tradebot_state', \
+                                          output_dir=str(out))" || true
+      - name: Upload TCA report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tca-report-${{ github.run_id }}
+          path: reports/tca/
+          retention-days: 30

@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------
+# Tradebot .gitignore
+# Phase 0 (ARCHITECTUUR_AUDIT_2026-08-22, sectie 23 / deliverable 1).
+#
+# Doctrine: shadow trees blijven buiten versiebeheer. Data staat onder DVC,
+# nooit rechtstreeks in git. Uitzondering: kleine, expliciet vrijgegeven
+# fixtures onder tests/ (zie de negatieve patronen onderaan).
+# ---------------------------------------------------------------------------
+
+# --- Python bytecode / build artefacts -------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Tool caches (shadow trees, D-hygiene) ---------------------------------
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+catboost_info/
+.ipynb_checkpoints/
+
+# --- Virtual environments ---------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+
+# --- Runtime output (niet-reproduceerbaar, hoort niet in versiebeheer) ------
+outputs/
+logs/
+*.log
+
+# --- Secrets ----------------------------------------------------------------
+# .env bevat exchange-credentials. Nooit committen.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# --- Data: DVC-tracked, niet git-tracked ------------------------------------
+# De PIT store en alle ruwe/afgeleide datasets staan onder DVC (Phase 1).
+# Alleen de .dvc-pointerbestanden gaan mee in git.
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.npy
+*.npz
+market_data_parquet/
+data/pit_store/
+
+# --- DAG-artefacten (D-8): mappen bestaan, inhoud is reproduceerbaar --------
+artefacts/features/*
+artefacts/models/*
+artefacts/tracks/*
+!artefacts/features/.gitkeep
+!artefacts/features/README.md
+!artefacts/models/.gitkeep
+!artefacts/models/README.md
+!artefacts/tracks/.gitkeep
+!artefacts/tracks/README.md
+
+# --- DVC interne staat ------------------------------------------------------
+/.dvc/cache
+/.dvc/tmp
+/.dvc/config.local
+
+# --- Editor / OS ------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Expliciete uitzonderingen ----------------------------------------------
+# Kleine, deterministische testfixtures mogen wel mee: zij zijn onderdeel van
+# het bewijs dat de lookahead-gates reproduceerbaar zijn.
+!tests/**/fixtures/**/*.parquet

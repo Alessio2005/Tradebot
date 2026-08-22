@@ -1,0 +1,31 @@
+# Build context exclusions — keep Docker layers small.
+.git/
+.dvc/
+.vscode/
+.idea/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.numba_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+build/
+dist/
+
+# Artefacts: bind-mount these via volumes, do not bake into image.
+artefacts/
+market_data_parquet/
+saved_models/
+reports/
+notebooks/.ipynb_checkpoints/
+
+# Local secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Local docker state
+infra/compose/state/

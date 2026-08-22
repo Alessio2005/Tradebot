@@ -1,0 +1,39 @@
+# conf/config.yaml — Hydra base config for tradebot v3.0
+defaults:
+  - env: dev
+  - strategy: balanced
+  - risk: default
+  - _self_
+
+# Project-wide settings
+project:
+  name: tradebot
+  version: "1.0.0"
+  seed: 42
+
+# Live trading defaults (overridden by env/*.yaml)
+live:
+  mode: paper
+  symbols:
+    - BTCUSDT
+    - ETHUSDT
+    - SOLUSDT
+    - AVAXUSDT
+    - LINKUSDT
+    - DOTUSDT
+  interval: 1h
+  initial_equity: 100000.0
+  audit_log: artefacts/audit/audit.jsonl
+
+# Data paths
+data:
+  market_data_root: market_data_parquet
+  feature_store_root: artefacts/feature_store
+  artefacts_root: artefacts
+
+# Circuit breaker defaults
+circuit_breaker:
+  max_drawdown_pct: 0.08
+  max_daily_loss_pct: 0.03
+  feed_timeout_sec: 30
+  max_position_age_h: 48

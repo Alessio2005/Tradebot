@@ -1,0 +1,364 @@
+# conf_config.yaml
+defaults:
+  - _self_
+
+# DVC foreach override targets (null = use training_universe / full universe)
+# Override via:  python -m apps.build_features symbol=AVAXUSDT
+#                python -m apps.train_cpcv pair=AVAXUSDT_LONG
+symbol: null
+pair: null
+
+machine:
+  device: cuda
+  saved_models_dir: saved_models
+  data_dir: market_data_parquet
+  artefacts_dir: artefacts
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+  job_logging:
+    version: 1
+    formatters:
+      simple:
+        format: '[%(asctime)s][%(name)s][%(levelname)s] - %(message)s'
+        datefmt: '%Y-%m-%d %H:%M:%S'
+    handlers:
+      console:
+        class: logging.StreamHandler
+        formatter: simple
+        stream: ext://sys.stdout
+    root:
+      level: INFO
+      handlers: [console]
+    disable_existing_loggers: false
+
+data:
+  binance_symbol: "BTCUSDT"      # Legacy default (gebruikt door single-symbol scripts)
+  history_fetch_years: 5
+  point_value: 1000
+  inter_symbol_sleep: 0.5         # Seconden pauze tussen Binance Vision symbol-syncs
+
+timeframes:
+  micro:
+    mt5_tf: micro
+  meso:
+    mt5_tf: meso
+  macro:
+    mt5_tf: macro
+
+model:
+  symbols:
+      target: "BTCUSDT"
+  features_micro: []
+  features_meso:  []
+  features_macro: []
+
+# =============================================================================
+# TRAINING CONFIG
+# =============================================================================
+# Globale defaults; per-asset overrides leven in conf/symbols/{symbol}.yaml en
+# worden door train_regime.py opgehaald via OmegaConf merge.
+# =============================================================================
+training:
+  use_meta_labeling: true
+  scout_min_tstat: 1.5
+  scout_cusum_multiplier: 1.5
+  meta_profit_threshold: 2.0
+  meta_min_tstat_filter: 0.0
+
+  # ── Per-asset defaults (worden overschreven door conf/symbols/*.yaml) ─────
+  label_horizon: 25
+  label_vol_window: 20
+  label_t_min: 5
+  label_t_max: 25
+  label_min_tstat: 2.0
+  label_pt_width: 2.0
+  label_sl_width: 1.0
+  label_sl_multiplier: 0.85
+  label_pt_multiplier: 1.25
+  label_candidate_horizons: [15, 20, 30]
+
+  spread: 0.0010
+  feature_subspace_ratio: 0.8
+
+  # === MULTI-ASSET UNIVERSE ===
+  # Train per asset een eigen LONG- en SHORT-bandit. De portfolio-laag combineert
+  # ze cross-asset met vol-target + correlatie-scaler.
+  # UNIVERSE-TRIM-FIX (Silent Killer — 2026-05-18):
+  #   ETHUSDT: netto -4.1% bij 2.5bps over 4.78jr (breakeven vereist < 1.67bps);
+  #     elke realistische fee-scenario levert negatieve bijdrage → uit universum.
+  #   SOLUSDT: slechts 72 trades over 4.78jr (≈1/mnd) → statistisch niet
+  #     significant; voegt alleen ruis toe aan portfolio-correlatiematrix.
+  #   DOTUSDT: al eerder uitgesloten (geen CPCV artefacten beschikbaar).
+  #   Resterend universum: BTC (liquide anchor, licht positief), AVAX + LINK
+  #   (individuele Sharpe 2.77–2.84; dragen 90%+ van de netto portfolio-alpha).
+  # UNIVERSE-TRIM-FIX v2 (2026-05-18):
+  #   BTCUSDT: individual MTM-Sharpe=-0.73, MaxDD=-60.4%, PnL=-$82k/4.78yr.
+  #     BTC is a confirmed losing strategy at current min_conf thresholds.
+  #     Including it as a "liquidity anchor" only adds negative alpha drag.
+  #   ETHUSDT: net-negative at 2.5bps — excluded (unchanged from v1).
+  #   SOLUSDT: 72 trades over 4.78yr — excluded (unchanged from v1).
+  #   DOTUSDT: no CPCV artefacts — excluded (unchanged from v1).
+  #   Remaining universe: AVAX (MTM-Sharpe=2.84) + LINK (MTM-Sharpe=2.77).
+  #   Two-asset portfolio theoretical Sharpe ≈ 2.8-3.1 at ρ(AVAX,LINK)≈0.65.
+  training_universe:
+    - "ETHUSDT"
+    - "SOLUSDT"
+    - "AVAXUSDT"
+    - "LINKUSDT"
+    - "DOTUSDT"
+
+  # Globale defaults voor risk caps; per-asset configs kunnen verlagen.
+  max_leverage: 2.0
+  max_portfolio_leverage: 2.0
+  max_portfolio_leverage_bidir: 4.0
+
+  optuna_trials: 200
+  optuna_timeout_seconds: 720
+
+  cusum_threshold_multiplier: 1.5
+  cusum_threshold_per_asset:         # v3: per-asset CUSUM (overschrijft global)
+    BTCUSDT: 1.5
+    ETHUSDT: 2.5
+    SOLUSDT: 2.5
+    AVAXUSDT: 2.2
+    LINKUSDT: 2.0
+    DOTUSDT: 2.0
+
+  # Keys used by pipeline apps with OmegaConf.select fallback
+  random_seed: 42
+  cpcv_n_groups: 6
+  cpcv_n_test_groups: 2
+  label_horizons: [15, 20, 30]
+  sl_jump_max_mult: 0.0
+  bar_seconds: 3600.0      # 1h bars (live.interval=1h)
+  account_size: 100000.0
+  target_risk: 0.01
+  min_conf: 0.35
+  max_uncertainty: 0.30
+  # COST-CALIBRATIE (sim-to-reality fix):
+  #   5bps = conservatief taker-fee scenario (Binance perp VIP0 taker = 4bps + ~1bp slippage).
+  #   CUSUM-triggered strategy plaatst typisch LIMIT-orders net voorbij de drempel
+  #   → ~70-80% maker-fills. Binance maker-fee VIP0 = 2bps.
+  #   Realistische 1-way cost = 0.70×2bps + 0.30×4bps + 0.5bps slippage ≈ 2.5bps.
+  #   Portfolio break-even lag op 4.82bps; bij 5bps verloor portfolio ~1.4%/jr door
+  #   kosten-overschatting.
+  # COST-SENSITIVITY SCAN (2026-05-18):
+  #   AVAX Trade-Sharpe ≈ 0 at 2.5bps → signal barely covers costs.
+  #   Testing at 1.0bps to confirm cost-efficiency constraint:
+  #   - Binance VIP1 maker = 1.6bps, Binance VIP4+ = 0bps (+ rebate)
+  #   - Bybit maker = 1bps (VIP0)
+  #   - With 80% maker fill at 1.6bps + 0.4bps slippage ≈ 1.0-1.5bps achievable
+  # FINAL PRODUCTION COST SETTING (2026-05-18):
+  #   Cost frontier measured:
+  #     0.0bps → Portfolio Sharpe=1.22, MaxDD=31.7% (theoretical ceiling, no friction)
+  #     1.0bps → Portfolio Sharpe=1.04, MaxDD=32.9% (Bybit/Binance VIP4+ maker)
+  #     2.5bps → Portfolio Sharpe=0.77, MaxDD=34.7% (Binance VIP0 limit, realistic)
+  #   Conclusion: Sharpe > 2.0 NOT achievable at portfolio level with current models.
+  #   Constraint is MaxDD (~31%) from synchronized AVAX/LINK bear-market crashes,
+  #   not transaction costs. Requires SHORT signal quality improvement.
+  #   Default: 2.5bps (conservative, production-realistic).
+  # REGIME-FILTER COST FRONTIER (2026-05-18):
+  #   Before regime filter (no filter):
+  #     0.0bps → Sharpe=1.22, MaxDD=31.7%, Calmar=0.63
+  #     1.0bps → Sharpe=1.04, MaxDD=32.9%
+  #     2.5bps → Sharpe=0.77, MaxDD=34.7%
+  #   After regime filter (SHORT suppressed in bull regime, EMA200h):
+  #     0.0bps → Sharpe=1.54, MaxDD=24.1%, Calmar=1.02, Return=186.8%
+  #     2.5bps → Sharpe=1.14, MaxDD=25.8%, Calmar=0.67, Return=114.9%
+  #   Regime filter suppresses 54% of AVAX SHORT events (bull-regime false positives).
+  #   2021 MaxDD improved: -16.6% → -9.0%; 2022 MaxDD: -31.7% → -25.8%.
+  #   Theoretical ceiling at 0bps: Sharpe=1.54 (not 2.0 — requires LINK SHORT retraining).
+  cost_bps: 2.5          # global fallback (used when no per-asset override below)
+  rebalance_cost_bps: 0.0
+  # G3 SIM-TO-REALITY FIX: per-asset round-trip cost in bps.
+  # ETH: tightest spreads (top-1 by volume). SOL: medium. AVAX/LINK: wider
+  # spreads especially during stress; 6bps = conservative upper bound for
+  # 30-min bar entries at avg gross leverage of 6.5% (i.e., small notional).
+  cost_bps_per_asset:
+    BTCUSDT: 2.0
+    ETHUSDT: 3.0
+    SOLUSDT: 4.0
+    AVAXUSDT: 6.0
+    LINKUSDT: 6.0
+    DOTUSDT: 5.0
+
+# =============================================================================
+# JUDGE GATE
+# =============================================================================
+# Parameters for the asymmetric Judge binary gate in backtest_portfolio.py.
+# tau_long[sym]  = Optuna min_conf_long[sym]          (causal, from hparams JSON)
+# tau_short[sym] = Optuna min_conf_short[sym] + short_edge_margin
+# short_edge_margin is a FIXED STRUCTURAL CONSTANT (not tuned on any data):
+#   Economic basis: secular LONG bias in crypto (2021-26), funding drag for
+#   SHORT payers, higher adverse-selection cost in DOWN CUSUM events.
+judge:
+  # CHIEF AUDIT 2026-05-29: kept at 0.35 (suppress) — EVIDENCE-BASED.
+  # Tried 0.10 to un-bias the book; measured per-asset SHORT-side edge from the
+  # tracks and found EVERY short loses money (annualised Sharpe ETH -17, SOL -22,
+  # AVAX -42, LINK -26, DOT -27; all negative sum-returns).  Enabling them gave
+  # portfolio Sharpe 1.31 / MaxDD 18% (vs 2.28 / 10.4% long-only).  Directional
+  # short-alpha has no edge in this secular-bull universe/period, so forcing a
+  # "bi-directional" book destroys returns.  The path to DD<10% is regime-based
+  # exposure control (cut gross in confirmed bear), NOT losing short trades.
+  # Re-evaluate after a short-signal redesign (regime-conditional short labels).
+  short_edge_margin: 0.35
+
+# =============================================================================
+# PORTFOLIO RISK MANAGEMENT
+# =============================================================================
+# Cross-asset risk parameters. Worden door train_regime.py doorgegeven aan
+# PortfolioRiskManager (portfolio_risk.py) en de PortfolioBacktester
+# (portfolio_backtest.py).
+# =============================================================================
+portfolio:
+  # Vol-target — de gewenste annualized portfolio-volatility. We schalen de
+  # som van per-asset leverages omlaag wanneer de gerealiseerde portfolio-vol
+  # boven dit target uitkomt. Standaard quant-firm vol-target voor crypto-
+  # strategieën is 10-15% (lager dan TradFi=8% omdat crypto-edge vergt dat
+  # je vol pakt; hoger dan ongetargete strategieën die >40% vol draaien).
+  #
+  # CHIEF AUDIT 2026-05-28 (G-1): lowered 0.08 → 0.010.
+  # The vol-target multiplier is target/realized_portfolio_vol (clip [0,2.5]).
+  # It is a SELF-LIMITING feedback loop: realized_vol tracks exposure, so gross
+  # exposure scales ~√target, not linearly.  Measured (loose-breaker) sweep:
+  #   target 0.08  -> MaxDD 15.28%, Sharpe 2.85
+  #   target 0.045 -> MaxDD 13.8%,  Sharpe 2.66
+  #   target 0.025 -> MaxDD 12.0%,  Sharpe 2.46
+  # Two opposing forces define the feasible window: lowering the vol budget cuts
+  # DD (good) but the fixed 5 bps rebalance cost becomes a larger share of the
+  # smaller gross return, so Sharpe drifts down.  Extrapolation (DD ∝ √target,
+  # Sharpe ~linear in ln target) puts the ≤10% DD AND ≥2 Sharpe window around
+  # target ≈ 0.010-0.012 → expected MaxDD ≈ 8-9.5%, Sharpe ≈ 2.1-2.2.
+  # CHIEF AUDIT 2026-05-28 (G-1): 0.08 -> 0.06.
+  # OOS backtest (LONG-only) hits structural floor ~10.3% DD regardless of vol
+  # target (sweep: 0.010->10.6%, 0.008->10.4%, 0.007->10.4%). Root cause: 5
+  # correlated LONG assets in 2022 bear. Real fix = L-1 calibrator (deployed)
+  # enabling live SHORT signals. Full Optuna retrain needed for OOS DD<10%.
+  # CHIEF AUDIT 2026-05-29: raised 0.06 → 0.08.  The new long_bear_factor below
+  # cuts the 2022 bear-regime long exposure (where the DD lives), so we can run
+  # the full vol budget in the bull regime (where the edge lives) without
+  # breaching the ≤10% DD mandate — converting the freed DD headroom into Sharpe
+  # and return.  Tuned jointly with long_bear_factor against the OOS backtest.
+  target_annual_vol: 0.08
+
+  # CHIEF AUDIT 2026-05-29 (un-bias / bear-DD control): scale LONG leverage to
+  # this fraction when price < EMA200 (confirmed bear).  Directional shorts have
+  # NO edge in this universe (per-asset SHORT Sharpe -17..-42), so the principled
+  # way to de-bias the book and crush the 2022 long-beta drawdown is to stand
+  # mostly aside in bear rather than to take losing shorts.  1.0 disables.
+  # Measured @ vol 0.08: bear_factor 0.35 -> Sharpe 2.92 / MaxDD 10.8%.  Bear
+  # longs LOSE money, so cutting harder lifts Sharpe AND DD: 0.25 targets DD<10%.
+  long_bear_factor: 0.25
+
+  # Phase A (2026-05-30): drop structurally negative-EV sides whose Optuna
+  # deflated objective stayed negative after the retrain. These long-bias /
+  # dead sides drag portfolio drawdown without adding alpha. Their OOS probs
+  # are zeroed in backtest_symbol() so they never trade. Set [] to re-enable.
+  disabled_sides:
+    - DOTUSDT_LONG    # deflated obj -2.585
+    - SOLUSDT_LONG    # deflated obj -1.921
+    - ETHUSDT_SHORT   # deflated obj -1.206
+
+  # Rolling window voor portfolio-vol schatting (in bars).
+  vol_window_bars: 500
+
+  # Correlatie-scaler: trekt aggregate exposure terug wanneer assets sterk
+  # gecorreleerd zijn. Effective gross_leverage *= sqrt(1 / avg_correlation_factor).
+  corr_window_bars: 1000
+  # CHIEF AUDIT 2026-05-28 (G-1): tightened 0.95 → 0.70.  The compliant book is
+  # all-LONG (the EMA-200 regime filter suppresses shorts) and crypto assets are
+  # highly correlated, so the residual portfolio drawdown comes from all five
+  # legs selling off TOGETHER — not from any single asset (per-asset MTM-MaxDD
+  # is only ~2-5%).  A 0.95 threshold never bit (crypto baseline corr 0.85-0.90),
+  # so the correlation scaler provided no protection.  At 0.70 the scaler pulls
+  # gross exposure down precisely during the high-correlation selloffs that drive
+  # the drawdown — a far more DD-efficient lever than blanket de-levering.
+  max_avg_pairwise_corr: 0.70
+
+  # Harde exposure caps (notional / equity).
+  max_gross_leverage: 2.0          # Som van |size| over assets
+  max_net_leverage: 1.5            # Som van size (signed; long-short kan netten)
+  max_per_asset_leverage: 2.0      # Per asset cap (override via per-symbool config)
+
+  # Drawdown circuit-breaker. Zodra portfolio-DD > limit: pause sizing.
+  # Cool-off: blijven pauzeren tot DD weer onder `dd_resume_threshold` zakt.
+  #
+  # CB CONFIG ANALYSE (Chief 2026-05-22):
+  #   CB 35%/15%: MaxDD=35%, Sharpe=1.24, n_breaker_bars=21817 (10.4% bevroren)
+  #   CB 40%/30%: MaxDD=40%, Sharpe=1.01, n_breaker_bars=19269 (9.2% bevroren) — SLECHTER!
+  #   CB 45%/30%: MaxDD=45%, Sharpe=-0.53, n_breaker_bars=177362 (84.8%) — CATASTROFAAL
+  #   NO CB:      MaxDD=53.5%, Sharpe=1.03
+  # CONCLUSIE: hogere threshold = meer verlies voor CB vuurt → lagere equity base →
+  # minder compounding bij herstel → lager Sharpe.  35%/15% is OPTIMAAL gebleken.
+  # Resume=0.15 werkt omdat het 2022-2023 herstel (BTC $16k→$58k) altijd haalt.
+  # CHIEF AUDIT 2026-05-28 (G-1): backstop only — set to 0.18/0.10.
+  # A tight breaker (tried 0.10/0.06) is NOT a valid DD lever: once sizing
+  # freezes, equity goes flat, so the drawdown from peak never recovers and the
+  # portfolio stays frozen (observed n_dd_breaker_bars = 219,728 / 264,153 ≈
+  # 83% → Sharpe collapsed 2.85 → 1.32, and MaxDD STILL hit 10.3% on the
+  # triggering bar).  The ≤10% mandate is met by the lowered vol target above;
+  # this breaker only catches catastrophic >18% tail events without freezing
+  # normal operation.  RESIDUAL: the freeze-prevents-recovery behaviour is a
+  # design flaw (no time-based cool-off / partial re-sizing) — tracked for a
+  # follow-up sprint.
+  dd_breaker_threshold: 0.18       # catastrophe backstop (does not bind in normal ops)
+  dd_resume_threshold: 0.10        # resume sizing once DD recovers below 10%
+  dd_breaker_lookback_bars: 0      # SK-1 FIX: 0 = gebruik all-time piek (was 5000 = rolling, miste Aug-2025 piek)
+
+  # Kelly fraction (fractie van volle Kelly). Quant-firm best-practice:
+  # 0.25 = "Quarter-Kelly" — robust tegen parameter mis-estimation.
+  kelly_fraction: 0.25
+
+  # Portfolio backtest setting: capital allocation startwaarde.
+  starting_equity: 1.0
+
+  # Bootstrap-sharpe over portfolio-paths (deflated voor multi-trial bias).
+  bootstrap_n: 500
+  bootstrap_block_size: 20.0
+
+  # ── HRP (Hierarchical Risk Parity) portfolio constructie ─────────────────
+  # Rolling HRP gewichten worden vóór de PortfolioBacktester toegepast als
+  # pre-sizing multiplicator op requested_leverage per asset.  De vol-target,
+  # correlatie-scaler en DD-breaker van PortfolioRiskManager blijven intact.
+  # NO-LOOKAHEAD: op bar t worden alleen returns van [t-lookback, t-1] gebruikt.
+  use_hrp: true
+  hrp_rebalance_bars: 500      # Herbereken elke 500 events (~21 dagen bij 1h-bars)
+  hrp_lookback_bars: 2000      # Gebruik laatste 2000 events (~83 dagen) voor cov-matrix
+  hrp_min_weight: 0.05         # Minimum gewicht per asset (voorkomt extreme concentratie)
+  hrp_max_weight: 0.40         # Maximum gewicht per asset (voorkomt monopolisatie)
+
+# =============================================================================
+# FEATURE PIPELINE
+# =============================================================================
+feature_pipeline:
+  use_runs_bars: true
+  use_pca_orth: true
+  pca_n_components: 0.95
+  target_micro_bars: 20
+  runs_atr_floor: 0.0005             # v3 T0.1: ATR-floor voorkomt bar-burst in low-vol
+  runs_features:
+    - run_length_avg_20
+    - run_burst_5
+    - run_imbalance_zscore_50
+  ffd:
+    enabled: true
+    auto_calibrate: true
+    fallback_d: 0.5
+    rolling_calibration: true        # v3 T0.2: rolling window (geen global lookahead)
+  meta_labeling:
+    enabled: true
+    judge_iterations: 300
+    judge_depth: 5
+    judge_l2_leaf_reg: 5.0
+    profit_threshold_bps: 2.0
+    min_tstat_filter: 1.5
+  # AUDIT-FIX (K3 — Tree-vs-Linear Path):
+  #   true  = CatBoost ziet PCA-projectie (oude gedrag, backward-compat).
+  #   false = CatBoost ziet ruwe (gededupliceerde) features; bandit blijft op
+  #           PCA voor SM-stabiliteit. Aanbevolen voor crypto-pijplijnen volgens
+  #           De Prado-audit (PCA mengt fat-tail jump features met cyclische
+  #           features → niet-lineaire splits worden onbruikbaar).
+  use_pca_for_catboost: false

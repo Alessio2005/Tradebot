@@ -1,0 +1,109 @@
+# =============================================================================
+# docker-compose.dev.yml — local research stack
+# Brings up: tradebot research container, TimescaleDB (bar-store), MinIO
+# (artefacts), Optuna RDB. Used for local DVC repro and notebook work.
+# Start: `docker compose -f infra/compose/docker-compose.dev.yml up -d`
+# =============================================================================
+version: "3.9"
+
+services:
+  # --------------------------------------------------------------------------
+  # Research container — Jupyter + full pipeline
+  # --------------------------------------------------------------------------
+  research:
+    container_name: tradebot-research
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.research
+    image: tradebot/research:0.5.0
+    ports:
+      - "8888:8888"   # JupyterLab
+      - "5000:5000"   # MLflow UI (mlflow ui --host 0.0.0.0)
+    environment:
+      - OPTUNA_STORAGE=postgresql+psycopg2://optuna:optuna@optuna_db:5432/optuna
+      - TIMESCALE_DSN=postgresql://tradebot:tradebot@timescaledb:5432/bars
+      - MLFLOW_TRACKING_URI=file:///opt/tradebot/artefacts/mlruns
+      - PYTHONPATH=/opt/tradebot/src:/opt/tradebot
+    volumes:
+      - ../../:/opt/tradebot:rw
+      - numba_cache_dev:/opt/tradebot/.numba_cache
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      optuna_db:
+        condition: service_healthy
+    networks: [tradebot_dev]
+
+  # --------------------------------------------------------------------------
+  # TimescaleDB — bar storage, monitoring metrics
+  # --------------------------------------------------------------------------
+  timescaledb:
+    image: timescale/timescaledb:2.14.0-pg15
+    container_name: tradebot-timescale
+    environment:
+      - POSTGRES_USER=tradebot
+      - POSTGRES_PASSWORD=tradebot
+      - POSTGRES_DB=bars
+    ports: ["5433:5432"]
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tradebot -d bars"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [tradebot_dev]
+
+  # --------------------------------------------------------------------------
+  # MinIO — S3-compatible artefact store (DVC remote target)
+  # --------------------------------------------------------------------------
+  minio:
+    image: minio/minio:RELEASE.2024-03-30T09-41-56Z
+    container_name: tradebot-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # console
+    environment:
+      - MINIO_ROOT_USER=tradebot
+      - MINIO_ROOT_PASSWORD=tradebot_minio
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [tradebot_dev]
+
+  # --------------------------------------------------------------------------
+  # Optuna RDB — backend for distributed hyperparameter search
+  # --------------------------------------------------------------------------
+  optuna_db:
+    image: postgres:15-alpine
+    container_name: tradebot-optuna-db
+    environment:
+      - POSTGRES_USER=optuna
+      - POSTGRES_PASSWORD=optuna
+      - POSTGRES_DB=optuna
+    ports: ["5434:5432"]
+    volumes:
+      - optuna_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U optuna -d optuna"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [tradebot_dev]
+
+volumes:
+  timescale_data:
+  minio_data:
+  optuna_data:
+  numba_cache_dev:
+
+networks:
+  tradebot_dev:
+    driver: bridge

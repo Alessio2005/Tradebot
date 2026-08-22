@@ -1,0 +1,95 @@
+# conf/symbols/LINKUSDT.yaml
+# Per-asset overrides for LINKUSDT (Chainlink).
+#
+# Vol-profiel: ~75-90% annualized — tussen ETH en SOL in. Cruciale eigenschap:
+# LAAGSTE pairwise correlatie met BTC (ρ≈0.62) van alle Tier-1 assets. Oracle-
+# specifieke volatiliteits-drivers (CCIP-releases, staking V2-events, oracle
+# integrations) creëren idiosyncratische structurele moves die CUSUM triggeren.
+asset_class: crypto
+binance_symbol: LINKUSDT
+
+# CUSUM event-filter — vol-profiel ligt tussen ETH (1.7) en SOL (2.0) in.
+# Oracle-events zijn typisch scherp en directioneel → multiplier 1.9 laat
+# voldoende events door (~6-9 per dag op 1h bars) zonder ruis.
+cusum_threshold_multiplier: 1.9
+
+# Label-horizon: 20 bars — oracle-gedreven momentum is persistenter dan SOL.
+# CCIP/staking-events hebben typisch een 15-30 bar follow-through.
+label_horizon: 20
+label_t_min: 5
+label_t_max: 20
+label_min_tstat: 2.0
+label_pt_width: 2.0
+label_sl_width: 1.0
+label_candidate_horizons: [12, 16, 24]
+
+# Spread: LINK orderboek vergelijkbaar met SOL op Binance perp.
+# Empirische Binance-perp 2023-2025 round-trip ≈ 8-12bp → 10bp.
+spread: 0.0010                  # round-trip 10bp
+half_spread: 0.0004             # voor PrimaryScout.from_config (4bp one-way)
+
+# Sample-weight time-decay: 150 dagen.
+# Oracle-integratie-cycli zijn regelmatig (kwartaalsgewijs) maar niet extreem snel.
+# Tussen ETH (180d) en SOL (90d) — dichter bij ETH omdat LINK minder abrupte
+# regime-shifts kent.
+sample_weight_decay_days: 150
+
+# Gap-risk ATR-multiple: 1.8
+# Oracle-update-failures kunnen scherpe spikes veroorzaken maar zijn minder
+# catastrofaal dan netwerk-outages. Boven ETH (1.5) voor oracle-specifiek risico;
+# onder AVAX/DOT (2.0) omdat LINK zelf niet uitvalt.
+gap_atr_multiple: 1.8
+
+# Spearman dedup threshold: 0.18
+# LINK-features zijn enigszins idiosyncratisch (oracle-funding, staking-metrics)
+# maar minder dan SOL/AVAX — iets conservatiever dan die assets.
+spearman_cluster_threshold: 0.18
+
+# CPCV bar-space purging: t_max=20 → purge_bars=21
+cpcv_purge_bars: 21
+
+# Bandit adaptatiesnelheid — vergelijkbaar met AVAX; oracle-events zijn
+# regelmatig maar niet extreem abrupt.
+bandit_gamma_max: 0.993
+
+# Leverage caps — iets ruimer dan AVAX/DOT omdat LINK lagere tail-risk heeft
+# en de laagste porfolio-correlatie maximal benut kan worden.
+max_leverage: 1.5
+max_portfolio_leverage: 1.5
+max_portfolio_leverage_bidir: 3.0
+
+# Optuna trial-budget
+optuna_trials: 200
+
+# Adaptive SL-barrier (wick-gebaseerd): 0.20
+# Oracle-update-spikes zijn reëel maar minder extreem dan network-outages.
+# Conservatievere waarde dan AVAX/DOT.
+sl_jump_max_mult: 0.2
+
+# Asset-niveau drawdown circuit-breaker: 18%
+# Iets ruimer dan AVAX/SOL/DOT (0.15) omdat LINK minder fat-tail events heeft;
+# meer marge voor normale korte drawdown-periodes.
+dd_breaker_threshold: 0.18
+
+# =============================================================================
+# SHORT-MODEL VERBETERING (Agent C — 2026-05-22)
+# LINK heeft goede Sharpe (2.77) maar LINK SHORT prestaties in bear-regime
+# zijn vermoedelijk beperkt door dezelfde min_conf / barriere mismatch als
+# AVAX en DOT. LINK oracle-corrections zijn directioneel en scherp; de
+# cusum_threshold_multiplier=1.9 is acceptabel maar SHORT-barriers moeten
+# asymmetrisch zijn voor betere labeling.
+# =============================================================================
+
+# SHORT-specifieke CUSUM drempel
+# LINK oracle-corrections zijn structurele DOWN-impulsen. Geen grote
+# aanpassing nodig (1.9 is al redelijk voor LINK), maar SHORT profiteert
+# van een lichtere drempel.
+cusum_threshold_multiplier_short: 1.5
+
+# SHORT-specifieke label barriers
+# Oracle-gedreven corrections zijn directioneel maar niet extreem lang (~10-15 bars).
+label_pt_width_short: 1.5    # vs 2.0 voor LONG
+label_sl_width_short: 0.8    # tight SL voor cleanere negatieve LINK-SHORT labels
+
+# SHORT min_conf override
+min_conf_short_max: 0.42

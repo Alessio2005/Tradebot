@@ -1,0 +1,61 @@
+# =============================================================================
+# Dockerfile.runner — Tradebot v3.0
+# Slim image for batch DAG runs: data_sync, build_features, tune, train,
+# backtest_portfolio. No Jupyter, no dev deps. Used by: K8s CronJobs (Wave 11),
+# nightly CI regression, on-demand `dvc repro` runs.
+# =============================================================================
+ARG  PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Build wheels in a builder stage; final stage copies site-packages.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/tradebot
+COPY pyproject.toml ./
+COPY src/ ./src/
+COPY apps/ ./apps/
+
+RUN pip install --upgrade pip wheel \
+ && pip install --prefix=/install ".[ingestion]"
+
+# ----------------------------------------------------------------------------
+# Stage 2: minimal runtime
+# ----------------------------------------------------------------------------
+FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/opt/tradebot/src:/opt/tradebot \
+    NUMBA_CACHE_DIR=/opt/tradebot/.numba_cache
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgomp1 tini git ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /bin/bash --uid 10001 tradebot
+
+# Copy installed site-packages from builder.
+COPY --from=builder /install /usr/local
+
+WORKDIR /opt/tradebot
+COPY --chown=tradebot:tradebot src/   ./src/
+COPY --chown=tradebot:tradebot apps/  ./apps/
+COPY --chown=tradebot:tradebot conf/  ./conf/
+COPY --chown=tradebot:tradebot dvc.yaml params.yaml ./
+
+RUN mkdir -p ${NUMBA_CACHE_DIR} artefacts data \
+ && chown -R tradebot:tradebot /opt/tradebot
+
+USER tradebot
+
+HEALTHCHECK --interval=60s --timeout=15s --start-period=30s --retries=3 \
+    CMD python -m apps.doctor || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+# Default: invoke DVC repro. Override via `docker run ... apps.train_cpcv`.
+CMD ["dvc", "repro"]

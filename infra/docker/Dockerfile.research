@@ -1,0 +1,65 @@
+# =============================================================================
+# Dockerfile.research — Tradebot v3.0
+# Full research-environment: Jupyter, dev dependencies, all 27 packages.
+# Image used by: data scientists running notebooks, ad-hoc experiments, CPCV
+# studies via `dvc repro` on dev workstations or research VMs.
+# =============================================================================
+ARG  PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim-bookworm AS base
+
+# ----------------------------------------------------------------------------
+# Layer 1: OS deps. Build-essential for numba/catboost; git for count_git_commits.
+# ----------------------------------------------------------------------------
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        git \
+        curl \
+        libgomp1 \
+        ca-certificates \
+        tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------------------------------------------------------
+# Layer 2: Python wheels — install first (better cache hits than COPY src/)
+# ----------------------------------------------------------------------------
+WORKDIR /opt/tradebot
+COPY pyproject.toml ./
+COPY src/ ./src/
+COPY apps/ ./apps/
+
+RUN pip install --upgrade pip wheel \
+ && pip install -e ".[dev,ingestion]" \
+        jupyterlab>=4.0 ipywidgets matplotlib snakeviz mlflow>=2.10 \
+ && python -c "import tradebot, numba, catboost, pandera; print('research image OK')"
+
+# ----------------------------------------------------------------------------
+# Layer 3: Project files (last — fastest rebuild on iteration)
+# ----------------------------------------------------------------------------
+COPY conf/        ./conf/
+COPY dvc.yaml params.yaml Makefile ./
+COPY tests/       ./tests/
+COPY notebooks/   ./notebooks/
+
+# Numba ahead-of-time cache. Speeds first run on container start by ≥ 60 s.
+ENV NUMBA_CACHE_DIR=/opt/tradebot/.numba_cache
+RUN mkdir -p ${NUMBA_CACHE_DIR} && \
+    python -c "from tradebot.bars._kernels import numba_imbalance_bars, numba_runs_bars; \
+               from tradebot.cv.uniqueness import _calculate_average_uniqueness; \
+               print('numba kernels precompiled')"
+
+# ----------------------------------------------------------------------------
+# Layer 4: Healthcheck + entrypoint
+# ----------------------------------------------------------------------------
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD python -m apps.doctor || exit 1
+
+EXPOSE 8888
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", \
+     "--ServerApp.token=", "--ServerApp.password=", "--allow-root"]
