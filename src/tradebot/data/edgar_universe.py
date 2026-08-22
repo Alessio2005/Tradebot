@@ -48,19 +48,13 @@ def bulk_ingest(
 
     for i, t in enumerate(t for t in tickers if t.upper() in cik_map):
         cik = cik_map[t.upper()]
-        try:
-            f = edgar.fetch_company_facts(cik, sleep_s=0.0)
-            f["ticker"] = t.upper()
-            fund_frames.append(f)
-        except Exception as exc:  # noqa: BLE001
-            failures[t] = f"facts: {exc}"
+        f = edgar.fetch_company_facts(cik, sleep_s=0.0)
+        f["ticker"] = t.upper()
+        fund_frames.append(f)
         time.sleep(sleep_s)
-        try:
-            fi = edgar.fetch_filing_index(cik)
-            fi["ticker"] = t.upper()
-            filing_frames.append(fi)
-        except Exception as exc:  # noqa: BLE001
-            failures.setdefault(t, f"filings: {exc}")
+        fi = edgar.fetch_filing_index(cik)
+        fi["ticker"] = t.upper()
+        filing_frames.append(fi)
         time.sleep(sleep_s)
         if i % 50 == 0:
             print(f"  ...{i} companies done", flush=True)

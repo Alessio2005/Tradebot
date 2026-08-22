@@ -52,13 +52,10 @@ if not logger.handlers:
 
 def get_git_hash() -> str:
     """Haalt de huidige git commit hash op voor model versioning."""
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"],
-            stderr=subprocess.DEVNULL
-        ).decode("ascii").strip()
-    except Exception:
-        return "no_git"
+    return subprocess.check_output(
+        ["git", "rev-parse", "--short", "HEAD"],
+        stderr=subprocess.DEVNULL
+    ).decode("ascii").strip()
 
 
 @njit(parallel=True, cache=True)

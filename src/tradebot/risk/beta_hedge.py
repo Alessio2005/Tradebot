@@ -27,31 +27,26 @@ def _huber_beta(y: np.ndarray, x: np.ndarray) -> float:
     if len(y_c) < _MIN_OBS:
         return np.nan
 
-    try:
-        residuals = y_c - np.mean(y_c)
-        mad = max(np.median(np.abs(residuals - np.median(residuals))), 1e-10)
-        delta = 1.345 * mad
-        weights = np.ones(len(y_c))
+    residuals = y_c - np.mean(y_c)
+    mad = max(np.median(np.abs(residuals - np.median(residuals))), 1e-10)
+    delta = 1.345 * mad
+    weights = np.ones(len(y_c))
 
-        for _ in range(10):
-            X_mat = np.column_stack([np.ones(len(x_c)), x_c])
-            W = np.diag(weights)
-            try:
-                coefs, _, _, _ = np.linalg.lstsq(X_mat.T @ W @ X_mat, X_mat.T @ W @ y_c, rcond=None)
-                beta_hat = float(coefs[1])
-            except np.linalg.LinAlgError:
-                cov = np.cov(y_c, x_c)
-                return float(cov[0, 1] / max(cov[1, 1], 1e-10))
+    for _ in range(10):
+        X_mat = np.column_stack([np.ones(len(x_c)), x_c])
+        W = np.diag(weights)
+        try:
+            coefs, _, _, _ = np.linalg.lstsq(X_mat.T @ W @ X_mat, X_mat.T @ W @ y_c, rcond=None)
+            beta_hat = float(coefs[1])
+        except np.linalg.LinAlgError:
+            cov = np.cov(y_c, x_c)
+            return float(cov[0, 1] / max(cov[1, 1], 1e-10))
 
-            resid = y_c - X_mat @ coefs
-            abs_resid = np.abs(resid).clip(min=1e-10)
-            weights = np.where(abs_resid <= delta, 1.0, delta / abs_resid)
+        resid = y_c - X_mat @ coefs
+        abs_resid = np.abs(resid).clip(min=1e-10)
+        weights = np.where(abs_resid <= delta, 1.0, delta / abs_resid)
 
-        return beta_hat
-    except Exception as exc:
-        logger.debug("Huber bèta fout: %s — val terug op OLS.", exc)
-        cov = np.cov(y_c, x_c)
-        return float(cov[0, 1] / max(cov[1, 1], 1e-10))
+    return beta_hat
 
 
 def compute_rolling_betas(

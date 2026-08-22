@@ -87,18 +87,8 @@ class JudgeGate:
         if artefacts_dir is not None:
             feat_parquet = artefacts_dir / "features" / f"{sym}.parquet"
             if feat_parquet.exists():
-                try:
-                    # Fast: read only parquet schema (no data), shared across
-                    # LONG/SHORT since they reference the same parquet file.
-                    import pyarrow.parquet as _pq
-                    self._train_columns = list(_pq.read_schema(str(feat_parquet)).names)
-                except Exception as exc2:
-                    logger.warning(
-                        "JudgeGate [%s/%s]: could not load training column order"
-                        " from %s (%s) — using positional slice (may crash if"
-                        " live columns differ from training).",
-                        sym, side, feat_parquet.name, exc2,
-                    )
+                import pyarrow.parquet as _pq
+                self._train_columns = list(_pq.read_schema(str(feat_parquet)).names)
 
         logger.info(
             "JudgeGate [%s/%s]: loaded — %d features, tau=%.2f, "

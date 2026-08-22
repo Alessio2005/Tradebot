@@ -79,6 +79,7 @@ def assert_training_scout_is_causal(scout: Any) -> None:
 #   None.  Default keeps backward compatibility for existing legitimate calls
 #   that pre-validated externally.  Production runs MUST set the env-var.
 import os as _os  # local import to avoid top-of-file churn
+
 _STRICT_CAUSAL_ENV: str = "TRADEBOT_STRICT_CAUSAL"
 
 
@@ -271,18 +272,11 @@ class PrimaryScout:
 
         round_trip_spread = global_spread
         if sym_path.exists():
-            try:
-                with open(sym_path, encoding="utf-8") as fh:
-                    sym_cfg: dict[str, Any] = yaml.safe_load(fh) or {}
-                round_trip_spread = float(
-                    sym_cfg.get("spread", sym_cfg.get("training", {}).get("spread", global_spread))
-                )
-            except Exception as exc:
-                logger.warning(
-                    "PrimaryScout.from_config [%s]: kon %s niet laden (%s). "
-                    "Gebruik global_spread=%.5f.",
-                    symbol, sym_path, exc, global_spread,
-                )
+            with open(sym_path, encoding="utf-8") as fh:
+                sym_cfg: dict[str, Any] = yaml.safe_load(fh) or {}
+            round_trip_spread = float(
+                sym_cfg.get("spread", sym_cfg.get("training", {}).get("spread", global_spread))
+            )
         else:
             logger.warning(
                 "PrimaryScout.from_config [%s]: %s niet gevonden. "

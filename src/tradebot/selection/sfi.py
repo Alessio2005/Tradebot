@@ -109,12 +109,9 @@ def single_feature_importance(
                 verbose=False, allow_writing_files=False,
                 loss_function="Logloss",
             )
-            try:
-                model.fit(Pool(X_tr, label=y_tr))
-                probs = model.predict_proba(X_te)[:, 1]
-                aucs.append(roc_auc_score(y_te, probs))
-            except Exception as exc:
-                logger.debug("SFI fout voor feature '%s': %s", feat, exc)
+            model.fit(Pool(X_tr, label=y_tr))
+            probs = model.predict_proba(X_te)[:, 1]
+            aucs.append(roc_auc_score(y_te, probs))
 
         feature_aucs[feat] = float(np.mean(aucs)) if aucs else 0.5
 

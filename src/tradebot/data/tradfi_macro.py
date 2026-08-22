@@ -156,31 +156,26 @@ class MacroDataFetcher:
         """
         logger.info("Downloading Crypto Fear & Greed Index from alternative.me...")
         url = "https://api.alternative.me/fng/?limit=2000&format=json"
-        try:
-            headers = {"User-Agent": "Mozilla/5.0 (compatible; CryptoMacroFetcher/1.0)"}
-            r = requests.get(url, headers=headers, timeout=15)
-            r.raise_for_status()
-            payload = r.json()
-            data    = payload.get("data", [])
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; CryptoMacroFetcher/1.0)"}
+        r = requests.get(url, headers=headers, timeout=15)
+        r.raise_for_status()
+        payload = r.json()
+        data    = payload.get("data", [])
 
-            if not data:
-                logger.warning("Fear & Greed: empty payload received.")
-                return pd.DataFrame()
-
-            df = pd.DataFrame(data)
-            df["timestamp"] = pd.to_datetime(
-                df["timestamp"].astype(int), unit="s", utc=True
-            )
-            df["fear_greed"] = df["value"].astype(float)
-            df = df.set_index("timestamp").sort_index()
-            df = df[~df.index.duplicated(keep="last")]
-
-            logger.info(" -> Fear & Greed: %d daily records.", len(df))
-            return df[["fear_greed"]]
-
-        except Exception as e:
-            logger.error("Fear & Greed fetch error: %s", e)
+        if not data:
+            logger.warning("Fear & Greed: empty payload received.")
             return pd.DataFrame()
+
+        df = pd.DataFrame(data)
+        df["timestamp"] = pd.to_datetime(
+            df["timestamp"].astype(int), unit="s", utc=True
+        )
+        df["fear_greed"] = df["value"].astype(float)
+        df = df.set_index("timestamp").sort_index()
+        df = df[~df.index.duplicated(keep="last")]
+
+        logger.info(" -> Fear & Greed: %d daily records.", len(df))
+        return df[["fear_greed"]]
 
     # =========================================================================
     # 3. YAHOO FINANCE — Global TradFi macro
@@ -192,58 +187,46 @@ class MacroDataFetcher:
         if df_raw is None or df_raw.empty:
             return pd.DataFrame()
 
-        try:
-            if isinstance(df_raw.columns, pd.MultiIndex):
-                if "Close" in df_raw.columns.get_level_values(0):
-                    df_ticker = df_raw["Close"].copy()
-                    if isinstance(df_ticker, pd.DataFrame):
-                        df_ticker = df_ticker[[df_ticker.columns[0]]]
-                    else:
-                        df_ticker = df_ticker.to_frame()
+        if isinstance(df_raw.columns, pd.MultiIndex):
+            if "Close" in df_raw.columns.get_level_values(0):
+                df_ticker = df_raw["Close"].copy()
+                if isinstance(df_ticker, pd.DataFrame):
+                    df_ticker = df_ticker[[df_ticker.columns[0]]]
                 else:
-                    df_ticker = df_raw.iloc[:, 0].to_frame()
-            elif "Close" in df_raw.columns:
-                df_ticker = df_raw[["Close"]].copy()
+                    df_ticker = df_ticker.to_frame()
             else:
                 df_ticker = df_raw.iloc[:, 0].to_frame()
+        elif "Close" in df_raw.columns:
+            df_ticker = df_raw[["Close"]].copy()
+        else:
+            df_ticker = df_raw.iloc[:, 0].to_frame()
 
-            df_ticker.columns = [name]
-            return df_ticker
-        except Exception as e:
-            logger.error("Error extracting data for %s: %s", name, e)
-            return pd.DataFrame()
+        df_ticker.columns = [name]
+        return df_ticker
 
     def _download_ticker_with_retry(
         self, name: str, ticker: str, start_date: str
     ) -> pd.DataFrame:
         """Download one ticker with retry logic and timeout."""
         for attempt in range(1, self._yf_max_retries + 1):
-            try:
-                df_raw = yf.download(
-                    ticker,
-                    start=start_date,
-                    progress=False,
-                    auto_adjust=False,
-                    timeout=self._yf_timeout,
-                )
-                if df_raw is None:
-                    logger.warning(" -> %s (%s): no data (attempt %d).", name, ticker, attempt)
-                    continue
-                df_clean = self._extract_close_price(df_raw, name)
-                if not df_clean.empty:
-                    logger.info(" -> %s (%s) downloaded (%d rows).", name, ticker, len(df_clean))
-                    return df_clean
-                else:
-                    logger.warning(
-                        " -> %s (%s): empty DataFrame (attempt %d).", name, ticker, attempt
-                    )
-            except Exception as e:
+            df_raw = yf.download(
+                ticker,
+                start=start_date,
+                progress=False,
+                auto_adjust=False,
+                timeout=self._yf_timeout,
+            )
+            if df_raw is None:
+                logger.warning(" -> %s (%s): no data (attempt %d).", name, ticker, attempt)
+                continue
+            df_clean = self._extract_close_price(df_raw, name)
+            if not df_clean.empty:
+                logger.info(" -> %s (%s) downloaded (%d rows).", name, ticker, len(df_clean))
+                return df_clean
+            else:
                 logger.warning(
-                    " -> %s (%s): error at attempt %d/%d: %s",
-                    name, ticker, attempt, self._yf_max_retries, e,
+                    " -> %s (%s): empty DataFrame (attempt %d).", name, ticker, attempt
                 )
-                if attempt < self._yf_max_retries:
-                    time.sleep(self._yf_retry_delay)
 
         logger.error(
             " -> %s (%s): definitively failed after %d attempts.", name, ticker, self._yf_max_retries
@@ -416,11 +399,8 @@ class MacroDataFetcher:
         rename_map = {"Date": "timestamp", "date": "timestamp", "index": "timestamp"}
         df_export.rename(columns=rename_map, inplace=True)
 
-        try:
-            df_export.to_parquet(save_path, engine="pyarrow", compression="zstd", index=False)
-            logger.info("Success! %d records saved to %s", len(df_export), save_path)
-        except Exception as e:
-            logger.error("Error saving parquet: %s", e)
+        df_export.to_parquet(save_path, engine="pyarrow", compression="zstd", index=False)
+        logger.info("Success! %d records saved to %s", len(df_export), save_path)
 
 
 __all__ = ["MacroDataFetcher"]

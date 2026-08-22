@@ -76,26 +76,23 @@ def fetch_universe_yf(
                 failures[yf_map[s]] = f"chunk download failed: {exc}"
             continue
         for s in chunk:
-            try:
-                sub = raw[s] if isinstance(raw.columns, pd.MultiIndex) else raw
-                sub = sub.dropna(subset=["Close"])
-                if sub.empty:
-                    raise ValueError("empty history")
-                df = pd.DataFrame(
-                    {
-                        "symbol": yf_map[s],
-                        EVENT_COL: pd.to_datetime(sub.index, utc=True).normalize(),
-                        "open": sub["Open"].to_numpy(float),
-                        "high": sub["High"].to_numpy(float),
-                        "low": sub["Low"].to_numpy(float),
-                        "close": sub["Close"].to_numpy(float),
-                        "volume": sub["Volume"].to_numpy(float),
-                    }
-                )
-                df = df[(df[["open", "high", "low", "close"]] > 0).all(axis=1)]
-                frames.append(stamp_asof(df, lag))
-            except Exception as exc:  # noqa: BLE001 — recorded per symbol
-                failures[yf_map[s]] = str(exc)
+            sub = raw[s] if isinstance(raw.columns, pd.MultiIndex) else raw
+            sub = sub.dropna(subset=["Close"])
+            if sub.empty:
+                raise ValueError("empty history")
+            df = pd.DataFrame(
+                {
+                    "symbol": yf_map[s],
+                    EVENT_COL: pd.to_datetime(sub.index, utc=True).normalize(),
+                    "open": sub["Open"].to_numpy(float),
+                    "high": sub["High"].to_numpy(float),
+                    "low": sub["Low"].to_numpy(float),
+                    "close": sub["Close"].to_numpy(float),
+                    "volume": sub["Volume"].to_numpy(float),
+                }
+            )
+            df = df[(df[["open", "high", "low", "close"]] > 0).all(axis=1)]
+            frames.append(stamp_asof(df, lag))
 
     if not frames:
         raise ValueError("yfinance: no symbol fetched successfully")

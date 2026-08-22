@@ -165,42 +165,37 @@ def load_per_bar_open_interest(
         )
         return out
 
-    try:
-        df = pd.read_parquet(fpath)
-        if "openInterest" not in df.columns:
-            logger.warning(
-                "[%s] No 'openInterest' column in %s — set to 0.",
-                symbol, fpath.name,
-            )
-            return out
-
-        if "timestamp" in df.columns:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-            df = df.set_index("timestamp")
-        elif not isinstance(df.index, pd.DatetimeIndex):
-            df.index = pd.to_datetime(df.index, utc=True)
-        df = df.sort_index()
-
-        oi = df["openInterest"].dropna()
-        oi_idx = cast(pd.DatetimeIndex, oi.index)
-        if oi_idx.tz is None:
-            oi.index = oi_idx.tz_localize("UTC")
-
-        bar_idx_dt = cast(pd.DatetimeIndex, pd.DatetimeIndex(bar_index))
-        if bar_idx_dt.tz is None:
-            bar_idx_dt = cast(pd.DatetimeIndex, bar_idx_dt.tz_localize("UTC"))
-
-        # Causal as-of: each bar gets the last OI level observed at/<= its ts.
-        aligned = oi.reindex(
-            oi.index.union(bar_idx_dt)
-        ).sort_index().ffill().reindex(bar_idx_dt)
-        out = aligned.to_numpy(dtype=np.float64)
-        out = np.nan_to_num(out, nan=0.0)
+    df = pd.read_parquet(fpath)
+    if "openInterest" not in df.columns:
+        logger.warning(
+            "[%s] No 'openInterest' column in %s — set to 0.",
+            symbol, fpath.name,
+        )
         return out
 
-    except Exception as exc:
-        logger.warning("[%s] Open-interest load failed: %s", symbol, exc)
-        return out
+    if "timestamp" in df.columns:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        df = df.set_index("timestamp")
+    elif not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index, utc=True)
+    df = df.sort_index()
+
+    oi = df["openInterest"].dropna()
+    oi_idx = cast(pd.DatetimeIndex, oi.index)
+    if oi_idx.tz is None:
+        oi.index = oi_idx.tz_localize("UTC")
+
+    bar_idx_dt = cast(pd.DatetimeIndex, pd.DatetimeIndex(bar_index))
+    if bar_idx_dt.tz is None:
+        bar_idx_dt = cast(pd.DatetimeIndex, bar_idx_dt.tz_localize("UTC"))
+
+    # Causal as-of: each bar gets the last OI level observed at/<= its ts.
+    aligned = oi.reindex(
+        oi.index.union(bar_idx_dt)
+    ).sort_index().ffill().reindex(bar_idx_dt)
+    out = aligned.to_numpy(dtype=np.float64)
+    out = np.nan_to_num(out, nan=0.0)
+    return out
 
 
 __all__ = ["OpenInterestFetcher", "load_per_bar_open_interest"]

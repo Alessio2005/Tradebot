@@ -108,25 +108,19 @@ class OrderRouter:
         if symbol in self._symbol_filters:
             return self._symbol_filters[symbol]
         qty_step, min_qty = "0.00000001", "0"
-        try:
-            import aiohttp
+        import aiohttp
 
-            query = urlencode({"category": _CATEGORY, "symbol": symbol})
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{_BASE}/v5/market/instruments-info?{query}", timeout=5
-                ) as resp:
-                    data = await resp.json()
-            rows = (data.get("result") or {}).get("list") or []
-            if rows:
-                lot = rows[0].get("lotSizeFilter", {}) or {}
-                qty_step = str(lot.get("qtyStep", qty_step))
-                min_qty = str(lot.get("minOrderQty", min_qty))
-        except Exception as exc:
-            logger.warning(
-                "Could not fetch lot-size filter for %s (%s) — using defaults.",
-                symbol, exc,
-            )
+        query = urlencode({"category": _CATEGORY, "symbol": symbol})
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{_BASE}/v5/market/instruments-info?{query}", timeout=5
+            ) as resp:
+                data = await resp.json()
+        rows = (data.get("result") or {}).get("list") or []
+        if rows:
+            lot = rows[0].get("lotSizeFilter", {}) or {}
+            qty_step = str(lot.get("qtyStep", qty_step))
+            min_qty = str(lot.get("minOrderQty", min_qty))
         self._symbol_filters[symbol] = (qty_step, min_qty)
         return qty_step, min_qty
 
@@ -181,7 +175,6 @@ class OrderRouter:
                 "Install with: pip install aiohttp"
             )
 
-        import pandas as pd
 
         order_id = str(order.order_id)
 
@@ -284,7 +277,8 @@ class OrderRouter:
         for symbol, qty in positions.items():
             if abs(qty) < 1e-12:
                 continue
-            from .order import OrderSide, OrderType as OT
+            from .order import OrderSide
+            from .order import OrderType as OT
             side = OrderSide.SELL if qty > 0 else OrderSide.BUY
             close_order = Order(
                 order_id=f"ord_close_{symbol}",

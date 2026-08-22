@@ -186,12 +186,7 @@ def generate_runs_bars(
         return pd.DataFrame()
 
     if not isinstance(df.index, pd.DatetimeIndex):
-        try:
-            df.index = pd.to_datetime(df.index, utc=True)
-        except Exception:
-            if "timestamp" in df.columns:
-                df = df.set_index("timestamp")
-                df.index = pd.to_datetime(df.index, utc=True)
+        df.index = pd.to_datetime(df.index, utc=True)
 
     tick_vols, buy_vols, sell_vols = _calculate_runs_series(df)
 

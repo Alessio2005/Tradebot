@@ -236,25 +236,22 @@ class CircuitBreaker:
         # Wave 15 P0-5.5 — persist trip to append-only log
         self._persist_trip(reason)
         # Fire Slack / stdout alert (routed via TRADEBOT_SLACK_WEBHOOK if set)
-        try:
-            from ..monitoring.alerts import send_alert, AlertSeverity
-            send_alert(
-                title="CIRCUIT BREAKER TRIPPED",
-                message=(
-                    f"reason={reason} ts={ts.isoformat()} "
-                    f"equity={self._state.equity:.2f} "
-                    f"dd={self._state.current_drawdown:.4f} "
-                    f"daily_pnl_pct={self._state.daily_pnl_pct:.4f}"
-                ),
-                severity=AlertSeverity.CRITICAL,
-                metadata={
-                    "reason": reason,
-                    "equity": f"{self._state.equity:.2f}",
-                    "drawdown": f"{self._state.current_drawdown:.4f}",
-                },
-            )
-        except Exception as alert_exc:
-            logger.error("CircuitBreaker: alert delivery failed: %s", alert_exc)
+        from ..monitoring.alerts import AlertSeverity, send_alert
+        send_alert(
+            title="CIRCUIT BREAKER TRIPPED",
+            message=(
+                f"reason={reason} ts={ts.isoformat()} "
+                f"equity={self._state.equity:.2f} "
+                f"dd={self._state.current_drawdown:.4f} "
+                f"daily_pnl_pct={self._state.daily_pnl_pct:.4f}"
+            ),
+            severity=AlertSeverity.CRITICAL,
+            metadata={
+                "reason": reason,
+                "equity": f"{self._state.equity:.2f}",
+                "drawdown": f"{self._state.current_drawdown:.4f}",
+            },
+        )
 
     def reset(self) -> None:
         """Manual override reset (requires human intervention)."""

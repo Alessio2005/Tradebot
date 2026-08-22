@@ -4,10 +4,11 @@ Compares rolling live Sharpe to backtest Sharpe baseline.
 Trips CircuitBreaker when degradation exceeds 2σ.
 """
 from __future__ import annotations
+
 import logging
 import math
 from collections import deque
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from ..live.circuit_breaker import CircuitBreaker
@@ -72,14 +73,11 @@ class LiveSharpeMonitor:
             logger.critical(msg)
             if self.circuit_breaker is not None:
                 import asyncio
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(
-                            self.circuit_breaker.trip(f"live_sharpe_degradation:{degradation_sigmas:.1f}sigma")
-                        )
-                except Exception as exc:
-                    logger.error("Failed to trip CB via async: %s. Trip manually.", exc)
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(
+                        self.circuit_breaker.trip(f"live_sharpe_degradation:{degradation_sigmas:.1f}sigma")
+                    )
             result["halt_triggered"] = True
 
         return result

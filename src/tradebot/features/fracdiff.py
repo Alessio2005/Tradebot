@@ -249,16 +249,13 @@ def causal_min_frac_diff(
     if len(train_series) < 50:
         return d_hi
 
-    try:
-        return min_frac_diff(
-            train_series,
-            d_lo=d_lo,
-            d_hi=d_hi,
-            threshold=threshold,
-            p_target=alpha,
-        ).d
-    except Exception:
-        return d_hi
+    return min_frac_diff(
+        train_series,
+        d_lo=d_lo,
+        d_hi=d_hi,
+        threshold=threshold,
+        p_target=alpha,
+    ).d
 
 
 # ---------------------------------------------------------------------------

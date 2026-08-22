@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 from urllib import request as urllib_request
-from urllib.error import URLError
 
 logger = logging.getLogger(__name__)
 
@@ -75,18 +74,15 @@ class AlertRouter:
 
     def _send_slack(self, alert: Alert) -> None:
         payload = json.dumps(alert.to_slack_payload()).encode("utf-8")
-        try:
-            req = urllib_request.Request(
-                self._slack_url,  # type: ignore[arg-type]
-                data=payload,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib_request.urlopen(req, timeout=5) as resp:
-                if resp.status not in (200, 204):
-                    logger.warning("Slack alert failed: HTTP %d", resp.status)
-        except (URLError, Exception) as exc:
-            logger.warning("Slack alert delivery failed: %s", exc)
+        req = urllib_request.Request(
+            self._slack_url,  # type: ignore[arg-type]
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib_request.urlopen(req, timeout=5) as resp:
+            if resp.status not in (200, 204):
+                logger.warning("Slack alert failed: HTTP %d", resp.status)
 
 
 # Module-level default router — configure once at startup.

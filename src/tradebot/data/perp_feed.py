@@ -127,12 +127,9 @@ def build_or_update_panel(cache: Path, onboard_before: str = "2021-07-01",
     last_ts = existing.index.max() if existing is not None and len(existing) else None
     fetch_from = int(last_ts.timestamp() * 1000) if last_ts is not None else start_ms
     for _i, sym in enumerate(syms):
-        try:
-            s = fetch_daily_closes(sym, fetch_from)
-            if s is not None and len(s):
-                cols[sym] = s
-        except Exception:
-            pass
+        s = fetch_daily_closes(sym, fetch_from)
+        if s is not None and len(s):
+            cols[sym] = s
         time.sleep(sleep)
     new = pd.DataFrame(cols)
     if existing is not None:
@@ -156,18 +153,15 @@ def fetch_recent_funding(symbols: list[str], lookback: int = 10) -> pd.DataFrame
     crypto_macro.CryptoMacroFetcher.)"""
     out = {}
     for sym in symbols:
-        try:
-            result = _get_v5(
-                "/v5/market/funding/history",
-                {"category": CATEGORY, "symbol": sym, "limit": min(lookback, 200)},
-            )
-            rows = result.get("list", [])
-            s = pd.Series({
-                pd.to_datetime(int(x["fundingRateTimestamp"]), unit="ms", utc=True):
-                    float(x["fundingRate"])
-                for x in rows
-            })
-            out[sym] = s.resample("1D").sum()
-        except Exception:
-            pass
+        result = _get_v5(
+            "/v5/market/funding/history",
+            {"category": CATEGORY, "symbol": sym, "limit": min(lookback, 200)},
+        )
+        rows = result.get("list", [])
+        s = pd.Series({
+            pd.to_datetime(int(x["fundingRateTimestamp"]), unit="ms", utc=True):
+                float(x["fundingRate"])
+            for x in rows
+        })
+        out[sym] = s.resample("1D").sum()
     return pd.DataFrame(out).sort_index() if out else pd.DataFrame()

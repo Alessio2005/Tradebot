@@ -283,12 +283,9 @@ class FeatureEngineer:
         # Hilbert-transform werkt op elke gladde reeks, niet op de aanname van
         # een vaste dominante cyclus. Zie :func:`compute_hilbert_phase`.
         if bool(self.cfg.get("use_hilbert_phase", True)):
-            try:
-                df["feat_hilbert_phase"] = compute_hilbert_phase(
-                    close_np, smoothing_span=20
-                )
-            except Exception as exc:
-                logger.debug("Hilbert-phase faalde (%s) — feature overgeslagen.", exc)
+            df["feat_hilbert_phase"] = compute_hilbert_phase(
+                close_np, smoothing_span=20
+            )
         df["feat_entropy_150"] = calculate_shannon_entropy(close_np, 150, 20)
 
         # 2. Trend & breakout
@@ -386,115 +383,111 @@ class FeatureEngineer:
           (samen met `clear_d_cache(timeframe)`). De cache is dan al gevuld
           met de fold-specifieke d en de 60%-fallback wordt overgeslagen.
         """
-        try:
-            log_price: np.ndarray = np.log(
-                df["close"].clip(lower=1e-9).to_numpy(dtype=np.float64)
-            )
-            n = len(log_price)
+        log_price: np.ndarray = np.log(
+            df["close"].clip(lower=1e-9).to_numpy(dtype=np.float64)
+        )
+        n = len(log_price)
 
-            # --- Stap 0: Bepaal dynamische truncation-threshold (per timeframe) ---
-            # In hoge-volatility regimes blijven de FFD-gewichten langer
-            # significant: een statische threshold 1e-4 kapt dan te snel af,
-            # waardoor lange-range memory juist verloren gaat tijdens macro-
-            # schokken. De dynamische threshold schaalt omgekeerd evenredig
-            # met recente σ en wordt per timeframe **gecacht** zodat live-
-            # inferentie exact dezelfde truncatie toepast als training.
-            if timeframe not in self._ffd_thres_cache:
-                if self._use_dynamic_ffd_thres:
-                    # Gebruik ruwe returns (niet log) voor thresholds — beide
-                    # geven dezelfde *relatieve* variatie, maar rauwe pct-change
-                    # is numeriek stabieler voor σ-schattingen.
-                    ret_np = np.diff(log_price, prepend=log_price[0])
-                    tau_dyn = compute_dynamic_ffd_threshold(
-                        ret_np,
-                        base=self.ffd_thres,
-                    )
-                else:
-                    tau_dyn = float(self.ffd_thres)
-                self._ffd_thres_cache[timeframe] = tau_dyn
-                logger.info(
-                    "FFD [%s]: effectieve truncation-threshold = %.2e "
-                    "(base=%.2e, dynamic=%s).",
-                    timeframe,
-                    tau_dyn,
-                    self.ffd_thres,
-                    self._use_dynamic_ffd_thres,
+        # --- Stap 0: Bepaal dynamische truncation-threshold (per timeframe) ---
+        # In hoge-volatility regimes blijven de FFD-gewichten langer
+        # significant: een statische threshold 1e-4 kapt dan te snel af,
+        # waardoor lange-range memory juist verloren gaat tijdens macro-
+        # schokken. De dynamische threshold schaalt omgekeerd evenredig
+        # met recente σ en wordt per timeframe **gecacht** zodat live-
+        # inferentie exact dezelfde truncatie toepast als training.
+        if timeframe not in self._ffd_thres_cache:
+            if self._use_dynamic_ffd_thres:
+                # Gebruik ruwe returns (niet log) voor thresholds — beide
+                # geven dezelfde *relatieve* variatie, maar rauwe pct-change
+                # is numeriek stabieler voor σ-schattingen.
+                ret_np = np.diff(log_price, prepend=log_price[0])
+                tau_dyn = compute_dynamic_ffd_threshold(
+                    ret_np,
+                    base=self.ffd_thres,
                 )
-
-            ffd_thres_eff: float = float(self._ffd_thres_cache[timeframe])
-
-            # --- Stap 1: Bepaal fixed_d (gecacht per timeframe) ---
-            if timeframe not in self._fixed_d_cache:
-                # CPCV-LEAKAGE-FIX (simpele variant): kalibreer d op het
-                # allereerste burn-in venster (≤ 2000 bars). Dit venster valt
-                # gegarandeerd vóór alle CPCV test-folds ongeacht fold-grenzen.
-                #
-                # Oud lek: min(60%, 5000) bars. Bij walk-forward CPCV waarbij
-                # fold 1 begint op bar 0, zat de helft van de kalibratieset al
-                # in een test-fold → d absorbeerde het macro-regime van de
-                # toekomst. Nu kalibreren we op max 2000 bars (gelijk aan
-                # drop_bars in features.py — bars die sowieso worden weggegooid
-                # als burn-in) zodat de d-waarde structureel leakage-vrij is.
-                #
-                # Voor exacte per-fold kalibratie: roep voor elke CPCV-fold
-                # `clear_d_cache(timeframe)` + `fit_d_on_train_indices(df,
-                # sub_tr_idx, timeframe)` aan in train_regime.py. Dan is de
-                # cache al gevuld door de fold-lus en wordt dit blok overgeslagen.
-                _BURN_IN_CALIB_BARS: int = 2000
-                calib_end = min(
-                    _BURN_IN_CALIB_BARS,
-                    int(n * 0.60),
-                    5000,
-                )
-                calib_end = max(calib_end, 30)   # absolute minimum voor ADF
-
-                if calib_end < n:
-                    candidate_d = get_optimal_d(
-                        df["close"].iloc[:calib_end],
-                        max_d=1.0,
-                        step=0.05,
-                        p_thres=0.05,
-                        ffd_thres=ffd_thres_eff,
-                    )
-                else:
-                    # Dataset te klein om 60/40 split te maken — gebruik fallback
-                    candidate_d = float("nan")
-                    logger.warning(
-                        "FFD [%s]: Dataset te klein voor OOS-kalibratie "
-                        "(n=%d). Fallback naar d=0.4", timeframe, n
-                    )
-
-                if np.isnan(candidate_d):
-                    candidate_d = 0.4
-
-                self._fixed_d_cache[timeframe] = candidate_d
-                logger.info(
-                    "FFD [%s]: d=%.2f gekalibreerd op %d bars en gecacht.",
-                    timeframe, candidate_d, calib_end,
-                )
-
-            fixed_d: float = float(self._fixed_d_cache[timeframe])
-
-            # Sla d op als constante diagnostiekkolom
-            df["feat_frac_diff_d"] = fixed_d
-            df["feat_frac_diff_tau"] = ffd_thres_eff  # diagnostiek
-
-            # --- Stap 2: Vaste d over de volledige reeks ---
-            full_mask = np.ones(n, dtype=bool)
-            weights_fixed = get_weights_ffd(fixed_d, ffd_thres_eff, n)
-            df["feat_frac_diff"] = apply_frac_diff_mask_fast(
-                log_price, weights_fixed, full_mask
+            else:
+                tau_dyn = float(self.ffd_thres)
+            self._ffd_thres_cache[timeframe] = tau_dyn
+            logger.info(
+                "FFD [%s]: effectieve truncation-threshold = %.2e "
+                "(base=%.2e, dynamic=%s).",
+                timeframe,
+                tau_dyn,
+                self.ffd_thres,
+                self._use_dynamic_ffd_thres,
             )
 
-            # --- Stap 3: Multi-d ensemble (model leert eigen weging) ---
-            for d_candidate in (0.2, 0.4, 0.6, 0.8):
-                w_c = get_weights_ffd(d_candidate, ffd_thres_eff, n)
-                fd_c = apply_frac_diff_mask_fast(log_price, w_c, full_mask)
-                col = f"feat_ffd_d{str(d_candidate).replace('.', '')}"
-                df[col] = fd_c
+        ffd_thres_eff: float = float(self._ffd_thres_cache[timeframe])
 
-        except Exception as exc:
-            logger.error("FFD error [%s]: %s", timeframe, exc)
+        # --- Stap 1: Bepaal fixed_d (gecacht per timeframe) ---
+        if timeframe not in self._fixed_d_cache:
+            # CPCV-LEAKAGE-FIX (simpele variant): kalibreer d op het
+            # allereerste burn-in venster (≤ 2000 bars). Dit venster valt
+            # gegarandeerd vóór alle CPCV test-folds ongeacht fold-grenzen.
+            #
+            # Oud lek: min(60%, 5000) bars. Bij walk-forward CPCV waarbij
+            # fold 1 begint op bar 0, zat de helft van de kalibratieset al
+            # in een test-fold → d absorbeerde het macro-regime van de
+            # toekomst. Nu kalibreren we op max 2000 bars (gelijk aan
+            # drop_bars in features.py — bars die sowieso worden weggegooid
+            # als burn-in) zodat de d-waarde structureel leakage-vrij is.
+            #
+            # Voor exacte per-fold kalibratie: roep voor elke CPCV-fold
+            # `clear_d_cache(timeframe)` + `fit_d_on_train_indices(df,
+            # sub_tr_idx, timeframe)` aan in train_regime.py. Dan is de
+            # cache al gevuld door de fold-lus en wordt dit blok overgeslagen.
+            _BURN_IN_CALIB_BARS: int = 2000
+            calib_end = min(
+                _BURN_IN_CALIB_BARS,
+                int(n * 0.60),
+                5000,
+            )
+            calib_end = max(calib_end, 30)   # absolute minimum voor ADF
+
+            if calib_end < n:
+                candidate_d = get_optimal_d(
+                    df["close"].iloc[:calib_end],
+                    max_d=1.0,
+                    step=0.05,
+                    p_thres=0.05,
+                    ffd_thres=ffd_thres_eff,
+                )
+            else:
+                # Dataset te klein om 60/40 split te maken — gebruik fallback
+                candidate_d = float("nan")
+                logger.warning(
+                    "FFD [%s]: Dataset te klein voor OOS-kalibratie "
+                    "(n=%d). Fallback naar d=0.4", timeframe, n
+                )
+
+            if np.isnan(candidate_d):
+                candidate_d = 0.4
+
+            self._fixed_d_cache[timeframe] = candidate_d
+            logger.info(
+                "FFD [%s]: d=%.2f gekalibreerd op %d bars en gecacht.",
+                timeframe, candidate_d, calib_end,
+            )
+
+        fixed_d: float = float(self._fixed_d_cache[timeframe])
+
+        # Sla d op als constante diagnostiekkolom
+        df["feat_frac_diff_d"] = fixed_d
+        df["feat_frac_diff_tau"] = ffd_thres_eff  # diagnostiek
+
+        # --- Stap 2: Vaste d over de volledige reeks ---
+        full_mask = np.ones(n, dtype=bool)
+        weights_fixed = get_weights_ffd(fixed_d, ffd_thres_eff, n)
+        df["feat_frac_diff"] = apply_frac_diff_mask_fast(
+            log_price, weights_fixed, full_mask
+        )
+
+        # --- Stap 3: Multi-d ensemble (model leert eigen weging) ---
+        for d_candidate in (0.2, 0.4, 0.6, 0.8):
+            w_c = get_weights_ffd(d_candidate, ffd_thres_eff, n)
+            fd_c = apply_frac_diff_mask_fast(log_price, w_c, full_mask)
+            col = f"feat_ffd_d{str(d_candidate).replace('.', '')}"
+            df[col] = fd_c
 
         return df
 
@@ -512,73 +505,69 @@ class FeatureEngineer:
         d wordt eenmalig gecacht op de eerste 60% van de data.
         Cache-sleutel: f"vol_{timeframe}" om niet te botsen met prijs-d.
         """
-        try:
-            vol_series = df[vol_col].clip(lower=1e-9)
-            log_vol: np.ndarray = np.log(vol_series.to_numpy(dtype=np.float64))
-            n = len(log_vol)
+        vol_series = df[vol_col].clip(lower=1e-9)
+        log_vol: np.ndarray = np.log(vol_series.to_numpy(dtype=np.float64))
+        n = len(log_vol)
 
-            # Dynamische truncation-threshold voor volume (zelfde principe als prijs).
-            vol_thres_key = f"vol_thres_{timeframe}"
-            if vol_thres_key not in self._ffd_thres_cache:
-                if self._use_dynamic_ffd_thres:
-                    dlog = np.diff(log_vol, prepend=log_vol[0])
-                    tau_dyn_vol = compute_dynamic_ffd_threshold(
-                        dlog, base=self.ffd_thres
-                    )
-                else:
-                    tau_dyn_vol = float(self.ffd_thres)
-                self._ffd_thres_cache[vol_thres_key] = tau_dyn_vol
+        # Dynamische truncation-threshold voor volume (zelfde principe als prijs).
+        vol_thres_key = f"vol_thres_{timeframe}"
+        if vol_thres_key not in self._ffd_thres_cache:
+            if self._use_dynamic_ffd_thres:
+                dlog = np.diff(log_vol, prepend=log_vol[0])
+                tau_dyn_vol = compute_dynamic_ffd_threshold(
+                    dlog, base=self.ffd_thres
+                )
+            else:
+                tau_dyn_vol = float(self.ffd_thres)
+            self._ffd_thres_cache[vol_thres_key] = tau_dyn_vol
 
-            ffd_thres_vol: float = float(self._ffd_thres_cache[vol_thres_key])
+        ffd_thres_vol: float = float(self._ffd_thres_cache[vol_thres_key])
 
-            vol_key = f"vol_{timeframe}"
-            if vol_key not in self._fixed_d_cache:
-                # P1.2-FIX (CHIEF AUDIT 2026-05-23): Apply the same
-                # _BURN_IN_CALIB_BARS = 2000 cap that the price-FFD block
-                # uses (see comment above).  The old min(60%, 5000) formula
-                # let the volume-d calibration reach into test folds for
-                # early CPCV folds, leaking future regime information into
-                # the d parameter.  min(2000, 60%, ...) is always ≤ 2000
-                # for datasets large enough to run CPCV.
-                _BURN_IN_CALIB_BARS_VOL: int = 2000
-                calib_end = min(_BURN_IN_CALIB_BARS_VOL, int(n * 0.60), 5000)
-                calib_end = max(calib_end, 30)
-                if calib_end < n:
-                    candidate_d = get_optimal_d(
-                        vol_series.iloc[:calib_end],
-                        max_d=1.0,
-                        step=0.05,
-                        p_thres=0.05,
-                        ffd_thres=ffd_thres_vol,
-                    )
-                else:
-                    candidate_d = float("nan")
-                    logger.warning(
-                        "FFD-volume [%s]: dataset te klein voor OOS-kalibratie "
-                        "(n=%d). Fallback naar d=0.3.",
-                        timeframe, n,
-                    )
-
-                if np.isnan(candidate_d):
-                    # Volume is al deels stationair → lagere fallback-d dan prijs
-                    candidate_d = 0.3
-
-                self._fixed_d_cache[vol_key] = candidate_d
-                logger.info(
-                    "FFD-volume [%s]: d=%.2f gekalibreerd op %d bars "
-                    "(tau=%.2e).",
-                    timeframe, candidate_d, calib_end, ffd_thres_vol,
+        vol_key = f"vol_{timeframe}"
+        if vol_key not in self._fixed_d_cache:
+            # P1.2-FIX (CHIEF AUDIT 2026-05-23): Apply the same
+            # _BURN_IN_CALIB_BARS = 2000 cap that the price-FFD block
+            # uses (see comment above).  The old min(60%, 5000) formula
+            # let the volume-d calibration reach into test folds for
+            # early CPCV folds, leaking future regime information into
+            # the d parameter.  min(2000, 60%, ...) is always ≤ 2000
+            # for datasets large enough to run CPCV.
+            _BURN_IN_CALIB_BARS_VOL: int = 2000
+            calib_end = min(_BURN_IN_CALIB_BARS_VOL, int(n * 0.60), 5000)
+            calib_end = max(calib_end, 30)
+            if calib_end < n:
+                candidate_d = get_optimal_d(
+                    vol_series.iloc[:calib_end],
+                    max_d=1.0,
+                    step=0.05,
+                    p_thres=0.05,
+                    ffd_thres=ffd_thres_vol,
+                )
+            else:
+                candidate_d = float("nan")
+                logger.warning(
+                    "FFD-volume [%s]: dataset te klein voor OOS-kalibratie "
+                    "(n=%d). Fallback naar d=0.3.",
+                    timeframe, n,
                 )
 
-            fixed_d_vol = float(self._fixed_d_cache[vol_key])
-            df["feat_ffd_vol_d"] = fixed_d_vol  # diagnostiek
+            if np.isnan(candidate_d):
+                # Volume is al deels stationair → lagere fallback-d dan prijs
+                candidate_d = 0.3
 
-            full_mask = np.ones(n, dtype=bool)
-            weights_vol = get_weights_ffd(fixed_d_vol, ffd_thres_vol, n)
-            df["feat_ffd_vol"] = apply_frac_diff_mask_fast(log_vol, weights_vol, full_mask)
+            self._fixed_d_cache[vol_key] = candidate_d
+            logger.info(
+                "FFD-volume [%s]: d=%.2f gekalibreerd op %d bars "
+                "(tau=%.2e).",
+                timeframe, candidate_d, calib_end, ffd_thres_vol,
+            )
 
-        except Exception as exc:
-            logger.error("FFD-volume error [%s]: %s", timeframe, exc)
+        fixed_d_vol = float(self._fixed_d_cache[vol_key])
+        df["feat_ffd_vol_d"] = fixed_d_vol  # diagnostiek
+
+        full_mask = np.ones(n, dtype=bool)
+        weights_vol = get_weights_ffd(fixed_d_vol, ffd_thres_vol, n)
+        df["feat_ffd_vol"] = apply_frac_diff_mask_fast(log_vol, weights_vol, full_mask)
 
         return df
 
@@ -659,26 +648,23 @@ class FeatureEngineer:
         # complementaire lange-horizon order-flow feature die dezelfde
         # leakage-preventie (gecachte d/threshold per timeframe) volgt als
         # _add_ffd_volume_features.
-        try:
-            signed = raw_cvd_flow_np
-            log_signed = np.sign(signed) * np.log1p(np.abs(signed))
-            n_flow = log_signed.size
-            if n_flow > 50:
-                tau_key = "cvd_flow_thres"
-                if tau_key not in self._ffd_thres_cache:
-                    self._ffd_thres_cache[tau_key] = (
-                        compute_dynamic_ffd_threshold(signed, base=self.ffd_thres)
-                        if self._use_dynamic_ffd_thres
-                        else float(self.ffd_thres)
-                    )
-                tau_flow: float = float(self._ffd_thres_cache[tau_key])
-                w_flow = get_weights_ffd(0.4, tau_flow, n_flow)
-                mask_flow = np.ones(n_flow, dtype=bool)
-                df["feat_cvd_flow_ffd"] = apply_frac_diff_mask_fast(
-                    log_signed, w_flow, mask_flow
+        signed = raw_cvd_flow_np
+        log_signed = np.sign(signed) * np.log1p(np.abs(signed))
+        n_flow = log_signed.size
+        if n_flow > 50:
+            tau_key = "cvd_flow_thres"
+            if tau_key not in self._ffd_thres_cache:
+                self._ffd_thres_cache[tau_key] = (
+                    compute_dynamic_ffd_threshold(signed, base=self.ffd_thres)
+                    if self._use_dynamic_ffd_thres
+                    else float(self.ffd_thres)
                 )
-        except Exception as exc:  # pragma: no cover
-            logger.debug("FFD-CVD feature faalde (%s) — overgeslagen.", exc)
+            tau_flow: float = float(self._ffd_thres_cache[tau_key])
+            w_flow = get_weights_ffd(0.4, tau_flow, n_flow)
+            mask_flow = np.ones(n_flow, dtype=bool)
+            df["feat_cvd_flow_ffd"] = apply_frac_diff_mask_fast(
+                log_signed, w_flow, mask_flow
+            )
 
         return df
 
@@ -768,21 +754,18 @@ class FeatureEngineer:
 
     def _add_session_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Tijdgebaseerde features (NY open/close)."""
-        try:
-            dti = cast(pd.DatetimeIndex, df.index)
-            if dti.tz is None:
-                ny_idx = dti.tz_localize("UTC").tz_convert(
-                    "America/New_York"
-                )
-            else:
-                ny_idx = dti.tz_convert("America/New_York")
+        dti = cast(pd.DatetimeIndex, df.index)
+        if dti.tz is None:
+            ny_idx = dti.tz_localize("UTC").tz_convert(
+                "America/New_York"
+            )
+        else:
+            ny_idx = dti.tz_convert("America/New_York")
 
-            df["feat_hr"] = ny_idx.hour
+        df["feat_hr"] = ny_idx.hour
 
-            is_open = (ny_idx.hour == 9) & (ny_idx.minute >= 30)
-            df["feat_is_ny_open"] = is_open.astype(float)
-        except Exception:
-            pass
+        is_open = (ny_idx.hour == 9) & (ny_idx.minute >= 30)
+        df["feat_is_ny_open"] = is_open.astype(float)
 
         return df
 

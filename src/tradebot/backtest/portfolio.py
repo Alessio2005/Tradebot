@@ -248,35 +248,28 @@ class PortfolioBacktester:
             if fm is None:
                 fill_meta_aligned[t.symbol] = None
                 continue
-            try:
-                fm_df = pd.DataFrame(
-                    {
-                        "realised_slippage": np.asarray(
-                            fm.get("realised_slippage", np.zeros(len(t.timestamps))),
-                            dtype=np.float64,
-                        ),
-                        "sigma_per_bar": np.asarray(
-                            fm.get("sigma_per_bar", np.zeros(len(t.timestamps))),
-                            dtype=np.float64,
-                        ),
-                        "order_size": np.asarray(
-                            fm.get("order_size", np.zeros(len(t.timestamps))),
-                            dtype=np.float64,
-                        ),
-                        "bar_volume": np.asarray(
-                            fm.get("bar_volume", np.zeros(len(t.timestamps))),
-                            dtype=np.float64,
-                        ),
-                    },
-                    index=t.timestamps,
-                ).reindex(timestamps, fill_value=0.0)
-                fill_meta_aligned[t.symbol] = fm_df
-            except Exception as exc:  # pragma: no cover
-                logger.warning(
-                    "fill_metadata voor %s niet bruikbaar (%s) — η-update uit.",
-                    t.symbol, exc,
-                )
-                fill_meta_aligned[t.symbol] = None
+            fm_df = pd.DataFrame(
+                {
+                    "realised_slippage": np.asarray(
+                        fm.get("realised_slippage", np.zeros(len(t.timestamps))),
+                        dtype=np.float64,
+                    ),
+                    "sigma_per_bar": np.asarray(
+                        fm.get("sigma_per_bar", np.zeros(len(t.timestamps))),
+                        dtype=np.float64,
+                    ),
+                    "order_size": np.asarray(
+                        fm.get("order_size", np.zeros(len(t.timestamps))),
+                        dtype=np.float64,
+                    ),
+                    "bar_volume": np.asarray(
+                        fm.get("bar_volume", np.zeros(len(t.timestamps))),
+                        dtype=np.float64,
+                    ),
+                },
+                index=t.timestamps,
+            ).reindex(timestamps, fill_value=0.0)
+            fill_meta_aligned[t.symbol] = fm_df
 
         # ── BLUEPRINT-FIX (V.8): schema-guard kill-switch state.
         _schema_guard = (
@@ -433,32 +426,26 @@ class PortfolioBacktester:
                 if _eta_observer is not None and delta_signed > 1e-12:
                     fm_df = fill_meta_aligned.get(s)
                     if fm_df is not None:
-                        try:
-                            row = fm_df.loc[ts]
-                            slip = float(row["realised_slippage"])
-                            sigma_bar = float(row["sigma_per_bar"])
-                            q_size = float(row["order_size"])
-                            v_bar = float(row["bar_volume"])
-                            if q_size > 0.0 and v_bar > 0.0 and sigma_bar > 0.0:
-                                _eta_observer.update(
-                                    realised_slippage=slip,
-                                    sigma_per_bar=sigma_bar,
-                                    order_size=q_size,
-                                    bar_volume=v_bar,
-                                )
-                                # Sync de NetAlphaReward η zodat de volgende
-                                # reward-berekening met de actuele observatie
-                                # werkt — exact wat de orchestrator-spec
-                                # ("lees stack.eta_observer.eta als parameter
-                                # voor de volgende NetAlphaReward.compute()")
-                                # voorschrijft.
-                                if _net_alpha is not None:
-                                    _net_alpha.eta = float(_eta_observer.eta)
-                        except Exception as exc:  # pragma: no cover
-                            logger.debug(
-                                "eta_observer.update faalde op %s/%s (%s).",
-                                s, ts, exc,
+                        row = fm_df.loc[ts]
+                        slip = float(row["realised_slippage"])
+                        sigma_bar = float(row["sigma_per_bar"])
+                        q_size = float(row["order_size"])
+                        v_bar = float(row["bar_volume"])
+                        if q_size > 0.0 and v_bar > 0.0 and sigma_bar > 0.0:
+                            _eta_observer.update(
+                                realised_slippage=slip,
+                                sigma_per_bar=sigma_bar,
+                                order_size=q_size,
+                                bar_volume=v_bar,
                             )
+                            # Sync de NetAlphaReward η zodat de volgende
+                            # reward-berekening met de actuele observatie
+                            # werkt — exact wat de orchestrator-spec
+                            # ("lees stack.eta_observer.eta als parameter
+                            # voor de volgende NetAlphaReward.compute()")
+                            # voorschrijft.
+                            if _net_alpha is not None:
+                                _net_alpha.eta = float(_eta_observer.eta)
 
                 prev_signed[s] = signed_now
 

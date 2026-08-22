@@ -65,12 +65,9 @@ def backfill_from_directory(
 
     for path in sorted(features_dir.glob(glob)):
         symbol = path.stem if symbol_from_stem else path.name
-        try:
-            df = pd.read_parquet(path)
-            n = backfill_from_dataframe(df, symbol, store)
-            results[symbol] = n
-        except Exception:
-            logger.exception("backfill failed for %s", path)
+        df = pd.read_parquet(path)
+        n = backfill_from_dataframe(df, symbol, store)
+        results[symbol] = n
 
     logger.info("backfill complete: %d symbols", len(results))
     return results

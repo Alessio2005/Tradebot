@@ -135,30 +135,27 @@ class BybitPublicClient:
         temp_file = self.temp_dir / file_name
 
         for _attempt in range(3):
-            try:
-                async with session.get(url) as resp:
-                    if resp.status in [404, 403]:
-                        return pd.DataFrame()
-                    elif resp.status == 200:
-                        with open(temp_file, "wb") as f:
-                            while True:
-                                chunk = await resp.content.read(4 * 1024 * 1024)
-                                if not chunk:
-                                    break
-                                f.write(chunk)
+            async with session.get(url) as resp:
+                if resp.status in [404, 403]:
+                    return pd.DataFrame()
+                elif resp.status == 200:
+                    with open(temp_file, "wb") as f:
+                        while True:
+                            chunk = await resp.content.read(4 * 1024 * 1024)
+                            if not chunk:
+                                break
+                            f.write(chunk)
 
-                        loop = asyncio.get_running_loop()
-                        df = await loop.run_in_executor(
-                            self.cpu_executor, self._process_gz_chunked, temp_file
-                        )
+                    loop = asyncio.get_running_loop()
+                    df = await loop.run_in_executor(
+                        self.cpu_executor, self._process_gz_chunked, temp_file
+                    )
 
-                        if temp_file.exists():
-                            temp_file.unlink()
-                        return df
-                    else:
-                        await asyncio.sleep(2)
-            except Exception:
-                await asyncio.sleep(2)
+                    if temp_file.exists():
+                        temp_file.unlink()
+                    return df
+                else:
+                    await asyncio.sleep(2)
 
         if temp_file.exists():
             temp_file.unlink()
@@ -173,58 +170,51 @@ class BybitPublicClient:
         quantity; ``timestamp`` is Unix seconds (fractional).
         """
         resampled_chunks: list[pd.DataFrame] = []
-        try:
-            # Decompress to memory once, then chunk the CSV.  Daily perp tapes
-            # are typically tens of MB decompressed — fine for streaming chunks.
-            with gzip.open(file_path, "rb") as gz:
-                raw = gz.read()
+        with gzip.open(file_path, "rb") as gz:
+            raw = gz.read()
 
-            for chunk in pd.read_csv(
-                io.BytesIO(raw),
-                usecols=lambda c: str(c).lower() in ("timestamp", "side", "size", "price"),
-                chunksize=1_000_000,
-            ):
-                cols_lower = {str(c).lower(): c for c in chunk.columns}
-                ts_col   = cols_lower.get("timestamp")
-                side_col = cols_lower.get("side")
-                size_col = cols_lower.get("size")
-                price_col = cols_lower.get("price")
-                if None in (ts_col, side_col, size_col, price_col):
-                    logger.error("Unexpected Bybit CSV columns: %s", list(chunk.columns))
-                    return pd.DataFrame()
-
-                sub = chunk[[ts_col, side_col, size_col, price_col]].copy()
-                sub.columns = ["transact_time", "side", "quantity", "price"]
-                resampled_chunks.append(self._format_and_resample(sub))
-
-            if not resampled_chunks:
+        for chunk in pd.read_csv(
+            io.BytesIO(raw),
+            usecols=lambda c: str(c).lower() in ("timestamp", "side", "size", "price"),
+            chunksize=1_000_000,
+        ):
+            cols_lower = {str(c).lower(): c for c in chunk.columns}
+            ts_col   = cols_lower.get("timestamp")
+            side_col = cols_lower.get("side")
+            size_col = cols_lower.get("size")
+            price_col = cols_lower.get("price")
+            if None in (ts_col, side_col, size_col, price_col):
+                logger.error("Unexpected Bybit CSV columns: %s", list(chunk.columns))
                 return pd.DataFrame()
 
-            combined = pd.concat(resampled_chunks)
-            final_df = (
-                combined.groupby(combined.index)
-                .agg(
-                    {
-                        "open":              "first",
-                        "high":              "max",
-                        "low":               "min",
-                        "close":             "last",
-                        "tick_volume":       "sum",
-                        "real_volume":       "sum",
-                        "taker_buy_volume":  "sum",
-                        "taker_sell_volume": "sum",
-                    }
-                )
-                .dropna()
-            )
+            sub = chunk[[ts_col, side_col, size_col, price_col]].copy()
+            sub.columns = ["transact_time", "side", "quantity", "price"]
+            resampled_chunks.append(self._format_and_resample(sub))
 
-            final_df.reset_index(inplace=True)
-            final_df.rename(columns={"time": "timestamp", "index": "timestamp"}, inplace=True)
-            return final_df
-
-        except Exception as e:
-            logger.error("Error parsing %s: %s", file_path, e)
+        if not resampled_chunks:
             return pd.DataFrame()
+
+        combined = pd.concat(resampled_chunks)
+        final_df = (
+            combined.groupby(combined.index)
+            .agg(
+                {
+                    "open":              "first",
+                    "high":              "max",
+                    "low":               "min",
+                    "close":             "last",
+                    "tick_volume":       "sum",
+                    "real_volume":       "sum",
+                    "taker_buy_volume":  "sum",
+                    "taker_sell_volume": "sum",
+                }
+            )
+            .dropna()
+        )
+
+        final_df.reset_index(inplace=True)
+        final_df.rename(columns={"time": "timestamp", "index": "timestamp"}, inplace=True)
+        return final_df
 
     def _format_and_resample(self, chunk: pd.DataFrame) -> pd.DataFrame:
         # Bybit ``side`` is the taker-aggressor side: Buy → taker buy.
@@ -287,14 +277,11 @@ class ParquetStorage:
             return None
 
         last_file = all_files[-1]
-        try:
-            df_tail = pd.read_parquet(last_file, columns=["timestamp"]).iloc[-1:]
-            last_ts = pd.to_datetime(df_tail["timestamp"].iloc[0])
-            if last_ts.tzinfo is None:
-                last_ts = last_ts.replace(tzinfo=timezone.utc)
-            return last_ts
-        except Exception:
-            return None
+        df_tail = pd.read_parquet(last_file, columns=["timestamp"]).iloc[-1:]
+        last_ts = pd.to_datetime(df_tail["timestamp"].iloc[0])
+        if last_ts.tzinfo is None:
+            last_ts = last_ts.replace(tzinfo=timezone.utc)
+        return last_ts
 
     async def save_chunk(self, df: pd.DataFrame, symbol: str) -> None:
         if df.empty:
@@ -323,18 +310,12 @@ class ParquetStorage:
                     data_to_write[c] = data_to_write[c].astype("float32")
 
             if file_path.exists():
-                try:
-                    existing_df  = pd.read_parquet(file_path)
-                    combined_df  = pd.concat([existing_df, data_to_write])
-                    combined_df  = combined_df.drop_duplicates(subset=["timestamp"], keep="last")
-                    combined_df.sort_values("timestamp", inplace=True)
-                    combined_df.reset_index(drop=True, inplace=True)
-                    self._write_parquet(combined_df, temp_path)
-                except Exception as e:
-                    logger.warning(
-                        "Failed merging existing parquet %s: %s. Overwriting.", file_path, e
-                    )
-                    self._write_parquet(data_to_write, temp_path)
+                existing_df  = pd.read_parquet(file_path)
+                combined_df  = pd.concat([existing_df, data_to_write])
+                combined_df  = combined_df.drop_duplicates(subset=["timestamp"], keep="last")
+                combined_df.sort_values("timestamp", inplace=True)
+                combined_df.reset_index(drop=True, inplace=True)
+                self._write_parquet(combined_df, temp_path)
             else:
                 self._write_parquet(data_to_write, temp_path)
 
@@ -348,13 +329,10 @@ class ParquetStorage:
         symbol_dir = self.base_dir / symbol
         if not symbol_dir.exists():
             return pd.DataFrame()
-        try:
-            df = pd.read_parquet(symbol_dir, engine="pyarrow")
-            df.sort_values("timestamp", inplace=True)
-            df.set_index("timestamp", inplace=True)
-            return df
-        except Exception:
-            return pd.DataFrame()
+        df = pd.read_parquet(symbol_dir, engine="pyarrow")
+        df.sort_values("timestamp", inplace=True)
+        df.set_index("timestamp", inplace=True)
+        return df
 
     def prune_old_data(self, symbol: str, retention_years: int = 5) -> None:
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=365 * retention_years)
@@ -448,10 +426,7 @@ class CryptoIngestionEngine:
 
         targets = self.symbols if len(self.symbols) > 1 else [self.target_symbol]
         for sym in targets:
-            try:
-                await self._sync_one(sym)
-            except Exception as e:
-                logger.error("[%s] Sync failed: %s", sym, e)
+            await self._sync_one(sym)
             await asyncio.sleep(self.inter_symbol_sleep)
 
     async def _sync_one(self, symbol: str) -> None:

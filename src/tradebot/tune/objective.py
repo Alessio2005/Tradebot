@@ -328,17 +328,10 @@ def optuna_objective_binary(
         # kolommen per fold: vervang hier de relevante kolom-slices in X1/Xd
         # nadat _add_ffd_features opnieuw is aangeroepen op het fold-subset.
         if ffd_engineer is not None and df_bars is not None and len(sub_tr_idx) >= 30:
-            try:
-                ffd_engineer.clear_d_cache()
-                ffd_engineer.fit_d_on_train_indices(
-                    df_bars, sub_tr_idx, timeframe="micro"
-                )
-            except Exception as _ffd_exc:
-                logger.debug(
-                    "[Fold %d] per-fold FFD fit mislukt (%s) — "
-                    "burn-in d-waarde blijft van kracht.",
-                    fold_idx, _ffd_exc,
-                )
+            ffd_engineer.clear_d_cache()
+            ffd_engineer.fit_d_on_train_indices(
+                df_bars, sub_tr_idx, timeframe="micro"
+            )
 
         # Micro (X1) — per-fold PCA
         if (orth_micro is not None
@@ -478,17 +471,13 @@ def optuna_objective_binary(
         train_pool = cb.Pool(X_tr_final.astype(np.float32, copy=False), y_tr, weight=w_tr)
         eval_pool  = cb.Pool(X_es_early_final.astype(np.float32, copy=False), y_es_early, weight=w_es_early)
 
-        try:
-            model.fit(
-                train_pool,
-                eval_set=eval_pool,
-                early_stopping_rounds=50,
-                use_best_model=True,
-            )
-            trial.set_user_attr("best_iteration", int(model.tree_count_ or 0))
-        except Exception as e:
-            logger.error(f"Optuna Crash Trial {trial.number}: {e}")
-            return -1000.0
+        model.fit(
+            train_pool,
+            eval_set=eval_pool,
+            early_stopping_rounds=50,
+            use_best_model=True,
+        )
+        trial.set_user_attr("best_iteration", int(model.tree_count_ or 0))
 
         # --- E. Platt Kalibratie + Validatie Predictie ---
         # CPCV-CALIBRATIE-FIX: kalibreer het model op de aparte Platt-set
@@ -524,34 +513,27 @@ def optuna_objective_binary(
             # We trekken hier opzettelijk uit ``model`` (raw CatBoost), niet
             # uit ``_eval_model`` (al gekalibreerd via prefit-CalibratedClassifierCV)
             # — Path-Platt verlangt de raw decision-function als input.
-            try:
-                _raw_proba = model.predict_proba(X_val_final)
-                _raw_scores: np.ndarray = (
-                    np.asarray(_raw_proba[:, 1], dtype=np.float64)
-                    if hasattr(_raw_proba, "shape") and _raw_proba.shape[1] > 1
-                    else np.zeros(len(X_val_final), dtype=np.float64)
-                )
-                _y_val_arr: np.ndarray = np.asarray(y_val, dtype=np.float64).flatten()
-                _fold_ids_arr: np.ndarray = np.full(
-                    _raw_scores.size, fill_value=int(fold_idx), dtype=np.int64
-                )
-                _sigma_scalar: float = float(np.std(np.asarray(ret_val))) if len(ret_val) > 1 else 1.0
-                if not np.isfinite(_sigma_scalar) or _sigma_scalar <= 0.0:
-                    _sigma_scalar = 1.0
-                _sigma_arr: np.ndarray = np.full(
-                    _raw_scores.size, fill_value=_sigma_scalar, dtype=np.float64
-                )
-                if _raw_scores.size == _y_val_arr.size:
-                    agg_uncal_scores.append(_raw_scores)
-                    agg_y_val.append(_y_val_arr)
-                    agg_fold_ids.append(_fold_ids_arr)
-                    agg_sigma.append(_sigma_arr)
-            except Exception as _exc:  # pragma: no cover
-                logger.debug(
-                    "Fold %d: ongekalibreerde score-collectie faalde (%s) — "
-                    "PathPlatt aggregaat overgeslagen voor deze fold.",
-                    fold_idx, _exc,
-                )
+            _raw_proba = model.predict_proba(X_val_final)
+            _raw_scores: np.ndarray = (
+                np.asarray(_raw_proba[:, 1], dtype=np.float64)
+                if hasattr(_raw_proba, "shape") and _raw_proba.shape[1] > 1
+                else np.zeros(len(X_val_final), dtype=np.float64)
+            )
+            _y_val_arr: np.ndarray = np.asarray(y_val, dtype=np.float64).flatten()
+            _fold_ids_arr: np.ndarray = np.full(
+                _raw_scores.size, fill_value=int(fold_idx), dtype=np.int64
+            )
+            _sigma_scalar: float = float(np.std(np.asarray(ret_val))) if len(ret_val) > 1 else 1.0
+            if not np.isfinite(_sigma_scalar) or _sigma_scalar <= 0.0:
+                _sigma_scalar = 1.0
+            _sigma_arr: np.ndarray = np.full(
+                _raw_scores.size, fill_value=_sigma_scalar, dtype=np.float64
+            )
+            if _raw_scores.size == _y_val_arr.size:
+                agg_uncal_scores.append(_raw_scores)
+                agg_y_val.append(_y_val_arr)
+                agg_fold_ids.append(_fold_ids_arr)
+                agg_sigma.append(_sigma_arr)
 
             # ── ITEM 10: log_loss op HP-Optuna slice (niet val_idx) ─────
             # Decoupled score: Optuna's HP-zoekruimte wordt gedeflateerd
@@ -690,11 +672,8 @@ def optuna_objective_binary(
                 )
                 # Stash op de trial — Pylance: Optuna's user_attrs accepteert
                 # arbitrary objects via storage.set_trial_user_attr; pickle-veilig.
-                try:
-                    trial.set_user_attr("path_platt_n_paths", len(_path_platt._params))
-                    trial.set_user_attr("path_platt_global_pos_rate", float(_path_platt._global.pos_rate))
-                except Exception:  # pragma: no cover
-                    pass
+                trial.set_user_attr("path_platt_n_paths", len(_path_platt._params))
+                trial.set_user_attr("path_platt_global_pos_rate", float(_path_platt._global.pos_rate))
                 logger.info(
                     "PathSpecificPlattCalibrator gefit (n_samples=%d, paden=%d).",
                     _scores_all.size, len(_path_platt._params),
@@ -866,15 +845,12 @@ def optuna_objective_binary(
         # ontbreken — dan blijft de penalty een grove maar consistente proxy.
         # NB: pf_shrink_coef is alleen zinvol als ``trend_scan_t_max`` in de
         # trial-parameters zit; anders is de schatting indicatief.
-        try:
-            _t_max_suggest = int(
-                trial.params.get(
-                    "trend_scan_t_max",
-                    trial.params.get("horizon", 24),
-                )
+        _t_max_suggest = int(
+            trial.params.get(
+                "trend_scan_t_max",
+                trial.params.get("horizon", 24),
             )
-        except Exception:
-            _t_max_suggest = 24
+        )
         # som-bars uit fold_returns_dict — niet exact, maar TPE geeft alleen
         # om monotonie.
         approx_total_bars = max(

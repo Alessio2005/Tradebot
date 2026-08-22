@@ -258,10 +258,7 @@ class StressTestSuite:
         """Run all scenarios and return a dict of results."""
         results: Dict[str, StressResult] = {}
         for key in _SCENARIOS:
-            try:
-                results[key] = self.run_historical(portfolio_weights, key)
-            except Exception:
-                logger.exception("Stress scenario failed: %s", key)
+            results[key] = self.run_historical(portfolio_weights, key)
         return results
 
     def marginal_var(

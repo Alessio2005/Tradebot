@@ -20,7 +20,6 @@ from pathlib import Path
 import pandas as pd
 
 from .base import (
-    ASOF_COL,
     EVENT_COL,
     SourceMeta,
     read_csv_text,
@@ -95,13 +94,10 @@ def _get_verified(url: str, host: str, timeout: int = 60) -> str:
 def _fetch_csv(symbol: str) -> str:
     last_exc: Exception | None = None
     for host in _HOSTS:
-        try:
-            text = _get_verified(f"{host}/q/d/l/?s={symbol.lower()}&i=d", host)
-            if text and not text.strip().lower().startswith(("no data", "<", "przekroczony")):
-                return text
-            last_exc = ValueError(f"empty/limit response from {host} for {symbol!r}")
-        except Exception as exc:  # noqa: BLE001 — try next host
-            last_exc = exc
+        text = _get_verified(f"{host}/q/d/l/?s={symbol.lower()}&i=d", host)
+        if text and not text.strip().lower().startswith(("no data", "<", "przekroczony")):
+            return text
+        last_exc = ValueError(f"empty/limit response from {host} for {symbol!r}")
     raise ValueError(f"Stooq fetch failed for {symbol!r}: {last_exc}")
 
 
@@ -151,21 +147,8 @@ def fetch_universe(
     failures: dict[str, str] = {}
     consecutive = 0
     for sym in symbols:
-        try:
-            frames.append(fetch_daily(sym, lag=lag))
-            consecutive = 0
-        except Exception as exc:  # noqa: BLE001 — recorded, not swallowed
-            failures[sym] = str(exc)
-            consecutive += 1
-            # FAIL FAST: if the first batch fails wholesale the host is
-            # down/blocking — don't burn hours of retries (2026-06-10 hang).
-            if consecutive >= 8 and not frames:
-                raise ConnectionError(
-                    f"Stooq: first {consecutive} symbols all failed "
-                    f"(last: {exc}) — host down or blocking; aborting bulk "
-                    "fetch. Use the yfinance fallback (equity_universe "
-                    "source='yfinance') or retry later."
-                )
+        frames.append(fetch_daily(sym, lag=lag))
+        consecutive = 0
         time.sleep(sleep_s)  # polite: avoid the Stooq daily request limit
     if not frames:
         raise ValueError("No symbol fetched successfully")

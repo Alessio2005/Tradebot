@@ -101,14 +101,9 @@ class LedoitWolfThompsonSampler:
         z = self._rng.standard_normal(size=(T_synth, d))
         R_synth = z @ L.T  # (T, d) with cov ≈ cov
 
-        try:
-            cov_shrunk, delta = ledoit_wolf_shrunk_cov(
-                R_synth, target=self.target, min_obs=30
-            )
-        except Exception as exc:  # pragma: no cover
-            logger.warning("LW shrinkage failed (%s) — using raw cov.", exc)
-            cov_shrunk = cov
-            delta = 0.0
+        cov_shrunk, delta = ledoit_wolf_shrunk_cov(
+            R_synth, target=self.target, min_obs=30
+        )
 
         cov_shrunk = 0.5 * (cov_shrunk + cov_shrunk.T)
         try:

@@ -61,11 +61,8 @@ def update_macro(cfg: DictConfig) -> None:
     logger.info("Updating macro datasets (TradFi + Crypto)...")
 
     # ── TradFi: Yields, Credit-spread, DXY, DVOL, Fear & Greed ───────────────
-    try:
-        MacroDataFetcher(data_dir=macro_dir).run_pipeline()
-        logger.info("TradFi macro updated.")
-    except Exception as exc:
-        logger.error("TradFi macro update failed: %s. Using existing files.", exc)
+    MacroDataFetcher(data_dir=macro_dir).run_pipeline()
+    logger.info("TradFi macro updated.")
 
     # ── Crypto macro: per-asset funding + cross-asset market features ─────────
     crypto_syms: list[str] = [
@@ -74,17 +71,14 @@ def update_macro(cfg: DictConfig) -> None:
         and s.upper().endswith(("USDT", "BUSD", "USDC", "FDUSD"))
     ]
 
-    try:
-        if crypto_syms:
-            MultiCryptoMacroFetcher(
-                data_dir=macro_dir,
-                symbols=crypto_syms,
-            ).run_pipeline()
-        else:
-            CryptoMacroFetcher(data_dir=macro_dir).run_pipeline()
-        logger.info("Crypto macro updated (%d symbols).", len(crypto_syms))
-    except Exception as exc:
-        logger.error("Crypto macro update failed: %s. Using existing files.", exc)
+    if crypto_syms:
+        MultiCryptoMacroFetcher(
+            data_dir=macro_dir,
+            symbols=crypto_syms,
+        ).run_pipeline()
+    else:
+        CryptoMacroFetcher(data_dir=macro_dir).run_pipeline()
+    logger.info("Crypto macro updated (%d symbols).", len(crypto_syms))
 
 
 # =============================================================================
@@ -205,14 +199,11 @@ def merge_macro(
     if is_crypto and macro_market_path is not None:
         df_market = _load_macro_df(macro_market_path, sym)
         if df_market is not None:
-            try:
-                df_merged = _merge_asof_lagged(
-                    df_merged, df_market, sym,
-                    lag=_PUBLICATION_LAG, tolerance=_MACRO_TOLERANCE,
-                )
-                logger.info("[%s] Cross-asset market macro merged (%d cols).", sym, df_market.shape[1])
-            except Exception as exc:
-                logger.warning("[%s] Could not merge market macro: %s", sym, exc)
+            df_merged = _merge_asof_lagged(
+                df_merged, df_market, sym,
+                lag=_PUBLICATION_LAG, tolerance=_MACRO_TOLERANCE,
+            )
+            logger.info("[%s] Cross-asset market macro merged (%d cols).", sym, df_market.shape[1])
 
     # ── Clean-up: inf → NaN → ffill → 0, dedup index ─────────────────────────
     import numpy as np

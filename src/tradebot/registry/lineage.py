@@ -25,11 +25,8 @@ __all__ = ["get_file_hash", "get_git_sha", "verify_lineage"]
 
 def get_git_sha(short: bool = True) -> str:
     """Return current git commit hash (empty string on failure)."""
-    try:
-        cmd = ["git", "rev-parse", "--short" if short else "--verify", "HEAD"]
-        return subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("ascii").strip()
-    except Exception:
-        return ""
+    cmd = ["git", "rev-parse", "--short" if short else "--verify", "HEAD"]
+    return subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("ascii").strip()
 
 
 def get_file_hash(path: str | Path, algorithm: str = "sha256", chunk: int = 65536) -> str:

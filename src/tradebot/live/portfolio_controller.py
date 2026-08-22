@@ -195,20 +195,13 @@ class PortfolioController:
                     {sym: r.signal * 0.01 for sym, r in active_signals.items()}
                 ).reindex(self._symbols).fillna(0.0)
 
-            try:
-                weights = optimize(
-                    returns_df,
-                    method=self._cfg.method,
-                    constraints=self._cfg.constraints,
-                    current_weights=self._last_weights,
-                    expected_returns=signal_returns,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "PortfolioController.optimise() failed (%s) — equal weight.", exc
-                )
-                n = len(self._symbols)
-                weights = pd.Series(1.0 / n, index=self._symbols)
+            weights = optimize(
+                returns_df,
+                method=self._cfg.method,
+                constraints=self._cfg.constraints,
+                current_weights=self._last_weights,
+                expected_returns=signal_returns,
+            )
 
             # ── CHIEF-3/5 (2026-05-28) — Additive Grinold-Kahn tilt ─────
             # HRP itself ignores expected_returns (pure inverse-variance —
@@ -253,13 +246,10 @@ class PortfolioController:
                 s_blend = float(blended.sum())
                 if s_blend > 1e-9:
                     blended = blended / s_blend
-                    try:
-                        from ..portfolio.constraints import apply_constraints
-                        weights = apply_constraints(
-                            blended, self._cfg.constraints, self._last_weights
-                        )
-                    except Exception:
-                        weights = blended
+                    from ..portfolio.constraints import apply_constraints
+                    weights = apply_constraints(
+                        blended, self._cfg.constraints, self._last_weights
+                    )
                     logger.debug(
                         "PortfolioController: additive-tilt applied lam=%.2f "
                         "deltas=%s",

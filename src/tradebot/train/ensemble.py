@@ -284,26 +284,8 @@ class ContextualBanditEnsemble:
         orth = self.orthogonalizer_macro
         if orth is None or not getattr(orth, "_is_fitted", False):
             return v
-        try:
-            transformed = orth.transform(v.reshape(1, -1))
-            return np.asarray(transformed, dtype=np.float64).flatten()
-        except Exception as exc:  # pragma: no cover
-            # BANDIT-DIM-FIX: nooit de ruwe vector teruggeven als PCA actief is
-            # maar faalt. De bandit-matrices (B, B_inv, theta_hat) zijn opgespannen
-            # in PCA-ruimte (context_dim dimensies). Als hier de ruwe vector
-            # (mogelijk 15 dimensies) wordt teruggegeven, crasht de volgende
-            # Thompson Sampling iteratie op een X × B⁻¹ dimensie-mismatch.
-            # Geef een nulvector van de juiste PCA-dimensie terug: de bandit
-            # interpreteert dit als "geen macro context" voor deze bar maar
-            # blijft stabiel draaien.
-            logger.warning(
-                "ContextualBanditEnsemble._orth_macro: PCA-transformatie faalde "
-                "(%s). Nulvector (dim=%d) teruggegeven — bandit blijft stabiel.",
-                exc, self.context_dim if self.context_dim > 0 else v.size,
-            )
-            if self.context_dim > 0 and self.apply_macro_orth:
-                return np.zeros(self.context_dim, dtype=np.float64)
-            return v
+        transformed = orth.transform(v.reshape(1, -1))
+        return np.asarray(transformed, dtype=np.float64).flatten()
 
     def _init_matrices(self) -> None:
         """Initialiseert aparte state tracking matrices voor elke arm in het ensemble.
@@ -527,16 +509,10 @@ class ContextualBanditEnsemble:
                 # door een convexe combinatie met een gestructureerd
                 # target (default identity·avg_var).
                 if self._lwts is not None:
-                    try:
-                        sampled_theta_lw, _delta = self._lwts.sample_theta(
-                            theta_hat_k, B_inv_k
-                        )
-                        sampled_theta = np.asarray(sampled_theta_lw, dtype=np.float64)
-                    except Exception as exc:  # pragma: no cover
-                        logger.debug(
-                            "LedoitWolfTS faalde (%s) — fallback raw MVN.", exc
-                        )
-                        sampled_theta = self._sample_theta_raw(theta_hat_k, B_inv_k)
+                    sampled_theta_lw, _delta = self._lwts.sample_theta(
+                        theta_hat_k, B_inv_k
+                    )
+                    sampled_theta = np.asarray(sampled_theta_lw, dtype=np.float64)
                 else:
                     sampled_theta = self._sample_theta_raw(theta_hat_k, B_inv_k)
                 scores[k] = float(np.dot(sampled_theta, x_feat))

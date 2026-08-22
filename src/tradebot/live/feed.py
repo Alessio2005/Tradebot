@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -373,85 +373,73 @@ class Feed:
         partial: Dict[str, _PartialBar] = {}
 
         while self._running:
-            try:
-                async with websockets.connect(url, ping_interval=20) as ws:
-                    await ws.send(sub_msg)  # Bybit subscribe handshake
-                    if attempt > 0:
-                        logger.info(
-                            "Feed: WS reconnected after %d attempt(s).", attempt
-                        )
-                    attempt = 0
+            async with websockets.connect(url, ping_interval=20) as ws:
+                await ws.send(sub_msg)  # Bybit subscribe handshake
+                if attempt > 0:
+                    logger.info(
+                        "Feed: WS reconnected after %d attempt(s).", attempt
+                    )
+                attempt = 0
 
-                    async for message in ws:
-                        if not self._running:
-                            return
+                async for message in ws:
+                    if not self._running:
+                        return
 
-                        data = json.loads(message)
-                        # Bybit control frames (sub ack / pong) carry no "topic".
-                        topic = data.get("topic", "")
-                        if not topic.startswith("publicTrade."):
+                    data = json.loads(message)
+                    # Bybit control frames (sub ack / pong) carry no "topic".
+                    topic = data.get("topic", "")
+                    if not topic.startswith("publicTrade."):
+                        continue
+
+                    # data["data"] is a LIST of trades in this push.
+                    for ev in data.get("data", []):
+                        sym = ev.get("s")
+                        if sym not in sym_set:
                             continue
 
-                        # data["data"] is a LIST of trades in this push.
-                        for ev in data.get("data", []):
-                            sym = ev.get("s")
-                            if sym not in sym_set:
-                                continue
+                        price        = float(ev["p"])
+                        qty          = float(ev["v"])
+                        trade_ms     = int(ev["T"])
+                        is_taker_buy = str(ev.get("S", "")).lower() == "buy"
+                        bar_id       = trade_ms // bar_ms
 
-                            price        = float(ev["p"])
-                            qty          = float(ev["v"])
-                            trade_ms     = int(ev["T"])
-                            is_taker_buy = str(ev.get("S", "")).lower() == "buy"
-                            bar_id       = trade_ms // bar_ms
-
-                            if sym not in partial:
-                                # First trade for this symbol
-                                partial[sym] = _PartialBar(
-                                    trade_ms, price, qty, is_taker_buy, bar_ms
-                                )
-                                continue
-                            if bar_id > partial[sym].bar_id:
-                                # Window closed → emit completed bar, start new one
-                                self._seq_counters[sym] = (
-                                    self._seq_counters.get(sym, 0) + 1
-                                )
-                                bar_event = partial[sym].to_bar_event(
-                                    sym, bar_ms, self._seq_counters[sym]
-                                )
-                                # F2 — attach funding rate if this bar crossed an
-                                # 8h funding boundary (00:00, 08:00, 16:00 UTC).
-                                # We tag the FIRST bar at or after the boundary;
-                                # _last_funding_bar_id prevents double-billing if
-                                # multiple bars fall within the same 8h window
-                                # (only the first carries the non-zero rate, which
-                                # PaperOMS.accrue_funding consumes).
-                                bar_event = self._maybe_attach_funding(bar_event, bar_ms)
-                                await self._queue.put(bar_event)
-                                logger.debug(
-                                    "Feed: emitted 5s bar %s ts=%s o=%.4f c=%.4f "
-                                    "v=%.2f tbv=%.2f",
-                                    sym, bar_event.ts, bar_event.open,
-                                    bar_event.close, bar_event.volume,
-                                    bar_event.taker_buy_volume,
-                                )
-                                # Begin the new bar with the triggering trade
-                                partial[sym] = _PartialBar(
-                                    trade_ms, price, qty, is_taker_buy, bar_ms
-                                )
-                            else:
-                                # Same window → accumulate
-                                partial[sym].update(price, qty, is_taker_buy)
-
-            except Exception as exc:
-                if not self._running:
-                    return
-                backoff_s = min(_BASE_BACKOFF_S * (2 ** attempt), _MAX_BACKOFF_S)
-                attempt += 1
-                logger.warning(
-                    "Feed: WS error (%s) — reconnecting in %.0fs (attempt %d).",
-                    exc, backoff_s, attempt,
-                )
-                await asyncio.sleep(backoff_s)
+                        if sym not in partial:
+                            # First trade for this symbol
+                            partial[sym] = _PartialBar(
+                                trade_ms, price, qty, is_taker_buy, bar_ms
+                            )
+                            continue
+                        if bar_id > partial[sym].bar_id:
+                            # Window closed → emit completed bar, start new one
+                            self._seq_counters[sym] = (
+                                self._seq_counters.get(sym, 0) + 1
+                            )
+                            bar_event = partial[sym].to_bar_event(
+                                sym, bar_ms, self._seq_counters[sym]
+                            )
+                            # F2 — attach funding rate if this bar crossed an
+                            # 8h funding boundary (00:00, 08:00, 16:00 UTC).
+                            # We tag the FIRST bar at or after the boundary;
+                            # _last_funding_bar_id prevents double-billing if
+                            # multiple bars fall within the same 8h window
+                            # (only the first carries the non-zero rate, which
+                            # PaperOMS.accrue_funding consumes).
+                            bar_event = self._maybe_attach_funding(bar_event, bar_ms)
+                            await self._queue.put(bar_event)
+                            logger.debug(
+                                "Feed: emitted 5s bar %s ts=%s o=%.4f c=%.4f "
+                                "v=%.2f tbv=%.2f",
+                                sym, bar_event.ts, bar_event.open,
+                                bar_event.close, bar_event.volume,
+                                bar_event.taker_buy_volume,
+                            )
+                            # Begin the new bar with the triggering trade
+                            partial[sym] = _PartialBar(
+                                trade_ms, price, qty, is_taker_buy, bar_ms
+                            )
+                        else:
+                            # Same window → accumulate
+                            partial[sym].update(price, qty, is_taker_buy)
 
     # ------------------------------------------------------------------
     # F2 — Funding boundary detection (8h: 00:00, 08:00, 16:00 UTC)
@@ -539,45 +527,33 @@ class Feed:
         attempt: int = 0
 
         while self._running:
-            try:
-                async with websockets.connect(url, ping_interval=20) as ws:
-                    await ws.send(sub_msg)
-                    attempt = 0
-                    async for message in ws:
-                        if not self._running:
-                            return
-                        data = json.loads(message)
-                        topic = data.get("topic", "")
-                        if not topic.startswith("orderbook.1."):
-                            continue
-                        ob = data.get("data", {})
-                        sym = ob.get("s")
-                        if sym is None or sym not in sym_set:
-                            continue
-                        # b/a are [[price, size], ...] sorted best-first; either
-                        # may be empty on a one-sided delta.
-                        bids = ob.get("b") or []
-                        asks = ob.get("a") or []
-                        prev = self._best_quote.get(sym)
-                        bid = float(bids[0][0]) if bids else (prev[0] if prev else None)
-                        ask = float(asks[0][0]) if asks else (prev[1] if prev else None)
-                        if bid is None or ask is None:
-                            continue
-                        ts_ms = int(data.get("ts", 0) or 0)
-                        if ts_ms == 0:
-                            ts_ms = int(pd.Timestamp.now(tz="UTC").timestamp() * 1000)
-                        self._best_quote[sym] = (bid, ask, ts_ms)
-
-            except Exception as exc:
-                if not self._running:
-                    return
-                backoff_s = min(_BASE_BACKOFF_S * (2 ** attempt), _MAX_BACKOFF_S)
-                attempt += 1
-                logger.warning(
-                    "Feed: orderbook.1 WS error (%s) — reconnecting in %.0fs "
-                    "(attempt %d).", exc, backoff_s, attempt,
-                )
-                await asyncio.sleep(backoff_s)
+            async with websockets.connect(url, ping_interval=20) as ws:
+                await ws.send(sub_msg)
+                attempt = 0
+                async for message in ws:
+                    if not self._running:
+                        return
+                    data = json.loads(message)
+                    topic = data.get("topic", "")
+                    if not topic.startswith("orderbook.1."):
+                        continue
+                    ob = data.get("data", {})
+                    sym = ob.get("s")
+                    if sym is None or sym not in sym_set:
+                        continue
+                    # b/a are [[price, size], ...] sorted best-first; either
+                    # may be empty on a one-sided delta.
+                    bids = ob.get("b") or []
+                    asks = ob.get("a") or []
+                    prev = self._best_quote.get(sym)
+                    bid = float(bids[0][0]) if bids else (prev[0] if prev else None)
+                    ask = float(asks[0][0]) if asks else (prev[1] if prev else None)
+                    if bid is None or ask is None:
+                        continue
+                    ts_ms = int(data.get("ts", 0) or 0)
+                    if ts_ms == 0:
+                        ts_ms = int(pd.Timestamp.now(tz="UTC").timestamp() * 1000)
+                    self._best_quote[sym] = (bid, ask, ts_ms)
 
     # ------------------------------------------------------------------
     # F2 — Funding rate poller (REST /v5/market/tickers, category=linear)
@@ -611,29 +587,26 @@ class Feed:
             import aiohttp
         except ImportError:
             try:
-                import urllib.request as _urlreq
                 import json as _json
+                import urllib.request as _urlreq
                 logger.warning(
                     "Feed: aiohttp not installed — funding poller falls back to "
                     "synchronous urllib (blocking, but tolerable at 30s cadence)."
                 )
                 while self._running:
                     for sym in self._cfg.symbols:
-                        try:
-                            url = (
-                                f"{self._BYBIT_TICKERS_URL}"
-                                f"?category=linear&symbol={sym}"
-                            )
-                            with _urlreq.urlopen(url, timeout=5) as resp:
-                                payload = _json.loads(resp.read().decode("utf-8"))
-                            rate = self._parse_bybit_funding(payload)
-                            self._funding_rate[sym] = rate
-                            logger.debug(
-                                "Feed [%s]: funding poll fundingRate=%.6f",
-                                sym, rate,
-                            )
-                        except Exception as exc:
-                            logger.warning("Feed: funding poll %s failed: %s", sym, exc)
+                        url = (
+                            f"{self._BYBIT_TICKERS_URL}"
+                            f"?category=linear&symbol={sym}"
+                        )
+                        with _urlreq.urlopen(url, timeout=5) as resp:
+                            payload = _json.loads(resp.read().decode("utf-8"))
+                        rate = self._parse_bybit_funding(payload)
+                        self._funding_rate[sym] = rate
+                        logger.debug(
+                            "Feed [%s]: funding poll fundingRate=%.6f",
+                            sym, rate,
+                        )
                     await asyncio.sleep(poll_interval_s)
                 return
             except Exception:
@@ -647,35 +620,25 @@ class Feed:
         #   Force the threaded resolver (DNS via the standard thread pool)
         #   to keep parity with Linux behaviour without flipping the global
         #   event-loop policy.
-        try:
-            from aiohttp.resolver import ThreadedResolver
-            connector = aiohttp.TCPConnector(resolver=ThreadedResolver())
-        except Exception as exc:
-            logger.warning(
-                "Feed: TCPConnector(ThreadedResolver) unavailable (%s) — "
-                "funding poller disabled.", exc,
-            )
-            return
+        from aiohttp.resolver import ThreadedResolver
+        connector = aiohttp.TCPConnector(resolver=ThreadedResolver())
 
         try:
             async with aiohttp.ClientSession(connector=connector) as session:
                 while self._running:
                     for sym in self._cfg.symbols:
-                        try:
-                            url = (
-                                f"{self._BYBIT_TICKERS_URL}"
-                                f"?category=linear&symbol={sym}"
-                            )
-                            async with session.get(url, timeout=5) as resp:
-                                payload = await resp.json()
-                            rate = self._parse_bybit_funding(payload)
-                            self._funding_rate[sym] = rate
-                            logger.debug(
-                                "Feed [%s]: funding poll fundingRate=%.6f",
-                                sym, rate,
-                            )
-                        except Exception as exc:
-                            logger.warning("Feed: funding poll %s failed: %s", sym, exc)
+                        url = (
+                            f"{self._BYBIT_TICKERS_URL}"
+                            f"?category=linear&symbol={sym}"
+                        )
+                        async with session.get(url, timeout=5) as resp:
+                            payload = await resp.json()
+                        rate = self._parse_bybit_funding(payload)
+                        self._funding_rate[sym] = rate
+                        logger.debug(
+                            "Feed [%s]: funding poll fundingRate=%.6f",
+                            sym, rate,
+                        )
                     await asyncio.sleep(poll_interval_s)
         except Exception as exc:
             logger.error(
@@ -721,49 +684,37 @@ class Feed:
         attempt: int = 0
 
         while self._running:
-            try:
-                async with websockets.connect(url, ping_interval=20) as ws:
-                    await ws.send(sub_msg)
-                    if attempt > 0:
-                        logger.info(
-                            "Feed: WS reconnected after %d attempt(s).", attempt
-                        )
-                    attempt = 0
+            async with websockets.connect(url, ping_interval=20) as ws:
+                await ws.send(sub_msg)
+                if attempt > 0:
+                    logger.info(
+                        "Feed: WS reconnected after %d attempt(s).", attempt
+                    )
+                attempt = 0
 
-                    async for message in ws:
-                        if not self._running:
-                            return
-                        data = json.loads(message)
-                        topic = data.get("topic", "")
-                        if not topic.startswith("kline."):
+                async for message in ws:
+                    if not self._running:
+                        return
+                    data = json.loads(message)
+                    topic = data.get("topic", "")
+                    if not topic.startswith("kline."):
+                        continue
+                    symbol = topic.split(".")[-1]
+                    for k in data.get("data", []):
+                        if not k.get("confirm"):  # confirm=True → bar closed
                             continue
-                        symbol = topic.split(".")[-1]
-                        for k in data.get("data", []):
-                            if not k.get("confirm"):  # confirm=True → bar closed
-                                continue
-                            self._seq_counters[symbol] = (
-                                self._seq_counters.get(symbol, 0) + 1
-                            )
-                            event = BarEvent(
-                                symbol=symbol,
-                                ts=pd.Timestamp(int(k["end"]), unit="ms", tz="UTC"),
-                                open=float(k["open"]),
-                                high=float(k["high"]),
-                                low=float(k["low"]),
-                                close=float(k["close"]),
-                                volume=float(k["volume"]),
-                                taker_buy_volume=0.0,  # Bybit kline carries no taker split
-                                seq=self._seq_counters[symbol],
-                            )
-                            await self._queue.put(event)
-
-            except Exception as exc:
-                if not self._running:
-                    return
-                backoff_s = min(_BASE_BACKOFF_S * (2 ** attempt), _MAX_BACKOFF_S)
-                attempt += 1
-                logger.warning(
-                    "Feed: WS error (%s) — reconnecting in %.0fs (attempt %d).",
-                    exc, backoff_s, attempt,
-                )
-                await asyncio.sleep(backoff_s)
+                        self._seq_counters[symbol] = (
+                            self._seq_counters.get(symbol, 0) + 1
+                        )
+                        event = BarEvent(
+                            symbol=symbol,
+                            ts=pd.Timestamp(int(k["end"]), unit="ms", tz="UTC"),
+                            open=float(k["open"]),
+                            high=float(k["high"]),
+                            low=float(k["low"]),
+                            close=float(k["close"]),
+                            volume=float(k["volume"]),
+                            taker_buy_volume=0.0,  # Bybit kline carries no taker split
+                            seq=self._seq_counters[symbol],
+                        )
+                        await self._queue.put(event)
