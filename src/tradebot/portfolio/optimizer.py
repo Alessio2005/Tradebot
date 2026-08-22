@@ -10,7 +10,7 @@ its own algorithm; this module owns only the routing and post-processing.
 from __future__ import annotations
 
 import logging
-from typing import Literal, Optional
+from typing import Literal
 
 import pandas as pd
 
@@ -30,10 +30,10 @@ OptimisationMethod = Literal["hrp", "bl", "erc", "mvo", "minvar"]
 def optimize(
     returns: pd.DataFrame,
     method: OptimisationMethod = "hrp",
-    constraints: Optional[PortfolioConstraints] = None,
-    current_weights: Optional[pd.Series] = None,
-    views: Optional[BLViews] = None,
-    expected_returns: Optional[pd.Series] = None,
+    constraints: PortfolioConstraints | None = None,
+    current_weights: pd.Series | None = None,
+    views: BLViews | None = None,
+    expected_returns: pd.Series | None = None,
 ) -> pd.Series:
     """Compute portfolio weights using the requested method.
 

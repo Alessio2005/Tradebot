@@ -17,7 +17,6 @@ time" book would masquerade as alpha.
 """
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from tradebot.alpha.cm_tsmom import COST, UNIT, run

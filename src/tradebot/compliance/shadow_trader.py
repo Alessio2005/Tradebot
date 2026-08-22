@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -56,7 +55,7 @@ class ShadowTrader:
         self.champion_version = champion_version
         self.challenger_version = challenger_version
         self._output_root = Path(output_root)
-        self._records: List[ShadowRecord] = []
+        self._records: list[ShadowRecord] = []
         self._shadow_position: float = 0.0  # hyp qty
         self._shadow_entry: float = 0.0
 
@@ -194,7 +193,7 @@ class ShadowTrader:
         logger.info("ShadowTrader: saved %d records to %s.", len(df), out_path)
         return out_path
 
-    def get_records(self) -> List[ShadowRecord]:
+    def get_records(self) -> list[ShadowRecord]:
         return list(self._records)
 
     @property

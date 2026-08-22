@@ -11,9 +11,15 @@ features (the user's point: the feature set was NOT maxed). All sources free, no
 Output: artefacts/altdata_macro.parquet (daily UTC panel; lag in feature build).
 """
 from __future__ import annotations
-import json, time, io, csv, urllib.request
+
+import csv
+import io
+import json
+import time
+import urllib.request
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "artefacts" / "altdata_macro.parquet"

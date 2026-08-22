@@ -9,9 +9,14 @@ construction (rank-demean + vol/beta-neutralise + EWMA5 + no-trade band).
 Run:  python scripts/xs_multihorizon.py
 """
 from __future__ import annotations
-import sys, warnings
+
+import sys
+import warnings
 from pathlib import Path
-import numpy as np, pandas as pd, joblib
+
+import joblib
+import numpy as np
+import pandas as pd
 from catboost import CatBoostClassifier
 from sklearn.metrics import roc_auc_score
 
@@ -140,7 +145,7 @@ def main():
     cagr = eq.iloc[-1] ** (DAYS / len(pnl)) - 1; dd = (eq / eq.cummax() - 1).min()
     b = pnl.cov(mkt.reindex(pnl.index)) / mkt.reindex(pnl.index).var()
     yr = " ".join(f"{y}:{((1+gg).prod()-1)*100:+.0f}%" for y, gg in pnl.groupby(pnl.index.year))
-    print(f"\n=== MULTI-HORIZON ENSEMBLE book (neutralised+smooth+band, 10bps, 40% vol) ===")
+    print("\n=== MULTI-HORIZON ENSEMBLE book (neutralised+smooth+band, 10bps, 40% vol) ===")
     print(f"  Sharpe={sh:.2f} CAGR={cagr*100:+.0f}% MaxDD={dd*100:.0f}% beta={b:+.2f} "
           f"DSR(N2000)={deflated_sharpe(pnl.mean()/pnl.std(),2000,len(pnl)):.3f}")
     print(f"  per-year: {yr}")

@@ -81,8 +81,7 @@ def _triple_barrier_per_event(
     # nodig om de eerste echte exit-evaluatie te kunnen doen. Lift het
     # bodem naar (execution_delay_bars + 1) zodat de check op de timeout-
     # index (regel ~85) altijd voldoende ruimte garandeert.
-    if min_future_bars < int(execution_delay_bars) + 1:
-        min_future_bars = int(execution_delay_bars) + 1
+    min_future_bars = max(min_future_bars, int(execution_delay_bars) + 1)
 
     for j in range(n_events):
         i       = event_indices[j]
@@ -183,9 +182,9 @@ triple_barrier_per_event = _triple_barrier_per_event
 # TripleBarrierLabeler — scikit-learn-compatible class wrapper
 # =============================================================================
 
-import logging as _logging  # noqa: E402
+import logging as _logging
 
-import pandas as pd  # noqa: E402 — local import to keep numba-section clean
+import pandas as pd
 
 _logger = _logging.getLogger(__name__)
 

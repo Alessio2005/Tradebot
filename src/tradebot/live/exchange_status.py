@@ -29,7 +29,7 @@ POLL_INTERVAL_SECONDS = 60
 
 
 async def monitor_exchange_status(
-    circuit_breaker: "CircuitBreaker",
+    circuit_breaker: CircuitBreaker,
     *,
     poll_interval: float = POLL_INTERVAL_SECONDS,
 ) -> None:

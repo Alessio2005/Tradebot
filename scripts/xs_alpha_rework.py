@@ -20,9 +20,15 @@ then builds the dollar-neutral decile book and measures honestly.
 Run:  python scripts/xs_alpha_rework.py
 """
 from __future__ import annotations
-import sys, warnings, json
+
+import json
+import sys
+import warnings
 from pathlib import Path
-import numpy as np, pandas as pd, joblib
+
+import joblib
+import numpy as np
+import pandas as pd
 from catboost import CatBoostClassifier
 from sklearn.metrics import roc_auc_score
 

@@ -141,7 +141,7 @@ def main() -> int:
         net, factors, unit="fx_carry_g10", market="fx", periods_per_year=252
     )
     print("  " + g4.gate_row())
-    print(f"  loadings: " + "  ".join(
+    print("  loadings: " + "  ".join(
         f"{k}={v:+.3f}(t={g4.loading_tstats[k]:+.1f})" for k, v in g4.loadings.items()))
 
     print("\n=== G4 diagnostic — ex-CARRY (the Koijen question: does the "

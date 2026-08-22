@@ -19,7 +19,6 @@ from __future__ import annotations
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict
 
 import numpy as np
 
@@ -58,9 +57,9 @@ class CrossAccountMonitor:
     """Rolling cross-account correlation throttle."""
 
     config: CrossAccountConfig = field(default_factory=CrossAccountConfig)
-    _returns: Dict[str, Deque[float]] = field(default_factory=dict, init=False)
+    _returns: dict[str, deque[float]] = field(default_factory=dict, init=False)
 
-    def update(self, account_returns: Dict[str, float]) -> None:
+    def update(self, account_returns: dict[str, float]) -> None:
         """Append the latest per-account return (one value per account)."""
         w = self.config.corr_window
         for acct, r in account_returns.items():
@@ -70,7 +69,7 @@ class CrossAccountMonitor:
                 self._returns[acct] = buf
             buf.append(float(r))
 
-    def _sharpe(self, buf: Deque[float]) -> float:
+    def _sharpe(self, buf: deque[float]) -> float:
         arr = np.asarray(buf, dtype=np.float64)
         if arr.size < 2:
             return 0.0
@@ -79,7 +78,7 @@ class CrossAccountMonitor:
             return 0.0
         return float(arr.mean() / sd)
 
-    def throttles(self) -> Dict[str, float]:
+    def throttles(self) -> dict[str, float]:
         """Return the sizing multiplier per account (default 1.0).
 
         For every account pair whose recent correlation exceeds the threshold,
@@ -88,7 +87,7 @@ class CrossAccountMonitor:
         """
         cfg = self.config
         accts = list(self._returns.keys())
-        mult: Dict[str, float] = {a: 1.0 for a in accts}
+        mult: dict[str, float] = {a: 1.0 for a in accts}
 
         for i in range(len(accts)):
             for j in range(i + 1, len(accts)):

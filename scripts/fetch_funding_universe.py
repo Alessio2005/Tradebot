@@ -3,9 +3,13 @@ broad perp universe. Funding = price of leverage / crowded positioning = a genui
 non-price information source. 8h funding, paginated to full history.
 """
 from __future__ import annotations
-import json, time, urllib.request
+
+import json
+import time
+import urllib.request
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "artefacts" / "funding_universe.parquet"

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -34,7 +33,7 @@ class HarnessResult:
     """Output of a single-signal harness run."""
 
     signal_id: str
-    predictions: List[SignalResult] = field(default_factory=list)
+    predictions: list[SignalResult] = field(default_factory=list)
     ic_series: pd.Series = field(default_factory=pd.Series)
 
     # Summary statistics (populated by run_signal_harness)

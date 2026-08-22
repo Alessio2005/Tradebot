@@ -8,8 +8,8 @@ from .feature_updater import FeatureUpdater, FeatureUpdaterConfig
 from .feed import BarEvent, Feed, FeedConfig
 from .portfolio_controller import PortfolioController, PortfolioControllerConfig
 from .signal_runner import SignalRunner, SignalRunnerConfig
-from .state import EngineMode, SystemState
 from .sigterm import setup_signal_handlers
+from .state import EngineMode, SystemState
 
 __all__ = [
     "LiveEngine", "LiveEngineConfig",

@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import timezone
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any
 
 import pandas as pd
 
@@ -62,11 +61,11 @@ class DailyPositionReport:
     gross_leverage: float
     net_imbalance_pct: float
     daily_pnl: float
-    positions: List[PositionSnapshot] = field(default_factory=list)
+    positions: list[PositionSnapshot] = field(default_factory=list)
     model_version: str = ""
     git_sha: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "report_date": self.report_date,
             "equity": self.equity,
@@ -97,13 +96,13 @@ class DailyPositionReport:
 
 def generate_position_report(
     equity: float,
-    positions: Dict[str, Any],  # symbol → PositionRecord
+    positions: dict[str, Any],  # symbol → PositionRecord
     daily_pnl: float,
     model_version: str = "",
     git_sha: str = "",
-    report_date: Optional[str] = None,
-    realised_pnl_today_by_sym: Optional[Dict[str, float]] = None,
-    position_age_h_by_sym: Optional[Dict[str, float]] = None,
+    report_date: str | None = None,
+    realised_pnl_today_by_sym: dict[str, float] | None = None,
+    position_age_h_by_sym: dict[str, float] | None = None,
 ) -> DailyPositionReport:
     """Build a DailyPositionReport from live PositionTracker state.
 
@@ -124,7 +123,7 @@ def generate_position_report(
     if report_date is None:
         report_date = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
 
-    snapshots: List[PositionSnapshot] = []
+    snapshots: list[PositionSnapshot] = []
     total_notional = 0.0
     long_notional = 0.0
     short_notional = 0.0

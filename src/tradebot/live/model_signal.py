@@ -33,7 +33,6 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import List, Optional
 
 import joblib
 import numpy as np
@@ -160,17 +159,17 @@ class ModelSignal:
         # ── Incremental CUSUM state ───────────────────────────────────────────
         self._s_pos: float = 0.0
         self._s_neg: float = 0.0
-        self._prev_close: Optional[float] = None
+        self._prev_close: float | None = None
         self._prev_atr14: float = 1e-5
 
         # ── EMA-200 state for bull-regime filter ──────────────────────────────
         alpha_ema = 2.0 / (config.ema_regime_span + 1.0)
         self._ema_alpha: float = alpha_ema
-        self._ema_close: Optional[float] = None  # None until first bar
+        self._ema_close: float | None = None  # None until first bar
 
         # ── Internal state ────────────────────────────────────────────────────
         self._is_warmed_up: bool = False
-        self._last_ts: Optional[pd.Timestamp] = None
+        self._last_ts: pd.Timestamp | None = None
 
         # AlphaSignal protocol identity
         self.signal_id: str = f"{sym}_{side}_cpcv_catboost"
@@ -239,7 +238,7 @@ class ModelSignal:
     def predict(
         self,
         df: pd.DataFrame,
-        bar_ts: Optional[pd.Timestamp] = None,
+        bar_ts: pd.Timestamp | None = None,
     ) -> SignalResult:
         """Run CUSUM step and optionally generate a trade signal for this bar.
 
@@ -377,7 +376,7 @@ class ModelSignal:
     def predict_on_event(
         self,
         df: pd.DataFrame,
-        bar_ts: Optional[pd.Timestamp] = None,
+        bar_ts: pd.Timestamp | None = None,
     ) -> SignalResult:
         """AFML-correct prediction: CUSUM already fired externally.
 
@@ -476,7 +475,7 @@ class ModelSignal:
             signal_id=self.signal_id,
         )
 
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         """Return all feature column names consumed by this signal."""
         return self._micro_cols + self._meso_cols + self._macro_cols
 
@@ -488,8 +487,8 @@ class ModelSignal:
         self,
         df: pd.DataFrame,
         col: str,
-        default: Optional[float],
-    ) -> Optional[float]:
+        default: float | None,
+    ) -> float | None:
         """Extract a single scalar value from the last row of df."""
         if col in df.columns:
             val = df[col].iloc[-1]

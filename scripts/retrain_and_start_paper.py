@@ -36,7 +36,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 # Force UTF-8 on Windows stdout/stderr so unicode chars don't crash CP1252.
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
@@ -102,7 +101,7 @@ def write_status(stage: str, status: str, **extra) -> None:
 def run(
     cmd: list[str],
     log_file: Path,
-    omp_threads: Optional[int] = None,
+    omp_threads: int | None = None,
 ) -> int:
     env = os.environ.copy()
     env.setdefault("PYTHONIOENCODING", "utf-8")
@@ -117,14 +116,14 @@ def run(
     start = time.monotonic()
     with open(log_file, "ab") as fh:
         fh.write(
-            f"\n=== START {_stamp()} === omp={omp_threads} {' '.join(cmd)}\n".encode("utf-8")
+            f"\n=== START {_stamp()} === omp={omp_threads} {' '.join(cmd)}\n".encode()
         )
         proc = subprocess.Popen(
             cmd, cwd=str(_ROOT), stdout=fh, stderr=subprocess.STDOUT, env=env,
         )
         rc = proc.wait()
         fh.write(
-            f"=== END {_stamp()} rc={rc} dur={time.monotonic()-start:.0f}s ===\n".encode("utf-8")
+            f"=== END {_stamp()} rc={rc} dur={time.monotonic()-start:.0f}s ===\n".encode()
         )
     return rc
 
@@ -165,7 +164,7 @@ def _run_parallel(
     log_for_item,
     done_for_item,
     n_workers: int,
-    omp_threads: Optional[int],
+    omp_threads: int | None,
 ) -> None:
     """Run a stage across ``items`` with up to ``n_workers`` parallel children.
 

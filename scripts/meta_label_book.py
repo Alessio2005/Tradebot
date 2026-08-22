@@ -9,9 +9,13 @@ real skill it filters losers and lifts Sharpe; if not, the ML rework is exhauste
 Run:  python scripts/meta_label_book.py
 """
 from __future__ import annotations
-import sys, warnings
+
+import sys
+import warnings
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 from catboost import CatBoostClassifier
 from sklearn.metrics import roc_auc_score
 

@@ -80,5 +80,5 @@ class _RewardClipper:
         lo = self.mean[arm] - self.sigma_clip * sigma
         hi = self.mean[arm] + self.sigma_clip * sigma
         return float(np.clip(r, lo, hi))
-from ._bandit_helpers import _RandomFourierFeatures  # noqa: F401,E402
+from ._bandit_helpers import _RandomFourierFeatures  # noqa: F401
 

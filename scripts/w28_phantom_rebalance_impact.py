@@ -36,7 +36,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tradebot.alpha.xs_unit import (  # noqa: E402
+from tradebot.alpha.xs_unit import (
     CostModel,
     ann_sharpe,
     decile_weights,
@@ -82,7 +82,7 @@ def empirical() -> dict[str, float]:
 
     s_new, s_old = ann_sharpe(net_new), ann_sharpe(net_old)
     return {
-        "n_bars": int(len(net_new)),
+        "n_bars": len(net_new),
         "phantom_turnover": phantom_turnover,
         "extra_cost_at_final_bar": extra_cost,
         "sharpe_repaired": s_new,

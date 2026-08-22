@@ -15,9 +15,12 @@ Both beta~0. Combined by inverse-vol (risk-parity, no tuning). The test: is the
 COMBINATION positive across all regimes, beta~0, cost-surviving?
 """
 from __future__ import annotations
+
 import sys
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))

@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from tradebot.alpha.cm_tsmom import COST, UNIT, effective_breadth, run
-from tradebot.data.xasset_proxy import XASSET_UNIVERSE, sector_of, to_tr_panel
+from tradebot.data.xasset_proxy import sector_of, to_tr_panel
 
 PANEL = "market_data_parquet/xasset/tr_panel.parquet"
 OOS_START = "2019-01-01"  # frozen split: ~2/3 in-sample, ~1/3 out-of-sample

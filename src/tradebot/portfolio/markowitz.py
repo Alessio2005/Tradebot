@@ -9,7 +9,6 @@ Reference: Markowitz (1952); shrinkage via Ledoit & Wolf (2004).
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -77,10 +76,10 @@ def min_variance_weights(
 
 def mvo_weights(
     returns: pd.DataFrame,
-    expected_returns: Optional[pd.Series] = None,
+    expected_returns: pd.Series | None = None,
     risk_aversion: float = 2.5,
     max_weight: float = 0.5,
-    prev_weights: Optional[np.ndarray] = None,
+    prev_weights: np.ndarray | None = None,
     turnover_penalty: float = 0.0,
 ) -> pd.Series:
     """Mean-variance efficient portfolio.

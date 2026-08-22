@@ -10,13 +10,17 @@ low-vol) was chosen with full-sample hindsight. The OOS split validates the
 WEIGHTING + parameters out-of-sample, not the factor selection.
 """
 from __future__ import annotations
+
 import sys
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 import importlib.util
+
 spec = importlib.util.spec_from_file_location("cb", ROOT / "scripts/combined_neutral_book.py")
 cb = importlib.util.module_from_spec(spec); spec.loader.exec_module(cb)
 

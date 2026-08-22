@@ -41,8 +41,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tradebot.alpha.cm_tsmom import effective_breadth, run  # noqa: E402
-from tradebot.data.xasset_proxy import to_tr_panel  # noqa: E402
+from tradebot.alpha.cm_tsmom import effective_breadth, run
+from tradebot.data.xasset_proxy import to_tr_panel
 
 PANEL = "market_data_parquet/xasset/tr_panel.parquet"
 TRADING_DAYS = 252

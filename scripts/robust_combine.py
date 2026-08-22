@@ -8,10 +8,13 @@
 Run:  python scripts/robust_combine.py
 """
 from __future__ import annotations
-import sys, warnings
+
+import sys
+import warnings
 from pathlib import Path
-import numpy as np, pandas as pd
-from scipy import stats as sps
+
+import numpy as np
+import pandas as pd
 
 warnings.filterwarnings("ignore")
 ROOT = Path(__file__).resolve().parent.parent
@@ -76,12 +79,12 @@ def main():
     except Exception:
         sig = -(rets.rolling(5).sum().rank(axis=1, pct=True)).sub(0.5)
     gx = sig.abs().sum(axis=1).replace(0, np.nan); wx = sig.div(gx, axis=0).fillna(0.0)
-    xs = vt(((wx.shift(1) * rets).sum(axis=1) - (wx - wx.shift(1)).abs().sum(axis=1) * COST_BPS / 1e4))
+    xs = vt((wx.shift(1) * rets).sum(axis=1) - (wx - wx.shift(1)).abs().sum(axis=1) * COST_BPS / 1e4)
 
     # low-vol
     lv = -(np.log(vol.clip(lower=1e-4)).rank(axis=1, pct=True)).sub(0.5).ewm(span=5).mean()
     gl = lv.abs().sum(axis=1).replace(0, np.nan); wl = lv.div(gl, axis=0).fillna(0.0)
-    lowvol = vt(((wl.shift(1) * rets).sum(axis=1) - (wl - wl.shift(1)).abs().sum(axis=1) * COST_BPS / 1e4))
+    lowvol = vt((wl.shift(1) * rets).sum(axis=1) - (wl - wl.shift(1)).abs().sum(axis=1) * COST_BPS / 1e4)
 
     idx = xs.dropna().index
     sleeves = {"TREND": trend_d.reindex(idx).fillna(0), "XS-REV": xs.reindex(idx).fillna(0), "LOWVOL": lowvol.reindex(idx).fillna(0)}

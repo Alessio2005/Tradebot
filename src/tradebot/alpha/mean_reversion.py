@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -47,7 +46,7 @@ def _fit_ou_mle(log_prices: np.ndarray, dt: float = 1.0) -> tuple[float, float, 
     sy  = float(np.sum(x[1:]))
     sxx = float(np.sum(x[:-1] ** 2))
     sxy = float(np.sum(x[:-1] * x[1:]))
-    syy = float(np.sum(x[1:] ** 2))
+    float(np.sum(x[1:] ** 2))
 
     denom = n * sxx - sx ** 2
     if abs(denom) < 1e-12:
@@ -136,5 +135,5 @@ class OUMeanReversion:
             signal_id=self.signal_id,
         )
 
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return ["close"]

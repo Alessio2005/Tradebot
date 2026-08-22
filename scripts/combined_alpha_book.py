@@ -9,9 +9,14 @@ Combined by causal inverse-vol risk-parity (no tuning). Goal: robust Sharpe
 ~1.0-1.3 that beats buy&hold with roughly halved drawdown.
 """
 from __future__ import annotations
-import json, urllib.request, sys
+
+import json
+import sys
+import urllib.request
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -38,7 +43,7 @@ def trend_sleeve(perp):
         px = perp[s].dropna(); r = px / px.shift(1) - 1
         for N in (50, 100, 200):
             w = (px > px.rolling(N).mean()).astype(float).shift(1)
-            out.append((w * r - (w - w.shift(1)).abs() * COST / 1e4))
+            out.append(w * r - (w - w.shift(1)).abs() * COST / 1e4)
     return pd.concat(out, axis=1).mean(axis=1).rename("trend")
 
 

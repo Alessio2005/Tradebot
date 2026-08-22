@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -88,12 +87,12 @@ class FeatureUpdaterConfig:
         self,
         window_bars: int = 600,
         refresh_every_n_bars: int = 1,
-        feature_columns: Optional[List[str]] = None,
+        feature_columns: list[str] | None = None,
         use_feature_store: bool = False,
-        feature_store_root: Optional[str] = None,
+        feature_store_root: str | None = None,
         feature_pipeline_cfg=None,
-        expected_feature_names: Optional[List[str]] = None,
-        force_refresh_window_overrides: Optional[Dict[str, Optional[int]]] = None,
+        expected_feature_names: list[str] | None = None,
+        force_refresh_window_overrides: dict[str, int | None] | None = None,
     ) -> None:
         self.window_bars = window_bars
         self.refresh_every_n_bars = max(1, int(refresh_every_n_bars))
@@ -102,7 +101,7 @@ class FeatureUpdaterConfig:
         self.feature_store_root = feature_store_root
         self.feature_pipeline_cfg = feature_pipeline_cfg
         self.expected_feature_names = expected_feature_names
-        self.force_refresh_window_overrides: Dict[str, Optional[int]] = (
+        self.force_refresh_window_overrides: dict[str, int | None] = (
             force_refresh_window_overrides or {}
         )
 
@@ -126,27 +125,27 @@ class FeatureUpdater:
         self._cfg = config
         # Store bars as (timestamp, dict) tuples instead of pd.Series objects.
         # pd.DataFrame(list_of_dicts) is ~10x faster than from list_of_Series.
-        self._buffers: Dict[str, List[tuple]] = defaultdict(list)
-        self._store: Optional[object] = None
+        self._buffers: dict[str, list[tuple]] = defaultdict(list)
+        self._store: object | None = None
 
         # Bar counter per symbol — controls when FeaturePipeline fires.
-        self._bar_counts: Dict[str, int] = defaultdict(int)
+        self._bar_counts: dict[str, int] = defaultdict(int)
 
         # Cached last-computed feature row per symbol.  Returned between
         # refreshes with the current bar's close/vol injected (see update()).
-        self._feature_cache: Dict[str, Optional[pd.DataFrame]] = {}
+        self._feature_cache: dict[str, pd.DataFrame | None] = {}
 
         # P0-H: track parity check state per symbol (fired once per symbol).
-        self._parity_checked: Dict[str, bool] = {}
+        self._parity_checked: dict[str, bool] = {}
 
         # F4 — optional drift monitor (lazy: attached by caller after init).
         # See live_paper_trader.py for wiring.
-        self._drift_monitor: Optional[object] = None
+        self._drift_monitor: object | None = None
 
         # B-1 (2026-05-27): track usable bars produced by the last
         # force_refresh() per symbol.  Exposed via get_last_usable_bars()
         # so the engine can detect partial burn-in and bypass JudgeGate.
-        self._last_usable_bars: Dict[str, int] = {}
+        self._last_usable_bars: dict[str, int] = {}
 
         if config.use_feature_store and config.feature_store_root:
             from ..featurestore.store import FeatureStore
@@ -252,7 +251,7 @@ class FeatureUpdater:
     # Per-bar update
     # ------------------------------------------------------------------
 
-    def update(self, symbol: str, bar: pd.Series) -> Optional[pd.DataFrame]:
+    def update(self, symbol: str, bar: pd.Series) -> pd.DataFrame | None:
         """Append ``bar`` to the buffer and return a feature row.
 
         FeaturePipeline is invoked only every ``refresh_every_n_bars``
@@ -341,7 +340,7 @@ class FeatureUpdater:
     # AFML event-driven refresh
     # ------------------------------------------------------------------
 
-    def force_refresh(self, symbol: str) -> Optional[pd.DataFrame]:
+    def force_refresh(self, symbol: str) -> pd.DataFrame | None:
         """Run FeaturePipeline NOW regardless of the bar-count schedule.
 
         Called by the engine immediately after CUSUMFilter fires so that
@@ -411,7 +410,7 @@ class FeatureUpdater:
         """
         return self._last_usable_bars.get(symbol, 0)
 
-    async def force_refresh_async(self, symbol: str) -> Optional[pd.DataFrame]:
+    async def force_refresh_async(self, symbol: str) -> pd.DataFrame | None:
         """Async wrapper: runs force_refresh() in a thread-pool executor.
 
         W-2 fix (2026-05-27): force_refresh on a 1.5M-bar buffer can take
@@ -454,7 +453,7 @@ class FeatureUpdater:
 
     def _compute_features(
         self, df: pd.DataFrame, symbol: str = ""
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         """Run FeaturePipeline on the current buffer DataFrame.
 
         Identical to the training code path (build_features → FeaturePipeline

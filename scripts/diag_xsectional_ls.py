@@ -86,7 +86,7 @@ def main() -> None:
     for s in args.symbols:
         try:
             closes[s] = load_daily_close(s)
-        except Exception as e:  # noqa
+        except Exception as e:
             logger.warning("%s overslaan: %s", s, e)
     px = pd.DataFrame(closes).dropna()
     logger.info("Common daily grid: %d dagen, %d assets %s -> %s",

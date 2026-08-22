@@ -16,9 +16,13 @@ Method (strict, no future leak):
 Run:  python scripts/walkforward_forward.py
 """
 from __future__ import annotations
-import sys, warnings
+
+import sys
+import warnings
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 from catboost import CatBoostClassifier
 from sklearn.metrics import roc_auc_score
 
@@ -145,7 +149,7 @@ def main():
     last12 = pnl[pnl.index >= (pnl.index.max() - pd.Timedelta(days=365))]
     sh12 = last12.mean() / last12.std() * np.sqrt(DAYS); ret12 = (1 + last12).prod() - 1
     dd = ((1 + pnl).cumprod() / (1 + pnl).cumprod().cummax() - 1).min()
-    print(f"\n=== WALK-FORWARD FORWARD BOOK (recency-weighted, regime-guarded) ===")
+    print("\n=== WALK-FORWARD FORWARD BOOK (recency-weighted, regime-guarded) ===")
     print(f"  forward Sharpe={sh:.2f}  MaxDD={dd*100:.0f}%  DSR(N2000)={deflated_sharpe(pnl.mean()/pnl.std(),2000,len(pnl)):.3f}")
     print("  forward per-year: " + " ".join(f"{y}:{v*100:+.0f}%" for y, v in yrs.items()))
     print(f"  LAST 12 MONTHS (proxy for coming year): return={ret12*100:+.0f}%  Sharpe={sh12:.2f}")

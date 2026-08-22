@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 import pandas as pd
 
@@ -81,7 +80,7 @@ class Order:
     feature_hash: str
     portfolio_weight: float
     pre_trade_cost_bps: float = 0.0
-    limit_price: Optional[float] = None
+    limit_price: float | None = None
     created_at: pd.Timestamp = field(default_factory=lambda: pd.Timestamp.now(tz="UTC"))
     status: OrderStatus = OrderStatus.PENDING
 
@@ -125,7 +124,7 @@ class OrderState:
     """Live lifecycle state of an order."""
 
     order: Order
-    fill: Optional[Fill] = None
+    fill: Fill | None = None
 
     @property
     def is_terminal(self) -> bool:

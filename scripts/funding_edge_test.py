@@ -6,9 +6,12 @@ Three honest tests on the broad funding panel:
   C. Funding-conditioned reversal (does crowding sharpen the reversal premium?).
 """
 from __future__ import annotations
+
 import sys
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 from scipy.stats import spearmanr
 
 ROOT = Path(__file__).resolve().parent.parent

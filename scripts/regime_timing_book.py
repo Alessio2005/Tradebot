@@ -8,9 +8,13 @@ correlation to the market-neutral XS-ML book -> does it add an orthogonal √N t
 Run:  python scripts/regime_timing_book.py
 """
 from __future__ import annotations
-import sys, warnings
+
+import sys
+import warnings
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 from catboost import CatBoostClassifier
 from sklearn.metrics import roc_auc_score
 

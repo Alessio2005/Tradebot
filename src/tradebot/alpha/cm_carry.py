@@ -112,7 +112,7 @@ class CarryResult:
         cagr = float((1 + net).prod() ** (_TRADING_DAYS / max(len(net), 1)) - 1)
         return {
             "unit": self.unit,
-            "n_bars": int(len(net)),
+            "n_bars": len(net),
             "sample_years": round(len(net) / _TRADING_DAYS, 2),
             "net_sharpe": ann_sharpe(net),
             "gross_sharpe": ann_sharpe(gross),
@@ -122,7 +122,7 @@ class CarryResult:
             "calmar": cagr / abs(dd) if dd else float("nan"),
             "dd_over_vol": abs(dd) / ann_vol if ann_vol else float("nan"),
             "years_positive_frac": float((years > 0).mean()),
-            "n_years": int(len(years)),
+            "n_years": len(years),
             "ann_turnover": float(self.daily_turnover.loc[net.index].sum()
                                   / max(len(net) / _TRADING_DAYS, 1e-9)),
             "config": self.config,

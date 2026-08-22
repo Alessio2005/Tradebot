@@ -96,7 +96,7 @@ def send_alert(
     metadata: dict[str, Any] | None = None,
 ) -> None:
     """Send an alert via the module-level router (creates stdout-only router if not configured)."""
-    global _default_router  # noqa: PLW0603
+    global _default_router
     if _default_router is None:
         _default_router = AlertRouter()
     _default_router.send(Alert(title=title, message=message, severity=severity, metadata=metadata or {}))

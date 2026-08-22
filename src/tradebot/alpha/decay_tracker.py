@@ -4,11 +4,11 @@ Tracks Information Coefficient (IC) rolling decay per alpha signal.
 Alerts when IC decays below threshold (signal is dead).
 """
 from __future__ import annotations
+
 import logging
 from collections import deque
-from typing import Optional
+
 import numpy as np
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class AlphaDecayTracker:
         self._returns: deque[float] = deque(maxlen=window)
         self._ic_history: list[float] = []
 
-    def update(self, signal_value: float, realized_return: float) -> Optional[float]:
+    def update(self, signal_value: float, realized_return: float) -> float | None:
         """Add one (signal, return) observation and compute rolling IC.
 
         CHIEF AUDIT 2026-05-23 (P-4): the ``realized_return`` argument is the
@@ -73,7 +73,7 @@ class AlphaDecayTracker:
         # Decrement countdown on all pending signals; the matured ones (counter
         # ≤ 0) are paired with the CURRENT realised return.
         new_pending: deque[list] = deque()
-        matured_signal: Optional[float] = None
+        matured_signal: float | None = None
         for entry in self._pending:
             entry[1] -= 1
             if entry[1] <= 0 and matured_signal is None:
@@ -117,7 +117,7 @@ class AlphaDecayTracker:
 
         return ic
 
-    def ic_trend(self, lookback: int = 52) -> Optional[float]:
+    def ic_trend(self, lookback: int = 52) -> float | None:
         """Linear trend of IC over last lookback observations (negative = decaying)."""
         h = self._ic_history[-lookback:]
         if len(h) < 10:

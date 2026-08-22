@@ -15,9 +15,15 @@ Survivorship caveat: universe = perps STILL trading today (delisted excluded
 No hyperparameter optimisation — report a small fixed grid, do not select.
 """
 from __future__ import annotations
-import json, time, urllib.request, sys
+
+import json
+import sys
+import time
+import urllib.request
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))

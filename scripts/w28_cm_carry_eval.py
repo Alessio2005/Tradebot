@@ -19,11 +19,11 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tradebot.alpha import cm_carry  # noqa: E402
-from tradebot.alpha.xs_unit import CostModel, ann_sharpe  # noqa: E402
-from tradebot.backtest.dd_shape import max_dd_over_vol_quantile  # noqa: E402
-from tradebot.data.sources.kenfrench import fetch_factors_daily  # noqa: E402
-from tradebot.risk.factor_alpha import factor_residual_alpha  # noqa: E402
+from tradebot.alpha import cm_carry
+from tradebot.alpha.xs_unit import CostModel, ann_sharpe
+from tradebot.backtest.dd_shape import max_dd_over_vol_quantile
+from tradebot.data.sources.kenfrench import fetch_factors_daily
+from tradebot.risk.factor_alpha import factor_residual_alpha
 
 TS_PANEL = "market_data_parquet/commodities/eia_term_structure.parquet"
 XASSET = "market_data_parquet/xasset/tr_panel.parquet"
@@ -68,7 +68,7 @@ def _validate_construction(ts: pd.DataFrame) -> list[dict]:
         j = j[j.index >= "2007-01-01"]
         cagr = lambda s: float((1 + s).prod() ** (_TRADING_DAYS / len(s)) - 1)  # noqa: E731
         rows.append({
-            "product": prod, "etf": sym, "n": int(len(j)),
+            "product": prod, "etf": sym, "n": len(j),
             "corr": float(j["eia"].corr(j["etf"])),
             "cagr_constructed": cagr(j["eia"]), "cagr_etf": cagr(j["etf"]),
             "cagr_diff": cagr(j["eia"]) - cagr(j["etf"]),
@@ -157,7 +157,7 @@ def main() -> int:
                                   unit=cm_carry.UNIT, market="book",
                                   periods_per_year=_TRADING_DAYS)
         g4[name] = {"alpha_ann": float(r.alpha_ann), "t": float(r.t_alpha),
-                    "p": float(r.p_alpha), "n": int(len(idx))}
+                    "p": float(r.p_alpha), "n": len(idx)}
         print(f"  {name:26s} alpha {r.alpha_ann:+.2%}/yr  t={r.t_alpha:+.2f}  "
               f"p={r.p_alpha:.4f}  n={len(idx)}")
 
@@ -211,7 +211,7 @@ def main() -> int:
         "wf_sharpe": oos_s, "is_sharpe": is_s, "sharpe_decay": decay,
         **boot,
         "abs_rho_vs_book": None,
-        "n_instruments": int(len(res.instrument_returns.columns)), "n_eff": n_eff,
+        "n_instruments": len(res.instrument_returns.columns), "n_eff": n_eff,
         "roll_calendar_validation": roll_val,
         "return_construction_validation": constr,
         "verdict": verdict,

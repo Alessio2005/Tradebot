@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional
 
 import pandas as pd
 
@@ -57,8 +56,8 @@ class CUSUMFilter:
         self._sym = symbol
         self._s_pos: float = 0.0
         self._s_neg: float = 0.0
-        self._prev_close: Optional[float] = None
-        self._last_atr: Optional[float] = None   # seeded at warm-start
+        self._prev_close: float | None = None
+        self._last_atr: float | None = None   # seeded at warm-start
 
     # ------------------------------------------------------------------
     # Warm-start
@@ -133,9 +132,9 @@ class CUSUMFilter:
 
 def build_cusum_filters(
     symbols: list[str],
-    multipliers: Dict[str, float],
+    multipliers: dict[str, float],
     artefacts_dir: Path,
-) -> Dict[str, CUSUMFilter]:
+) -> dict[str, CUSUMFilter]:
     """Create and warm-start one CUSUMFilter per symbol.
 
     Parameters
@@ -147,7 +146,7 @@ def build_cusum_filters(
     artefacts_dir :
         Root artefacts directory containing features/{SYM}.parquet.
     """
-    filters: Dict[str, CUSUMFilter] = {}
+    filters: dict[str, CUSUMFilter] = {}
     for sym in symbols:
         mult = multipliers.get(sym, 2.0)
         cf = CUSUMFilter(multiplier=mult, symbol=sym)

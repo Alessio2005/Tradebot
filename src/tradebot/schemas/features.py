@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pandas as pd
 import pandera.pandas as pa
-from pandera.typing import DataFrame, Index, Series
+from pandera.typing import DataFrame, Series
 
 
 class FeatureBlockSchema(pa.DataFrameModel):

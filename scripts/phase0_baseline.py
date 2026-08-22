@@ -72,7 +72,7 @@ def scan_hygiene() -> list[tuple[str, str]]:
         d = ROOT / name
         if d.is_dir():
             n = sum(1 for _ in d.rglob("*"))
-            out.append((name + "/", "shadow tree aanwezig in de root ({} entries)".format(n)))
+            out.append((name + "/", f"shadow tree aanwezig in de root ({n} entries)"))
     for name in ("pyproject.toml", "Makefile", "dvc.yaml", "params.yaml",
                  ".pre-commit-config.yaml", ".env"):
         at_root = (ROOT / name).exists()
@@ -142,12 +142,12 @@ def main() -> int:
     A("")
     A("| Metriek | Waarde |")
     A("|---|---|")
-    A("| Gescande Python-bestanden | {} |".format(total_files))
-    A("| Totaal LOC | {:,} |".format(total_loc))
-    A("| Bestanden > {} LOC (D-6) | {} |".format(LOC_LIMIT, len(oversized)))
-    A("| Apps > {} LOC (D-7) | {} |".format(APP_LOC_LIMIT, len(oversized_apps)))
-    A("| Bestanden met `quant_architect`-import | {} |".format(len(qa_importers)))
-    A("| Hygiene-bevindingen (shadow/config/DAG) | {} |".format(len(hygiene)))
+    A(f"| Gescande Python-bestanden | {total_files} |")
+    A(f"| Totaal LOC | {total_loc:,} |")
+    A(f"| Bestanden > {LOC_LIMIT} LOC (D-6) | {len(oversized)} |")
+    A(f"| Apps > {APP_LOC_LIMIT} LOC (D-7) | {len(oversized_apps)} |")
+    A(f"| Bestanden met `quant_architect`-import | {len(qa_importers)} |")
+    A(f"| Hygiene-bevindingen (shadow/config/DAG) | {len(hygiene)} |")
     A("")
     A("---")
     A("")
@@ -157,17 +157,17 @@ def main() -> int:
     A("|---|---:|---:|")
     for k in sorted(per_module, key=lambda x: -sum(n for _, n in per_module[x])):
         files = per_module[k]
-        A("| `{}` | {} | {:,} |".format(k, len(files), sum(n for _, n in files)))
+        A(f"| `{k}` | {len(files)} | {sum(n for _, n in files):,} |")
     A("")
     A("---")
     A("")
-    A("## 3. Bestanden > {} LOC - D-6 (architecture.md R-4)".format(LOC_LIMIT))
+    A(f"## 3. Bestanden > {LOC_LIMIT} LOC - D-6 (architecture.md R-4)")
     A("")
     if oversized:
         A("| Bestand | LOC | Overschrijding |")
         A("|---|---:|---:|")
         for rel, n in sorted(oversized, key=lambda t: -t[1]):
-            A("| `{}` | {:,} | +{:,} |".format(rel.as_posix(), n, n - LOC_LIMIT))
+            A(f"| `{rel.as_posix()}` | {n:,} | +{n - LOC_LIMIT:,} |")
     else:
         A("_Geen._")
     A("")
@@ -176,15 +176,15 @@ def main() -> int:
     A("")
     A("---")
     A("")
-    A("## 4. Apps > {} LOC - D-7 (architecture.md R-6)".format(APP_LOC_LIMIT))
+    A(f"## 4. Apps > {APP_LOC_LIMIT} LOC - D-7 (architecture.md R-6)")
     A("")
     napps = len(per_module.get("apps", []))
-    A("**{} van de {} apps overschrijden de limiet.**".format(len(oversized_apps), napps))
+    A(f"**{len(oversized_apps)} van de {napps} apps overschrijden de limiet.**")
     A("")
     A("| App | LOC | Overschrijding |")
     A("|---|---:|---:|")
     for rel, n in sorted(oversized_apps, key=lambda t: -t[1]):
-        A("| `{}` | {:,} | +{:,} |".format(rel.as_posix(), n, n - APP_LOC_LIMIT))
+        A(f"| `{rel.as_posix()}` | {n:,} | +{n - APP_LOC_LIMIT:,} |")
     A("")
     A("> D-7 is **P2** en valt buiten de Phase 0-scope. Nieuwe apps die in Phase 1-3 worden")
     A("> toegevoegd respecteren de 80-LOC-limiet wel.")
@@ -201,7 +201,7 @@ def main() -> int:
         A("| Bestand | LOC |")
         A("|---|---:|")
         for rel, n in sorted(qa_importers):
-            A("| `{}` | {:,} |".format(rel.as_posix(), n))
+            A(f"| `{rel.as_posix()}` | {n:,} |")
     else:
         A("_Geen treffers._")
     A("")
@@ -217,7 +217,7 @@ def main() -> int:
     A("| Symbool | Interne bron |")
     A("|---|---|")
     for sym, mod in PHANTOM_SYMBOLS:
-        A("| `{}` | `{}` |".format(sym, mod))
+        A(f"| `{sym}` | `{mod}` |")
     A("")
     A("De import is dus niet dood maar **verkeerd geadresseerd**: de functionaliteit is ooit uit")
     A("`quant_architect.py` geextraheerd naar `train/`, zonder dat de importsites zijn bijgewerkt.")
@@ -230,16 +230,14 @@ def main() -> int:
     A("| Pad | Bevinding |")
     A("|---|---|")
     for rel, note in hygiene:
-        A("| `{}` | {} |".format(rel, note))
+        A(f"| `{rel}` | {note} |")
     A("")
 
     out = ROOT / "reports" / "phase0_baseline.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(L) + "\n", encoding="utf-8")
-    print("wrote {}".format(out))
-    print("files={} loc={} oversized={} apps_over={} quant_architect={} hygiene={}".format(
-        total_files, total_loc, len(oversized), len(oversized_apps),
-        len(qa_importers), len(hygiene)))
+    print(f"wrote {out}")
+    print(f"files={total_files} loc={total_loc} oversized={len(oversized)} apps_over={len(oversized_apps)} quant_architect={len(qa_importers)} hygiene={len(hygiene)}")
     return 0
 
 

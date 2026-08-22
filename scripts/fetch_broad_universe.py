@@ -6,9 +6,13 @@ Sharpe scales with breadth beyond the 75-name panel. Survivorship caveat stands
 (delisted symbols unavailable from the live klines endpoint).
 """
 from __future__ import annotations
-import json, time, urllib.request
+
+import json
+import time
+import urllib.request
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "artefacts" / "broad_perp_daily_close_WIDE.parquet"

@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -62,7 +61,7 @@ class JudgeGate:
         sym: str,
         side: str,
         judge_dir: Path,
-        artefacts_dir: Optional[Path] = None,
+        artefacts_dir: Path | None = None,
     ) -> None:
         from catboost import CatBoostClassifier
 
@@ -83,7 +82,7 @@ class JudgeGate:
         #     (116 feat_* + 10 raw including fundingRate, volume) — total 126 raw.
         #   • The live FeaturePipeline may produce fewer columns (e.g. no fundingRate
         #     when SPOT_FALLBACK=1).  Positional [:n_feat-5] then slices wrong values.
-        self._train_columns: Optional[list] = None
+        self._train_columns: list | None = None
         if artefacts_dir is not None:
             feat_parquet = artefacts_dir / "features" / f"{sym}.parquet"
             if feat_parquet.exists():
@@ -102,7 +101,7 @@ class JudgeGate:
         row_df: pd.DataFrame,
         cal_prob: float,
         ts: pd.Timestamp,
-    ) -> Tuple[bool, float]:
+    ) -> tuple[bool, float]:
         """Return (passes_gate, p_combined).
 
         Parameters
@@ -150,7 +149,7 @@ class JudgeGate:
 def build_judge_gates(
     symbols: list[str],
     judge_dir: Path,
-    artefacts_dir: Optional[Path] = None,
+    artefacts_dir: Path | None = None,
 ) -> dict[str, dict[str, JudgeGate]]:
     """Load all judge models for the given symbols.
 

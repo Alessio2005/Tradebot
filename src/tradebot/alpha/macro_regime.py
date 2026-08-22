@@ -13,7 +13,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -67,7 +66,7 @@ class MacroRegimeOverlay:
         vol_window: int = 21,
         trend_window: int = 63,
         vol_pct_threshold: float = 0.80,
-        fear_col: Optional[str] = None,
+        fear_col: str | None = None,
     ) -> None:
         self.symbol = symbol
         self.vol_window = vol_window
@@ -160,7 +159,7 @@ class MacroRegimeOverlay:
             signal_id=self.signal_id,
         )
 
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         feats = ["close"]
         if self.fear_col is not None:
             feats.append(self.fear_col)

@@ -17,9 +17,14 @@ Methodologically watertight:
 Run:  python scripts/trend_robust_sweep.py
 """
 from __future__ import annotations
-import sys, itertools, warnings
+
+import itertools
+import sys
+import warnings
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 
 warnings.filterwarnings("ignore")
 ROOT = Path(__file__).resolve().parent.parent
@@ -127,7 +132,7 @@ def main():
     print(f"\n=== WALK-FORWARD WINNER (selected on IS<=2023): {win['cfg']} ===")
     sh_all, yrs, dd = stats(pnl, bpy)
     print(f"  full Sharpe={sh_all:.2f}  OOS(2024-26) Sharpe={sh_oos:.2f}  MaxDD={dd*100:.0f}%")
-    print(f"  per-year: " + " ".join(f"{y}:{v*100:+.0f}%" for y, v in yrs.items()))
+    print("  per-year: " + " ".join(f"{y}:{v*100:+.0f}%" for y, v in yrs.items()))
     print(f"  DSR deflated by n_trials={n_trials}: {dsr:.3f}   (#neg years={win['neg']}, worst={win['worst']*100:.0f}%)")
     print(f"\n  TARGET CHECK: every year >60%? "
           f"{'YES' if all(v>0.60 for v in yrs.values()) else 'NO'}  "

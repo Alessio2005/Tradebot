@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 import time
 from pathlib import Path
 
@@ -69,7 +68,7 @@ def snapshot() -> None:
     # If paper trade has been launched, also show that
     pt_log = _LOG_DIR / "paper_trade.log"
     if pt_log.exists():
-        print(f"\n--- paper_trade.log (last 5 lines) ---")
+        print("\n--- paper_trade.log (last 5 lines) ---")
         for line in _tail(pt_log, 5):
             print(f"  {line[-160:]}")
 
@@ -77,7 +76,7 @@ def snapshot() -> None:
     if state_json.exists():
         try:
             state = json.loads(state_json.read_text())
-            print(f"\n--- paper_trade state.json ---")
+            print("\n--- paper_trade state.json ---")
             print(f"  mode={state.get('mode')} "
                   f"bars={state.get('bars_processed')} "
                   f"trades={state.get('n_trades')} "

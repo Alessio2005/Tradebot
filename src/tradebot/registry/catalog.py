@@ -112,7 +112,7 @@ class ModelCatalog:
         records: list[ModelRecord] = []
         with open(self._path, encoding="utf-8") as fh:
             for line in fh:
-                line = line.strip()  # noqa: PLW2901
+                line = line.strip()
                 if not line:
                     continue
                 try:

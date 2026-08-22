@@ -75,7 +75,11 @@ class Finding:
 
     @property
     def rel(self) -> str:
-        return self.path.relative_to(ROOT).as_posix()
+        # Paden buiten de repo-root komen voor wanneer de scanner op een
+        # tijdelijk snippet wordt losgelaten (zie tests/unit/test_no_silent_fallbacks.py).
+        if self.path.is_relative_to(ROOT):
+            return self.path.relative_to(ROOT).as_posix()
+        return self.path.as_posix()
 
 
 # --------------------------------------------------------------------------- #
@@ -187,19 +191,19 @@ class Scanner(ast.NodeVisitor):
     def _fn(self) -> str:
         return ".".join(self._func_stack)
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._func_stack.append(node.name)
         self.generic_visit(node)
         self._func_stack.pop()
 
     visit_AsyncFunctionDef = visit_FunctionDef  # type: ignore[assignment]
 
-    def visit_ClassDef(self, node: ast.ClassDef) -> None:  # noqa: N802
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
         self._func_stack.append(node.name)
         self.generic_visit(node)
         self._func_stack.pop()
 
-    def visit_Try(self, node: ast.Try) -> None:  # noqa: N802
+    def visit_Try(self, node: ast.Try) -> None:
         tried = describe_try_body(node.body)
         for h in node.handlers:
             names = exc_names(h.type)
@@ -298,12 +302,12 @@ def write_register(findings: list[Finding], target: Path, out_path: Path) -> Non
     }
     for k in sorted(by_kind, key=lambda x: SEVERITY_ORDER.get(x, 99)):
         A("| `{}` | {} | {} |".format(k, len(by_kind[k]), meanings.get(k, "")))
-    A("| **TOTAAL** | **{}** | |".format(len(findings)))
+    A(f"| **TOTAAL** | **{len(findings)}** | |")
     A("")
     nb = len([f for f in findings if f.kind in BLOCKING_KINDS])
     na = len(findings) - nb
-    A("**Blokkerend (breekt de build): {}** - **advies (geregistreerd, beoordeeld): {}**"
-      .format(nb, na))
+    A(f"**Blokkerend (breekt de build): {nb}** - **advies (geregistreerd, beoordeeld): {na}**"
+      )
     A("")
     A("Blokkerend zijn exact de condities uit exit criterium 1 plus deliverable 8:")
     A("`try/except ImportError`, bare `except:`, `except Exception` zonder re-raise, en")
@@ -313,7 +317,7 @@ def write_register(findings: list[Finding], target: Path, out_path: Path) -> Non
     A("stille degradatie van een model naar een naievere benadering. Elke advies-bevinding")
     A("is stuk voor stuk beoordeeld; wie wel een modelwissel bleek, is gerepareerd.")
     A("")
-    A("De audit noemt in sectie 5.2 *12 locaties*. Deze scan meet **{}**. ".format(len(findings)))
+    A(f"De audit noemt in sectie 5.2 *12 locaties*. Deze scan meet **{len(findings)}**. ")
     A("De audittelling was een steekproef; deze AST-scan is uitputtend.")
     A("")
     A("---")
@@ -322,7 +326,7 @@ def write_register(findings: list[Finding], target: Path, out_path: Path) -> Non
     A("")
     for k in sorted(by_kind, key=lambda x: SEVERITY_ORDER.get(x, 99)):
         tag = "BLOKKEREND" if k in BLOCKING_KINDS else "ADVIES"
-        A("### {} ({}) - {}".format(k, len(by_kind[k]), tag))
+        A(f"### {k} ({len(by_kind[k])}) - {tag}")
         A("")
         A("| Bestand:regel | Functie | Vangt | Gedegradeerd model | Naief alternatief |")
         A("|---|---|---|---|---|")
@@ -355,7 +359,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.write_register:
         out = ROOT / "reports" / "phase0_fallback_register.md"
         write_register(findings, target, out)
-        print("wrote {}".format(out))
+        print(f"wrote {out}")
 
     if not args.quiet:
         for f in findings:
@@ -365,17 +369,16 @@ def main(argv: list[str] | None = None) -> int:
     counts: dict[str, int] = {}
     for f in findings:
         counts[f.kind] = counts.get(f.kind, 0) + 1
-    summary = ", ".join("{}={}".format(k, counts[k])
+    summary = ", ".join(f"{k}={counts[k]}"
                         for k in sorted(counts, key=lambda x: SEVERITY_ORDER.get(x, 99)))
     print("\nTOTAAL {} bevinding(en){}".format(len(findings), (": " + summary) if summary else ""))
 
     blocking = [f for f in findings if f.kind in BLOCKING_KINDS]
     advisory = [f for f in findings if f.kind not in BLOCKING_KINDS]
-    print("  blokkerend: {}   advies: {}".format(len(blocking), len(advisory)))
+    print(f"  blokkerend: {len(blocking)}   advies: {len(advisory)}")
 
     if args.strict and blocking:
-        print("STRICT: build gebroken door {} blokkerende stille fallback(s).".format(
-            len(blocking)), file=sys.stderr)
+        print(f"STRICT: build gebroken door {len(blocking)} blokkerende stille fallback(s).", file=sys.stderr)
         return 1
     return 0
 

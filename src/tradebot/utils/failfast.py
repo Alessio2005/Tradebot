@@ -150,7 +150,7 @@ def require_dependency(module_name: str, *, needed_for: str, install_hint: str =
     import importlib
     import importlib.util
 
-    top = module_name.split(".")[0]
+    top = module_name.split(".", maxsplit=1)[0]
     # find_spec() op een top-level naam retourneert None i.p.v. te raisen, zodat
     # deze module zelf nul try/except-blokken bevat (exit criterium 1).
     if importlib.util.find_spec(top) is None:
@@ -185,7 +185,7 @@ def has_module(module_name: str) -> bool:
     """
     import importlib.util
 
-    return importlib.util.find_spec(module_name.split(".")[0]) is not None
+    return importlib.util.find_spec(module_name.split(".", maxsplit=1)[0]) is not None
 
 
 def unreachable(message: str) -> NoReturn:

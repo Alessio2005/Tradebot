@@ -4,9 +4,13 @@ Bybit v5 market data. Fetches daily closes for all trading USDT spot pairs with
 >=600 days history, paginating backward via the `end` cursor.
 """
 from __future__ import annotations
-import json, time, urllib.request
+
+import json
+import time
+import urllib.request
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "artefacts" / "bybit_spot_daily_close.parquet"

@@ -1,0 +1,38 @@
+# conf/data/default.yaml — L0 datacontract
+# Gevalideerd tegen schemas/config.py::DataConfig (extra="forbid", frozen=True).
+# Phase 0: geen enkel pad, symbool, granulariteit of tolerance staat nog als
+# literal in src/.
+data:
+  market_data_root:   market_data_parquet
+  pit_store_root:     data/pit_store
+  feature_store_root: artefacts/feature_store
+  artefacts_root:     artefacts
+
+  # Universum. Moet overeenkomen met conf/symbols/*.yaml.
+  symbols:
+    - BTCUSDT
+    - ETHUSDT
+    - SOLUSDT
+    - AVAXUSDT
+    - LINKUSDT
+    - DOTUSDT
+
+  granularities:
+    - 1d
+    - 5m
+
+  venue:          bybit
+  quote_currency: USDT
+
+  # Bybit perp funding settelt elke 8 uur. Een rate die om 08:00 UTC settelt is
+  # PAS om 08:00 UTC bekend — deze waarde dwingt die semantiek af in de
+  # asof_join-tolerance (Phase 1, stap 6).
+  funding_interval_hours: 8
+
+  # Verplichte, expliciete tolerance voor elke asof_join. Er is geen default in
+  # de functie zelf: de keuze hoort hier.
+  asof_tolerance_seconds: 60
+
+  # "reject" = een gat in de reeks crasht de ingestion. Gaten worden nooit
+  # stilzwijgend geinterpoleerd (Phase 1, regels).
+  gap_policy: reject

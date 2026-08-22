@@ -13,9 +13,12 @@ combined book, and the honest sqrt(N) ceiling projection.
 Run:  python scripts/multi_sleeve_combine.py
 """
 from __future__ import annotations
+
 import sys
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -110,7 +113,7 @@ def main():
 
     # honest sqrt(N) ceiling
     avg_sh = np.mean([ann(sleeves[k]) for k in sleeves])
-    print(f"\n=== sqrt(N) CEILING ===")
+    print("\n=== sqrt(N) CEILING ===")
     print(f"  avg sleeve Sharpe={avg_sh:.2f}; for Sharpe=3 need N_orthogonal={ (3/max(avg_sh,1e-9))**2 :.0f} "
           f"equally-good uncorrelated sleeves (have ~{len(sleeves)}).")
 

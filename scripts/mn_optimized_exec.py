@@ -11,9 +11,13 @@ Improvements over scripts/wave_final_eval.py:
 Reports turnover, gross, CAGR, Sharpe, Calmar, MaxDD vs the naive baseline.
 """
 from __future__ import annotations
-import importlib.util, sys
+
+import importlib.util
+import sys
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))

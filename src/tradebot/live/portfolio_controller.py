@@ -8,7 +8,6 @@ optimisation method (HRP by default).
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -59,7 +58,7 @@ class PortfolioControllerConfig:
         self,
         method: OptimisationMethod = "hrp",
         min_history_bars: int = 60,
-        constraints: Optional[PortfolioConstraints] = None,
+        constraints: PortfolioConstraints | None = None,
         returns_window: int = 120,
         signal_tilt_strength: float = 0.30,
     ) -> None:
@@ -97,15 +96,15 @@ class PortfolioController:
     def __init__(
         self,
         config: PortfolioControllerConfig,
-        symbols: List[str],
+        symbols: list[str],
     ) -> None:
         self._cfg = config
         self._symbols = symbols
         # Rolling price history for returns computation
-        self._price_history: Dict[str, List[float]] = {s: [] for s in symbols}
-        self._last_weights: Optional[pd.Series] = None
+        self._price_history: dict[str, list[float]] = {s: [] for s in symbols}
+        self._last_weights: pd.Series | None = None
         # Rec 3 (Sim-to-Reality #5): crisis regime detection via BTC skew
-        self._btc_symbol: Optional[str] = next(
+        self._btc_symbol: str | None = next(
             (s for s in symbols if "BTC" in s.upper()), None
         )
         self._crisis_state_active: bool = False
@@ -116,7 +115,7 @@ class PortfolioController:
     # CHIEF-2 (2026-05-28) — Startup seed for HRP-from-day-1
     # ------------------------------------------------------------------
 
-    def seed_price_history(self, closes: Dict[str, List[float]]) -> None:
+    def seed_price_history(self, closes: dict[str, list[float]]) -> None:
         """Pre-populate per-symbol price history from a historical buffer.
 
         Without this, the engine boots with empty ``_price_history`` and
@@ -151,8 +150,8 @@ class PortfolioController:
 
     def optimise(
         self,
-        signals: Dict[str, Optional[SignalResult]],
-        prices: Dict[str, float],
+        signals: dict[str, SignalResult | None],
+        prices: dict[str, float],
     ) -> pd.Series:
         """Compute target weights given current signals and prices.
 
@@ -186,7 +185,7 @@ class PortfolioController:
             ).tail(self._cfg.returns_window)
 
             # Apply signal-based expected returns if available
-            signal_returns: Optional[pd.Series] = None
+            signal_returns: pd.Series | None = None
             active_signals = {
                 sym: r for sym, r in signals.items() if r is not None
             }
@@ -231,7 +230,7 @@ class PortfolioController:
             #     absorb 30 % of NAV from a single weak signal.
             lam = float(self._cfg.signal_tilt_strength)
             if lam > 0.0 and active_signals:
-                deltas: Dict[str, float] = {}
+                deltas: dict[str, float] = {}
                 for sym in self._symbols:
                     r = active_signals.get(sym)
                     if r is None:

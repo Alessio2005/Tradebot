@@ -1,0 +1,126 @@
+name: hygiene
+
+# Phase 0, deliverable 14.
+#
+# Deze workflow WAARSCHUWT niet - hij FAALT. Elke stille fallback, elke
+# schema-schending en elke lint-fout breekt de build. `continue-on-error` komt
+# in dit bestand niet voor, en dat is opzet.
+#
+# Ref: ARCHITECTUUR_AUDIT_2026-08-22.md sectie 18.1 regel 4, sectie 26 (AC-5).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: hygiene-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # registry/lineage.py heeft een resolvable git_sha nodig (D-9), en
+          # backtest/evaluation.py::count_git_commits telt de volledige historie
+          # als trial-count M voor de DSR. Een shallow clone maakt beide fout.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      # --------------------------------------------------------------------
+      # Exit criterium 2: 100% reproduceerbare build uit pyproject + lockfile.
+      # Geen enkele handmatige installatie.
+      # --------------------------------------------------------------------
+      - name: Install from lockfile
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+          pip install pytest pytest-cov hypothesis mypy ruff types-PyYAML types-requests
+
+      - name: Verify dependency contract is closed
+        run: |
+          python - <<'PY'
+          import importlib.util as u, sys
+          # Elke dependency waarvan de afwezigheid ooit een stille fallback gaf.
+          hard = ["statsmodels", "arch", "hmmlearn", "pydantic", "sklearn",
+                  "catboost", "scipy", "numba", "pandas", "numpy", "pyarrow",
+                  "yaml", "requests", "aiohttp", "websockets", "prometheus_client",
+                  "dvc"]
+          missing = [m for m in hard if u.find_spec(m) is None]
+          if missing:
+              sys.exit(f"Harde dependencies ontbreken na een lockfile-install: {missing}")
+          print(f"OK: alle {len(hard)} harde dependencies aanwezig")
+          PY
+
+      # --------------------------------------------------------------------
+      # Exit criterium 3: valide, resolvable git_sha (D-9).
+      # --------------------------------------------------------------------
+      - name: Verify git_sha resolves
+        run: |
+          python - <<'PY'
+          import subprocess, sys
+          from tradebot.registry.lineage import get_git_sha
+          sha = get_git_sha()
+          if not sha:
+              sys.exit("registry/lineage.py::get_git_sha() gaf een lege string (D-9 open)")
+          subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"], check=True)
+          print(f"OK: git_sha={sha} is resolvable in de repository")
+          PY
+
+      # --------------------------------------------------------------------
+      # Exit criterium 1: nul stille fallbacks.
+      # --------------------------------------------------------------------
+      - name: Silent-fallback scan (blocking)
+        run: python scripts/audit_fallbacks.py --strict
+
+      # --------------------------------------------------------------------
+      # Exit criterium 4: quant_architect bestaat nergens meer.
+      # --------------------------------------------------------------------
+      - name: No phantom quant_architect imports
+        run: |
+          if grep -rnE '^[[:space:]]*(from|import)[[:space:]]+quant_architect' src/; then
+            echo "::error::quant_architect wordt nog geimporteerd in src/"
+            exit 1
+          fi
+          echo "OK: nul quant_architect import-statements"
+
+      # --------------------------------------------------------------------
+      # Exit criterium 8: DAG-mappen bestaan met hun artefact-contract (D-8).
+      # --------------------------------------------------------------------
+      - name: DAG directories exist with their contracts
+        run: |
+          rc=0
+          for d in artefacts/features artefacts/models artefacts/tracks; do
+            [ -d "$d" ]            || { echo "::error::$d ontbreekt"; rc=1; }
+            [ -f "$d/README.md" ]  || { echo "::error::$d/README.md ontbreekt"; rc=1; }
+          done
+          exit $rc
+
+      # --------------------------------------------------------------------
+      # Exit criterium 5: config-integriteit.
+      # --------------------------------------------------------------------
+      - name: Lint
+        # scripts/ bevat naast de Phase 0-tooling ook legacy research-scripts.
+        # Die horen volgens sectie 20 in de research-track (geen prod-code) en
+        # zijn als DI-8 doorgeschoven; zie docs/DEFERRED_ISSUES.md.
+        run: |
+          ruff check src/             scripts/audit_fallbacks.py             scripts/phase0_baseline.py             scripts/unwrap_broad_except.py             tests/unit/test_config_contracts.py             tests/unit/test_no_silent_fallbacks.py
+
+      - name: Type-check config schemas
+        run: mypy --strict src/tradebot/schemas/config.py src/tradebot/utils/failfast.py
+
+      - name: Unit tests
+        run: pytest tests/unit -q --no-header

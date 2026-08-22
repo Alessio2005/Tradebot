@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -44,9 +43,9 @@ def _params_hash(**kwargs: object) -> str:
 
 
 def rank_normalize_cross_section(
-    signals: Dict[str, float],
+    signals: dict[str, float],
     min_universe: int = 2,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Rank-normalize a dict of {symbol: raw_signal} to [-1, +1].
 
     Uses fractional ranking (average ties) and maps ranks linearly to [-1, +1].
@@ -147,7 +146,7 @@ class CSMVolumeClockSignal:
     def predict(
         self,
         df: pd.DataFrame,
-        prob_judge: Optional[float] = None,
+        prob_judge: float | None = None,
     ) -> SignalResult:
         """Compute momentum signal on latest macro-bar.
 
@@ -209,7 +208,7 @@ class CSMVolumeClockSignal:
             signal_id=self.signal_id,
         )
 
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return ["close"]
 
 
@@ -218,12 +217,12 @@ class CSMVolumeClockSignal:
 # =============================================================================
 
 def compute_csm_volume_clock_signals(
-    signals: Dict[str, "CSMVolumeClockSignal"],
-    dfs: Dict[str, pd.DataFrame],
-    judge_probs: Optional[Dict[str, float]] = None,
+    signals: dict[str, CSMVolumeClockSignal],
+    dfs: dict[str, pd.DataFrame],
+    judge_probs: dict[str, float] | None = None,
     min_universe: int = 2,
     lag_bars: int = 1,
-) -> Dict[str, SignalResult]:
+) -> dict[str, SignalResult]:
     """Compute and rank-normalize CSM signals across the full universe.
 
     Parameters
@@ -250,8 +249,8 @@ def compute_csm_volume_clock_signals(
     Dict[str, SignalResult] with rank-normalized signals.  The output signal
     is the signal for a trade at bar T + lag_bars (T = df.index[-1]).
     """
-    raw: Dict[str, SignalResult] = {}
-    raw_vals: Dict[str, float] = {}
+    raw: dict[str, SignalResult] = {}
+    raw_vals: dict[str, float] = {}
 
     for sym, sig in signals.items():
         if sym not in dfs:
@@ -283,7 +282,7 @@ def compute_csm_volume_clock_signals(
     ranked = rank_normalize_cross_section(raw_vals, min_universe=min_universe)
 
     # Rebuild SignalResult with rank-normalized signal
-    out: Dict[str, SignalResult] = {}
+    out: dict[str, SignalResult] = {}
     for sym, sr in raw.items():
         normed_signal = ranked.get(sym, 0.0)
         out[sym] = SignalResult(

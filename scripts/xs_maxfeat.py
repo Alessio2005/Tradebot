@@ -12,9 +12,14 @@ find the best honest IC:
 Run:  python scripts/xs_maxfeat.py
 """
 from __future__ import annotations
-import sys, warnings
+
+import sys
+import warnings
 from pathlib import Path
-import numpy as np, pandas as pd, joblib
+
+import joblib
+import numpy as np
+import pandas as pd
 from catboost import CatBoostClassifier
 from sklearn.metrics import roc_auc_score
 

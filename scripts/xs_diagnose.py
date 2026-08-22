@@ -11,9 +11,12 @@ Sharpe lift) or merely rediscovers the known low-vol premium.
 Run:  python scripts/xs_diagnose.py
 """
 from __future__ import annotations
+
 import sys
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))

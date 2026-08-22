@@ -128,7 +128,7 @@ def main() -> None:
 
     # ---- Per-year (at 5 bps) ----
     pnl5 = backtest(R, F, W, 5.0)
-    print(f"\n=== Per-jaar OOS (5 bps kosten) ===")
+    print("\n=== Per-jaar OOS (5 bps kosten) ===")
     print(f"{'Year':6s}{'Return%':>10s}{'Sharpe':>8s}{'MaxDD%':>8s}")
     gross_net_neg = 0
     for y, g in pnl5.groupby(pnl5.index.year):
@@ -152,7 +152,7 @@ def main() -> None:
         print(f"\nDSR calc skipped: {e}")
 
     # ---- Lookback robustness (REPORT, do not select) ----
-    print(f"\n=== Robuustheid over lookbacks (5 bps) — NIET geselecteerd, alleen gerapporteerd ===")
+    print("\n=== Robuustheid over lookbacks (5 bps) — NIET geselecteerd, alleen gerapporteerd ===")
     print(f"{'k_rev':>6s}{'k_carry':>8s}{'Sharpe':>8s}{'AnnRet%':>9s}{'MaxDD%':>8s}")
     for kr in (3, 5, 10):
         for kc in (1, 3, 5):

@@ -137,7 +137,7 @@ def factor_residual_alpha(
         loadings={c: float(model.params[c]) for c in x_cols},
         loading_tstats={c: float(model.tvalues[c]) for c in x_cols},
         r_squared=float(model.rsquared),
-        n_obs=int(len(df)),
+        n_obs=len(df),
         hac_maxlags=int(hac_maxlags),
         factors=tuple(x_cols),
     )

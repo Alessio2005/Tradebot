@@ -47,7 +47,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tradebot.alpha.cm_carry import build_slot_panel  # noqa: E402
+from tradebot.alpha.cm_carry import build_slot_panel
 
 PANEL = "market_data_parquet/commodities/eia_term_structure.parquet"
 

@@ -47,8 +47,7 @@ Usage::
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import List, Optional
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -91,7 +90,7 @@ class OrderRecord:
     limit_price: float
     size_base: float
     entry_bar_ts: pd.Timestamp
-    queue_at_entry: Optional[float] = None
+    queue_at_entry: float | None = None
 
 
 @dataclass
@@ -203,7 +202,7 @@ class LOBSimulator:
         bars_after_entry: pd.DataFrame,
         ann_vol_proxy: float = 0.80,
         treat_as_maker: bool = True,
-    ) -> Optional[FillRecord]:
+    ) -> FillRecord | None:
         """Simulate a single limit order against a bar series.
 
         Parameters
@@ -315,10 +314,10 @@ class LOBSimulator:
     def simulate_fills(
         self,
         bars_df: pd.DataFrame,
-        orders: List[OrderRecord],
+        orders: list[OrderRecord],
         ann_vol_proxy: float = 0.80,
         treat_as_maker: bool = True,
-    ) -> List[FillRecord]:
+    ) -> list[FillRecord]:
         """Batch-simulate fills for a list of orders against a bar series.
 
         Parameters
@@ -335,7 +334,7 @@ class LOBSimulator:
         List[FillRecord] — one entry per *filled* order.  Unfilled/expired
         orders are silently dropped.
         """
-        fills: List[FillRecord] = []
+        fills: list[FillRecord] = []
 
         for order in orders:
             # Slice bars from one bar after entry

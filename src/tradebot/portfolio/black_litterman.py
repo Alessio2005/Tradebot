@@ -17,7 +17,6 @@ Reference: Black & Litterman (1992); He & Litterman (1999) implementation.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -115,8 +114,8 @@ class BLViews:
 
 def black_litterman_weights(
     returns: pd.DataFrame,
-    views: Optional[BLViews] = None,
-    tau: Optional[float] = None,
+    views: BLViews | None = None,
+    tau: float | None = None,
     risk_aversion: float = 2.5,
 ) -> pd.Series:
     """Compute Black-Litterman posterior expected returns and MVO weights.

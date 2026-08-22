@@ -1,11 +1,18 @@
-# conf/risk/default.yaml — institutional risk budget
+# conf/risk/default.yaml — L7 institutioneel risicobudget
+# Gevalideerd tegen schemas/config.py::RiskConfig.
 # @package _global_
 risk:
-  max_position_pct: 0.25
-  max_gross_leverage: 1.5
-  max_net_imbalance: 0.40
-  daily_var_limit_pct: 0.02
-  max_drawdown_pct: 0.08
-  max_position_age_h: 48
-  min_signal_confidence: 0.55
+  max_position_pct:         0.25
+  max_gross_leverage:       1.5
+  max_net_imbalance:        0.40
+  daily_var_limit_pct:      0.02
+  max_drawdown_pct:         0.08
+  max_daily_loss_pct:       0.03
+  max_position_age_h:       48
+  min_signal_confidence:    0.55
   max_funding_cost_bps_day: 30
+
+  # 1/N is de BASELINE, Inverse Volatility (Naive Risk Parity) is de PRODUCTION
+  # DEFAULT (audit sectie 13.1). HRP, Markowitz en Black-Litterman zijn in
+  # Phase 3 expliciet niet toegestaan.
+  allocator: risk_parity

@@ -18,7 +18,7 @@ bar t+1. Risk-parity vol uses sleeve P&L through t-1.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd

@@ -9,9 +9,13 @@ Reuses tradebot.labeling.triple_barrier.TripleBarrierLabeler. Daily OHLC is
 resampled from the intraday feature parquets (5 assets).
 """
 from __future__ import annotations
-import sys, warnings
+
+import sys
+import warnings
 from pathlib import Path
-import numpy as np, pandas as pd
+
+import numpy as np
+import pandas as pd
 from catboost import CatBoostClassifier
 
 warnings.filterwarnings("ignore")

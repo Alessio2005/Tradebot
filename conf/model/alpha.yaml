@@ -1,0 +1,23 @@
+# conf/model/alpha.yaml — L4 alpha
+# Gevalideerd tegen schemas/config.py::AlphaConfig.
+#
+# Level 1 Cross-Sectional Momentum. De unit levert UITSLUITEND een schaalloze
+# gewenste exposure a_t in [-1, +1]: nul risicologica, nul leverage, nul
+# stop-losses, nul executiekennis (audit sectie 11.1).
+alpha:
+  # Formatievenster in bars.
+  lookback_bars: 60
+
+  # Skip-periode: de meest recente bar wordt overgeslagen om de korte-termijn
+  # reversal niet mee te nemen, EN om de w.shift(1)-conventie te respecteren.
+  skip_bars: 1
+
+  # Onder dit aantal assets is een cross-sectionele rangschikking betekenisloos.
+  min_assets: 3
+  rebalance_every_bars: 1
+
+  signal_floor: -1.0
+  signal_cap:    1.0
+
+  # Winsorisatie op ROLLING quantielen (nooit op de volledige sample).
+  winsorise_quantile: 0.02

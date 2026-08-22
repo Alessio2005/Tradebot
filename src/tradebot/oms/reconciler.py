@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Dict, Optional
+from dataclasses import dataclass
 
-from .position_tracker import PositionRecord, PositionTracker
+from .position_tracker import PositionTracker
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +83,7 @@ class Reconciler:
         Reconciler configuration.
     """
 
-    def __init__(self, tracker: PositionTracker, config: Optional[ReconcilerConfig] = None) -> None:
+    def __init__(self, tracker: PositionTracker, config: ReconcilerConfig | None = None) -> None:
         self._tracker = tracker
         self._cfg = config or ReconcilerConfig()
         # CHIEF AUDIT-FIX #15 — recent-fill tracking for the grace window
@@ -92,7 +91,7 @@ class Reconciler:
         # CHIEF AUDIT-FIX #15 — two-strikes state: symbol → consecutive bad passes
         self._strike_count: dict[str, int] = {}
 
-    def note_fill(self, symbol: str, ts: Optional[float] = None) -> None:
+    def note_fill(self, symbol: str, ts: float | None = None) -> None:
         """Record the timestamp of the most recent fill on ``symbol``.
 
         Called by the router whenever an order is filled.  The reconciler
@@ -102,8 +101,8 @@ class Reconciler:
 
     def reconcile(
         self,
-        exchange_positions: Optional[Dict[str, float]] = None,
-        now: Optional[float] = None,
+        exchange_positions: dict[str, float] | None = None,
+        now: float | None = None,
     ) -> list[ReconciliationResult]:
         """Run one reconciliation pass.
 

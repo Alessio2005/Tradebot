@@ -14,11 +14,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 logger = logging.getLogger(__name__)
 
@@ -143,13 +140,13 @@ class FeatureStore:
         mask = (combined.index >= start) & (combined.index <= end)
         return combined.loc[mask]
 
-    def latest_timestamp(self, symbol: str) -> Optional[pd.Timestamp]:
+    def latest_timestamp(self, symbol: str) -> pd.Timestamp | None:
         """Return the most recent timestamp stored for ``symbol``, or None."""
         sym_root = self.root / symbol
         if not sym_root.exists():
             return None
 
-        latest: Optional[pd.Timestamp] = None
+        latest: pd.Timestamp | None = None
         for part_file in sym_root.rglob("data.parquet"):
             # Read only the index by reading one column and discarding it.
             df_part = pd.read_parquet(part_file)

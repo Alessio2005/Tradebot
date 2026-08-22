@@ -8,13 +8,10 @@ for the OMS router.
 from __future__ import annotations
 
 import logging
-import uuid
-from typing import Dict, List, Optional
 
 import pandas as pd
 
 from ..oms.order import Order, OrderSide, OrderType
-from ..utils.hashing import hash_config
 
 logger = logging.getLogger(__name__)
 
@@ -108,12 +105,12 @@ class ExecutionController:
     def size_orders(
         self,
         target_weights: pd.Series,
-        current_weights: Dict[str, float],
-        prices: Dict[str, float],
+        current_weights: dict[str, float],
+        prices: dict[str, float],
         equity: float,
-        signal_probs: Optional[Dict[str, float]] = None,
-        feature_hashes: Optional[Dict[str, str]] = None,
-    ) -> List[Order]:
+        signal_probs: dict[str, float] | None = None,
+        feature_hashes: dict[str, str] | None = None,
+    ) -> list[Order]:
         """Generate orders to move from ``current_weights`` to ``target_weights``.
 
         Parameters
@@ -135,7 +132,7 @@ class ExecutionController:
         -------
         List of Order objects.  Empty list if no rebalancing is needed.
         """
-        orders: List[Order] = []
+        orders: list[Order] = []
         now = pd.Timestamp.now(tz="UTC")
         date_str = now.strftime("%Y%m%d")
 

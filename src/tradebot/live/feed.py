@@ -30,7 +30,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -96,7 +95,7 @@ class FeedConfig:
         the actual bar resolution is ``bar_seconds``, not this string.
     """
 
-    symbols: List[str]
+    symbols: list[str]
     bar_seconds: int = 5
     paper_mode: bool = True
     replay_delay_s: float = 0.0
@@ -114,8 +113,13 @@ class _PartialBar:
     """
 
     __slots__ = (
-        "bar_id", "open", "high", "low", "close",
-        "volume", "taker_buy_vol",
+        "bar_id",
+        "close",
+        "high",
+        "low",
+        "open",
+        "taker_buy_vol",
+        "volume",
     )
 
     def __init__(
@@ -140,10 +144,8 @@ class _PartialBar:
         qty: float,
         is_taker_buy: bool,
     ) -> None:
-        if price > self.high:
-            self.high = price
-        if price < self.low:
-            self.low = price
+        self.high = max(self.high, price)
+        self.low = min(self.low, price)
         self.close   = price
         self.volume += qty
         if is_taker_buy:
@@ -187,25 +189,25 @@ class Feed:
         self,
         config: FeedConfig,
         queue: asyncio.Queue,
-        historical_bars: Optional[Dict[str, pd.DataFrame]] = None,
+        historical_bars: dict[str, pd.DataFrame] | None = None,
     ) -> None:
         self._cfg = config
         self._queue = queue
         self._bars = historical_bars or {}
         self._running = False
         # Wave 15 P0-5.6 — per-symbol sequence counters
-        self._seq_counters: Dict[str, int] = {}
+        self._seq_counters: dict[str, int] = {}
         # F1 — live L1 best bid/ask per symbol (from orderbook.1 stream).
         # Tuple: (best_bid, best_ask, recv_ms).  Used for realistic spread
         # injection into PaperOMS (replaces synthetic (H-L)/8 estimate).
-        self._best_quote: Dict[str, tuple[float, float, int]] = {}
+        self._best_quote: dict[str, tuple[float, float, int]] = {}
         # F2 — last observed funding rate per symbol (from REST tickers).
         # Updated every poll_interval_s seconds; used to stamp BarEvents that
         # cross an 8h funding boundary (UTC 00:00, 08:00, 16:00).
-        self._funding_rate: Dict[str, float] = {}
+        self._funding_rate: dict[str, float] = {}
         # Track last 8h-boundary already paid out per symbol so we never
         # double-bill within one funding interval.
-        self._last_funding_bar_id: Dict[str, int] = {}
+        self._last_funding_bar_id: dict[str, int] = {}
 
     # ------------------------------------------------------------------
     # Public control
@@ -245,7 +247,7 @@ class Feed:
     # F1 — Best-quote accessor (consumed by engine for PaperOMS spread)
     # ------------------------------------------------------------------
 
-    def get_best_quote(self, symbol: str) -> Optional[tuple[float, float]]:
+    def get_best_quote(self, symbol: str) -> tuple[float, float] | None:
         """Return (best_bid, best_ask) for ``symbol`` if a fresh quote exists.
 
         Returns None if no quote has arrived yet or the last quote is older
@@ -332,14 +334,11 @@ class Feed:
         Reconnect policy (P2-3): exponential backoff, cap 60s. Re-subscribes on
         every (re)connect.
         """
-        try:
-            import websockets
-        except ImportError:
-            raise RuntimeError(
-                "Live feed requires websockets. Install with: pip install websockets"
-            )
-
+        # Phase 0: websockets is een harde dependency (pyproject.toml); de
+        # try/except ImportError-guard hier is daarmee dode code geworden.
         import json
+
+        import websockets
 
         bar_ms = self._cfg.bar_seconds * 1000
         sym_set = {s.upper() for s in self._cfg.symbols}
@@ -370,7 +369,7 @@ class Feed:
         attempt: int = 0
 
         # In-progress bars per symbol.  Initialised on first trade.
-        partial: Dict[str, _PartialBar] = {}
+        partial: dict[str, _PartialBar] = {}
 
         while self._running:
             async with websockets.connect(url, ping_interval=20) as ws:
@@ -447,7 +446,7 @@ class Feed:
 
     _FUNDING_BOUNDARY_MS: int = 8 * 3600 * 1000  # default 8h in ms (majors)
 
-    def _maybe_attach_funding(self, bar: "BarEvent", bar_ms: int) -> "BarEvent":
+    def _maybe_attach_funding(self, bar: BarEvent, bar_ms: int) -> BarEvent:
         """Return ``bar`` possibly augmented with funding_rate.
 
         A non-zero funding_rate is attached on EXACTLY the first bar of each
@@ -524,12 +523,10 @@ class Feed:
 
         _BASE_BACKOFF_S: float = 1.0
         _MAX_BACKOFF_S: float  = 60.0
-        attempt: int = 0
 
         while self._running:
             async with websockets.connect(url, ping_interval=20) as ws:
                 await ws.send(sub_msg)
-                attempt = 0
                 async for message in ws:
                     if not self._running:
                         return
@@ -633,14 +630,11 @@ class Feed:
         Only use this for debugging; production always uses _live_ws_aggtrade()
         which provides 5s resolution matching the training data.
         """
-        try:
-            import websockets
-        except ImportError:
-            raise RuntimeError(
-                "Live feed requires websockets. Install with: pip install websockets"
-            )
-
+        # Phase 0: websockets is een harde dependency (pyproject.toml); de
+        # try/except ImportError-guard hier is daarmee dode code geworden.
         import json
+
+        import websockets
 
         # Bybit kline interval is a bare number of minutes ("1","3","5",...);
         # map the informational "5s"/"1m" style string to the closest minute.

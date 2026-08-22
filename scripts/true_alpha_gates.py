@@ -14,6 +14,7 @@ All factors are built causally from the broad perp panel; sleeve weights use
 data <= t and execute t+1 (inherited from the sleeve builders).
 """
 from __future__ import annotations
+
 import importlib.util
 import sys
 from pathlib import Path

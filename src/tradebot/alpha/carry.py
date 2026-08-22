@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -131,5 +130,5 @@ class FundingCarry:
             signal_id=self.signal_id,
         )
 
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return ["close", self.funding_col]

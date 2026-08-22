@@ -1,0 +1,19 @@
+# conf/model/volatility.yaml — L2 volatiliteit
+# Gevalideerd tegen schemas/config.py::VolatilityConfig.
+#
+# BINDEND (audit sectie 9.1 / 22): Level 1 = EWMA/RiskMetrics met lambda = 0.94
+# is de BASELINE. GARCH is Level 2 en is in Phase 3 expliciet VERBODEN; die
+# competitie hoort in Phase 6.
+volatility:
+  estimator: ewma
+
+  # RiskMetrics-conventie.
+  ewma_lambda: 0.94
+
+  # Aantal observaties voordat de schatting bruikbaar is. Daarvoor propageert de
+  # estimator NaN — nooit een impliciete constante volatiliteit (Phase 3, stap 3).
+  burn_in_bars: 60
+
+  # Daily bars, crypto handelt 365 dagen per jaar.
+  annualisation_factor: 365.0
+  min_periods: 2

@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import List
 
-import numpy as np
 import pandas as pd
 
 from .post_trade import PostTradeRecord
@@ -18,7 +16,7 @@ __all__ = ["TCAReport", "build_tca_report"]
 class TCAReport:
     """Aggregated TCA statistics over a list of PostTradeRecords."""
 
-    def __init__(self, records: List[PostTradeRecord]) -> None:
+    def __init__(self, records: list[PostTradeRecord]) -> None:
         self.records = records
         self._df: pd.DataFrame | None = None
 
@@ -74,6 +72,6 @@ class TCAReport:
         )
 
 
-def build_tca_report(records: List[PostTradeRecord]) -> TCAReport:
+def build_tca_report(records: list[PostTradeRecord]) -> TCAReport:
     """Factory function to build a TCAReport from a list of records."""
     return TCAReport(records)

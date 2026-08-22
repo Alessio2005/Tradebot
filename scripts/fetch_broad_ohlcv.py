@@ -9,8 +9,12 @@ Output: artefacts/broad_perp_ohlcv.parquet — tidy long frame
 [date, symbol, open, high, low, close, volume].
 """
 from __future__ import annotations
-import json, time, urllib.request
+
+import json
+import time
+import urllib.request
 from pathlib import Path
+
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent

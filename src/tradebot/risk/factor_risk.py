@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -84,12 +83,12 @@ class FactorRiskModel:
 
     def __init__(self, factor_window: int = 126) -> None:
         self.factor_window = factor_window
-        self._exposures: Dict[str, FactorExposure] = {}
+        self._exposures: dict[str, FactorExposure] = {}
 
     def fit(
         self,
         returns: pd.DataFrame,
-        btc_returns: Optional[pd.Series] = None,
+        btc_returns: pd.Series | None = None,
     ) -> None:
         """Fit factor loadings for all assets.
 
@@ -171,7 +170,7 @@ class FactorRiskModel:
 def compute_factor_risk(
     returns: pd.DataFrame,
     weights: pd.Series,
-    btc_returns: Optional[pd.Series] = None,
+    btc_returns: pd.Series | None = None,
     factor_window: int = 126,
 ) -> dict[str, float]:
     """Convenience wrapper: fit FactorRiskModel and return portfolio risk decomposition."""

@@ -141,7 +141,7 @@ def optuna_objective_binary(
     # GAMMA-FIX: gamma=0.995 (default) geeft half-life ≈ 138 trades.
     # Bij 5 trades/dag duurt aanpassing aan een nieuw regime ~28 dagen — te traag
     # voor crypto. Optuna sweep over log-schaal: 0.970 (HL≈23) tot 0.9995 (HL≈1385).
-    bandit_gamma = trial.suggest_float('bandit_gamma', 0.970, 0.9995, log=True)
+    trial.suggest_float('bandit_gamma', 0.970, 0.9995, log=True)
 
     params = {
         'iterations': trial.suggest_int('iterations', 600, 1500),

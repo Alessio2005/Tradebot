@@ -74,7 +74,7 @@ class XSUnitResult:
         years = net.groupby(net.index.year).apply(lambda r: (1 + r).prod() - 1)
         return {
             "unit": self.unit,
-            "n_days": int(len(net)),
+            "n_days": len(net),
             "net_sharpe": ann_sharpe(net),
             "gross_sharpe": ann_sharpe(gross),
             "net_cagr": float((1 + net).prod() ** (TRADING_DAYS / max(len(net), 1)) - 1),
