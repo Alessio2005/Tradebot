@@ -21,6 +21,8 @@ import logging
 
 import numpy as np
 
+from ..utils.failfast import CausalityViolationError
+
 logger = logging.getLogger(__name__)
 
 
@@ -116,13 +118,13 @@ def apply_symqs_overlay(
         New matrix where only oscillator columns have been SymQS-rescaled;
         all other columns come unmodified from ``X_full_scaled``.
     """
-    try:
-        from quant_architect import SymmetricQuantileScaler
-        _qarch_ok = True
-    except ImportError:
-        _qarch_ok = False
+    # Phase 0 stap 5: SymmetricQuantileScaler leeft in tradebot.train.quant_arch,
+    # niet in het niet-bestaande pakket `quant_architect`. De oude except-tak zette
+    # _qarch_ok=False en gaf X_full_scaled ONGEWIJZIGD terug: de oscillator-kolommen
+    # werden dan nooit symmetrisch geschaald, zonder enige melding.
+    from ..train.quant_arch import SymmetricQuantileScaler
 
-    if not _qarch_ok or X_full_scaled.shape[1] == 0:
+    if X_full_scaled.shape[1] == 0:
         return X_full_scaled
 
     osc_mask, passthrough_mask = build_oscillator_masks(feature_names)
@@ -136,34 +138,29 @@ def apply_symqs_overlay(
     if sub_raw.size == 0:
         return out
 
-    try:
-        sym_scaler = SymmetricQuantileScaler(
-            n_bins=21,
-            passthrough_mask=osc_pass.tolist(),
+    sym_scaler = SymmetricQuantileScaler(
+        n_bins=21,
+        passthrough_mask=osc_pass.tolist(),
+    )
+    if train_indices is not None:
+        # Causal path: fit on training rows only, transform full matrix.
+        # Prevents distributional leakage: test-fold quantile boundaries
+        # are never seen during the fit phase.
+        sub_train = sub_raw[train_indices]
+        sym_scaler.fit(sub_train)
+        sub_scaled = sym_scaler.transform(sub_raw)
+    else:
+        # Phase 0: het legacy-pad deed fit_transform op de VOLLEDIGE X. Dat is
+        # distributionele leakage over foldgrenzen heen: de quantiel-grenzen van
+        # de testfold worden meegenomen in de fit. Het pad waarschuwde alleen en
+        # leverde vervolgens gewoon een lekkende matrix op. Dat is geen
+        # implementatiedetail maar een lookahead-lek (audit sectie 7.2).
+        raise CausalityViolationError(
+            "apply_symqs_overlay() zonder train_indices fit de "
+            "SymmetricQuantileScaler op de volledige sample, inclusief de "
+            "testfold. Geef train_indices=fold_train_idx mee zodat de fit "
+            "uitsluitend op trainingsrijen plaatsvindt."
         )
-        if train_indices is not None:
-            # Causal path: fit on training rows only, transform full matrix.
-            # Prevents distributional leakage: test-fold quantile boundaries
-            # are never seen during the fit phase.
-            sub_train = sub_raw[train_indices]
-            sym_scaler.fit(sub_train)
-            sub_scaled = sym_scaler.transform(sub_raw)
-        else:
-            # Legacy path: fit_transform on full X (distributional leakage
-            # possible at regime-shift boundaries).  Pass train_indices to
-            # eliminate this gap when calling inside a CPCV fold loop.
-            logger.warning(
-                "SymQS overlay: train_indices not provided — fitting on full "
-                "X_raw (potential distributional leakage across folds). "
-                "Pass train_indices=fold_train_idx for causal operation."
-            )
-            sub_scaled = sym_scaler.fit_transform(sub_raw)
-    except Exception as exc:
-        logger.warning(
-            "SymQS overlay failed (%s) — keeping RollingRobustScaler output.",
-            exc,
-        )
-        return out
 
     out[:, osc_idx] = sub_scaled.astype(out.dtype, copy=False)
     logger.info(
@@ -181,13 +178,9 @@ _build_oscillator_masks = build_oscillator_masks
 _apply_symqs_overlay    = apply_symqs_overlay
 
 
-# ── Re-export RollingRobustScaler from agent.py (single import path) ──────────
-try:
-    from ..train._scalers import RollingRobustScaler
-except ImportError:
-    # Graceful degradation — agent.py not on path in unit-test context.
-    RollingRobustScaler = None  # type: ignore[assignment, misc]
-    logger.debug(
-        "agent.RollingRobustScaler not importable — "
-        "install the project package or add project root to sys.path."
-    )
+# ── Re-export RollingRobustScaler (single import path) ────────────────────────
+# Phase 0: de oude try/except zette RollingRobustScaler op None wanneer de import
+# faalde. Elke aanroeper kreeg dan een TypeError diep in de pipeline in plaats van
+# een duidelijke ImportError op de importsite. Dit is een interne module binnen
+# hetzelfde pakket; hij kan niet legitiem ontbreken.
+from ..train._scalers import RollingRobustScaler  # noqa: E402,F401
