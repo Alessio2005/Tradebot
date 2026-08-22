@@ -15,12 +15,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
+from ..utils.failfast import TradebotContractError
 from .base import AlphaSignal, SignalResult
 
 logger = logging.getLogger(__name__)
@@ -91,9 +92,16 @@ def run_signal_harness(
         try:
             signal.fit(train_df)
             pred = signal.predict(pred_df)
-        except Exception:
-            logger.debug("signal.predict failed at bar %d", i, exc_info=True)
-            continue
+        except Exception as exc:
+            # Phase 0: dit `continue` sloeg de bar over waarop het signaal
+            # faalde. Bars vallen zelden willekeurig uit - juist tijdens
+            # regime-shifts en vol-pieken - dus het weglaten ervan is
+            # survivorship bias OVER DE TIJD en maakt de gerapporteerde Sharpe
+            # structureel te gunstig.
+            raise TradebotContractError(
+                f"research_harness: signal.fit/predict faalde op bar {i}: "
+                f"{exc}. Bars overslaan vertekent de resultaatverdeling."
+            ) from exc
 
         # Forward return over horizon_bars
         p_now  = float(df["close"].iloc[i])

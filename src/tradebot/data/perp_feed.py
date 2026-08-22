@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..utils.failfast import DataContractError
+
 BYBIT = "https://api.bybit.com"
 CATEGORY = "linear"
 
@@ -99,8 +101,12 @@ def fetch_daily_closes(symbol: str, start_ms: int) -> pd.Series | None:
                     "limit": 1000,
                 },
             )
-        except Exception:
-            break
+        except Exception as exc:
+            # Phase 0: dit `break` leverde een STIL afgekapte closing-reeks op.
+            raise DataContractError(
+                f"[{symbol}] Bybit kline-pagination afgebroken na {len(rows)} "
+                f"rijen: {exc}."
+            ) from exc
         klist = result.get("list", [])
         if not klist:
             break

@@ -25,6 +25,8 @@ import pandas as pd
 import requests
 import yfinance as yf
 
+from ..utils.failfast import DataContractError
+
 logger = logging.getLogger("data.tradfi_macro")
 
 
@@ -127,8 +129,11 @@ class MacroDataFetcher:
                 time.sleep(0.15)
 
             except Exception as e:
-                logger.error("DVOL fetch error (%s): %s", currency, e)
-                break
+                # Phase 0: geen stille gedeeltelijke DVOL-reeks.
+                raise DataContractError(
+                    f"DVOL-pagination ({currency}) afgebroken na "
+                    f"{len(all_rows)} rijen: {e}."
+                ) from e
 
         if not all_rows:
             logger.warning("DVOL (%s): no data received.", currency)

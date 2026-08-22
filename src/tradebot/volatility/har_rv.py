@@ -20,10 +20,14 @@ A runtime warning fires when the input series exceeds 5000 bars without
 "someone passed the whole dataset" mistake.
 """
 from __future__ import annotations
+
 import logging
 import warnings
-import numpy as np
 from typing import NamedTuple, Optional
+
+import numpy as np
+
+from ..utils.failfast import DataContractError
 
 logger = logging.getLogger(__name__)
 
@@ -128,10 +132,18 @@ def har_rv_fit(
         X_fit, y_fit = X, y
 
     # OLS fit
+    # Phase 0: `except LinAlgError: beta = [mean(y), 0, 0, 0]` degradeerde het
+    # HAR-RV-model (Level 2) naar een CONSTANTE gemiddelde-voorspelling
+    # (Level 0) - met beta_d = beta_w = beta_m = 0 verdwijnt de volledige
+    # heterogene-autoregressiestructuur. Elke QLIKE-vergelijking tegen EWMA zou
+    # dan feitelijk EWMA-vs-constante zijn.
     try:
         beta, residuals, rank, sv = np.linalg.lstsq(X_fit, y_fit, rcond=None)
-    except np.linalg.LinAlgError:
-        beta = np.array([np.mean(y_fit), 0.0, 0.0, 0.0])
+    except np.linalg.LinAlgError as exc:
+        raise DataContractError(
+            "HAR-RV kleinste-kwadratenfit singulier. Er wordt NIET "
+            "teruggevallen op een constante gemiddelde-voorspelling."
+        ) from exc
 
     c, beta_d, beta_w, beta_m = float(beta[0]), float(beta[1]), float(beta[2]), float(beta[3])
 

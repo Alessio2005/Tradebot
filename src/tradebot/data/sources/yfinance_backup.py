@@ -71,7 +71,13 @@ def fetch_universe_yf(
                 group_by="ticker", auto_adjust=True, actions=False,
                 progress=False, threads=True,
             )
-        except Exception as exc:  # noqa: BLE001
+        # Phase 0: aangescherpt van `except Exception`. Dit is GEEN stille
+        # degradatie: elke mislukte ticker wordt in het `failures`-register
+        # gezet, dat aan de aanroeper wordt teruggegeven en in het data-register
+        # belandt. De typetuple dekt de reele faalmodi van een netwerk- plus
+        # parse-operatie; een AttributeError of ImportError is een bug en
+        # propageert.
+        except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
             for s in chunk:
                 failures[yf_map[s]] = f"chunk download failed: {exc}"
             continue

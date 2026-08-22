@@ -49,11 +49,12 @@ def _block_shuffle(
             blk_len = len(blk)
             emb = min(embargo_bars, blk_len)
             if emb > 0:
-                # Choose NaN if the dtype permits, else fall back to zero.
-                try:
-                    out[offset:offset + emb] = np.nan
-                except (TypeError, ValueError):
-                    out[offset:offset + emb] = 0
+                # Phase 0: de fallback zette het embargo-blok op 0 wanneer de
+                # dtype geen NaN toestond. Een nul is een GELDIGE observatie
+                # ("geen beweging"), geen ontbrekende - dat verschuift de
+                # MDA-nulverdeling en dus elke feature-importance eruit volgt.
+                # `out` is hierboven al naar float64 gecast, dus NaN past altijd.
+                out[offset:offset + emb] = np.nan
             offset += blk_len
     return out
 

@@ -32,6 +32,8 @@ from scipy.spatial.distance import squareform
 from scipy.stats import spearmanr
 from sklearn.metrics import accuracy_score, log_loss
 
+from ..utils.failfast import DataContractError
+
 logger = logging.getLogger(__name__)
 
 
@@ -178,10 +180,18 @@ def compute_clustered_feature_importance(
         if hasattr(model, "predict_proba"):
             proba = model.predict_proba(X_in)
             if _metric == "log_loss":
+                # Phase 0: `except ValueError: _metric = "accuracy"` wisselde de
+                # scoringsmetriek permanent om, midden in de
+                # feature-importance-berekening. De importances voor en na de
+                # wissel zijn dan niet vergelijkbaar, terwijl het rapport een
+                # enkele metriek noemt.
                 try:
                     return float(log_loss(y_true, proba, sample_weight=w))
-                except ValueError:
-                    _metric = "accuracy"
+                except ValueError as exc:
+                    raise DataContractError(
+                        "log_loss faalde tijdens clustered feature importance; "
+                        "er wordt niet stilzwijgend op accuracy overgeschakeld."
+                    ) from exc
             return float(
                 accuracy_score(y_true, model.predict(X_in), sample_weight=w)
             )

@@ -23,6 +23,8 @@ import numpy as np
 import pandas as pd
 from sklearn.covariance import LedoitWolf
 
+from ..utils.failfast import DataContractError
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["BLViews", "black_litterman_weights"]
@@ -172,17 +174,28 @@ def black_litterman_weights(
     lhs = tau_cov_inv + P.T @ omega_inv @ P
     rhs = tau_cov_inv @ pi + P.T @ omega_inv @ Q
 
+    # Phase 0: `except LinAlgError: mu_bl = pi` gaf de MARKTPRIOR terug als
+    # "Black-Litterman posterior". De views (P, Q) verdwenen dan volledig uit de
+    # schatting terwijl het resultaat als BL werd gerapporteerd.
     try:
         mu_bl = np.linalg.solve(lhs, rhs)
-    except np.linalg.LinAlgError:
-        logger.warning("BL linear solve failed — using market prior.")
-        mu_bl = pi
+    except np.linalg.LinAlgError as exc:
+        raise DataContractError(
+            "Black-Litterman posterior-solve singulier. Er wordt NIET "
+            "teruggevallen op de marktprior: dat zou de views stilzwijgend "
+            "wegstrepen en het resultaat toch als BL rapporteren."
+        ) from exc
 
     # MVO on posterior (risk_aversion * Σ w = mu_bl → solve for w)
+    # Phase 0: `except LinAlgError: w_raw = w_eq` degradeerde de MVO-oplossing
+    # stilzwijgend naar gelijke gewichten (1/N).
     try:
         w_raw = np.linalg.solve(risk_aversion * cov, mu_bl)
-    except np.linalg.LinAlgError:
-        w_raw = w_eq
+    except np.linalg.LinAlgError as exc:
+        raise DataContractError(
+            "MVO-solve op de BL-posterior singulier. Er wordt NIET "
+            "teruggevallen op gelijke gewichten."
+        ) from exc
 
     # Long-only, normalised
     w_raw = np.maximum(w_raw, 0.0)

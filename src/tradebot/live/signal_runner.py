@@ -13,6 +13,7 @@ import pandas as pd
 
 from ..alpha.base import AlphaSignal, SignalResult
 from ..alpha.combination import ICWeightedCombiner
+from ..utils.failfast import TradebotContractError
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,15 @@ class SignalRunner:
                 if result.confidence >= self._cfg.min_confidence:
                     raw_results.append(result)
             except Exception as exc:
-                logger.warning("SignalRunner: %s.predict() failed: %s", sig.signal_id, exc)
+                # Phase 0: hier verdween een falend signaal STIL uit het boek.
+                # De combiner rekende daarna met minder signalen dan
+                # geconfigureerd, wat de effectieve weging van de overige
+                # signalen verhoogt - een andere portefeuille dan de
+                # gebacktestte, zonder dat een dashboard dat toont.
+                raise TradebotContractError(
+                    f"SignalRunner: {sig.signal_id}.predict() faalde: {exc}. "
+                    f"Een signaal mag niet stil uit het boek vallen."
+                ) from exc
 
         if not raw_results:
             return None
@@ -246,10 +255,13 @@ class SignalRunner:
                 if result is not None and result.confidence >= self._cfg.min_confidence:
                     raw_results.append(result)
             except Exception as exc:
-                logger.warning(
-                    "SignalRunner: %s.predict_on_event() failed: %s",
-                    getattr(sig, "signal_id", "?"), exc,
-                )
+                # Phase 0: idem predict() - een falend signaal mag niet stil uit
+                # het boek vallen; dat verandert de effectieve weging van de
+                # overige signalen t.o.v. de backtest.
+                raise TradebotContractError(
+                    f"SignalRunner: {getattr(sig, 'signal_id', '?')}."
+                    f"predict_on_event() faalde: {exc}."
+                ) from exc
 
         if not raw_results:
             return None

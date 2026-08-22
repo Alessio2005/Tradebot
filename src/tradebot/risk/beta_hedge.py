@@ -13,6 +13,8 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 
+from ..utils.failfast import DataContractError
+
 logger = logging.getLogger(__name__)
 
 _BETA_BAND = (-0.1, 0.1)
@@ -38,9 +40,15 @@ def _huber_beta(y: np.ndarray, x: np.ndarray) -> float:
         try:
             coefs, _, _, _ = np.linalg.lstsq(X_mat.T @ W @ X_mat, X_mat.T @ W @ y_c, rcond=None)
             beta_hat = float(coefs[1])
-        except np.linalg.LinAlgError:
-            cov = np.cov(y_c, x_c)
-            return float(cov[0, 1] / max(cov[1, 1], 1e-10))
+        except np.linalg.LinAlgError as exc:
+            # Phase 0: dit gaf een gewone OLS-beta terug in plaats van de
+            # ROBUUSTE Huber-beta. Precies bij de outliers waarvoor Huber is
+            # gekozen, viel de schatter dus terug op de variant die daar
+            # gevoelig voor is - en de hedge-ratio heette nog steeds "Huber".
+            raise DataContractError(
+                "Huber-IRLS regressie singulier. Er wordt NIET teruggevallen op "
+                "een niet-robuuste OLS-beta onder de naam Huber."
+            ) from exc
 
         resid = y_c - X_mat @ coefs
         abs_resid = np.abs(resid).clip(min=1e-10)

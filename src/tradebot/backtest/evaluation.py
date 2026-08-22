@@ -31,6 +31,8 @@ import numpy as np
 import pandas as pd
 import scipy.stats as _stats
 
+from ..utils.failfast import DataContractError
+
 logger = logging.getLogger("backtest.evaluation")
 
 
@@ -62,8 +64,16 @@ def count_git_commits(
             cwd=cwd,
         )
         return int(result.decode("ascii").strip())
-    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
-        return int(fallback)
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError) as exc:
+        # Phase 0: deze fallback voedde een VERZONNEN commit-telling in de
+        # Deflated Sharpe Ratio als trial-count M. Een te lage M maakt DSR
+        # structureel te optimistisch - de meest voorkomende manier waarop DSR
+        # in de praktijk wordt ondermijnd (Phase 2, stap 2). Sinds D-9 gesloten
+        # is bestaat er een werkende .git, dus dit pad hoort onbereikbaar te zijn.
+        raise DataContractError(
+            f"git rev-list --count HEAD mislukt ({exc}). Er wordt GEEN "
+            f"fallback-trialcount gebruikt: dat zou de DSR te optimistisch maken."
+        ) from exc
 
 
 def _deflated_sharpe_penalty_legacy(

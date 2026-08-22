@@ -361,7 +361,11 @@ class ParquetStorage:
                     if file_date < cutoff_date.replace(day=1):
                         pq_file.unlink()
                         deleted_count += 1
-                except Exception:
+                # Phase 0: aangescherpt van `except Exception`. Dit is
+                # bestandsopruiming: een naam die niet als YYYY-MM parset
+                # (ValueError) of een bestand dat vergrendeld is (OSError) mag
+                # worden overgeslagen. Elke ANDERE fout is een bug en propageert.
+                except (ValueError, OSError):
                     continue
 
         if deleted_count > 0:
