@@ -588,7 +588,11 @@ def get_optimal_d(
                 regression="c",
                 autolag="AIC",
             )[1])
-        except Exception:
+        # Phase 0: aangescherpt van `except Exception`. adfuller() faalt op een
+        # degeneraat gedifferentieerde reeks met ValueError of LinAlgError; die
+        # kandidaat-d wordt dan overgeslagen in de zoektocht naar de minimale d.
+        # Elke andere fout is een bug en propageert.
+        except (ValueError, np.linalg.LinAlgError):
             continue
 
         if adf_p >= p_thres:

@@ -29,6 +29,8 @@ import numpy as np
 import pandas as pd
 import requests
 
+from ..utils.failfast import DataContractError
+
 logger = logging.getLogger("data.open_interest")
 
 _BASE_URL = "https://api.bybit.com"
@@ -104,10 +106,11 @@ class OpenInterestFetcher:
                 time.sleep(0.1)
 
             except Exception as e:
-                logger.error(
-                    "[%s] Error in Bybit OI fetch %s: %s", self.symbol, endpoint, e
-                )
-                break
+                # Phase 0: zie crypto_macro.py - geen stille gedeeltelijke reeks.
+                raise DataContractError(
+                    f"[{self.symbol}] Bybit open-interest-pagination afgebroken "
+                    f"op {endpoint} na {len(all_data)} rijen: {e}."
+                ) from e
 
         return all_data
 

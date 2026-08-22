@@ -534,10 +534,11 @@ class RegimeEnsembleCat:
                 target_feats = self.meta_feature_map.get(tf, []) if self.meta_feature_map else []
                 if not target_feats:
                     return arr
-                try:
-                    aligned = ref_model._align_input_custom(arr, target_feats, tf)
-                except RuntimeError:
-                    return raw
+                # Phase 0: `except RuntimeError: return raw` gaf de
+                # ONUITGELIJNDE, ONGESCHAALDE feature-matrix terug. Het model
+                # kreeg dan kolommen in een andere volgorde/schaal dan waarop het
+                # is getraind - de klassieke stille schema-drift.
+                aligned = ref_model._align_input_custom(arr, target_feats, tf)
                 if aligned is None or aligned.size == 0:
                     return aligned
                 scaler = self.meta_scalers.get(tf) if self.meta_scalers else None

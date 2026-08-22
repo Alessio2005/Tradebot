@@ -31,13 +31,14 @@ def get_git_sha(short: bool = True) -> str:
 
 def get_file_hash(path: str | Path, algorithm: str = "sha256", chunk: int = 65536) -> str:
     """Compute hex digest of a file for DVC-compatible lineage tracking."""
+    # Phase 0 (D-9): `except FileNotFoundError: return ""` gaf een LEGE hash
+    # terug voor een ontbrekend artefact. verify_lineage() slaat een lege hash
+    # over ("empty = skip check"), dus een verdwenen modelbestand passeerde de
+    # lineage-verificatie zonder enige melding.
     h = hashlib.new(algorithm)
-    try:
-        with open(path, "rb") as fh:
-            while buf := fh.read(chunk):
-                h.update(buf)
-    except FileNotFoundError:
-        return ""
+    with open(path, "rb") as fh:
+        while buf := fh.read(chunk):
+            h.update(buf)
     return h.hexdigest()[:32]  # 32 hex = 128-bit fingerprint
 
 

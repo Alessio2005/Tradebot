@@ -16,6 +16,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+import aiohttp
+
 if TYPE_CHECKING:
     from .circuit_breaker import CircuitBreaker
 
@@ -32,7 +34,6 @@ async def monitor_exchange_status(
     poll_interval: float = POLL_INTERVAL_SECONDS,
 ) -> None:
     """Background coroutine: poll Bybit API health, trip CB on outage."""
-    import aiohttp
 
     logger.info("Exchange status monitor started (Bybit, poll every %ds)", poll_interval)
     async with aiohttp.ClientSession() as session:
@@ -62,6 +63,10 @@ async def monitor_exchange_status(
             except asyncio.CancelledError:
                 logger.info("Exchange status monitor cancelled.")
                 return
-            except Exception as exc:
+            # Phase 0: aangescherpt van `except Exception`. Dit is een
+            # poll-lus tegen een externe status-endpoint; netwerk- en
+            # time-outfouten zijn verwachte, tijdelijke condities en de lus
+            # hoort door te pollen. Elke andere fout is een bug en propageert.
+            except (aiohttp.ClientError, TimeoutError, OSError) as exc:
                 logger.error("Exchange status check failed: %s", exc)
             await asyncio.sleep(poll_interval)

@@ -39,6 +39,7 @@ from catboost import CatBoostClassifier
 from ..backtest.metrics import deflated_sharpe
 from ..backtest.pbo import compute_pbo
 from ..cv.uniqueness import get_average_uniqueness, get_sample_weights
+from ..utils.failfast import DataContractError, require
 
 DAYS = 365.0
 
@@ -267,14 +268,27 @@ class AdaptiveWalkForward:
             X = pd.DataFrame({"lv": logvol.loc[dt], "b": betaf.loc[dt]}).reindex(y.index).fillna(0.0)
             X.insert(0, "c", 1.0)
             A = X.values
-            if not np.isfinite(A).all():
-                out.loc[dt, y.index] = y.values
-                continue
+            # Phase 0: beide paden schreven de RUWE y terug wanneer de
+            # neutralisatie-regressie niet kon draaien. Het resultaat heette
+            # daarna nog steeds "geneutraliseerd", terwijl de factor-exposure er
+            # volledig in bleef zitten - een markt-neutraal boek dat op die dagen
+            # gewoon directioneel was.
+            require(
+                np.isfinite(A).all(),
+                "Niet-eindige waarden in de neutralisatie-designmatrix; de "
+                "factor-exposure kan niet worden weggeregresseerd. De ruwe "
+                "returns worden NIET als geneutraliseerd doorgegeven.",
+                DataContractError,
+                date=str(dt),
+            )
             try:
                 coef, *_ = np.linalg.lstsq(A, y.values, rcond=None)
                 out.loc[dt, y.index] = y.values - A @ coef
-            except np.linalg.LinAlgError:
-                out.loc[dt, y.index] = y.values
+            except np.linalg.LinAlgError as exc:
+                raise DataContractError(
+                    f"Neutralisatie-regressie singulier op {dt}; ruwe returns "
+                    f"worden niet als geneutraliseerd doorgegeven."
+                ) from exc
         return out
 
     def _regime_gross(self, mkt: pd.Series) -> pd.Series:

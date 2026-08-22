@@ -12,6 +12,8 @@ import logging
 
 import numpy as np
 
+from ..utils.failfast import DataContractError
+
 logger = logging.getLogger("train.thompson")
 
 # Phase 0: `..execution.market_impact` is een INTERNE module binnen dit pakket en
@@ -91,11 +93,19 @@ class LedoitWolfThompsonSampler:
             evals, evecs = np.linalg.eigh(cov)
             evals_clipped = np.maximum(evals, 1e-6)
             cov_pd = evecs @ np.diag(evals_clipped) @ evecs.T
+            # Phase 0: `return mu, 1.0` gaf het PUNTSCHATTING theta-hat terug in
+            # plaats van een trekking. Daarmee wordt Thompson Sampling een
+            # GREEDY policy: geen exploratie meer, terwijl de bandit zichzelf
+            # nog steeds als Thompson-sampler rapporteert. De code noemt dit
+            # zelf al "exploration-death fallback".
             try:
                 L = np.linalg.cholesky(cov_pd)
-            except np.linalg.LinAlgError:
-                logger.debug("LedoitWolfTS: singular cov even after eigh → fallback θ̂.")
-                return mu, 1.0
+            except np.linalg.LinAlgError as exc:
+                raise DataContractError(
+                    "Bandit-covariantie blijft singulier na eigenvalue-clipping. "
+                    "Er wordt NIET teruggevallen op theta-hat: dat maakt de "
+                    "Thompson-sampler stilzwijgend greedy."
+                ) from exc
 
         T_synth = max(4 * d, 30)
         z = self._rng.standard_normal(size=(T_synth, d))
@@ -106,11 +116,14 @@ class LedoitWolfThompsonSampler:
         )
 
         cov_shrunk = 0.5 * (cov_shrunk + cov_shrunk.T)
+        # Phase 0: idem - geen stille overgang naar een greedy policy.
         try:
             sampled = self._rng.multivariate_normal(mu, cov_shrunk, check_valid="ignore")
-        except (np.linalg.LinAlgError, ValueError):
-            logger.debug("LedoitWolfTS: MVN sampling singular → fallback θ̂.")
-            return mu, float(delta)
+        except (np.linalg.LinAlgError, ValueError) as exc:
+            raise DataContractError(
+                "MVN-trekking uit de geshrunken bandit-covariantie mislukt. Er "
+                "wordt NIET teruggevallen op theta-hat (greedy)."
+            ) from exc
         return np.asarray(sampled, dtype=np.float64), float(delta)
 
 

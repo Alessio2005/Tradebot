@@ -35,6 +35,8 @@ import numpy as np
 import pandas as pd
 import requests
 
+from ..utils.failfast import DataContractError
+
 logger = logging.getLogger("data.crypto_macro")
 
 
@@ -114,11 +116,15 @@ class CryptoMacroFetcher:
                 time.sleep(0.1)
 
             except Exception as e:
-                logger.error(
-                    "[%s] Error in Bybit funding fetch %s: %s",
-                    self.symbol, endpoint, e,
-                )
-                break
+                # Phase 0: dit `break` gaf de tot dan toe opgehaalde pagina's
+                # terug alsof de historie compleet was. Een funding-reeks met
+                # een stil gat is erger dan geen funding-reeks: de carry-P&L
+                # wordt dan systematisch te gunstig geschat.
+                raise DataContractError(
+                    f"[{self.symbol}] Bybit funding-pagination afgebroken op "
+                    f"{endpoint} na {len(all_data)} rijen: {e}. Er wordt GEEN "
+                    f"gedeeltelijke historie teruggegeven."
+                ) from e
 
         return all_data
 

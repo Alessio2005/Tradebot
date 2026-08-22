@@ -65,6 +65,8 @@ from ..train.calibration import PathSpecificPlattCalibrator
 from ..train.ensemble import ContextualBanditEnsemble  # noqa: F401 — kept for type hints
 
 # ---------------------------------------------------------------------------
+from ..utils.failfast import TradebotContractError
+
 logger = logging.getLogger(__name__)
 
 
@@ -561,9 +563,15 @@ def optuna_objective_binary(
                 ll = 1000.0  # zeer hoge log_loss → fold telt als slecht
             fold_loglosses.append(ll)
         except Exception as e:
-            logger.warning(f"Prediction failed fold {fold_idx}: {e}")
-            fold_loglosses.append(10.0)
-            prob_win = np.zeros(len(y_val), dtype=np.float64)
+            # Phase 0: hier werd een gefaalde fold beloond met een VERZONNEN
+            # log_loss van 10.0 en prob_win = zeros. Optuna optimaliseerde
+            # vervolgens over een mengsel van echte en gefabriceerde
+            # foldscores, en de trial telde gewoon mee in M. Dat maakt elke
+            # DSR-correctie op die trials betekenisloos.
+            raise TradebotContractError(
+                f"Predictie faalde in fold {fold_idx}: {e}. Een gefaalde fold "
+                f"krijgt geen straf-score meer: de trial wordt afgebroken."
+            ) from e
 
         # --- F. NON-OVERLAPPING SIMULATION ---
         n_val = len(prob_win)
@@ -682,12 +690,16 @@ def optuna_objective_binary(
                     "n=%d, classes=%d.",
                     _scores_all.size, int(np.unique(_y_all).size),
                 )
-        except Exception as _exc:  # pragma: no cover
-            logger.warning(
-                "PathSpecificPlattCalibrator-fit faalde (%s) — globale "
-                "CalibratedClassifierCV blijft als enige calibratie-laag actief.",
-                _exc,
-            )
+        except Exception as _exc:
+            # Phase 0: een gefaalde pad-specifieke Platt-fit liet de GLOBALE
+            # CalibratedClassifierCV als enige kalibratielaag over. De trial
+            # rapporteerde daarna kansen uit een ANDER kalibratiemodel dan de
+            # config voorschreef, zonder dat dit in de trial-attributen
+            # terechtkwam.
+            raise TradebotContractError(
+                f"PathSpecificPlattCalibrator-fit faalde: {_exc}. Er wordt niet "
+                f"stilzwijgend teruggevallen op de globale calibratielaag."
+            ) from _exc
 
     # ---------------------------------------------------------
     # 3. AGGREGATIE & SCORING (CPCV Path-Level + Multiple Testing Deflatie)

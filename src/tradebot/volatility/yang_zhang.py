@@ -63,7 +63,11 @@ def get_yang_zhang_volatility(
                         )
     except ValueError:
         raise
-    except Exception as exc:  # pragma: no cover — never mask the user's data
+    # Phase 0: aangescherpt van `except Exception`. Deze guard leidt alleen de
+    # bar-cadans af uit de index; ontbreekt het freq-attribuut of is de index
+    # geen tijdreeks, dan is de inferentie onbeslist (AttributeError/TypeError).
+    # De ValueError-tak hierboven blijft doorwerpen. Elke andere fout is een bug.
+    except (AttributeError, TypeError) as exc:  # pragma: no cover
         logger.debug("Yang-Zhang intraday guard inconclusive: %s", exc)
 
     o = df["open"].values.astype(np.float64)
