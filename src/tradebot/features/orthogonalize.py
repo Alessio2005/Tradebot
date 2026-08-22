@@ -11,26 +11,22 @@ import warnings
 
 import numpy as np
 
+# Phase 0: sklearn en scipy zijn harde dependencies. De vorige try/except-
+# blokken zetten PCA, StandardScaler, linkage, fcluster en spearmanr op None,
+# waarna FeatureOrthogonalizer.fit_transform stilzwijgend een IDENTITY-transform
+# uitvoerde: de gecorreleerde features gingen ongeorthogonaliseerd de
+# CatBoost-training in, terwijl de aanroeper dacht dat het substitutie-effect
+# was geneutraliseerd.
+from scipy.cluster.hierarchy import fcluster, linkage
+from scipy.spatial.distance import squareform
+from scipy.stats import spearmanr as spearmanr_func
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+
+from ..utils.failfast import DataContractError, require
+
 logger = logging.getLogger(__name__)
 
-try:
-    from sklearn.decomposition import PCA
-    from sklearn.preprocessing import StandardScaler
-    _SKLEARN_AVAILABLE: bool = True
-except ImportError:
-    _SKLEARN_AVAILABLE = False
-    PCA = None  # type: ignore[assignment,misc]
-    StandardScaler = None  # type: ignore[assignment,misc]
-
-try:
-    from scipy.cluster.hierarchy import fcluster, linkage
-    from scipy.spatial.distance import squareform
-    from scipy.stats import spearmanr as _spearmanr
-    _SCIPY_AVAILABLE: bool = True
-    spearmanr_func = _spearmanr
-except Exception:
-    _SCIPY_AVAILABLE = False
-    fcluster = linkage = squareform = spearmanr_func = None  # type: ignore[assignment]
 
 class FeatureOrthogonalizer:
     """PCA-orthogonalisatie binnen een feature-cluster (micro / meso / macro).
@@ -170,7 +166,7 @@ class FeatureOrthogonalizer:
         p = X_calib.shape[1]
         keep_all = np.ones(p, dtype=bool)
 
-        if p <= 2 or not _SCIPY_AVAILABLE or spearmanr_func is None or linkage is None or fcluster is None:
+        if p <= 2:
             return keep_all, list(feature_names)
 
         try:
@@ -264,14 +260,6 @@ class FeatureOrthogonalizer:
             DeprecationWarning,
             stacklevel=2,
         )
-        if not _SKLEARN_AVAILABLE:
-            logger.warning(
-                "FeatureOrthogonalizer: sklearn niet beschikbaar → no-op."
-            )
-            self._is_fitted = True
-            self._output_names = list(feature_names)
-            return X.astype(np.float32), list(feature_names)
-
         n, p = X.shape
         if p < 2:
             logger.info(
@@ -434,12 +422,6 @@ class FeatureOrthogonalizer:
                 X_orth_full — (n_bars, n_components) float32, getransformeerde matrix.
                 new_names   — lijst van namen ["{prefix}0", "{prefix}1", ...].
         """
-        if not _SKLEARN_AVAILABLE:
-            logger.warning("FeatureOrthogonalizer: sklearn niet beschikbaar -> no-op.")
-            self._is_fitted = True
-            self._output_names = list(feature_names)
-            return X.astype(np.float32), list(feature_names)
-
         _, p = X.shape
         if p < 2 or len(train_idx) < 2:
             self._is_fitted = True
@@ -537,9 +519,16 @@ class FeatureOrthogonalizer:
                 "Roep eerst fit_transform() aan of laad een opgeslagen instantie."
             )
 
-        if not _SKLEARN_AVAILABLE or self._pca is None or self._scaler is None:
-            # No-op modus (sklearn niet beschikbaar of niet echt gefit)
-            return X.astype(np.float32)
+        # Phase 0: het "sklearn niet beschikbaar" deel van deze guard is
+        # vervallen (harde dependency). Een gefitte orthogonalizer ZONDER pca of
+        # scaler is geen no-op-situatie maar een inconsistente toestand.
+        require(
+            self._pca is not None and self._scaler is not None,
+            "transform() op een als-gefit gemarkeerde FeatureOrthogonalizer "
+            "zonder PCA- of scaler-object. Eerder gaf dit pad X ongewijzigd "
+            "terug alsof orthogonalisatie had plaatsgevonden.",
+            DataContractError,
+        )
 
         if self._var_mask is None:
             return X.astype(np.float32)

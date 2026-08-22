@@ -22,6 +22,12 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
+# Phase 0: `try: from statsmodels... except ImportError` liet de ADF-gate
+# ZICHZELF OVERSLAAN en gaf een lege StationarityReport terug waarin elke
+# kolom als 'skipped' stond. Elke aanroeper zag een geslaagde gate. statsmodels
+# is nu een harde dependency; de gate kan niet meer stilzwijgend uitvallen.
+from statsmodels.tsa.stattools import adfuller
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,19 +84,6 @@ def check_feature_stationarity(
     (df_out, report) — ``df_out`` either equals ``df`` or has the bad
     columns dropped (if ``drop_if_non_stationary``).
     """
-    try:
-        from statsmodels.tsa.stattools import adfuller
-    except ImportError:
-        logger.warning(
-            "statsmodels not installed — ADF gate skipped. Install "
-            "statsmodels to enforce AUDIT A-3 in production builds."
-        )
-        return df, StationarityReport(
-            n_features_checked=0,
-            n_non_stationary=0,
-            skipped=list(df.columns),
-        )
-
     if feature_cols is None:
         candidate_cols = [
             c for c in df.columns

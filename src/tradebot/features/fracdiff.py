@@ -28,6 +28,7 @@ from typing import Iterable
 
 import numpy as np
 import pandas as pd
+from statsmodels.tsa.stattools import adfuller
 
 logger = logging.getLogger(__name__)
 
@@ -178,19 +179,11 @@ def min_frac_diff(
     3. Bisect ``[d_lo, d_hi]`` until the gap is below ``2**-max_iter`` or the
        smallest rejecting d is found.
 
-    Requires ``statsmodels``. Gracefully degrades to ``d = 0.5`` if statsmodels
-    is unavailable, with a warning.
+    Requires ``statsmodels``, een harde dependency. Phase 0: de vorige versie
+    viel bij een ontbrekende statsmodels stilzwijgend terug op ``d = 0.5`` met
+    ``converged=False`` - een verzonnen differentiatie-orde die vervolgens de
+    hele feature-pipeline in ging.
     """
-    try:
-        from statsmodels.tsa.stattools import adfuller
-    except ImportError:
-        logger.warning(
-            "statsmodels not installed; min_frac_diff falling back to d=0.5"
-        )
-        return MinFracDiffResult(d=0.5, pvalue=float("nan"),
-                                 n_used_obs=len(series), threshold=threshold,
-                                 converged=False)
-
     def adf_p(d: float) -> tuple[float, int]:
         y = frac_diff_ffd(series, d=d, threshold=threshold).dropna()
         if len(y) < 50:
