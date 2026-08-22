@@ -1,7 +1,22 @@
 # Tradebot — Architecture Overview (v1.0)
 
 > Audience: new engineers and on-call. For algorithmic detail, see the
-> module-level docstrings and the `REFACTOR_BLUEPRINT_v3.md` root document.
+> module-level docstrings and the binding audit document
+> [`ARCHITECTUUR_AUDIT_2026-08-22.md`](ARCHITECTUUR_AUDIT_2026-08-22.md).
+>
+> **Geverifieerd tegen de codebase op 2026-08-22, Phase 0.**
+>
+> Phase 0 corrigeert hier **D-5**: dit document verwees naar een
+> `REFACTOR_BLUEPRINT_v3.md` in de projectroot dat nooit heeft bestaan. De
+> verwijzing is vervangen door het auditdocument, dat vanaf nu het enige
+> bindende architectuurdocument is.
+>
+> **D-8** is eveneens gesloten: de DAG-mappen `artefacts/features/`,
+> `artefacts/models/` en `artefacts/tracks/` bestaan nu daadwerkelijk en dragen
+> elk een `README.md` met hun artefact-contract.
+>
+> Waar dit document en het auditdocument elkaar tegenspreken, wint het
+> auditdocument.
 
 ## 1. Three-layer model
 

@@ -52,6 +52,8 @@ dependencies = [
     # Ingestion (verplicht vanaf Phase 1 - crypto ingestion is geen extra)
     "requests>=2.31",
     "aiohttp>=3.9",
+    "tenacity>=8.2",          # retry-decorators op de Bybit-ingestion
+    "yfinance>=0.2.40",       # tradfi-macro + equities backup source
     "websockets>=12.0",       # live L1/aggtrade feed - geen urllib-fallback
     # Observability (L13). Hard: een monitoring-laag die stilzwijgend no-op
     # wordt, is erger dan geen monitoring-laag.

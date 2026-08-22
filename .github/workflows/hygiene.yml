@@ -58,7 +58,8 @@ jobs:
           hard = ["statsmodels", "arch", "hmmlearn", "pydantic", "sklearn",
                   "catboost", "scipy", "numba", "pandas", "numpy", "pyarrow",
                   "yaml", "requests", "aiohttp", "websockets", "prometheus_client",
-                  "dvc"]
+                  "dvc", "optuna", "joblib", "pandera", "omegaconf", "tenacity",
+                  "yfinance"]
           missing = [m for m in hard if u.find_spec(m) is None]
           if missing:
               sys.exit(f"Harde dependencies ontbreken na een lockfile-install: {missing}")
@@ -85,6 +86,14 @@ jobs:
       # --------------------------------------------------------------------
       - name: Silent-fallback scan (blocking)
         run: python scripts/audit_fallbacks.py --strict
+
+      # --------------------------------------------------------------------
+      # Exit criterium 6: hardcoded parameters. RATCHET - het budget per
+      # bestand mag alleen omlaag; een NIEUWE literal breekt de build.
+      # Zie docs/DEFERRED_ISSUES.md DI-9 t/m DI-14 voor de fase-toewijzing.
+      # --------------------------------------------------------------------
+      - name: Hardcoded-parameter ratchet
+        run: python scripts/check_hardcoded_params.py --strict
 
       # --------------------------------------------------------------------
       # Exit criterium 4: quant_architect bestaat nergens meer.
