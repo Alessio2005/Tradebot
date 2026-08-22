@@ -10,7 +10,7 @@ import json
 import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -55,13 +55,13 @@ class CircuitLogEntry:
     equity_peak: float
     current_drawdown: float
     daily_pnl_pct: float
-    open_positions: Dict[str, float]
+    open_positions: dict[str, float]
     last_feed_ts: str
     model_version: str
     git_sha: str
-    extra: Dict[str, Any]
+    extra: dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -85,11 +85,11 @@ class CircuitLog:
         equity_peak: float,
         current_drawdown: float,
         daily_pnl_pct: float,
-        open_positions: Dict[str, float],
-        last_feed_ts: Optional[pd.Timestamp] = None,
+        open_positions: dict[str, float],
+        last_feed_ts: pd.Timestamp | None = None,
         model_version: str = "",
         git_sha: str = "",
-        extra: Optional[Dict[str, Any]] = None,
+        extra: dict[str, Any] | None = None,
     ) -> CircuitLogEntry:
         """Append one circuit-breaker event to the log."""
         entry = CircuitLogEntry(
@@ -114,11 +114,11 @@ class CircuitLog:
         )
         return entry
 
-    def read_all(self) -> List[CircuitLogEntry]:
+    def read_all(self) -> list[CircuitLogEntry]:
         """Return all logged circuit-breaker events."""
         if not self._path.exists():
             return []
-        entries: List[CircuitLogEntry] = []
+        entries: list[CircuitLogEntry] = []
         with open(self._path, encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()

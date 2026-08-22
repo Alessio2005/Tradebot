@@ -145,10 +145,8 @@ def fetch_universe(
     """
     frames: list[pd.DataFrame] = []
     failures: dict[str, str] = {}
-    consecutive = 0
     for sym in symbols:
         frames.append(fetch_daily(sym, lag=lag))
-        consecutive = 0
         time.sleep(sleep_s)  # polite: avoid the Stooq daily request limit
     if not frames:
         raise ValueError("No symbol fetched successfully")

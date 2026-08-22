@@ -9,9 +9,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Dict, List, Optional
 
-import numpy as np
 import pandas as pd
 
 from ..execution.fees import FeeSchedule
@@ -45,26 +43,26 @@ class PaperOMS:
     def __init__(
         self,
         initial_equity: float = 100_000.0,
-        slippage_model: Optional[SlippageModel] = None,
-        audit_log: Optional[AuditLog] = None,
+        slippage_model: SlippageModel | None = None,
+        audit_log: AuditLog | None = None,
         taker_fee_bps: float = 4.0,
-        fee_schedule: Optional[FeeSchedule] = None,
+        fee_schedule: FeeSchedule | None = None,
     ) -> None:
         self._tracker = PositionTracker(initial_equity=initial_equity)
         self._slippage = slippage_model or SlippageModel(mode="fixed", fixed_bps=5.0)
         self._audit = audit_log
         self._taker_fee_bps = taker_fee_bps
         # Rec 4 (Sim-to-Reality #19): VIP-tier fee schedule overrides taker_fee_bps
-        self._fee_schedule: Optional[FeeSchedule] = fee_schedule
+        self._fee_schedule: FeeSchedule | None = fee_schedule
         # Rec 2 (Sim-to-Reality #6): per-bar market metadata for slippage wiring
-        self._bar_sigma: Dict[str, float] = {}
-        self._bar_volume: Dict[str, float] = {}
-        self._bar_spread_bps: Dict[str, float] = {}
+        self._bar_sigma: dict[str, float] = {}
+        self._bar_volume: dict[str, float] = {}
+        self._bar_spread_bps: dict[str, float] = {}
         # Rec 3 (Sim-to-Reality #5): crisis regime multiplier on market impact
         self._crisis_multiplier: float = 1.0
-        self._fills: List[Fill] = []
-        self._equity_history: List[float] = [initial_equity]
-        self._last_funding_ts: Optional[pd.Timestamp] = None
+        self._fills: list[Fill] = []
+        self._equity_history: list[float] = [initial_equity]
+        self._last_funding_ts: pd.Timestamp | None = None
 
     # ------------------------------------------------------------------
     # Core interface (mirrors live OMS)
@@ -150,9 +148,9 @@ class PaperOMS:
         )
         return fill
 
-    def close_all(self) -> List[Fill]:
+    def close_all(self) -> list[Fill]:
         """Flatten all open positions at current mark prices."""
-        fills: List[Fill] = []
+        fills: list[Fill] = []
         for symbol, pos in self._tracker.get_all_positions().items():
             if abs(pos.qty) < 1e-12:
                 continue
@@ -177,7 +175,7 @@ class PaperOMS:
             fills.append(self.place_order(close_order))
         return fills
 
-    def get_positions(self) -> Dict[str, float]:
+    def get_positions(self) -> dict[str, float]:
         """Return symbol → net_qty mapping."""
         return {
             sym: pos.qty
@@ -194,10 +192,10 @@ class PaperOMS:
 
     def set_bar_prices(
         self,
-        prices: Dict[str, float],
-        sigma_map: Optional[Dict[str, float]] = None,
-        volume_map: Optional[Dict[str, float]] = None,
-        spread_bps_map: Optional[Dict[str, float]] = None,
+        prices: dict[str, float],
+        sigma_map: dict[str, float] | None = None,
+        volume_map: dict[str, float] | None = None,
+        spread_bps_map: dict[str, float] | None = None,
     ) -> None:
         """Update reference close prices and per-bar market metadata.
 
@@ -212,7 +210,7 @@ class PaperOMS:
             intrabar range proxy (Rec 2).  Used as a floor on modelled slippage.
         """
         if not hasattr(self, "_last_close"):
-            self._last_close: Dict[str, float] = {}
+            self._last_close: dict[str, float] = {}
         self._last_close.update(prices)
         for sym, price in prices.items():
             self._tracker.mark(sym, price)

@@ -5,10 +5,11 @@ after accounting for the selection effect of choosing the best from many.
 Wave 17 statistical rigour.
 """
 from __future__ import annotations
+
 import logging
 import math
+
 import numpy as np
-import scipy.stats as stats
 
 logger = logging.getLogger(__name__)
 

@@ -334,24 +334,23 @@ class PortfolioBacktester:
                         entry_locked_signed[s] = 0.0
                     else:
                         scaled_signed[s] = entry_locked_signed[s]
+                # NIEUWE ENTRY (of side-flip): bereken leverage éénmalig.
+                elif req_lev <= 0.0:
+                    scaled_signed[s] = 0.0
+                    entry_locked_signed[s] = 0.0
                 else:
-                    # NIEUWE ENTRY (of side-flip): bereken leverage éénmalig.
-                    if req_lev <= 0.0:
+                    decision = self.risk_manager.size_position(
+                        symbol=s,
+                        raw_leverage=req_lev,
+                        side=side,
+                        per_asset_cap_override=per_asset_caps.get(s),
+                    )
+                    if decision.blocked:
                         scaled_signed[s] = 0.0
                         entry_locked_signed[s] = 0.0
                     else:
-                        decision = self.risk_manager.size_position(
-                            symbol=s,
-                            raw_leverage=req_lev,
-                            side=side,
-                            per_asset_cap_override=per_asset_caps.get(s),
-                        )
-                        if decision.blocked:
-                            scaled_signed[s] = 0.0
-                            entry_locked_signed[s] = 0.0
-                        else:
-                            scaled_signed[s] = decision.final_leverage * side
-                            entry_locked_signed[s] = scaled_signed[s]
+                        scaled_signed[s] = decision.final_leverage * side
+                        entry_locked_signed[s] = scaled_signed[s]
 
                 prev_side_by_sym[s] = side
 

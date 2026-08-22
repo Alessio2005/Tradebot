@@ -6,7 +6,7 @@ entrypoint (train_cpcv, backtest_portfolio, live agent) without ImportError.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
@@ -25,9 +25,9 @@ class CatBoostModelAdapter:
         x_micro: Any,
         x_meso: Any = None,
         x_macro: Any = None,
-        base_feature_map: Dict | None = None,
+        base_feature_map: dict | None = None,
         is_pre_scaled: bool = False,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         parts = []
         for x in (x_micro, x_meso, x_macro):
             if x is not None:
@@ -43,5 +43,5 @@ class CatBoostModelAdapter:
         prob_win = float(probs[1]) if len(probs) > 1 else float(probs[0])
         return {"prob_win": prob_win, "prob_loss": 1.0 - prob_win}
 
-    def _align_input_custom(self, arr: Any, target_feats: List, timeframe: str) -> Any:
+    def _align_input_custom(self, arr: Any, target_feats: list, timeframe: str) -> Any:
         return arr

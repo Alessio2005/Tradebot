@@ -183,4 +183,4 @@ _apply_symqs_overlay    = apply_symqs_overlay
 # faalde. Elke aanroeper kreeg dan een TypeError diep in de pipeline in plaats van
 # een duidelijke ImportError op de importsite. Dit is een interne module binnen
 # hetzelfde pakket; hij kan niet legitiem ontbreken.
-from ..train._scalers import RollingRobustScaler  # noqa: E402,F401
+from ..train._scalers import RollingRobustScaler  # noqa: F401

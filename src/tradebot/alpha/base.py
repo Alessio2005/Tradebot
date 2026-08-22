@@ -6,8 +6,8 @@ ICWeightedCombiner and research_harness can treat them uniformly.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import List, Protocol, runtime_checkable
+from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
 
 import pandas as pd
 
@@ -67,6 +67,6 @@ class AlphaSignal(Protocol):
         """
         ...
 
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         """Return the list of feature names consumed by this signal."""
         ...

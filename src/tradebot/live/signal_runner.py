@@ -7,7 +7,6 @@ ICWeightedCombiner to produce a single combined signal per symbol.
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -71,15 +70,15 @@ class SignalRunner:
 
     def __init__(
         self,
-        signals: List[AlphaSignal],
-        config: Optional[SignalRunnerConfig] = None,
+        signals: list[AlphaSignal],
+        config: SignalRunnerConfig | None = None,
     ) -> None:
         self._signals = signals
         self._cfg = config or SignalRunnerConfig()
-        self._combiner: Optional[ICWeightedCombiner] = None  # lazy init on first predict
+        self._combiner: ICWeightedCombiner | None = None  # lazy init on first predict
         # Rolling history for IC computation: signal_id → list of signal values
-        self._signal_history: Dict[str, List[float]] = {}
-        self._return_history: List[float] = []
+        self._signal_history: dict[str, list[float]] = {}
+        self._return_history: list[float] = []
 
     # ------------------------------------------------------------------
     # Per-bar predict
@@ -89,9 +88,9 @@ class SignalRunner:
         self,
         symbol: str,
         features: pd.DataFrame,
-        fwd_return: Optional[float] = None,
-        bar_ts: Optional[pd.Timestamp] = None,
-    ) -> Optional[SignalResult]:
+        fwd_return: float | None = None,
+        bar_ts: pd.Timestamp | None = None,
+    ) -> SignalResult | None:
         """Run all signals on ``features`` and return a combined SignalResult.
 
         Parameters
@@ -107,7 +106,7 @@ class SignalRunner:
         -------
         Combined SignalResult, or None if no signal passes the confidence gate.
         """
-        raw_results: List[SignalResult] = []
+        raw_results: list[SignalResult] = []
         for sig in self._signals:
             # Only run signals that are configured for this symbol.
             # Without this guard every bar (e.g. ETHUSDT) would step the CUSUM
@@ -227,8 +226,8 @@ class SignalRunner:
         self,
         symbol: str,
         features: pd.DataFrame,
-        bar_ts: Optional[pd.Timestamp] = None,
-    ) -> Optional[SignalResult]:
+        bar_ts: pd.Timestamp | None = None,
+    ) -> SignalResult | None:
         """Run all signals for ``symbol`` using predict_on_event().
 
         Called by the engine after CUSUMFilter fires and FeaturePipeline has

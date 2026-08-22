@@ -25,7 +25,6 @@ import signal as _signal
 import threading as _threading
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -86,23 +85,23 @@ class LiveEngineConfig:
 
     def __init__(
         self,
-        symbols: List[str],
+        symbols: list[str],
         initial_equity: float = 100_000.0,
         mode: str = "paper",
         interval: str = "1h",
         audit_log_path: str = "artefacts/audit/audit.jsonl",
-        cb_config: Optional[CircuitBreakerConfig] = None,
-        ec_config: Optional[ExecutionControllerConfig] = None,
-        pc_config: Optional[PortfolioControllerConfig] = None,
-        sr_config: Optional[SignalRunnerConfig] = None,
-        fu_config: Optional[FeatureUpdaterConfig] = None,
+        cb_config: CircuitBreakerConfig | None = None,
+        ec_config: ExecutionControllerConfig | None = None,
+        pc_config: PortfolioControllerConfig | None = None,
+        sr_config: SignalRunnerConfig | None = None,
+        fu_config: FeatureUpdaterConfig | None = None,
         metrics_port: int = 8000,
-        fee_schedule: Optional[FeeSchedule] = None,
-        judge_dir: Optional[Path] = None,
-        state_out_dir: Optional[Path] = None,
+        fee_schedule: FeeSchedule | None = None,
+        judge_dir: Path | None = None,
+        state_out_dir: Path | None = None,
         state_write_every_n: int = 50,
-        propfirm_limits: Optional[PropfirmLimits] = None,
-        regime: Optional[RegimeConfig] = None,
+        propfirm_limits: PropfirmLimits | None = None,
+        regime: RegimeConfig | None = None,
     ) -> None:
         self.symbols = symbols
         self.initial_equity = initial_equity
@@ -123,12 +122,12 @@ class LiveEngineConfig:
         self.propfirm_limits = propfirm_limits
         self.regime = regime or RegimeConfig.funded()
         # Per-symbol CUSUM multipliers (mirror conf_config.yaml)
-        self.cusum_multipliers: Dict[str, float] = {}
+        self.cusum_multipliers: dict[str, float] = {}
         # Rec 4 (Sim-to-Reality #19): account-tier fee schedule.
         # Reads TRADEBOT_BYBIT_TIER + TRADEBOT_FEE_DISCOUNT from env if not
         # provided explicitly.  (Bybit linear perpetuals.)
         if fee_schedule is not None:
-            self.fee_schedule: Optional[FeeSchedule] = fee_schedule
+            self.fee_schedule: FeeSchedule | None = fee_schedule
         else:
             import os
             tier = os.environ.get("TRADEBOT_BYBIT_TIER", "NONVIP")
@@ -181,7 +180,7 @@ class LiveEngine:
         )
         self._cb = CircuitBreaker(config.cb_config, self._state)
         # Propfirm governor (audit §3) — only active when limits are configured.
-        self._governor: Optional[PropfirmGovernor] = (
+        self._governor: PropfirmGovernor | None = (
             PropfirmGovernor(config.propfirm_limits)
             if config.propfirm_limits is not None else None
         )
@@ -208,7 +207,7 @@ class LiveEngine:
 
         # Metrics
         self._bars_processed: int = 0
-        self._latencies: List[float] = []
+        self._latencies: list[float] = []
         self._stop_event = asyncio.Event()
         self._metrics = EngineMetrics()
 
@@ -216,13 +215,13 @@ class LiveEngine:
         self._kill_flag = _threading.Event()
 
         # Wave 15 P0-5.6 — feed sequence tracking
-        self._last_bar_seq: Dict[str, int] = {}
+        self._last_bar_seq: dict[str, int] = {}
 
         # JudgeGate — loaded from judge_dir if provided
         # P0-3 FIX: pass artefacts_dir so JudgeGate can load the training
         # column layout and reindex live features to match (prevents
         # CatBoostError when live FeaturePipeline columns differ from training).
-        self._judges: Dict[str, Dict[str, JudgeGate]] = {}
+        self._judges: dict[str, dict[str, JudgeGate]] = {}
         if config.judge_dir is not None:
             _artefacts_dir = config.judge_dir.parent  # artefacts/judge_models → artefacts/
             self._judges = build_judge_gates(
@@ -231,7 +230,7 @@ class LiveEngine:
 
         # AFML-correct external CUSUMFilters (shadow mode only).
         # In paper/live mode the internal CUSUM in ModelSignal is used instead.
-        self._cusum_filters: Dict[str, CUSUMFilter] = {}
+        self._cusum_filters: dict[str, CUSUMFilter] = {}
         if config.mode == EngineMode.SHADOW and config.cusum_multipliers:
             artefacts_dir = Path(config.audit_log_path).parent.parent
             self._cusum_filters = build_cusum_filters(
@@ -239,7 +238,7 @@ class LiveEngine:
             )
 
         # Pending rebalance signals (judge-gated, event-driven)
-        self._pending_rebalance: Dict[str, Optional[object]] = {
+        self._pending_rebalance: dict[str, object | None] = {
             s: None for s in config.symbols
         }
 
@@ -247,7 +246,7 @@ class LiveEngine:
         self._state_out_dir = config.state_out_dir
         self._state_out_dir.mkdir(parents=True, exist_ok=True)
         self._state_write_every_n = config.state_write_every_n
-        self._equity_history: List[float] = []
+        self._equity_history: list[float] = []
         self._start_ts: str = pd.Timestamp.now(tz="UTC").isoformat()
 
         # Start Prometheus HTTP server (P2-2)
@@ -477,11 +476,10 @@ class LiveEngine:
             # features stays as the cached+close-injected row from FeatureUpdater
             # (used for mark-to-market below) but NOT for prediction.
 
-        else:
-            # ── Paper/live legacy path: internal CUSUM in ModelSignal ─────────
-            if features is not None:
-                # P1-5: forward bar.ts for audit/TCA timestamp parity.
-                signal_result = self._sr.predict(symbol, features, bar_ts=event.ts)
+        # ── Paper/live legacy path: internal CUSUM in ModelSignal ─────────
+        elif features is not None:
+            # P1-5: forward bar.ts for audit/TCA timestamp parity.
+            signal_result = self._sr.predict(symbol, features, bar_ts=event.ts)
 
         # JudgeGate meta-labeling filter
         # B-1 (2026-05-27): bypass JudgeGate when runs-bar count from the
@@ -597,7 +595,7 @@ class LiveEngine:
             self._paper_oms.set_crisis_multiplier(self._pc.crisis_multiplier)
 
             # 4. Size orders
-            current_weights: Dict[str, float] = {}
+            current_weights: dict[str, float] = {}
             eq = self._paper_oms.tracker.equity
             if eq > 0:
                 for sym, pos in self._paper_oms.tracker.get_all_positions().items():
@@ -686,7 +684,7 @@ class LiveEngine:
     # State file writes (for Streamlit dashboard)
     # ------------------------------------------------------------------
 
-    def _rolling_sharpe(self, window: int = 5000) -> Optional[float]:
+    def _rolling_sharpe(self, window: int = 5000) -> float | None:
         """Annualised Sharpe from the last `window` equity samples.
 
         Returns None until at least 17 280 samples are available (= 1 full
@@ -714,7 +712,7 @@ class LiveEngine:
         bars_per_year = 252 * 24 * 720
         return float(mu / sigma * math.sqrt(bars_per_year))
 
-    def _write_state(self, current_bar_ts: Optional[pd.Timestamp] = None) -> None:
+    def _write_state(self, current_bar_ts: pd.Timestamp | None = None) -> None:
         """Atomic write of state.json + append to equity_curve.jsonl."""
         eq = self._paper_oms.tracker.equity
         peak = self._state.equity_peak
@@ -729,7 +727,7 @@ class LiveEngine:
         init_eq = self._cfg.initial_equity
         ret_pct = (eq - init_eq) / init_eq * 100.0
 
-        positions: Dict[str, dict] = {}
+        positions: dict[str, dict] = {}
         for sym, pos in self._paper_oms.tracker.get_all_positions().items():
             # B-2 FIX (2026-05-27): PositionRecord uses .qty, not .size
             qty_val = getattr(pos, "qty", None) or getattr(pos, "size", 0.0)
@@ -875,7 +873,7 @@ class LiveEngine:
         return self._state
 
     @property
-    def latencies(self) -> List[float]:
+    def latencies(self) -> list[float]:
         return list(self._latencies)
 
     @property

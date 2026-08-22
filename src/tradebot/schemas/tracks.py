@@ -13,6 +13,7 @@ Side encoding: +1 LONG, -1 SHORT, 0 FLAT (single source of truth).
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame, Index, Series
 

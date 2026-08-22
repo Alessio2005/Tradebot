@@ -42,11 +42,11 @@ from .thompson import LedoitWolfThompsonSampler
 logger = logging.getLogger(__name__)
 
 # Type alias for RegimeCatAgent — avoid circular import by using Any at runtime.
-from typing import TYPE_CHECKING  # noqa: E402
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .catboost import RegimeCatAgent  # noqa: F401
-from ._bandit_helpers import _RandomFourierFeatures, _RewardClipper  # noqa: E402
+from ._bandit_helpers import _RandomFourierFeatures, _RewardClipper
 
 # LOC-EXCEPTION: ContextualBanditEnsemble is a tightly-coupled LinUCB algorithm.
 # Splitting it would destroy its mathematical cohesion. CI exemption in Makefile.

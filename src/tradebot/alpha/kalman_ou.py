@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -116,7 +115,7 @@ class KalmanOUMeanReversion:
         # the last processed timestamp and skip the update if the bar is already
         # incorporated, making predict() idempotent for repeated calls with
         # the same (or earlier) last bar.
-        self._last_update_ts: Optional[pd.Timestamp] = None
+        self._last_update_ts: pd.Timestamp | None = None
 
     # ------------------------------------------------------------------
     def _init_kalman(self, log_prices: np.ndarray) -> None:
@@ -194,7 +193,7 @@ class KalmanOUMeanReversion:
     def predict(
         self,
         df: pd.DataFrame,
-        prob_judge: Optional[float] = None,
+        prob_judge: float | None = None,
     ) -> SignalResult:
         """Compute Kalman-OU signal on the latest bar.
 
@@ -266,5 +265,5 @@ class KalmanOUMeanReversion:
         """Return the z-score of ``log_price`` relative to the Kalman mean."""
         return (log_price - self._x) / max(self._sigma_eq, 1e-6)
 
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return ["close"]

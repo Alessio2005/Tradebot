@@ -225,11 +225,11 @@ class RegimeConfig:
     profit_lock_frac: float = 0.06
 
     @staticmethod
-    def challenge() -> "RegimeConfig":
+    def challenge() -> RegimeConfig:
         return RegimeConfig(regime=Regime.CHALLENGE, vol_target_mult=2.0, profit_lock_frac=0.0)
 
     @staticmethod
-    def funded() -> "RegimeConfig":
+    def funded() -> RegimeConfig:
         return RegimeConfig(regime=Regime.FUNDED, vol_target_mult=1.0, profit_lock_frac=0.06)
 
 

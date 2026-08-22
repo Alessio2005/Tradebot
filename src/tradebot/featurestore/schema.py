@@ -2,7 +2,6 @@
 """Pandera contract for feature-store output."""
 from __future__ import annotations
 
-import pandera.pandas as pa
 import pandera.pandas as ppa
 
 __all__ = ["FeatureStoreSchema"]

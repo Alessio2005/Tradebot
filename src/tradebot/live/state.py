@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -58,15 +57,15 @@ class SystemState:
     mode: EngineMode = EngineMode.PAPER
     equity: float = 100_000.0
     equity_peak: float = 100_000.0
-    positions: Dict[str, float] = field(default_factory=dict)
-    target_weights: Dict[str, float] = field(default_factory=dict)
-    last_bar: Dict[str, pd.DataFrame] = field(default_factory=dict)
-    last_bar_ts: Dict[str, pd.Timestamp] = field(default_factory=dict)
-    last_feed_ts: Optional[pd.Timestamp] = None
+    positions: dict[str, float] = field(default_factory=dict)
+    target_weights: dict[str, float] = field(default_factory=dict)
+    last_bar: dict[str, pd.DataFrame] = field(default_factory=dict)
+    last_bar_ts: dict[str, pd.Timestamp] = field(default_factory=dict)
+    last_feed_ts: pd.Timestamp | None = None
     circuit_breaker_active: bool = False
     daily_pnl: float = 0.0
     daily_pnl_open: float = 100_000.0
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     # CHIEF-4 (2026-05-28): historic *max* drawdown (worst peak-to-trough fraction
     # observed since start).  ``current_drawdown`` is INSTANTANEOUS — it returns 0
     # the moment equity recovers to a new peak, which made the dashboard "Max DD"
@@ -105,20 +104,16 @@ class SystemState:
         the current (post-recovery) drawdown.
         """
         self.equity = new_equity
-        if new_equity > self.equity_peak:
-            self.equity_peak = new_equity
-        if new_equity > self.intraday_peak_equity:
-            self.intraday_peak_equity = new_equity
+        self.equity_peak = max(self.equity_peak, new_equity)
+        self.intraday_peak_equity = max(self.intraday_peak_equity, new_equity)
         # Lifetime peak DD
         if self.equity_peak > 1e-12:
             cur_dd = max(0.0, (self.equity_peak - new_equity) / self.equity_peak)
-            if cur_dd > self.peak_drawdown:
-                self.peak_drawdown = cur_dd
+            self.peak_drawdown = max(self.peak_drawdown, cur_dd)
         # Intraday peak DD
         if self.intraday_peak_equity > 1e-12:
             intra_dd = max(0.0, (self.intraday_peak_equity - new_equity) / self.intraday_peak_equity)
-            if intra_dd > self.intraday_peak_drawdown:
-                self.intraday_peak_drawdown = intra_dd
+            self.intraday_peak_drawdown = max(self.intraday_peak_drawdown, intra_dd)
         self.daily_pnl = new_equity - self.daily_pnl_open
 
     def reset_daily(self) -> None:

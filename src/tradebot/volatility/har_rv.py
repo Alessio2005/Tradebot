@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 import warnings
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 import numpy as np
 
@@ -47,7 +47,7 @@ def har_rv_fit(
     daily_window: int = 1,
     weekly_window: int = 5,
     monthly_window: int = 21,
-    fit_indices: Optional[np.ndarray] = None,
+    fit_indices: np.ndarray | None = None,
 ) -> HARRVResult:
     """Fit HAR-RV model to realized variance series (Corsi 2009).
 

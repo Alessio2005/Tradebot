@@ -16,7 +16,6 @@ Advantages over MVO:
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -144,7 +143,7 @@ class HRPOptimizer:
 
     def __init__(self, linkage_method: str = "ward") -> None:
         self.linkage_method = linkage_method
-        self._last_weights: Optional[pd.Series] = None
+        self._last_weights: pd.Series | None = None
 
     def optimize(self, returns: pd.DataFrame) -> pd.Series:
         """Compute and cache HRP weights."""
@@ -152,5 +151,5 @@ class HRPOptimizer:
         return self._last_weights
 
     @property
-    def weights(self) -> Optional[pd.Series]:
+    def weights(self) -> pd.Series | None:
         return self._last_weights

@@ -17,7 +17,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -35,9 +35,16 @@ class TrialRecord:
     """Lightweight record of one Optuna trial (MLflow run equivalent)."""
 
     __slots__ = (
-        "run_id", "experiment_name", "trial_number",
-        "params", "metrics", "tags", "artifact_paths",
-        "start_time", "end_time", "status",
+        "artifact_paths",
+        "end_time",
+        "experiment_name",
+        "metrics",
+        "params",
+        "run_id",
+        "start_time",
+        "status",
+        "tags",
+        "trial_number",
     )
 
     def __init__(
@@ -68,7 +75,7 @@ class TrialRecord:
         return {k: getattr(self, k) for k in self.__slots__}
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "TrialRecord":
+    def from_dict(cls, d: dict[str, Any]) -> TrialRecord:
         return cls(**d)
 
 
@@ -99,7 +106,7 @@ class ExperimentTracker:
         self.tracking_dir.mkdir(parents=True, exist_ok=True)
         self._jsonl_path     = self.tracking_dir / _JSONL_FILENAME
         self._use_mlflow     = use_mlflow and self._try_import_mlflow()
-        self._active_run: Optional[TrialRecord] = None
+        self._active_run: TrialRecord | None = None
 
     # ------------------------------------------------------------------
     # MLflow opt-in
@@ -123,7 +130,7 @@ class ExperimentTracker:
         self,
         trial_number: int,
         params: dict[str, Any],
-        tags: Optional[dict[str, str]] = None,
+        tags: dict[str, str] | None = None,
     ) -> str:
         """Start a new trial run and return a unique run_id."""
         run_id = hashlib.md5(
@@ -154,7 +161,7 @@ class ExperimentTracker:
 
         return run_id
 
-    def log_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
+    def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
         if self._active_run is None:
             raise RuntimeError("Call start_run() first.")
         self._active_run.metrics.update(metrics)
@@ -201,7 +208,7 @@ class ExperimentTracker:
                     records.append(json.loads(line))
         return pd.DataFrame(records)
 
-    def best_run(self, metric: str = "sharpe", higher_is_better: bool = True) -> Optional[TrialRecord]:
+    def best_run(self, metric: str = "sharpe", higher_is_better: bool = True) -> TrialRecord | None:
         """Return the TrialRecord with the best value of ``metric``."""
         df = self.load_runs()
         if df.empty:

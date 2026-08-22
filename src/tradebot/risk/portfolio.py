@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -363,7 +362,7 @@ class PortfolioRiskManager:
         self._use_gk_vol: bool = False   # wordt True zodra eerste GK-waarden binnenkomen
 
         # v3 T1.4: HMM regime detector voor LONG-positie capping in Bear-regime
-        self._hmm_detector: Optional[object] = None
+        self._hmm_detector: object | None = None
         self._hmm_returns_buffer: list = []   # recente returns voor regime-detectie
         self._hmm_buffer_max: int = 500        # max 500 bars in buffer
 

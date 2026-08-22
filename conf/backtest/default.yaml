@@ -1,0 +1,13 @@
+# conf/backtest/default.yaml — L10 backtest
+# Gevalideerd tegen schemas/config.py::BacktestConfig.
+backtest:
+  # Phase 3 gebruikt de vectorized engine voor de baseline. De authoritative
+  # event-driven engine volgt in Phase 5 (audit sectie 16.1).
+  engine: vectorized
+
+  initial_equity: 100000.0
+  bars_per_year:  365.0
+  seed: 42
+
+  # Vectorized resultaten zijn screening-materiaal, NOOIT promotiebewijs.
+  counts_as_promotion_evidence: false

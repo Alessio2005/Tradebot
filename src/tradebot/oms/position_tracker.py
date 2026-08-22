@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass, field
-from typing import Dict, Optional
+from dataclasses import dataclass
 
 import pandas as pd
 
@@ -64,7 +63,7 @@ class PositionTracker:
 
     def __init__(self, initial_equity: float = 100_000.0) -> None:
         self._equity = initial_equity
-        self._positions: Dict[str, PositionRecord] = {}
+        self._positions: dict[str, PositionRecord] = {}
 
     # ------------------------------------------------------------------
     # Fill processing
@@ -76,7 +75,7 @@ class PositionTracker:
         For a BUY fill, qty increases; for SELL, qty decreases.
         Realised PnL is computed on any quantity reduction (closing a leg).
         """
-        pos = self._positions.setdefault(
+        self._positions.setdefault(
             fill.order_id.split("_")[2] if "_" in fill.order_id else fill.order_id,
             PositionRecord(symbol=fill.order_id),
         )
@@ -157,10 +156,10 @@ class PositionTracker:
     # Queries
     # ------------------------------------------------------------------
 
-    def get_position(self, symbol: str) -> Optional[PositionRecord]:
+    def get_position(self, symbol: str) -> PositionRecord | None:
         return self._positions.get(symbol)
 
-    def get_all_positions(self) -> Dict[str, PositionRecord]:
+    def get_all_positions(self) -> dict[str, PositionRecord]:
         return dict(self._positions)
 
     @property

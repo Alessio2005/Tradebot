@@ -69,7 +69,7 @@ class XAssetTSMomResult:
         cagr = float((1 + net).prod() ** (_TRADING_DAYS / max(len(net), 1)) - 1)
         return {
             "unit": self.unit,
-            "n_days": int(len(net)),
+            "n_days": len(net),
             "net_sharpe": ann_sharpe(net, _TRADING_DAYS),
             "gross_sharpe": ann_sharpe(gross, _TRADING_DAYS),
             "net_cagr": cagr,
@@ -78,7 +78,7 @@ class XAssetTSMomResult:
             "calmar": float(cagr / abs(dd)) if dd < 0 else float("nan"),
             "dd_over_vol": float(abs(dd) / ann_vol) if ann_vol > 0 else float("nan"),
             "years_positive_frac": n_pos / max(len(years), 1),
-            "n_years": int(len(years)),
+            "n_years": len(years),
             "avg_daily_turnover": float(self.daily_turnover.loc[net.index].mean()),
             "borrow_drag_ann": float(
                 self.borrow_cost.loc[net.index].mean() * _TRADING_DAYS

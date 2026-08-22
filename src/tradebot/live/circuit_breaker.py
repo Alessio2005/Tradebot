@@ -22,7 +22,6 @@ import json
 import logging
 import pathlib
 from dataclasses import dataclass
-from typing import Optional
 
 import pandas as pd
 
@@ -84,7 +83,7 @@ class CircuitBreakerConfig:
     feed_timeout_sec: int = 30
     model_hash_mismatch: bool = True
     max_position_age_h: int = 48
-    cb_log_path: Optional[pathlib.Path] = None
+    cb_log_path: pathlib.Path | None = None
 
 
 class CircuitBreaker:
@@ -101,14 +100,14 @@ class CircuitBreaker:
     def __init__(self, config: CircuitBreakerConfig, state: SystemState) -> None:
         self._cfg = config
         self._state = state
-        self._halt_reason: Optional[str] = None
-        self._halt_ts: Optional[pd.Timestamp] = None
+        self._halt_reason: str | None = None
+        self._halt_ts: pd.Timestamp | None = None
         self._checks: int = 0
 
         # CHIEF AUDIT-FIX (Sim-to-Reality #14): session peak tracking for
         # intraday drawdown.  Reset every UTC midnight by ``_maybe_roll_session``.
         self._session_peak_equity: float = float(self._state.equity)
-        self._session_date: Optional[pd.Timestamp] = None
+        self._session_date: pd.Timestamp | None = None
 
         # Wave 15 P0-5.5 — resolve effective log path (config overrides module default)
         self._cb_log_path: pathlib.Path = (
@@ -123,7 +122,7 @@ class CircuitBreaker:
         return self._state.circuit_breaker_active
 
     @property
-    def halt_reason(self) -> Optional[str]:
+    def halt_reason(self) -> str | None:
         return self._halt_reason
 
     # ------------------------------------------------------------------
@@ -133,10 +132,10 @@ class CircuitBreaker:
     def check(
         self,
         now: pd.Timestamp,
-        feature_hash: Optional[str] = None,
-        expected_hash: Optional[str] = None,
-        position_open_ts: Optional[pd.Timestamp] = None,
-    ) -> Optional[str]:
+        feature_hash: str | None = None,
+        expected_hash: str | None = None,
+        position_open_ts: pd.Timestamp | None = None,
+    ) -> str | None:
         """Run all halt conditions.  Returns the halt reason string or None.
 
         Side-effect: sets ``state.circuit_breaker_active = True`` on first trip.
@@ -176,10 +175,10 @@ class CircuitBreaker:
     def _evaluate(
         self,
         now: pd.Timestamp,
-        feature_hash: Optional[str],
-        expected_hash: Optional[str],
-        position_open_ts: Optional[pd.Timestamp],
-    ) -> Optional[str]:
+        feature_hash: str | None,
+        expected_hash: str | None,
+        position_open_ts: pd.Timestamp | None,
+    ) -> str | None:
         # CHIEF AUDIT-FIX (Sim-to-Reality #14): session tracking precedes checks.
         self._maybe_roll_session(now)
 
@@ -283,7 +282,7 @@ class CircuitBreaker:
         if not self._cb_log_path.exists():
             return
         cutoff_ts = pd.Timestamp.utcnow() - pd.Timedelta(hours=24)
-        with open(self._cb_log_path, "r", encoding="utf-8") as f:
+        with open(self._cb_log_path, encoding="utf-8") as f:
             for line in f:
                 try:
                     entry = json.loads(line.strip())

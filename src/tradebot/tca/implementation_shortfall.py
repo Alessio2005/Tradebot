@@ -14,10 +14,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Literal, Optional
-
-import numpy as np
-import pandas as pd
+from typing import Literal
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +53,7 @@ def decompose_implementation_shortfall(
     arrival_price: float,
     execution_price: float,
     signed_qty: float,
-    vwap_price: Optional[float] = None,
+    vwap_price: float | None = None,
     vwap_source: VwapSource = "unknown",
 ) -> ISDecomposition:
     """Decompose implementation shortfall into delay, impact, and timing.

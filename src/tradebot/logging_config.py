@@ -33,7 +33,7 @@ def setup_logging(
     level: str | None = None,
 ) -> None:
     """Configure root logger. Idempotent — safe to call multiple times."""
-    global _configured  # noqa: PLW0603
+    global _configured
     if _configured:
         return
     _configured = True

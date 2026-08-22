@@ -13,9 +13,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-
-import pandas as pd
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +25,7 @@ class MRMSection:
     """One section of the MRM report."""
 
     title: str
-    content: Dict[str, Any]
+    content: dict[str, Any]
 
 
 @dataclass
@@ -62,7 +60,7 @@ class MRMReport:
     generated_at: str = field(
         default_factory=lambda: datetime.now(tz=timezone.utc).isoformat()
     )
-    sections: List[MRMSection] = field(default_factory=list)
+    sections: list[MRMSection] = field(default_factory=list)
     approved_by: str = ""
     approval_date: str = ""
     _production: bool = field(default=False, repr=False)
@@ -76,7 +74,7 @@ class MRMReport:
                 "or pass approved_by=<approver_id>. (Wave 19 P0)"
             )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "model_id": self.model_id,
             "git_sha": self.git_sha,
@@ -94,7 +92,7 @@ class MRMReport:
     def to_text(self) -> str:
         """Render a plain-text summary (PDF stub)."""
         lines = [
-            f"MODEL RISK MANAGEMENT REPORT",
+            "MODEL RISK MANAGEMENT REPORT",
             f"Model ID    : {self.model_id}",
             f"Git SHA     : {self.git_sha}",
             f"Feature Hash: {self.feature_hash}",
@@ -117,13 +115,13 @@ def generate_mrm_report(
     feature_hash: str,
     dvc_hash: str,
     training_date: str,
-    symbols: List[str],
-    n_bars_per_symbol: Dict[str, int],
+    symbols: list[str],
+    n_bars_per_symbol: dict[str, int],
     oos_sharpe: float,
     oos_max_dd: float,
     oos_calmar: float,
-    stress_results: Optional[Dict[str, Any]] = None,
-    known_limitations: Optional[List[str]] = None,
+    stress_results: dict[str, Any] | None = None,
+    known_limitations: list[str] | None = None,
 ) -> MRMReport:
     """Build a complete MRMReport with all required sections.
 

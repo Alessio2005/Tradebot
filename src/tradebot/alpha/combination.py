@@ -8,12 +8,10 @@ IC-DAMP (Information Coefficient Decay Adjusted Mean Predictor):
 from __future__ import annotations
 
 import logging
-from typing import Optional
+import warnings
 
 import numpy as np
 import pandas as pd
-import warnings
-
 from scipy.stats import ConstantInputWarning, spearmanr
 
 logger = logging.getLogger(__name__)
@@ -67,8 +65,8 @@ class ICWeightedCombiner:
         self.signal_names = signal_names
         self.lookback = lookback
         self.min_ic_abs = min_ic_abs
-        self._weights: Optional[pd.Series] = None
-        self._ic_table: Optional[pd.DataFrame] = None
+        self._weights: pd.Series | None = None
+        self._ic_table: pd.DataFrame | None = None
 
     def fit(
         self,

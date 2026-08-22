@@ -87,7 +87,7 @@ def compute_dynamic_spread_arr(
     impact_k: float = 0.5,
     ref_trade_size: float = 1.0,
     ref_trade_notional_usd: float | None = None,
-    fee_schedule: "FeeSchedule | None" = None,
+    fee_schedule: FeeSchedule | None = None,
 ) -> np.ndarray:
     """Per-bar square-root impact spread for mid-price data.
 

@@ -4,15 +4,23 @@ factor risk, stress testing, and liquidity risk."""
 from __future__ import annotations
 
 from .beta_hedge import compute_btc_hedge_size, compute_rolling_betas
+
+# Phase 0: `Regime` bestaat TWEE keer in dit pakket en betekent iets volledig
+# anders. daily_loss_governor.Regime is een PROPFIRM-accountregime
+# (CHALLENGE/FUNDED); hmm_regime.Regime is een MARKTREGIME (BEAR/FLAT/BULL).
+# Beide werden ongealiast geimporteerd, waardoor `tradebot.risk.Regime`
+# stilzwijgend het marktregime was en de propfirm-variant onbereikbaar. De
+# accountregime-variant is nu expliciet AccountRegime; `Regime` blijft het
+# marktregime, zoals het feitelijk al oploste.
 from .daily_loss_governor import (
     GovernorAction,
     GovernorDecision,
     PropfirmGovernor,
     PropfirmLimits,
-    Regime,
     RegimeConfig,
     target_gross_multiplier,
 )
+from .daily_loss_governor import Regime as AccountRegime
 from .drawdown import BreakerState, DrawdownBreaker, DrawdownConfig, compute_current_drawdown
 from .factor_alpha import G4_FACTORSETS, FactorAlphaResult, factor_residual_alpha
 from .factor_risk import FactorExposure, FactorRiskModel, compute_factor_risk
@@ -48,7 +56,7 @@ __all__ = [
     "GovernorDecision",
     "PropfirmGovernor",
     "PropfirmLimits",
-    "Regime",
+    "AccountRegime",
     "RegimeConfig",
     "target_gross_multiplier",
     # var

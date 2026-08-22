@@ -20,8 +20,6 @@ the coverage count is printed by the eval and recorded in the wave log.
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 
 from tradebot.alpha.xs_unit import CostModel, XSUnitResult, event_to_panel, run_xs_unit

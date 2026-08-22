@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import math
 from collections import deque
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..live.circuit_breaker import CircuitBreaker
@@ -28,7 +28,7 @@ class LiveSharpeMonitor:
         self,
         backtest_sharpe: float,
         backtest_sharpe_std: float,
-        circuit_breaker: Optional["CircuitBreaker"] = None,
+        circuit_breaker: CircuitBreaker | None = None,
         window: int = 252,
         sigma_halt_threshold: float = 2.0,
         min_trades_before_halt: int = 20,
@@ -42,7 +42,7 @@ class LiveSharpeMonitor:
         self._returns: deque[float] = deque(maxlen=window)
         self._n_trades: int = 0
 
-    def record_trade_return(self, ret: float) -> Optional[dict]:
+    def record_trade_return(self, ret: float) -> dict | None:
         """Add one trade return and check for Sharpe degradation."""
         self._returns.append(float(ret))
         self._n_trades += 1

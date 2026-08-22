@@ -7,7 +7,6 @@ temporele structuur deels bewaard blijft maar de cross-bar informatie vernietigd
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 def _block_shuffle(
     arr: np.ndarray,
     block_size: int = 20,
-    rng: Optional[np.random.Generator] = None,
+    rng: np.random.Generator | None = None,
     embargo_bars: int = 0,
 ) -> np.ndarray:
     """Shuffle array in blokken van block_size (tijdsstructuur deels bewaard).

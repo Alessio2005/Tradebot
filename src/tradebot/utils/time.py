@@ -7,8 +7,7 @@ provides conversion helpers that enforce that invariant at system boundaries
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Union
+from datetime import datetime
 
 import pandas as pd
 
@@ -42,7 +41,7 @@ def now_utc() -> pd.Timestamp:
     return pd.Timestamp.now(tz="UTC")
 
 
-def to_utc(ts: Union[str, datetime, pd.Timestamp]) -> pd.Timestamp:
+def to_utc(ts: str | datetime | pd.Timestamp) -> pd.Timestamp:
     """Convert any timestamp representation to a UTC-aware pd.Timestamp.
 
     Raises ValueError if the input has no timezone and cannot be assumed UTC.

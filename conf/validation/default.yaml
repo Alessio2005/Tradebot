@@ -1,0 +1,27 @@
+# conf/validation/default.yaml — L11 statistische validatie
+# Gevalideerd tegen schemas/config.py::ValidationConfig.
+#
+# BINDEND (audit sectie 17.1): Purged Walk-Forward met embargo is ESSENTIAL en
+# de ENIGE toegestane CV in de promotiepijplijn. CPCV en PBO draaien uitsluitend
+# als diagnostiek en hebben geen gate-bevoegdheid.
+validation:
+  scheme: purged_walk_forward
+
+  n_splits:   6
+  train_bars: 500
+  test_bars:  100
+
+  # De embargo-lengte is een FUNCTIE van de labelhorizon. Het schema dwingt af
+  # dat embargo_bars >= label_horizon_bars, anders lekken overlappende labels
+  # van test naar train.
+  label_horizon_bars: 1
+  embargo_bars:       5
+
+  dsr_alpha: 0.05
+  spa_alpha: 0.05
+  spa_bootstrap_reps: 1000
+  spa_block_length:   10
+
+  # Niet configureerbaar naar true: het schema pint deze op False.
+  cpcv_is_gate: false
+  pbo_is_gate:  false

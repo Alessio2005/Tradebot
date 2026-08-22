@@ -79,7 +79,7 @@ class LedgerEntry:
         result: str = "interim",
         metrics: dict[str, Any] | None = None,
         notes: str = "",
-    ) -> "LedgerEntry":
+    ) -> LedgerEntry:
         """Build an entry, deriving ``config_hash`` deterministically."""
         return cls(
             wave=wave,

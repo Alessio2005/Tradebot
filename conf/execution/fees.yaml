@@ -1,0 +1,19 @@
+# conf/execution/fees.yaml — L9 kosten
+# Gevalideerd tegen schemas/config.py::ExecutionConfig.
+#
+# LET OP: de spread-aanname hieronder is VOORLOPIG. De definitieve eta-kalibratie
+# op orderboekdata volgt in Phase 5. Tot die tijd rapporteert elk backtest-
+# resultaat bruto EN netto, met deze aanname expliciet vermeld
+# (Phase 3, stap 9).
+execution:
+  # Bybit VIP-0 linear perpetuals.
+  maker_fee_bps: 2.0
+  taker_fee_bps: 5.5
+
+  # Conservatieve half-spread aanname.
+  assumed_half_spread_bps: 1.0
+
+  slippage_model: half_spread
+  impact_eta: 0.142
+
+  cost_assumption_is_provisional: true

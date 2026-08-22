@@ -30,7 +30,7 @@ def stack_feats(
     for x in [x1, x4, xd]:
         if x is not None and x.size > 0:
             if x.ndim == 1:
-                x = x.reshape(-1, 1)  # noqa: PLW2901
+                x = x.reshape(-1, 1)
             parts.append(x)
     return np.hstack(parts) if parts else np.array([])
 

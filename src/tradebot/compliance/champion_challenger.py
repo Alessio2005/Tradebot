@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -88,7 +87,7 @@ class ChampionChallenger:
         Evaluation configuration.
     """
 
-    def __init__(self, config: Optional[ChampionChallengerConfig] = None) -> None:
+    def __init__(self, config: ChampionChallengerConfig | None = None) -> None:
         self._cfg = config or ChampionChallengerConfig()
 
     # ------------------------------------------------------------------
@@ -166,7 +165,7 @@ class ChampionChallenger:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _dm_test(d: np.ndarray) -> Tuple[float, float]:
+    def _dm_test(d: np.ndarray) -> tuple[float, float]:
         """Harvey-Leybourne-Newbold corrected DM test (HLN 1997).
 
         CHIEF AUDIT 2026-05-23 (M14): Andrews-rule bandwidth voor Newey-West

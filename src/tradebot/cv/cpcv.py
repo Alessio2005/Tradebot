@@ -285,7 +285,7 @@ def build_cpcv_return_paths(
             f"(Wave 14 P0-10) as it destroys train/test separation."
         )
 
-    n_folds_per_path = n_groups // k
+    n_groups // k
     all_groups = set(range(n_groups))
 
     def _partitions(remaining: frozenset, k: int) -> Generator[tuple[tuple, ...], None, None]:

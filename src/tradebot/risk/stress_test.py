@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -26,7 +25,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["StressScenario", "StressResult", "StressTestSuite"]
 
 
-_SCENARIOS: Dict[str, Optional[Tuple[str, str]]] = {
+_SCENARIOS: dict[str, tuple[str, str] | None] = {
     "covid_crash":      ("2020-02-20", "2020-03-13"),
     "luna_collapse":    ("2022-05-04", "2022-05-14"),
     "ftx_collapse":     ("2022-11-06", "2022-11-11"),
@@ -40,8 +39,8 @@ class StressScenario:
     """Metadata for a single stress scenario."""
 
     name: str
-    start: Optional[str]
-    end: Optional[str]
+    start: str | None
+    end: str | None
     description: str = ""
 
 
@@ -54,7 +53,7 @@ class StressResult:
     max_drawdown: float            # max intra-scenario drawdown
     var_99: float                  # 1-day 99% VaR during scenario
     asset_returns: pd.Series       # per-asset return during scenario
-    path: Optional[pd.Series] = None  # daily equity path (if available)
+    path: pd.Series | None = None  # daily equity path (if available)
 
 
 class StressTestSuite:
@@ -254,9 +253,9 @@ class StressTestSuite:
         self,
         portfolio_weights: pd.Series,
         mc_paths: int = 500,
-    ) -> Dict[str, StressResult]:
+    ) -> dict[str, StressResult]:
         """Run all scenarios and return a dict of results."""
-        results: Dict[str, StressResult] = {}
+        results: dict[str, StressResult] = {}
         for key in _SCENARIOS:
             results[key] = self.run_historical(portfolio_weights, key)
         return results

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -41,7 +40,7 @@ def analyse_execution(
     volatility: float,
     adv: float,
     bid_ask_spread: float = 0.0002,
-    vwap_price: Optional[float] = None,
+    vwap_price: float | None = None,
     pre_trade_signal: float = 0.0,
 ) -> PostTradeRecord:
     """Perform post-trade analysis for a single executed order.

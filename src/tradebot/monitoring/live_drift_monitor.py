@@ -25,7 +25,6 @@ import json
 import logging
 from collections import deque
 from pathlib import Path
-from typing import Deque, Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -65,7 +64,7 @@ class LiveDriftMonitorConfig:
         ref_window: int = 2000,
         current_window: int = 100,
         check_every_n: int = 1,
-        drift_report_path: Optional[Path] = None,
+        drift_report_path: Path | None = None,
         top_n_logged: int = 10,
     ) -> None:
         self.artefacts_dir = Path(artefacts_dir)
@@ -81,10 +80,10 @@ class LiveDriftMonitor:
 
     def __init__(self, config: LiveDriftMonitorConfig, symbols: list[str]) -> None:
         self._cfg = config
-        self._refresh_counts: Dict[str, int] = {s: 0 for s in symbols}
-        self._reference: Dict[str, Dict[str, np.ndarray]] = {}
+        self._refresh_counts: dict[str, int] = {s: 0 for s in symbols}
+        self._reference: dict[str, dict[str, np.ndarray]] = {}
         # Buffer of recent live feature rows per symbol (deque of dicts).
-        self._current: Dict[str, Deque[pd.Series]] = {
+        self._current: dict[str, deque[pd.Series]] = {
             s: deque(maxlen=config.current_window) for s in symbols
         }
         for sym in symbols:
@@ -107,7 +106,7 @@ class LiveDriftMonitor:
             return
         df = pd.read_parquet(ref_path)
         df = df.tail(self._cfg.ref_window)
-        ref: Dict[str, np.ndarray] = {}
+        ref: dict[str, np.ndarray] = {}
         for col in df.columns:
             if not col.startswith("feat_"):
                 continue
@@ -154,7 +153,7 @@ class LiveDriftMonitor:
             return
         # Build current arrays per feature.
         cur_df = pd.DataFrame(list(self._current[symbol]))
-        cur: Dict[str, np.ndarray] = {}
+        cur: dict[str, np.ndarray] = {}
         for col in ref:
             if col not in cur_df.columns:
                 continue

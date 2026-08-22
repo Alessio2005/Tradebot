@@ -8,12 +8,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import List
 
 import numpy as np
 import pandas as pd
 
-from .base import AlphaSignal, SignalResult
+from .base import SignalResult
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +129,7 @@ class TSMomentum:
             signal_id=self.signal_id,
         )
 
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return ["close"]
 
 
@@ -218,5 +217,5 @@ class CSMomentum:
             signal_id=self.signal_id,
         )
 
-    def feature_names(self) -> List[str]:
+    def feature_names(self) -> list[str]:
         return ["close"]

@@ -8,7 +8,6 @@ Referentie: CHIEF_MASTER_PLAN v3 §3 T1.2; Huber (1981) robuuste regressie.
 from __future__ import annotations
 
 import logging
-from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -85,14 +84,14 @@ def compute_rolling_betas(
     return betas
 
 
-def compute_portfolio_beta(positions: Dict[str, float], betas: Dict[str, float]) -> float:
+def compute_portfolio_beta(positions: dict[str, float], betas: dict[str, float]) -> float:
     """β_p = Σ(w_i × β_i)."""
     return sum(pos * betas.get(sym, 1.0) for sym, pos in positions.items() if np.isfinite(betas.get(sym, np.nan)))
 
 
 def compute_btc_hedge_size(
-    positions: Dict[str, float],
-    betas: Dict[str, float],
+    positions: dict[str, float],
+    betas: dict[str, float],
     beta_band: tuple = _BETA_BAND,
 ) -> float:
     """Bereken BTC-hedge om β_p binnen [-0.1, +0.1] te brengen. Negatief = short BTC."""

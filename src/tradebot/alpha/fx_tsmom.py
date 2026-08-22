@@ -55,7 +55,7 @@ class FXTSMomResult:
         years = net.groupby(net.index.year).apply(lambda r: (1 + r).prod() - 1)
         return {
             "unit": self.unit,
-            "n_days": int(len(net)),
+            "n_days": len(net),
             "net_sharpe": ann_sharpe(net, _TRADING_DAYS),
             "gross_sharpe": ann_sharpe(gross, _TRADING_DAYS),
             "net_cagr": float((1 + net).prod() ** (_TRADING_DAYS / max(len(net), 1)) - 1),

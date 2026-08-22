@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -101,16 +100,12 @@ def train_judge(
     judge_depth: int = 5,
     judge_l2: float = 5.0,
     random_seed: int = 42,
-) -> Optional[pd.Series]:
+) -> pd.Series | None:
     """Train Secondary Judge en persisteer model + OOS probs.
 
     Returns:
         OOS Judge probabilities (pd.Series), of None bij falen.
     """
-    if not _CATBOOST_OK:
-        logger.error("CatBoost niet beschikbaar — Judge overgeslagen.")
-        return None
-
     try:
         X_judge = build_judge_features(X_primary, oos_probs)
     except ValueError as exc:

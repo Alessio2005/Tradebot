@@ -31,7 +31,6 @@ import logging
 import os
 import time
 from decimal import ROUND_DOWN, Decimal
-from typing import Dict, Optional, Tuple
 from urllib.parse import urlencode
 
 from .order import Fill, Order, OrderStatus
@@ -66,21 +65,21 @@ class OrderRouter:
         self._live_mode = live_mode
         self._api_key = os.getenv("BYBIT_API_KEY", "")
         self._api_secret = os.getenv("BYBIT_API_SECRET", "")
-        self._session: Optional[object] = None  # aiohttp.ClientSession placeholder
+        self._session: object | None = None  # aiohttp.ClientSession placeholder
 
         # Wave 15 P0-5.4 — idempotent order placement cache
-        self._order_id_cache: Dict[str, str] = {}
+        self._order_id_cache: dict[str, str] = {}
 
         # Per-symbol lot-size filters (qtyStep, minOrderQty) from
         # /v5/market/instruments-info, fetched lazily and cached.  Bybit rejects
         # orders whose qty violates qtyStep / minOrderQty, so we comply locally.
-        self._symbol_filters: Dict[str, Tuple[str, str]] = {}
+        self._symbol_filters: dict[str, tuple[str, str]] = {}
 
     # ------------------------------------------------------------------
     # Bybit V5 signing helpers
     # ------------------------------------------------------------------
 
-    def _auth_headers(self, payload: str) -> Dict[str, str]:
+    def _auth_headers(self, payload: str) -> dict[str, str]:
         """Build signed Bybit V5 auth headers for a given payload string.
 
         ``payload`` is the raw JSON body (POST) or the query string (GET).
@@ -99,7 +98,7 @@ class OrderRouter:
             "Content-Type": "application/json",
         }
 
-    async def _get_symbol_filters(self, symbol: str) -> Tuple[str, str]:
+    async def _get_symbol_filters(self, symbol: str) -> tuple[str, str]:
         """Return (qtyStep, minOrderQty) for ``symbol`` (cached).
 
         Falls back to ("0.00000001", "0") if the public instruments-info call
@@ -150,7 +149,7 @@ class OrderRouter:
             return self._paper.close_all()
         return await self._live_close_all()
 
-    async def get_exchange_positions(self) -> Dict[str, float]:
+    async def get_exchange_positions(self) -> dict[str, float]:
         """Query live exchange for current positions (paper: empty dict)."""
         if not self._live_mode:
             return {}
@@ -167,13 +166,9 @@ class OrderRouter:
         return the cached exchange order status instead of placing a duplicate.
         Raises NotImplementedError if aiohttp is not available.
         """
-        try:
-            import aiohttp
-        except ImportError:
-            raise NotImplementedError(
-                "Live order routing requires aiohttp. "
-                "Install with: pip install aiohttp"
-            )
+        # Phase 0: aiohttp is een harde dependency (pyproject.toml); de
+        # try/except ImportError-guard hier is daarmee dode code geworden.
+        import aiohttp
 
 
         order_id = str(order.order_id)
@@ -235,11 +230,9 @@ class OrderRouter:
 
     async def _get_order_status(self, order: Order, exchange_order_id: str) -> Fill:
         """Query Bybit for the status of an already-placed order (Wave 15 P0-5.4)."""
-        try:
-            import aiohttp
-        except ImportError:
-            raise NotImplementedError("aiohttp required for live order status query.")
-
+        # Phase 0: aiohttp is een harde dependency (pyproject.toml); de
+        # try/except ImportError-guard hier is daarmee dode code geworden.
+        import aiohttp
         import pandas as pd
 
         query = urlencode({
@@ -296,7 +289,7 @@ class OrderRouter:
             fills.append(await self._live_place(close_order))
         return fills
 
-    async def _live_get_positions(self) -> Dict[str, float]:
+    async def _live_get_positions(self) -> dict[str, float]:
         # Phase 0: `except ImportError: return {}` meldde "geen posities" terwijl
         # de werkelijke positie onbekend was - de gevaarlijkste vorm van stille
         # degradatie in een OMS. aiohttp is een harde dependency.
@@ -313,7 +306,7 @@ class OrderRouter:
                 data = await resp.json()
 
         rows = (data.get("result") or {}).get("list") or []
-        out: Dict[str, float] = {}
+        out: dict[str, float] = {}
         for item in rows:
             size = float(item.get("size", 0.0) or 0.0)
             # Bybit reports unsigned size + a side; encode as signed amount.
