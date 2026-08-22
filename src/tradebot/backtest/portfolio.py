@@ -12,17 +12,13 @@ import numpy as np
 import pandas as pd
 
 from ..risk.portfolio import PortfolioRiskManager, RiskState
+
+# Phase 0 stap 5: het pakket `quant_architect` bestaat nergens. SchemaMismatchError
+# is ooit geextraheerd naar tradebot.train.schema_guard zonder dat deze importsite
+# is bijgewerkt. De except-tak definieerde een lokale RuntimeError-stub met dezelfde
+# naam, waardoor een schema-mismatch niet meer als zodanig herkenbaar was.
+from ..train.schema_guard import SchemaMismatchError
 from .tracks import AssetTrack, PortfolioBacktestResult
-
-try:
-    from quant_architect import QuantArchitectStack, SchemaMismatchError
-    _QUANT_ARCHITECT_AVAILABLE: bool = True
-except ImportError:
-    _QUANT_ARCHITECT_AVAILABLE = False
-    QuantArchitectStack = Any  # type: ignore[assignment, misc]
-
-    class SchemaMismatchError(RuntimeError):  # type: ignore[no-redef]
-        pass
 
 logger = logging.getLogger(__name__)
 
