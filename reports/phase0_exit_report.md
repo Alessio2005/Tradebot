@@ -10,12 +10,28 @@
 
 ## VERDICT
 
-**7 van de 8 exit criteria zijn behaald. Criterium 6 is NIET behaald.**
+**7 van de 8 exit criteria zijn behaald. Criterium 6 is NIET behaald in de
+letterlijke zin (nul literals), maar is wel AFDWINGBAAR gemaakt.**
 
-Volgens de harde regel van deze fase — *"Phase 1 mag niet starten zolang één van
-deze acht punten open staat"* — is Phase 0 daarmee **niet formeel afgerond**.
-Zie §Criterium 6 voor het volledige oordeel en waarom dit een defect in de
-fase-specificatie is en niet in de uitvoering.
+### Besluit van de opdrachtgever — 2026-08-22
+
+Voorgelegd met drie opties (zie §Openstaand besluit). **Gekozen: optie 1 —
+ratchet accepteren.**
+
+Daarmee geldt criterium 6 als *afgedwongen in plaats van geëlimineerd*:
+
+- het budget per bestand is gepind op de gemeten nulstand (336 literals,
+  107 bestanden);
+- `scripts/check_hardcoded_params.py --strict` faalt bij elke nieuwe literal en
+  draait blokkerend in CI;
+- budgetten mogen uitsluitend omlaag;
+- de opruiming loopt per fase via **DI-9 t/m DI-14** in `docs/DEFERRED_ISSUES.md`;
+- modules die Phase 3 nieuw aanmaakt krijgen budget 0 zonder uitzondering.
+
+**Phase 0 is hiermee afgerond en Phase 1 is ontgrendeld.**
+
+Deze afwijking van de letterlijke tekst is bewust, expliciet vastgelegd en
+draagt een handhavingsmechanisme. Hij is niet stilzwijgend afgevinkt.
 
 ---
 
@@ -324,16 +340,22 @@ schoon.
 
 ---
 
-## Openstaand besluit
+## Besluit (afgehandeld)
 
-Criterium 6 vereist een expliciete beslissing vóór Phase 1 mag starten:
+Criterium 6 is voorgelegd aan de opdrachtgever met de volgende drie opties.
+**Optie 1 is gekozen op 2026-08-22.**
 
 1. **Ratchet accepteren** — criterium 6 geldt als afgedwongen (niet als
    geëlimineerd), de 336 literals worden per fase opgeruimd volgens DI-9…DI-14,
-   en Phase 1 start. *Aanbevolen.*
+   en Phase 1 start. ✅ **GEKOZEN.**
 2. **Volledig elimineren vóór Phase 1** — 336 literals in 107 bestanden
    parametriseren, inclusief modules die Phase 4–6 daarna opnieuw herschrijven.
 3. **Scope beperken tot `risk/`, `volatility/`, `execution/`** — de drie modules
    die stap 8 expliciet noemt (88 literals), en de rest via de ratchet.
 
-Deze beslissing ligt bij de opdrachtgever, niet bij de uitvoerder.
+Daarnaast is besloten over de reikwijdte van de Phase 1-ingestie: **alleen daily
+OHLCV nu, intraday (5m) later**. Consequentie: Open Question 1 uit sectie 27 —
+*"beschikken we over voldoende orderboek-depth om HAR-RV en het TCA-impactmodel
+te kalibreren?"* — wordt in het Phase 1 exit-rapport beantwoord met de gemeten
+dekking van wat wél is ingested, en met een expliciet *"intraday nog niet
+gemeten"* voor de rest.
