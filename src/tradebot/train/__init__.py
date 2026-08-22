@@ -38,6 +38,7 @@ from .catboost import (
 )
 from .checkpoints import FoldCheckpoint, load_fold_checkpoint, save_fold_checkpoint
 from .ensemble import ContextualBanditEnsemble
+from .meta_train import build_judge_features, make_judge_labels, train_judge
 from .quant_arch import (
     P2OnlineQuantile,
     SymmetricQuantileScaler,
@@ -60,7 +61,6 @@ from .schema_guard import (
 )
 from .seeded import SeedConfig, derive_fold_seed, seed_everything
 from .stack import QuantArchitectStack
-from .meta_train import build_judge_features, make_judge_labels, train_judge
 from .thompson import LedoitWolfThompsonSampler
 
 __all__ = [

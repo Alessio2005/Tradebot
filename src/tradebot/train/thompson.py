@@ -14,11 +14,10 @@ import numpy as np
 
 logger = logging.getLogger("train.thompson")
 
-try:
-    from ..execution.market_impact import ledoit_wolf_shrunk_cov  # type: ignore[import]
-    _MARKET_IMPACT_AVAILABLE: bool = True
-except ImportError:  # pragma: no cover
-    _MARKET_IMPACT_AVAILABLE = False
+# Phase 0: `..execution.market_impact` is een INTERNE module binnen dit pakket en
+# kan niet legitiem ontbreken. De try/except zette de vlag _MARKET_IMPACT_AVAILABLE
+# op False, waarna het model stilzwijgend zonder de betreffende correctie draaide.
+from ..execution.market_impact import ledoit_wolf_shrunk_cov
 
 
 class LedoitWolfThompsonSampler:
@@ -51,11 +50,6 @@ class LedoitWolfThompsonSampler:
         target: str = "identity",
         rng: np.random.Generator | None = None,
     ) -> None:
-        if not _MARKET_IMPACT_AVAILABLE:
-            raise ImportError(
-                "LedoitWolfThompsonSampler requires "
-                "execution.market_impact.ledoit_wolf_shrunk_cov."
-            )
         self.v: float = float(v)
         self.target: str = str(target)
         self._rng: np.random.Generator = rng if rng is not None else np.random.default_rng()

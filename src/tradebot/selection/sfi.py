@@ -6,18 +6,16 @@ Geeft een non-lineaire baseline voor feature ranking.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+# Phase 0: catboost is een harde dependency (pyproject.toml). De try/except
+# zette _CB_OK=False, waarna single_feature_importance stilzwijgend een lege
+# importance-tabel opleverde en elke feature dus even belangrijk leek.
+from catboost import CatBoostClassifier, Pool
 
-try:
-    from catboost import CatBoostClassifier, Pool
-    _CB_OK = True
-except ImportError:
-    _CB_OK = False
+logger = logging.getLogger(__name__)
 
 
 def _purged_timeseries_splits(
@@ -82,10 +80,6 @@ def single_feature_importance(
     Returns:
         pd.Series met AUC per feature (index = feature namen), gesorteerd aflopend.
     """
-    if not _CB_OK:
-        logger.error("CatBoost niet beschikbaar — SFI overgeslagen.")
-        return pd.Series(dtype=float)
-
     from sklearn.metrics import roc_auc_score
 
     # CHIEF AUDIT 2026-05-23 (P-11): vervang sklearn TimeSeriesSplit (geen

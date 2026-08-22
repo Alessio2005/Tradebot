@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from ..utils.failfast import has_module
+
 __all__ = ["SeedConfig", "derive_fold_seed", "seed_everything"]
 
 
@@ -78,22 +80,24 @@ def seed_everything(seed: int) -> None:
     np.random.seed(seed)
 
     # CHIEF AUDIT 2026-05-23 (P-8): torch CPU+CUDA + deterministisch cuDNN.
-    try:
+    # Phase 0: `try: import torch / except ImportError: pass` is vervangen door een
+    # expliciete capability-probe. Semantisch identiek, maar zonder try/except:
+    # ontbreekt torch, dan bestaat er ook geen torch-model om te seeden - er
+    # degradeert dus niets. Zie utils.failfast.has_module.
+    if has_module("torch"):
         import torch
+
         torch.manual_seed(seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
-    except ImportError:
-        pass
 
     # CHIEF AUDIT 2026-05-23 (P-8): cupy (RAPIDS / GPU-numpy) RNG.
-    try:
+    if has_module("cupy"):
         import cupy as cp
+
         cp.random.seed(seed)
-    except ImportError:
-        pass
 
 
 def derive_fold_seed(global_seed: int, fold_id: int) -> int:

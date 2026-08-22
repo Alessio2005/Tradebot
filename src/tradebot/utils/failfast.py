@@ -29,6 +29,7 @@ from ..exceptions import TradebotError
 
 __all__ = [
     "CausalityViolationError",
+    "has_module",
     "ConfigContractError",
     "DataContractError",
     "DependencyMissingError",
@@ -160,6 +161,31 @@ def require_dependency(module_name: str, *, needed_for: str, install_hint: str =
             f"stilzwijgend naar een naievere benadering. Installeer met: {hint}"
         )
     return importlib.import_module(module_name)
+
+
+def has_module(module_name: str) -> bool:
+    """True wanneer `module_name` importeerbaar is, zonder hem te importeren.
+
+    Dit is GEEN toegestaan alternatief voor `require_dependency`. Het is
+    uitsluitend bedoeld voor **capability-probes waarbij afwezigheid betekent dat
+    de capability feitelijk niet in gebruik is** - en er dus geen model, geen
+    schatting en geen statistische claim wordt gedegradeerd.
+
+    Toegestane voorbeelden:
+      * `has_module("torch")` voordat een torch-RNG wordt geseed. Zonder torch
+        bestaat er geen torch-model om te seeden; er degradeert niets.
+      * `has_module("mlflow")` om te bepalen of naast de JSONL-ledger ook naar
+        MLflow wordt gespiegeld. De JSONL-ledger is de autoriteit.
+
+    Verboden voorbeeld:
+      * `if has_module("hmmlearn"): hmm() else: ema()` - dat is precies de
+        stille degradatie die D-10 beschrijft. Gebruik `require_dependency`.
+
+    Gebruikt `importlib.util.find_spec`, zodat er geen try/except aan te pas komt.
+    """
+    import importlib.util
+
+    return importlib.util.find_spec(module_name.split(".")[0]) is not None
 
 
 def unreachable(message: str) -> NoReturn:
