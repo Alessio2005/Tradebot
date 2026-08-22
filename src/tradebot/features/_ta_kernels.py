@@ -8,89 +8,30 @@ from __future__ import annotations
 import logging
 import math
 import warnings
-from collections.abc import Callable
-from typing import Any
 
 import numpy as np
 import pandas as pd
 from numba import njit
+
+# ---------------------------------------------------------------------------
+# Phase 0 stap 4/6: dit blok bestond uit ZES try/except-blokken die scipy,
+# sklearn, statsmodels (KPSS) en de INTERNE volatility-module elk stilzwijgend
+# op None zetten. Gevolgen bij afwezigheid, zonder enige melding:
+#   * KPSS-bevestiging viel weg -> stationariteit werd rejection-only bepaald
+#   * FeatureOrthogonalizer degradeerde naar een no-op
+#   * Hilbert-fasedetectie gaf een matrix vol NaN terug
+#   * Garman-Klass / jump-adjusted vol werden None en faalden pas verderop
+# statsmodels en scipy zijn nu HARDE dependencies (zie
+# docs/DEPENDENCY_CONTRACT.md) en worden direct geimporteerd. De sklearn-, de
+# scipy-cluster- en de ..volatility-imports bleken in dit bestand nergens
+# gebruikt te worden - ze bestonden uitsluitend om de availability-vlaggen te
+# kunnen zetten - en zijn verwijderd. Consumenten importeren rechtstreeks uit
+# ..volatility respectievelijk features/orthogonalize.py.
+# ---------------------------------------------------------------------------
+from scipy.signal import hilbert as hilbert_func
+from scipy.signal.windows import hann as _scipy_hann_window
 from statsmodels.tsa.stattools import adfuller
-
-# ---------------------------------------------------------------------------
-# Optionele afhankelijkheden: KPSS-test, scipy (spearman + hiërarchische
-# clustering), sklearn (PCA / StandardScaler) en scipy.signal (Hilbert).
-# Alle optionele imports degraderen graceful naar een no-op / fallback zodat de
-# module importeerbaar blijft in minimale omgevingen (unit tests, CI).
-# ---------------------------------------------------------------------------
-try:  # KPSS — voor stationariteitsbevestiging (geen rejection-only beslissing)
-    from statsmodels.tsa.stattools import kpss as _kpss_test
-    _KPSS_AVAILABLE: bool = True
-except Exception:  # pragma: no cover
-    _kpss_test = None  # type: ignore[assignment]
-    _KPSS_AVAILABLE = False
-
-try:
-    from sklearn.decomposition import PCA
-    from sklearn.preprocessing import StandardScaler
-    _SKLEARN_AVAILABLE: bool = True
-except ImportError:  # pragma: no cover
-    _SKLEARN_AVAILABLE = False
-    PCA = None  # type: ignore[assignment,misc]
-    StandardScaler = None  # type: ignore[assignment,misc]
-    logger_import = logging.getLogger("TA_Engine")
-    logger_import.warning(
-        "scikit-learn niet gevonden. "
-        "FeatureOrthogonalizer degradeert naar no-op. "
-        "Installeer via: pip install scikit-learn"
-    )
-
-try:  # scipy — hiërarchische clustering + Spearman dendrogram
-    from scipy.cluster.hierarchy import fcluster, linkage
-    from scipy.spatial.distance import squareform
-    from scipy.stats import spearmanr as _spearmanr
-    _SCIPY_AVAILABLE: bool = True
-except Exception:  # pragma: no cover
-    _SCIPY_AVAILABLE = False
-    fcluster = None     # type: ignore[assignment]
-    linkage = None      # type: ignore[assignment]
-    squareform = None   # type: ignore[assignment]
-    _spearmanr = None   # type: ignore[assignment]
-
-try:  # Hilbert-transform voor causale fase-detectie
-    from scipy.signal import hilbert as _scipy_hilbert
-    from scipy.signal.windows import hann as _scipy_hann_window
-    _HILBERT_AVAILABLE: bool = True
-except Exception:  # pragma: no cover
-    _scipy_hilbert = None       # type: ignore[assignment]
-    _scipy_hann_window = None   # type: ignore[assignment]
-    _HILBERT_AVAILABLE = False
-
-# Typed wrappers — Pylance vriendelijke facades die None-short-circuit doen
-# (voorkomt "None is not callable" waarschuwingen in call-sites).
-if _KPSS_AVAILABLE and _kpss_test is not None:
-    kpss_func: Callable[..., Any] | None = _kpss_test
-else:  # pragma: no cover
-    kpss_func = None
-
-if _SCIPY_AVAILABLE and _spearmanr is not None:
-    spearmanr_func: Callable[..., Any] | None = _spearmanr
-else:  # pragma: no cover
-    spearmanr_func = None
-
-if _HILBERT_AVAILABLE and _scipy_hilbert is not None:
-    hilbert_func: Callable[..., Any] | None = _scipy_hilbert
-else:  # pragma: no cover
-    hilbert_func = None
-
-# Let op: zorg dat volatility.py in je path staat.
-try:
-    from ..volatility import get_garman_klass_volatility, get_jump_adjusted_volatility
-except ImportError:
-    logging.warning(
-        "volatility.py niet gevonden. Garman-Klass functies zullen falen."
-    )
-    get_garman_klass_volatility = None  # type: ignore[assignment]
-    get_jump_adjusted_volatility = None  # type: ignore[assignment]
+from statsmodels.tsa.stattools import kpss as kpss_func
 
 logger = logging.getLogger("TA_Engine")
 
@@ -280,7 +221,7 @@ def compute_hilbert_phase(
 
     out = np.full(n, np.nan, dtype=np.float64)
     burn_in = max(int(smoothing_span), int(rolling_window))
-    if n <= burn_in or hilbert_func is None:
+    if n <= burn_in:
         return out
 
     # AUDIT-FIX (Issue 8 — Pre-Filter Hilbert):
@@ -336,20 +277,9 @@ def compute_hilbert_phase(
     #   de *fase* (np.angle) extraheren en niet de amplitude, is deze trade-off
     #   volledig acceptabel — fase-detectie profiteert puur van minder ringing.
     #
-    #   Fallback: als _scipy_hann_window niet beschikbaar is (import mislukt),
-    #   gebruik dan het originele rechthoekvenster met een runtime-waarschuwing.
-    _hann: np.ndarray | None
-    if _HILBERT_AVAILABLE and _scipy_hann_window is not None:
-        _hann = np.asarray(_scipy_hann_window(w), dtype=np.float64)
-    else:
-        import warnings as _warnings
-        _warnings.warn(
-            "compute_hilbert_phase: scipy.signal.windows.hann niet beschikbaar "
-            "— rechthoekvenster gebruikt (Gibbs-ringing mogelijk aanwezig).",
-            RuntimeWarning,
-            stacklevel=2,
-        )
-        _hann = None
+    #   Phase 0: scipy is een harde dependency, dus het rechthoekvenster-pad
+    #   (met Gibbs-ringing) is verwijderd - het was onbereikbaar geworden.
+    _hann: np.ndarray = np.asarray(_scipy_hann_window(w), dtype=np.float64)
 
     try:
         for t in range(burn_in, n):
@@ -358,8 +288,7 @@ def compute_hilbert_phase(
             local_mean = window_slice.mean()
             detrended_w = window_slice - local_mean
             # Hann-venster toepassen vóór de Hilbert-transform om Gibbs te dempen.
-            if _hann is not None:
-                detrended_w = detrended_w * _hann
+            detrended_w = detrended_w * _hann
             analytic_w = hilbert_func(detrended_w)
             # Fase op het *laatste* sample (= huidige bar) — backward-only.
             out[t] = float(np.angle(np.asarray(analytic_w))[-1])
@@ -579,8 +508,6 @@ def _kpss_pvalue(series: np.ndarray) -> float:
     p > α (NIET rejecteren) om stationariteit te bevestigen. Dit is
     complementair aan ADF (die stationariteit als alternatief heeft).
     """
-    if not _KPSS_AVAILABLE or kpss_func is None:
-        return float("nan")
     if series.size < 30:
         return float("nan")
     try:
@@ -637,7 +564,7 @@ def get_optimal_d(
         series.clip(lower=1e-9).to_numpy(dtype=np.float64)
     )
 
-    kpss_usable = require_kpss and _KPSS_AVAILABLE
+    kpss_usable = require_kpss
 
     # Eerste kandidaat die ADF-slaagt — fallback als KPSS nooit bevestigt.
     adf_only_candidate: float = float("nan")
