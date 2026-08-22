@@ -183,18 +183,16 @@ class RollingRobustScaler:
         self.mode: str = str(mode)
         self._rank_scaler: Any | None = None
         if self.mode == "rank":
-            try:
-                from ..execution.market_impact import RankQuantileScaler
-                self._rank_scaler = RankQuantileScaler(
-                    n_bins=int(rank_n_bins),
-                    warmup_bars=int(rank_warmup_bars),
-                )
-            except ImportError:
-                logger.warning(
-                    "RankQuantileScaler niet beschikbaar (market_impact "
-                    "module ontbreekt) — terugval op robust mode."
-                )
-                self.mode = "robust"
+            # Phase 0: de except-tak zette self.mode terug op "robust" wanneer
+            # market_impact niet importeerbaar was. De aanroeper vroeg om
+            # rank-scaling en kreeg robust-scaling, met een andere
+            # verdelingstransformatie, zonder melding. market_impact is intern.
+            from ..execution.market_impact import RankQuantileScaler
+
+            self._rank_scaler = RankQuantileScaler(
+                n_bins=int(rank_n_bins),
+                warmup_bars=int(rank_warmup_bars),
+            )
 
         self._bars_since_calib: int = 0
         self.center_: np.ndarray | None = None

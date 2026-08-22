@@ -54,17 +54,15 @@ from ..backtest.evaluation import (
     deflated_sharpe_penalty,
 )
 from ..features.orthogonalize import FeatureOrthogonalizer
-from ..train.ensemble import ContextualBanditEnsemble  # noqa: F401 — kept for type hints
 
 # ---------------------------------------------------------------------------
-# PathSpecificPlattCalibrator — soft-import (may not be available)
+# PathSpecificPlattCalibrator
 # ---------------------------------------------------------------------------
-try:
-    from ..train.calibration import PathSpecificPlattCalibrator
-    _QUANT_ARCHITECT_AVAILABLE: bool = True
-except ImportError:  # pragma: no cover
-    _QUANT_ARCHITECT_AVAILABLE = False
-    PathSpecificPlattCalibrator = Any  # type: ignore[assignment, misc]
+# Phase 0: `..train.calibration` is een interne module. De except-tak zette de
+# calibrator op `Any`, waarna de pad-specifieke Platt-kalibratie stilzwijgend
+# werd overgeslagen en ruwe, ongekalibreerde CatBoost-kansen werden gebruikt.
+from ..train.calibration import PathSpecificPlattCalibrator
+from ..train.ensemble import ContextualBanditEnsemble  # noqa: F401 — kept for type hints
 
 # ---------------------------------------------------------------------------
 logger = logging.getLogger(__name__)
@@ -651,7 +649,7 @@ def optuna_objective_binary(
     # met een (A_p, B_p) per CPCV-pad.  Het fit-resultaat wordt aan de
     # trial-state gekoppeld zodat downstream code (final-fit, internal_backtest)
     # de path-specific calibratie kan ophalen via ``trial.user_attrs``.
-    if _QUANT_ARCHITECT_AVAILABLE and len(agg_uncal_scores) > 0:
+    if len(agg_uncal_scores) > 0:
         try:
             _scores_all = np.concatenate(agg_uncal_scores).astype(np.float64)
             _y_all      = np.concatenate(agg_y_val).astype(np.float64)

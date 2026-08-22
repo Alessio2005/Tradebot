@@ -23,52 +23,25 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Optional
+
+# ---------------------------------------------------------------------------
+# Phase 0: prometheus_client was een soft-import; bij afwezigheid werden ALLE
+# metrics no-op stubs en draaide de engine zonder enige observability, met
+# alleen een warning bij import. Een monitoring-laag die stilzwijgend uitvalt is
+# erger dan geen monitoring-laag: de dashboards blijven groen. prometheus-client
+# is nu een harde dependency (pyproject.toml).
+# ---------------------------------------------------------------------------
+from prometheus_client import (
+    Counter,
+    Gauge,
+    Histogram,
+    start_http_server,
+)
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Soft-import prometheus_client
-# ---------------------------------------------------------------------------
-try:
-    from prometheus_client import (
-        Counter,
-        Gauge,
-        Histogram,
-        start_http_server,
-    )
-    _PROM_AVAILABLE = True
-except ImportError:  # pragma: no cover
-    _PROM_AVAILABLE = False
-    logger.warning(
-        "prometheus_client not installed — metrics are no-ops. "
-        "Install with: pip install prometheus-client"
-    )
 
 __all__ = ["EngineMetrics", "start_metrics_server"]
-
-# ---------------------------------------------------------------------------
-# No-op stubs (used when prometheus_client is absent)
-# ---------------------------------------------------------------------------
-
-class _NoOpCounter:
-    def labels(self, **_kw):  # noqa: ANN001
-        return self
-    def inc(self, _amount: float = 1) -> None:  # noqa: ANN001
-        pass
-
-class _NoOpGauge:
-    def labels(self, **_kw):
-        return self
-    def set(self, _value: float) -> None:
-        pass
-
-class _NoOpHistogram:
-    def labels(self, **_kw):
-        return self
-    def observe(self, _value: float) -> None:
-        pass
-
 
 # ---------------------------------------------------------------------------
 # Metric definitions
@@ -76,53 +49,43 @@ class _NoOpHistogram:
 
 _BAR_LATENCY_BUCKETS = (0.02, 0.05, 0.10, 0.20, 0.35, 0.50, 1.0, 2.0)
 
-if _PROM_AVAILABLE:
-    _bars_processed = Counter(
-        "tradebot_bars_processed_total",
-        "Total OHLCV bars processed by the engine.",
-        ["symbol"],
-    )
-    _bar_latency = Histogram(
-        "tradebot_bar_latency_seconds",
-        "Wall-clock time to process one bar end-to-end.",
-        ["symbol"],
-        buckets=_BAR_LATENCY_BUCKETS,
-    )
-    _equity = Gauge(
-        "tradebot_equity_usdt",
-        "Current portfolio NAV in USDT.",
-    )
-    _drawdown = Gauge(
-        "tradebot_drawdown_fraction",
-        "Current peak-to-trough drawdown (0–1).",
-    )
-    _cb_active = Gauge(
-        "tradebot_circuit_breaker_active",
-        "1 if the circuit breaker is tripped, 0 otherwise.",
-    )
-    _orders_filled = Counter(
-        "tradebot_orders_filled_total",
-        "Number of orders filled.",
-        ["symbol", "side"],
-    )
-    _funding_payment = Counter(
-        "tradebot_funding_payment_usdt_total",
-        "Cumulative funding payments (negative = paid, positive = received).",
-        ["symbol"],
-    )
-    _queue_depth = Gauge(
-        "tradebot_feed_queue_depth",
-        "Current depth of the engine's async event queue.",
-    )
-else:  # pragma: no cover
-    _bars_processed = _NoOpCounter()   # type: ignore[assignment]
-    _bar_latency    = _NoOpHistogram() # type: ignore[assignment]
-    _equity         = _NoOpGauge()     # type: ignore[assignment]
-    _drawdown       = _NoOpGauge()     # type: ignore[assignment]
-    _cb_active      = _NoOpGauge()     # type: ignore[assignment]
-    _orders_filled  = _NoOpCounter()   # type: ignore[assignment]
-    _funding_payment = _NoOpCounter()  # type: ignore[assignment]
-    _queue_depth    = _NoOpGauge()     # type: ignore[assignment]
+_bars_processed = Counter(
+    "tradebot_bars_processed_total",
+    "Total OHLCV bars processed by the engine.",
+    ["symbol"],
+)
+_bar_latency = Histogram(
+    "tradebot_bar_latency_seconds",
+    "Wall-clock time to process one bar end-to-end.",
+    ["symbol"],
+    buckets=_BAR_LATENCY_BUCKETS,
+)
+_equity = Gauge(
+    "tradebot_equity_usdt",
+    "Current portfolio NAV in USDT.",
+)
+_drawdown = Gauge(
+    "tradebot_drawdown_fraction",
+    "Current peak-to-trough drawdown (0–1).",
+)
+_cb_active = Gauge(
+    "tradebot_circuit_breaker_active",
+    "1 if the circuit breaker is tripped, 0 otherwise.",
+)
+_orders_filled = Counter(
+    "tradebot_orders_filled_total",
+    "Number of orders filled.",
+    ["symbol", "side"],
+)
+_funding_payment = Counter(
+    "tradebot_funding_payment_usdt_total",
+    "Cumulative funding payments (negative = paid, positive = received).",
+    ["symbol"],
+)
+_queue_depth = Gauge(
+    "tradebot_feed_queue_depth",
+    "Current depth of the engine's async event queue.",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -180,9 +143,6 @@ def start_metrics_server(port: int = 8000) -> None:
     If prometheus_client is not installed, logs a warning and returns.
     """
     global _server_started
-    if not _PROM_AVAILABLE:
-        logger.warning("start_metrics_server: prometheus_client not available — skipping.")
-        return
     with _server_lock:
         if _server_started:
             return

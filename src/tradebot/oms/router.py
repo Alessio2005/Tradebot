@@ -297,10 +297,10 @@ class OrderRouter:
         return fills
 
     async def _live_get_positions(self) -> Dict[str, float]:
-        try:
-            import aiohttp
-        except ImportError:
-            return {}
+        # Phase 0: `except ImportError: return {}` meldde "geen posities" terwijl
+        # de werkelijke positie onbekend was - de gevaarlijkste vorm van stille
+        # degradatie in een OMS. aiohttp is een harde dependency.
+        import aiohttp
 
         query = urlencode({"category": _CATEGORY, "settleCoin": "USDT"})
         headers = self._auth_headers(query)

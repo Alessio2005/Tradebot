@@ -503,13 +503,13 @@ class Feed:
           in PaperOMS.  So the live cost stack remains: half-spread + taker
           fee, exactly mirroring the backtest spread_arr × 0.5 + fee model.
         """
-        try:
-            import websockets
-        except ImportError:
-            return  # already errored in primary feed
-
+        # Phase 0: `except ImportError: return` liet de bookticker-feed
+        # STIL afsluiten, waarna het live systeem zonder L1-quotes doordraaide.
+        # websockets is een harde dependency.
         import json
         import os as _os
+
+        import websockets
 
         sym_set = {s.upper() for s in self._cfg.symbols}
         spot_fallback = _os.environ.get("TRADEBOT_FEED_SPOT_FALLBACK", "0") == "1"
@@ -583,35 +583,13 @@ class Feed:
         polling at 30s cadence catches all updates without flooding the
         connection.
         """
-        try:
-            import aiohttp
-        except ImportError:
-            try:
-                import json as _json
-                import urllib.request as _urlreq
-                logger.warning(
-                    "Feed: aiohttp not installed — funding poller falls back to "
-                    "synchronous urllib (blocking, but tolerable at 30s cadence)."
-                )
-                while self._running:
-                    for sym in self._cfg.symbols:
-                        url = (
-                            f"{self._BYBIT_TICKERS_URL}"
-                            f"?category=linear&symbol={sym}"
-                        )
-                        with _urlreq.urlopen(url, timeout=5) as resp:
-                            payload = _json.loads(resp.read().decode("utf-8"))
-                        rate = self._parse_bybit_funding(payload)
-                        self._funding_rate[sym] = rate
-                        logger.debug(
-                            "Feed [%s]: funding poll fundingRate=%.6f",
-                            sym, rate,
-                        )
-                    await asyncio.sleep(poll_interval_s)
-                return
-            except Exception:
-                logger.error("Feed: funding poller cannot start (no aiohttp/urllib).")
-                return
+        # Phase 0: hier stond een 40-regelige synchrone urllib-fallback voor het
+        # geval aiohttp ontbrak, met daaromheen een `except Exception` die
+        # "funding poller cannot start" logde en gewoon returnde. Netto: de
+        # live-loop draaide door met funding_rate op de laatst bekende waarde
+        # (of nul), terwijl de backtest wel funding aanrekende - een stille
+        # sim-to-live divergentie. aiohttp is een harde dependency.
+        import aiohttp
 
         # F2 FIX 2026-05-26 (Windows / Python 3.13 / aiohttp 3.10):
         #   aiohttp's default TCPConnector tries aiodns, which requires a
@@ -623,28 +601,26 @@ class Feed:
         from aiohttp.resolver import ThreadedResolver
         connector = aiohttp.TCPConnector(resolver=ThreadedResolver())
 
-        try:
-            async with aiohttp.ClientSession(connector=connector) as session:
-                while self._running:
-                    for sym in self._cfg.symbols:
-                        url = (
-                            f"{self._BYBIT_TICKERS_URL}"
-                            f"?category=linear&symbol={sym}"
-                        )
-                        async with session.get(url, timeout=5) as resp:
-                            payload = await resp.json()
-                        rate = self._parse_bybit_funding(payload)
-                        self._funding_rate[sym] = rate
-                        logger.debug(
-                            "Feed [%s]: funding poll fundingRate=%.6f",
-                            sym, rate,
-                        )
-                    await asyncio.sleep(poll_interval_s)
-        except Exception as exc:
-            logger.error(
-                "Feed: funding poller aiohttp session failed (%s). "
-                "Funding-rate parity LOST for this run.", exc,
-            )
+        # Phase 0: de omhullende `except Exception` logde "Funding-rate parity
+        # LOST for this run" en ging door. Verlies van funding-pariteit is geen
+        # log-regel maar een contractschending: de live-P&L wijkt dan
+        # structureel af van de backtest.
+        async with aiohttp.ClientSession(connector=connector) as session:
+            while self._running:
+                for sym in self._cfg.symbols:
+                    url = (
+                        f"{self._BYBIT_TICKERS_URL}"
+                        f"?category=linear&symbol={sym}"
+                    )
+                    async with session.get(url, timeout=5) as resp:
+                        payload = await resp.json()
+                    rate = self._parse_bybit_funding(payload)
+                    self._funding_rate[sym] = rate
+                    logger.debug(
+                        "Feed [%s]: funding poll fundingRate=%.6f",
+                        sym, rate,
+                    )
+                await asyncio.sleep(poll_interval_s)
 
     # ------------------------------------------------------------------
     # Legacy kline WebSocket (kept for reference / fallback testing only)
