@@ -15,39 +15,20 @@ import catboost as cb
 import joblib
 import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
+
 try:
     from sklearn.frozen import FrozenEstimator as _FrozenEstimator  # sklearn ≥1.6
 except ImportError:
     _FrozenEstimator = None  # type: ignore[assignment,misc]
 
-from ._scalers import get_git_hash
-
-try:
-    from quant_architect import (
-        EntropyGate,
-        EntropyGateDecision,
-        FeatureSchemaGuard,
-        LedoitWolfThompsonSampler,
-        NetAlphaResult,
-        NetAlphaReward,
-        QuantArchitectStack,
-        SchemaMismatchError,
-    )
-    _QUANT_ARCHITECT_AVAILABLE: bool = True
-except ImportError:
-    _QUANT_ARCHITECT_AVAILABLE = False
-    EntropyGate = Any  # type: ignore[assignment, misc]
-    EntropyGateDecision = Any  # type: ignore[assignment, misc]
-    FeatureSchemaGuard = Any  # type: ignore[assignment, misc]
-    LedoitWolfThompsonSampler = Any  # type: ignore[assignment, misc]
-    NetAlphaResult = Any  # type: ignore[assignment, misc]
-    NetAlphaReward = Any  # type: ignore[assignment, misc]
-    QuantArchitectStack = Any  # type: ignore[assignment, misc]
-
-    class SchemaMismatchError(RuntimeError):  # type: ignore[no-redef]
-        pass
-
-from ._scalers import RollingRobustScaler, numba_rolling_robust_scale  # noqa: F401
+# Phase 0 stap 5: dit bestand importeerde acht symbolen uit het niet-bestaande
+# pakket `quant_architect`. De except-tak verving elk symbool door `Any`. Meting
+# wijst uit dat GEEN van die symbolen in dit bestand ooit werd gebruikt: het
+# importblok was volledig dode code die alleen de illusie van een
+# blueprint-integratie wekte. De symbolen leven in tradebot.train.{reward,
+# schema_guard,stack,thompson} en worden daar geimporteerd waar ze echt nodig
+# zijn (zie train/ensemble.py).
+from ._scalers import RollingRobustScaler, get_git_hash, numba_rolling_robust_scale  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
