@@ -28,30 +28,16 @@ from typing import Any, Literal
 import numpy as np
 
 # Chief-Architect blueprint integratie (soft-import).
-try:
-    from quant_architect import (
-        EntropyGate,
-        EntropyGateDecision,
-        FeatureSchemaGuard,
-        LedoitWolfThompsonSampler,
-        NetAlphaResult,
-        NetAlphaReward,
-        QuantArchitectStack,
-        SchemaMismatchError,
-    )
-    _QUANT_ARCHITECT_AVAILABLE: bool = True
-except ImportError:
-    _QUANT_ARCHITECT_AVAILABLE = False
-    EntropyGate = Any  # type: ignore[assignment, misc]
-    EntropyGateDecision = Any  # type: ignore[assignment, misc]
-    FeatureSchemaGuard = Any  # type: ignore[assignment, misc]
-    LedoitWolfThompsonSampler = Any  # type: ignore[assignment, misc]
-    NetAlphaResult = Any  # type: ignore[assignment, misc]
-    NetAlphaReward = Any  # type: ignore[assignment, misc]
-    QuantArchitectStack = Any  # type: ignore[assignment, misc]
-
-    class SchemaMismatchError(RuntimeError):  # type: ignore[no-redef]
-        pass
+# Phase 0 stap 5: het pakket `quant_architect` bestaat nergens op het filesystem
+# en in geen enkele dependency-declaratie. Deze symbolen zijn ooit uit
+# quant_architect.py geextraheerd naar tradebot.train.*, zonder dat de importsites
+# zijn bijgewerkt. De except-tak verving elk symbool door `Any` en zette een dode
+# vlag _QUANT_ARCHITECT_AVAILABLE, waardoor de EntropyGate, de schema-guard, de
+# Ledoit-Wolf Thompson-sampler en de net-alpha reward PERMANENT uitgeschakeld
+# waren zonder enige melding.
+from .reward import NetAlphaReward
+from .schema_guard import EntropyGate, EntropyGateDecision, FeatureSchemaGuard
+from .thompson import LedoitWolfThompsonSampler
 
 logger = logging.getLogger(__name__)
 
