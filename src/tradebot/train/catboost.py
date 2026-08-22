@@ -16,10 +16,11 @@ import joblib
 import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
 
-try:
-    from sklearn.frozen import FrozenEstimator as _FrozenEstimator  # sklearn ≥1.6
-except ImportError:
-    _FrozenEstimator = None  # type: ignore[assignment,misc]
+# Phase 0: scikit-learn is gepind op >=1.6, waarin sklearn.frozen bestaat. De
+# try/except zette _FrozenEstimator op None, waarna de Platt-kalibratie
+# stilzwijgend op een NIET-bevroren estimator werd gefit - een data-lek richting
+# de kalibratieset.
+from sklearn.frozen import FrozenEstimator as _FrozenEstimator
 
 # Phase 0 stap 5: dit bestand importeerde acht symbolen uit het niet-bestaande
 # pakket `quant_architect`. De except-tak verving elk symbool door `Any`. Meting

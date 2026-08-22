@@ -21,28 +21,19 @@ from typing import Any, cast
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
-logger = logging.getLogger(__name__)
-
 # ---------------------------------------------------------------------------
 # Engine resolution
 # ---------------------------------------------------------------------------
-try:
-    from .crypto import CryptoIngestionEngine as _BybitEngine
-except ImportError:  # pragma: no cover
-    _BybitEngine = None  # type: ignore[assignment]
-    logger.warning(
-        "No ingestion engine found (data.crypto). "
-        "Bybit data ingestion is disabled."
-    )
+# Phase 0: `.crypto` is een interne module binnen data/. De try/except zette de
+# engine op None en logde "Bybit data ingestion is disabled" - waarna de hele
+# ingestion-pijplijn stil bleef staan zonder dat een aanroeper dat merkte.
+from .crypto import CryptoIngestionEngine as _BybitEngine
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_engine(sym: str, cfg_dict: dict[str, Any]):
     """Return an instantiated engine for `sym` or raise RuntimeError."""
-    if _BybitEngine is None:
-        raise RuntimeError(
-            f"[{sym}] No data ingestion engine available (data.crypto)."
-        )
-
     bybit_target: str = cfg_dict.get("data", {}).get("bybit_symbol", "")
 
     if sym == bybit_target or "USDT" in sym.upper():

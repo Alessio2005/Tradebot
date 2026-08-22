@@ -27,11 +27,10 @@ import optuna
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 from sklearn.calibration import CalibratedClassifierCV
+
+# Phase 0: idem train/catboost.py - scikit-learn is gepind op >=1.6.
+from sklearn.frozen import FrozenEstimator as _FrozenEstimator
 from sklearn.metrics import log_loss
-try:
-    from sklearn.frozen import FrozenEstimator as _FrozenEstimator  # sklearn ≥1.6
-except ImportError:
-    _FrozenEstimator = None  # type: ignore[assignment,misc]
 
 from tradebot.backtest._kernels import calc_non_overlapping_stats
 

@@ -25,11 +25,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 logger = logging.getLogger("train.reward")
 
-try:
-    from ..execution.market_impact import square_root_impact  # type: ignore[import]
-    _MARKET_IMPACT_AVAILABLE: bool = True
-except ImportError:  # pragma: no cover
-    _MARKET_IMPACT_AVAILABLE = False
+# Phase 0: `..execution.market_impact` is een INTERNE module binnen dit pakket en
+# kan niet legitiem ontbreken. De try/except zette de vlag _MARKET_IMPACT_AVAILABLE
+# op False, waarna het model stilzwijgend zonder de betreffende correctie draaide.
+from ..execution.market_impact import square_root_impact
 
 
 # =============================================================================
@@ -71,10 +70,6 @@ class NetAlphaReward:
         fee_bps: float = 4.0,
         eat_threshold: float = 0.80,
     ) -> None:
-        if not _MARKET_IMPACT_AVAILABLE:
-            raise ImportError(
-                "NetAlphaReward requires execution.market_impact.square_root_impact."
-            )
         self.eta: float = float(eta)
         self.fee_bps: float = float(fee_bps)
         self.eat_threshold: float = float(eat_threshold)

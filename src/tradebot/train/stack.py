@@ -19,12 +19,6 @@ from .thompson import LedoitWolfThompsonSampler
 
 logger = logging.getLogger("train.stack")
 
-# Re-import the availability flag without re-importing the module body
-try:
-    from ..execution import market_impact as _mi  # noqa: F401
-    _MARKET_IMPACT_AVAILABLE: bool = True
-except ImportError:  # pragma: no cover
-    _MARKET_IMPACT_AVAILABLE = False
 
 
 @dataclass
@@ -61,16 +55,20 @@ class QuantArchitectStack:
         eta_init: float = 0.142,
         fee_bps: float = 4.0,
     ) -> QuantArchitectStack:
-        """Construct with sensible defaults; soft-fails if market_impact is absent."""
+        """Construct with sensible defaults.
+
+        Phase 0: dit was de kern van de stille degradatie in de blueprint-stack.
+        Bij een niet-importeerbare `execution.market_impact` bleven
+        ``lw_thompson`` en ``net_alpha`` gewoon ``None``, en de aanroeper kreeg
+        een ogenschijnlijk complete QuantArchitectStack terug. De bandit viel dan
+        terug op ruwe MVN-sampling en de net-alpha reward werd nooit berekend,
+        zonder dat dit in enig rapport zichtbaar was. `market_impact` is een
+        interne module en wordt nu hard geimporteerd; beide componenten worden
+        altijd geconstrueerd.
+        """
         stack = cls()
-        if _MARKET_IMPACT_AVAILABLE:
-            stack.lw_thompson = LedoitWolfThompsonSampler(v=v_thompson)
-            stack.net_alpha = NetAlphaReward(eta=eta_init, fee_bps=fee_bps)
-        else:  # pragma: no cover
-            logger.warning(
-                "market_impact not importable — LedoitWolfTS and NetAlphaReward "
-                "remain None. Standalone scaler/Platt/Gate/Schema still work."
-            )
+        stack.lw_thompson = LedoitWolfThompsonSampler(v=v_thompson)
+        stack.net_alpha = NetAlphaReward(eta=eta_init, fee_bps=fee_bps)
         return stack
 
 

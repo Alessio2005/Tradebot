@@ -19,16 +19,13 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-try:
-    from ..execution.market_impact import (
-        ledoit_wolf_shrunk_corr,
-        negative_skew_crisis_multiplier,
-    )
-    _MARKET_IMPACT_AVAILABLE: bool = True
-except ImportError:
-    _MARKET_IMPACT_AVAILABLE = False
-    ledoit_wolf_shrunk_corr = None  # type: ignore[assignment]
-    negative_skew_crisis_multiplier = None  # type: ignore[assignment]
+# Phase 0: `..execution.market_impact` is een INTERNE module binnen dit pakket en
+# kan niet legitiem ontbreken. De try/except zette de vlag _MARKET_IMPACT_AVAILABLE
+# op False, waarna het model stilzwijgend zonder de betreffende correctie draaide.
+from ..execution.market_impact import (
+    ledoit_wolf_shrunk_corr,
+    negative_skew_crisis_multiplier,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,12 +107,7 @@ def _safe_corr(
     #   schakelen we standaard over op LW-shrunk corr.  Dit dempt de
     #   correlatie-explosie die EWMA pas reproduceert na ~λ-decay-bars
     #   (te traag bij flash-crashes).
-    if (
-        use_shrinkage
-        and _MARKET_IMPACT_AVAILABLE
-        and ledoit_wolf_shrunk_corr is not None
-        and returns.shape[1] >= 2
-    ):
+    if use_shrinkage and returns.shape[1] >= 2:
         try:
             corr_lw, _delta = ledoit_wolf_shrunk_corr(
                 returns,
@@ -575,12 +567,6 @@ class PortfolioRiskManager:
             altijd (1.0, False) zodat het gedrag identiek is aan voor
             de fix.
         """
-        if (
-            not _MARKET_IMPACT_AVAILABLE
-            or negative_skew_crisis_multiplier is None
-        ):
-            return 1.0, False
-
         anchor = self._crisis_anchor_symbol
         if anchor not in self._returns_history:
             # Fallback: gebruik eerste asset uit symbols-lijst
