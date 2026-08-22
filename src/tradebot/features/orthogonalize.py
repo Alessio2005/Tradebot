@@ -169,38 +169,32 @@ class FeatureOrthogonalizer:
         if p <= 2:
             return keep_all, list(feature_names)
 
-        try:
-            rho_result = spearmanr_func(X_calib, axis=0, nan_policy="omit")
-            # spearmanr retourneert een SpearmanrResult (namedtuple-like)
-            # met .correlation en .pvalue attributen, of in oudere versies
-            # een tuple. Gebruik getattr om beide te ondersteunen.
-            rho = getattr(rho_result, "correlation", None)
-            if rho is None:
-                rho = rho_result[0]
-            rho_arr = np.asarray(rho, dtype=np.float64)
-            if rho_arr.ndim == 0:  # p == 2 edge-case
-                rho_arr = np.array([[1.0, float(rho_arr)], [float(rho_arr), 1.0]])
-            # NaN-safety: vervang door 0 (geen correlatie).
-            rho_arr = np.nan_to_num(rho_arr, nan=0.0, posinf=0.0, neginf=0.0)
-            np.fill_diagonal(rho_arr, 1.0)
-            dist = 1.0 - np.abs(rho_arr)
-            # Zorg voor symmetrie + niet-negatieve afstanden (numeriek).
-            dist = 0.5 * (dist + dist.T)
-            dist = np.clip(dist, 0.0, 2.0)
-            # squareform eist hol-diagonale afstand + 0 op de diagonaal.
-            np.fill_diagonal(dist, 0.0)
-            if squareform is None:
-                return keep_all, list(feature_names)
-            cond = squareform(dist, checks=False)
-            Z = linkage(cond, method="complete")
-            cluster_ids = fcluster(
-                Z, t=distance_threshold, criterion="distance"
-            )
-        except Exception as exc:  # pragma: no cover
-            logger.warning(
-                "Spearman-dedup faalde (%s) — PCA runt zonder pre-filter.", exc
-            )
+        rho_result = spearmanr_func(X_calib, axis=0, nan_policy="omit")
+        # spearmanr retourneert een SpearmanrResult (namedtuple-like)
+        # met .correlation en .pvalue attributen, of in oudere versies
+        # een tuple. Gebruik getattr om beide te ondersteunen.
+        rho = getattr(rho_result, "correlation", None)
+        if rho is None:
+            rho = rho_result[0]
+        rho_arr = np.asarray(rho, dtype=np.float64)
+        if rho_arr.ndim == 0:  # p == 2 edge-case
+            rho_arr = np.array([[1.0, float(rho_arr)], [float(rho_arr), 1.0]])
+        # NaN-safety: vervang door 0 (geen correlatie).
+        rho_arr = np.nan_to_num(rho_arr, nan=0.0, posinf=0.0, neginf=0.0)
+        np.fill_diagonal(rho_arr, 1.0)
+        dist = 1.0 - np.abs(rho_arr)
+        # Zorg voor symmetrie + niet-negatieve afstanden (numeriek).
+        dist = 0.5 * (dist + dist.T)
+        dist = np.clip(dist, 0.0, 2.0)
+        # squareform eist hol-diagonale afstand + 0 op de diagonaal.
+        np.fill_diagonal(dist, 0.0)
+        if squareform is None:
             return keep_all, list(feature_names)
+        cond = squareform(dist, checks=False)
+        Z = linkage(cond, method="complete")
+        cluster_ids = fcluster(
+            Z, t=distance_threshold, criterion="distance"
+        )
 
         # Per cluster: kies feature met maximale std (meest informatief).
         stds = np.std(X_calib, axis=0)

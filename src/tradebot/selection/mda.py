@@ -93,12 +93,8 @@ def causal_mda(
 
     rng = np.random.default_rng(random_seed)
 
-    try:
-        base_probs = model.predict_proba(X)[:, 1]
-        base_auc = roc_auc_score(y, base_probs)
-    except Exception as exc:
-        logger.error("MDA baseline AUC mislukt: %s", exc)
-        return pd.DataFrame()
+    base_probs = model.predict_proba(X)[:, 1]
+    base_auc = roc_auc_score(y, base_probs)
 
     results = []
     for feat_idx, feat_name in enumerate(feature_names):
@@ -108,12 +104,9 @@ def causal_mda(
             X_shuffled[:, feat_idx] = _block_shuffle(
                 X[:, feat_idx], block_size, rng, embargo_bars=embargo_bars,
             )
-            try:
-                shuf_probs = model.predict_proba(X_shuffled)[:, 1]
-                shuf_auc = roc_auc_score(y, shuf_probs)
-                auc_drops.append(base_auc - shuf_auc)  # positief = feature helpt
-            except Exception:
-                pass
+            shuf_probs = model.predict_proba(X_shuffled)[:, 1]
+            shuf_auc = roc_auc_score(y, shuf_probs)
+            auc_drops.append(base_auc - shuf_auc)  # positief = feature helpt
 
         if not auc_drops:
             continue

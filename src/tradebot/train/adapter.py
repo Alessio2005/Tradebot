@@ -39,12 +39,9 @@ class CatBoostModelAdapter:
         if not parts:
             return {"prob_win": 0.0, "prob_loss": 1.0}
         X = np.hstack(parts)
-        try:
-            probs = self.model.predict_proba(X)[0]
-            prob_win = float(probs[1]) if len(probs) > 1 else float(probs[0])
-            return {"prob_win": prob_win, "prob_loss": 1.0 - prob_win}
-        except Exception:
-            return {"prob_win": 0.0, "prob_loss": 1.0}
+        probs = self.model.predict_proba(X)[0]
+        prob_win = float(probs[1]) if len(probs) > 1 else float(probs[0])
+        return {"prob_win": prob_win, "prob_loss": 1.0 - prob_win}
 
     def _align_input_custom(self, arr: Any, target_feats: List, timeframe: str) -> Any:
         return arr

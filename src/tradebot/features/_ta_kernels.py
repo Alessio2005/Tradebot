@@ -281,21 +281,16 @@ def compute_hilbert_phase(
     #   (met Gibbs-ringing) is verwijderd - het was onbereikbaar geworden.
     _hann: np.ndarray = np.asarray(_scipy_hann_window(w), dtype=np.float64)
 
-    try:
-        for t in range(burn_in, n):
-            window_slice = ema[t - w + 1 : t + 1]
-            # Per-window detrend (zero-mean is Hilbert-vereiste).
-            local_mean = window_slice.mean()
-            detrended_w = window_slice - local_mean
-            # Hann-venster toepassen vóór de Hilbert-transform om Gibbs te dempen.
-            detrended_w = detrended_w * _hann
-            analytic_w = hilbert_func(detrended_w)
-            # Fase op het *laatste* sample (= huidige bar) — backward-only.
-            out[t] = float(np.angle(np.asarray(analytic_w))[-1])
-    except Exception:
-        # Bij onverwachte numerieke fout (zelden, op exotische arrays):
-        # geef NaN-array terug i.p.v. half-gevulde data te leveren.
-        return np.full(n, np.nan, dtype=np.float64)
+    for t in range(burn_in, n):
+        window_slice = ema[t - w + 1 : t + 1]
+        # Per-window detrend (zero-mean is Hilbert-vereiste).
+        local_mean = window_slice.mean()
+        detrended_w = window_slice - local_mean
+        # Hann-venster toepassen vóór de Hilbert-transform om Gibbs te dempen.
+        detrended_w = detrended_w * _hann
+        analytic_w = hilbert_func(detrended_w)
+        # Fase op het *laatste* sample (= huidige bar) — backward-only.
+        out[t] = float(np.angle(np.asarray(analytic_w))[-1])
 
     return out
 
@@ -510,18 +505,13 @@ def _kpss_pvalue(series: np.ndarray) -> float:
     """
     if series.size < 30:
         return float("nan")
-    try:
-        # ``regression='c'`` en ``nlags='auto'`` matchen de ADF-call zodat
-        # beide tests dezelfde assumpties over de trend maken.
-        with warnings.catch_warnings():
-            # KPSS logt een InterpolationWarning als p-value buiten de
-            # lookup-tabel valt. Dat is verwachte info, niet een fout.
-            warnings.simplefilter("ignore")
-            stat_result = kpss_func(series, regression="c", nlags="auto")
-        p_val: float = float(stat_result[1])
-        return p_val
-    except Exception:
-        return float("nan")
+    with warnings.catch_warnings():
+        # KPSS logt een InterpolationWarning als p-value buiten de
+        # lookup-tabel valt. Dat is verwachte info, niet een fout.
+        warnings.simplefilter("ignore")
+        stat_result = kpss_func(series, regression="c", nlags="auto")
+    p_val: float = float(stat_result[1])
+    return p_val
 
 
 def get_optimal_d(

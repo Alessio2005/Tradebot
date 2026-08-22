@@ -85,25 +85,19 @@ def _http_get_bytes(url: str, timeout: int = 90) -> bytes:
     ``base.http_get_text`` decodes to str, which corrupts an OLE2 workbook, so
     this is the binary sibling rather than a reimplementation of the policy.
     """
-    import time
 
     import requests
 
     for attempt in (1, 2, 3, 4):
-        try:
-            resp = requests.get(url, headers=_UA, timeout=timeout)
-            resp.raise_for_status()
-            if not resp.content.startswith(b"\xd0\xcf\x11\xe0"):
-                raise ValueError(
-                    f"{url} did not return an OLE2 workbook — EIA served an "
-                    f"error page or the endpoint moved (first bytes "
-                    f"{resp.content[:8]!r})"
-                )
-            return resp.content
-        except Exception:
-            if attempt == 4:
-                raise
-            time.sleep(2.0**attempt)
+        resp = requests.get(url, headers=_UA, timeout=timeout)
+        resp.raise_for_status()
+        if not resp.content.startswith(b"\xd0\xcf\x11\xe0"):
+            raise ValueError(
+                f"{url} did not return an OLE2 workbook — EIA served an "
+                f"error page or the endpoint moved (first bytes "
+                f"{resp.content[:8]!r})"
+            )
+        return resp.content
     raise RuntimeError("unreachable")
 
 

@@ -30,11 +30,9 @@ Design constraint (R-1): only information from bars ≤ t is used for bar t.
 from __future__ import annotations
 
 import logging
-import math
 from collections import defaultdict
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -297,10 +295,7 @@ class FeatureUpdater:
             if features is not None and not features.empty:
                 self._feature_cache[symbol] = features.iloc[[-1]].copy()
                 if self._store is not None:
-                    try:
-                        self._store.append(features, symbol)
-                    except Exception as exc:
-                        logger.warning("FeatureUpdater: store append failed: %s", exc)
+                    self._store.append(features, symbol)
 
         elif self._cfg.feature_pipeline_cfg is None:
             # Legacy pass-through: compute every bar (original behaviour).
@@ -510,25 +505,20 @@ class FeatureUpdater:
             # Runs on every pipeline refresh (every ~45 min at 5s bar cadence).
             # High NaN rates indicate FeaturePipeline burn-in issues or a
             # data quality problem in the rolling buffer.
-            try:
-                from ..monitoring.feature_health import check_feature_health
-                feat_cols = [c for c in feat_df.columns if c.startswith("feat_")]
-                if feat_cols:
-                    health = check_feature_health(
-                        feat_df[feat_cols].tail(10),
-                        nan_threshold=0.20,  # allow up to 20% NaN during burn-in
-                    )
-                    if health.has_critical:
-                        logger.warning(
-                            "FeatureUpdater [%s]: %d feature health issues "
-                            "(NaN/Inf). First 5: %s",
-                            symbol, health.n_issues,
-                            [str(i) for i in health.issues[:5]],
-                        )
-            except Exception as hc_exc:
-                logger.debug(
-                    "FeatureUpdater [%s]: health check skipped: %s", symbol, hc_exc
+            from ..monitoring.feature_health import check_feature_health
+            feat_cols = [c for c in feat_df.columns if c.startswith("feat_")]
+            if feat_cols:
+                health = check_feature_health(
+                    feat_df[feat_cols].tail(10),
+                    nan_threshold=0.20,  # allow up to 20% NaN during burn-in
                 )
+                if health.has_critical:
+                    logger.warning(
+                        "FeatureUpdater [%s]: %d feature health issues "
+                        "(NaN/Inf). First 5: %s",
+                        symbol, health.n_issues,
+                        [str(i) for i in health.issues[:5]],
+                    )
 
             # P0-H parity check: log column drift on first refresh.
             if (
@@ -556,13 +546,7 @@ class FeatureUpdater:
 
             # F4 — feed every successful refresh into the live drift monitor.
             if self._drift_monitor is not None:
-                try:
-                    self._drift_monitor.observe(symbol, feat_df.tail(1))
-                except Exception as dm_exc:
-                    logger.debug(
-                        "FeatureUpdater [%s]: drift monitor observe failed: %s",
-                        symbol, dm_exc,
-                    )
+                self._drift_monitor.observe(symbol, feat_df.tail(1))
 
             return feat_df
 

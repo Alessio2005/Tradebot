@@ -234,15 +234,12 @@ class MultiCryptoMacroFetcher:
         """Fetch all assets + build market-wide aggregates. Writes all outputs to disk."""
         per_asset: dict[str, pd.DataFrame] = {}
         for sym in self.symbols:
-            try:
-                fetcher = CryptoMacroFetcher(
-                    data_dir=str(self.data_dir), symbol=sym, fetch_years=self.fetch_years
-                )
-                df_feat = fetcher.run_pipeline()
-                if not df_feat.empty:
-                    per_asset[sym] = df_feat
-            except Exception as e:
-                logger.error("[%s] Macro fetch failed: %s", sym, e)
+            fetcher = CryptoMacroFetcher(
+                data_dir=str(self.data_dir), symbol=sym, fetch_years=self.fetch_years
+            )
+            df_feat = fetcher.run_pipeline()
+            if not df_feat.empty:
+                per_asset[sym] = df_feat
 
         if not per_asset:
             logger.error("All macro streams failed. No market features created.")

@@ -792,16 +792,13 @@ class FeaturePipeline:
         df_macro["feat_bars_since_break"] = bars_since_break_arr
 
         # AUDIT-FIX (Issue 4 — HMM-style 3-regime supervisor):
-        try:
-            _regime_router = RegimeRouter()
-            regime_ids = _regime_router.classify(df_macro, bars_since_break_arr)
-            df_macro["feat_regime_id"] = regime_ids.astype(np.int8)
-            soft = _regime_router.soft_probabilities(regime_ids, smoothing_bars=30)
-            df_macro["feat_regime_p_lowvol"]      = soft[:, 0].astype(np.float32)
-            df_macro["feat_regime_p_highvol"]     = soft[:, 1].astype(np.float32)
-            df_macro["feat_regime_p_liquidchaos"] = soft[:, 2].astype(np.float32)
-        except Exception as exc:  # pragma: no cover
-            logger.warning("RegimeRouter failed (%s) — feature skipped.", exc)
+        _regime_router = RegimeRouter()
+        regime_ids = _regime_router.classify(df_macro, bars_since_break_arr)
+        df_macro["feat_regime_id"] = regime_ids.astype(np.int8)
+        soft = _regime_router.soft_probabilities(regime_ids, smoothing_bars=30)
+        df_macro["feat_regime_p_lowvol"]      = soft[:, 0].astype(np.float32)
+        df_macro["feat_regime_p_highvol"]     = soft[:, 1].astype(np.float32)
+        df_macro["feat_regime_p_liquidchaos"] = soft[:, 2].astype(np.float32)
 
         # ── 3. Dynamic Column Detection ──────────────────────────────────────
         cols_micro = [c for c in df_micro.columns if str(c).startswith("feat_")]

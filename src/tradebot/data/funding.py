@@ -60,76 +60,69 @@ def load_per_bar_funding_rate(
         )
         return out
 
-    try:
-        df = pd.read_parquet(fpath)
+    df = pd.read_parquet(fpath)
 
-        if "fundingRate" not in df.columns:
-            logger.warning(
-                "[%s] No 'fundingRate' column in %s — re-run "
-                "CryptoMacroFetcher to persist raw rate. Funding set to 0.",
-                symbol, fpath.name,
-            )
-            return out
-
-        # ── Index normalisation ───────────────────────────────────────────────
-        if "timestamp" in df.columns:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-            df = df.set_index("timestamp")
-        elif not isinstance(df.index, pd.DatetimeIndex):
-            df.index = pd.to_datetime(df.index, utc=True)
-        df = df.sort_index()
-
-        # ── UTC-aware bar index ───────────────────────────────────────────────
-        bar_idx_dt = cast(pd.DatetimeIndex, pd.DatetimeIndex(bar_index))
-        if bar_idx_dt.tz is None:
-            bar_idx_dt = cast(
-                pd.DatetimeIndex, bar_idx_dt.tz_localize("UTC")
-            )
-
-        # ── Funding-tick → bar mapping ────────────────────────────────────────
-        # For each funding event: find the first bar whose timestamp is
-        # GREATER THAN OR EQUAL to the funding timestamp (forward search).
-        #
-        # CHIEF AUDIT 2026-05-23 (FIX 1 / off-by-one): bars are right-labelled
-        # i.e. timestamp T = bar (T-Δ, T].  A funding tick at 08:00:00 belongs
-        # to the bar with timestamp 08:00:00 (its close moment), NOT to the
-        # bar at 08:00:05 (the next bar that starts strictly after 08:00:00).
-        # ``side="right"`` returns the first index with bar_ts >  funding_ts,
-        # which incorrectly shifts every funding event to the NEXT bar.
-        # ``side="left"`` returns the first index with bar_ts >= funding_ts,
-        # which correctly lands funding on the same-close bar when present
-        # and on the next bar only when no exact match exists.
-        funding_series = df["fundingRate"].dropna()
-        funding_idx    = cast(pd.DatetimeIndex, funding_series.index)
-
-        if funding_idx.tz is None:
-            funding_idx = cast(
-                pd.DatetimeIndex, funding_idx.tz_localize("UTC")
-            )
-
-        funding_vals = np.asarray(
-            funding_series.to_numpy(), dtype=np.float64
-        )
-        positions = np.asarray(
-            bar_idx_dt.searchsorted(funding_idx, side="left"),
-            dtype=np.int64,
-        )
-
-        for k in range(funding_vals.size):
-            rate_f = float(funding_vals[k])
-            if not np.isfinite(rate_f) or rate_f == 0.0:
-                continue
-            pos = int(positions[k])
-            if 0 <= pos < n:
-                out[pos] += rate_f
-
-        return out
-
-    except Exception as exc:
+    if "fundingRate" not in df.columns:
         logger.warning(
-            "[%s] Funding-rate load failed: %s", symbol, exc
+            "[%s] No 'fundingRate' column in %s — re-run "
+            "CryptoMacroFetcher to persist raw rate. Funding set to 0.",
+            symbol, fpath.name,
         )
         return out
+
+    # ── Index normalisation ───────────────────────────────────────────────
+    if "timestamp" in df.columns:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        df = df.set_index("timestamp")
+    elif not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index, utc=True)
+    df = df.sort_index()
+
+    # ── UTC-aware bar index ───────────────────────────────────────────────
+    bar_idx_dt = cast(pd.DatetimeIndex, pd.DatetimeIndex(bar_index))
+    if bar_idx_dt.tz is None:
+        bar_idx_dt = cast(
+            pd.DatetimeIndex, bar_idx_dt.tz_localize("UTC")
+        )
+
+    # ── Funding-tick → bar mapping ────────────────────────────────────────
+    # For each funding event: find the first bar whose timestamp is
+    # GREATER THAN OR EQUAL to the funding timestamp (forward search).
+    #
+    # CHIEF AUDIT 2026-05-23 (FIX 1 / off-by-one): bars are right-labelled
+    # i.e. timestamp T = bar (T-Δ, T].  A funding tick at 08:00:00 belongs
+    # to the bar with timestamp 08:00:00 (its close moment), NOT to the
+    # bar at 08:00:05 (the next bar that starts strictly after 08:00:00).
+    # ``side="right"`` returns the first index with bar_ts >  funding_ts,
+    # which incorrectly shifts every funding event to the NEXT bar.
+    # ``side="left"`` returns the first index with bar_ts >= funding_ts,
+    # which correctly lands funding on the same-close bar when present
+    # and on the next bar only when no exact match exists.
+    funding_series = df["fundingRate"].dropna()
+    funding_idx    = cast(pd.DatetimeIndex, funding_series.index)
+
+    if funding_idx.tz is None:
+        funding_idx = cast(
+            pd.DatetimeIndex, funding_idx.tz_localize("UTC")
+        )
+
+    funding_vals = np.asarray(
+        funding_series.to_numpy(), dtype=np.float64
+    )
+    positions = np.asarray(
+        bar_idx_dt.searchsorted(funding_idx, side="left"),
+        dtype=np.int64,
+    )
+
+    for k in range(funding_vals.size):
+        rate_f = float(funding_vals[k])
+        if not np.isfinite(rate_f) or rate_f == 0.0:
+            continue
+        pos = int(positions[k])
+        if 0 <= pos < n:
+            out[pos] += rate_f
+
+    return out
 
 
 # ── Backward-compat alias (leading-underscore monolith name) ──────────────────

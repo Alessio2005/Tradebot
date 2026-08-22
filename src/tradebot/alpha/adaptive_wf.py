@@ -34,15 +34,11 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
+from catboost import CatBoostClassifier
 
 from ..backtest.metrics import deflated_sharpe
 from ..backtest.pbo import compute_pbo
 from ..cv.uniqueness import get_average_uniqueness, get_sample_weights
-
-try:  # CatBoost is a core dep; guard only so import never hard-crashes tooling
-    from catboost import CatBoostClassifier
-except Exception:  # pragma: no cover
-    CatBoostClassifier = None
 
 DAYS = 365.0
 
@@ -198,17 +194,13 @@ class AdaptiveWalkForward:
             return self.frozen_features_
         m = CatBoostClassifier(random_seed=cfg.seed, **cfg.catboost_params)
         m.fit(fit[self.features_].fillna(0.0), fit["__win"])
-        try:
-            from ..selection.mda import causal_mda
-            res = causal_mda(m, val[self.features_].fillna(0.0).to_numpy(),
-                             val["__win"].to_numpy(), self.features_,
-                             block_size=20, n_repeats=5, random_seed=cfg.seed)
-            if res is None or res.empty or "feature" not in res.columns:
-                raise ValueError("empty MDA")
-            ranked = res.sort_values("mda_mean", ascending=False)["feature"].tolist()
-        except Exception:
-            imp = pd.Series(m.get_feature_importance(), index=self.features_)
-            ranked = imp.sort_values(ascending=False).index.tolist()
+        from ..selection.mda import causal_mda
+        res = causal_mda(m, val[self.features_].fillna(0.0).to_numpy(),
+                         val["__win"].to_numpy(), self.features_,
+                         block_size=20, n_repeats=5, random_seed=cfg.seed)
+        if res is None or res.empty or "feature" not in res.columns:
+            raise ValueError("empty MDA")
+        ranked = res.sort_values("mda_mean", ascending=False)["feature"].tolist()
         self.frozen_features_ = ranked[: cfg.mda_keep]
         return self.frozen_features_
 
@@ -317,11 +309,8 @@ class AdaptiveWalkForward:
         idx = sorted(set().union(*[v.index for v in variants.values()]))
         mat = pd.DataFrame({k: v.reindex(idx) for k, v in variants.items()}).fillna(0.0)
         n_trials = mat.shape[1]
-        try:
-            pbo = compute_pbo(mat.to_numpy(), n_subsets=10)
-            pbo_val = float(pbo.get("pbo", np.nan))
-        except Exception:
-            pbo_val = float("nan")
+        pbo = compute_pbo(mat.to_numpy(), n_subsets=10)
+        pbo_val = float(pbo.get("pbo", np.nan))
         main = self.harvest(P)                    # the deployed config (all controls on)
         srd = main.mean() / main.std()
         dsr = deflated_sharpe(srd, n_trials, len(main))

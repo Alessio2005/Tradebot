@@ -74,20 +74,17 @@ class CUSUMFilter:
         if not feat_path.exists():
             logger.warning("CUSUMFilter [%s]: parquet not found at %s — cold start.", self._sym, feat_path)
             return
-        try:
-            df = pd.read_parquet(feat_path).tail(_WARMUP_BARS)
-            if "feat_vol_gk" in df.columns:
-                self._last_atr = float(df["feat_vol_gk"].iloc[-1])
-            elif "feat_atr" in df.columns:
-                self._last_atr = float(df["feat_atr"].iloc[-1])
-            if "close" in df.columns:
-                self._prev_close = float(df["close"].iloc[-1])
-            logger.info(
-                "CUSUMFilter [%s]: warm-started — last_atr=%.6f prev_close=%.4f",
-                self._sym, self._last_atr or 0.0, self._prev_close or 0.0,
-            )
-        except Exception as exc:
-            logger.warning("CUSUMFilter [%s]: warm-start failed: %s", self._sym, exc)
+        df = pd.read_parquet(feat_path).tail(_WARMUP_BARS)
+        if "feat_vol_gk" in df.columns:
+            self._last_atr = float(df["feat_vol_gk"].iloc[-1])
+        elif "feat_atr" in df.columns:
+            self._last_atr = float(df["feat_atr"].iloc[-1])
+        if "close" in df.columns:
+            self._prev_close = float(df["close"].iloc[-1])
+        logger.info(
+            "CUSUMFilter [%s]: warm-started — last_atr=%.6f prev_close=%.4f",
+            self._sym, self._last_atr or 0.0, self._prev_close or 0.0,
+        )
 
     # ------------------------------------------------------------------
     # Per-bar stepping
@@ -124,17 +121,14 @@ class CUSUMFilter:
         Must be called immediately after FeaturePipeline runs at event time
         so the next CUSUM interval uses the volatility at THIS event.
         """
-        try:
-            if "feat_vol_gk" in features.columns:
-                atr = float(features["feat_vol_gk"].iloc[-1])
-            elif "feat_atr" in features.columns:
-                atr = float(features["feat_atr"].iloc[-1])
-            else:
-                return
-            if atr > 1e-8:
-                self._last_atr = atr
-        except Exception:
-            pass
+        if "feat_vol_gk" in features.columns:
+            atr = float(features["feat_vol_gk"].iloc[-1])
+        elif "feat_atr" in features.columns:
+            atr = float(features["feat_atr"].iloc[-1])
+        else:
+            return
+        if atr > 1e-8:
+            self._last_atr = atr
 
 
 def build_cusum_filters(

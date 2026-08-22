@@ -41,10 +41,10 @@ from ..risk.daily_loss_governor import (
     RegimeConfig,
 )
 from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+from .cusum_filter import CUSUMFilter, build_cusum_filters
 from .execution_controller import ExecutionController, ExecutionControllerConfig
 from .feature_updater import FeatureUpdater, FeatureUpdaterConfig
-from .feed import BarEvent, Feed, FeedConfig
-from .cusum_filter import CUSUMFilter, build_cusum_filters
+from .feed import BarEvent, Feed
 from .judge_gate import JudgeGate, build_judge_gates
 from .portfolio_controller import PortfolioController, PortfolioControllerConfig
 from .signal_runner import SignalRunner, SignalRunnerConfig
@@ -618,21 +618,17 @@ class LiveEngine:
 
             # 5. Route orders — reset fat-finger guard after each fill
             for order in orders:
-                try:
-                    fill = await self._router.place_order(order)
-                    # Reset fat-finger guard so next rebalance isn't blocked
-                    self._ec._last_order_qty[order.symbol] = 1e9
-                    self._metrics.order_filled(
-                        symbol=order.symbol, side=order.side.value
-                    )
-                    logger.info(
-                        "FILL: %s %s qty=%.4f @ %.4f notional=$%.0f",
-                        order.symbol, order.side.value,
-                        fill.fill_qty, fill.fill_price, fill.notional_usdt,
-                    )
-                except Exception as exc:
-                    logger.error("Order routing failed: %s", exc)
-                    self._state.errors.append(str(exc))
+                fill = await self._router.place_order(order)
+                # Reset fat-finger guard so next rebalance isn't blocked
+                self._ec._last_order_qty[order.symbol] = 1e9
+                self._metrics.order_filled(
+                    symbol=order.symbol, side=order.side.value
+                )
+                logger.info(
+                    "FILL: %s %s qty=%.4f @ %.4f notional=$%.0f",
+                    order.symbol, order.side.value,
+                    fill.fill_qty, fill.fill_price, fill.notional_usdt,
+                )
 
             # Clear pending signals after rebalance
             self._pending_rebalance = {s: None for s in self._cfg.symbols}
@@ -655,27 +651,21 @@ class LiveEngine:
         # so peak/intraday drawdown reflects intra-bar moves between trades.
         self._state.update_equity(eq_now)
         # UTC-day rollover → reset intraday DD tracker.
-        try:
-            cur_date = pd.Timestamp(event.ts).normalize()
-            last_date = getattr(self, "_last_session_date", None)
-            if last_date is None:
-                self._last_session_date = cur_date
-            elif cur_date != last_date:
-                self._state.reset_daily()
-                if self._governor is not None:
-                    self._governor.reset_day(eq_now)
-                self._last_session_date = cur_date
-        except Exception:
-            pass
+        cur_date = pd.Timestamp(event.ts).normalize()
+        last_date = getattr(self, "_last_session_date", None)
+        if last_date is None:
+            self._last_session_date = cur_date
+        elif cur_date != last_date:
+            self._state.reset_daily()
+            if self._governor is not None:
+                self._governor.reset_day(eq_now)
+            self._last_session_date = cur_date
         self._equity_history.append(eq_now)
         if len(self._equity_history) > 5000:
             self._equity_history = self._equity_history[-5000:]
 
         # P2-2 — queue depth gauge (best-effort; queue may not be accessible)
-        try:
-            self._metrics.queue_depth(depth=self._queue.qsize())
-        except Exception:
-            pass
+        self._metrics.queue_depth(depth=self._queue.qsize())
 
         # Record latency metrics
         elapsed_ms = (time.monotonic() - t0) * 1000
@@ -726,81 +716,77 @@ class LiveEngine:
 
     def _write_state(self, current_bar_ts: Optional[pd.Timestamp] = None) -> None:
         """Atomic write of state.json + append to equity_curve.jsonl."""
-        try:
-            eq = self._paper_oms.tracker.equity
-            peak = self._state.equity_peak
-            # CHIEF-4 (2026-05-28): the dashboard "Max Drawdown" KPI used to
-            # read ``current_drawdown`` (instantaneous peak-to-current), which
-            # is 0 the moment equity recovers to a new high.  We now also
-            # publish historic and intraday max-DD so the KPI matches what the
-            # operator sees on the drawdown chart.
-            cur_dd_pct = self._state.current_drawdown * 100.0
-            peak_dd_pct = self._state.peak_drawdown * 100.0
-            intraday_dd_pct = self._state.intraday_peak_drawdown * 100.0
-            init_eq = self._cfg.initial_equity
-            ret_pct = (eq - init_eq) / init_eq * 100.0
+        eq = self._paper_oms.tracker.equity
+        peak = self._state.equity_peak
+        # CHIEF-4 (2026-05-28): the dashboard "Max Drawdown" KPI used to
+        # read ``current_drawdown`` (instantaneous peak-to-current), which
+        # is 0 the moment equity recovers to a new high.  We now also
+        # publish historic and intraday max-DD so the KPI matches what the
+        # operator sees on the drawdown chart.
+        cur_dd_pct = self._state.current_drawdown * 100.0
+        peak_dd_pct = self._state.peak_drawdown * 100.0
+        intraday_dd_pct = self._state.intraday_peak_drawdown * 100.0
+        init_eq = self._cfg.initial_equity
+        ret_pct = (eq - init_eq) / init_eq * 100.0
 
-            positions: Dict[str, dict] = {}
-            for sym, pos in self._paper_oms.tracker.get_all_positions().items():
-                # B-2 FIX (2026-05-27): PositionRecord uses .qty, not .size
-                qty_val = getattr(pos, "qty", None) or getattr(pos, "size", 0.0)
-                side_val = (
-                    pos.side.value if hasattr(pos, "side") and hasattr(pos.side, "value")
-                    else ("LONG" if qty_val >= 0 else "SHORT")
-                )
-                positions[sym] = {
-                    "qty": round(float(qty_val), 6),
-                    "notional": round(float(pos.notional), 2),
-                    "side": side_val,
-                }
-
-            prices = {}
-            if hasattr(self._paper_oms, "_last_close"):
-                prices = {s: round(float(v), 6) for s, v in self._paper_oms._last_close.items()}
-
-            state_doc = {
-                "mode": self._cfg.mode.value,
-                "start_ts": self._start_ts,
-                "current_bar_ts": current_bar_ts.isoformat() if current_bar_ts else None,
-                "timestamp": pd.Timestamp.now(tz="UTC").isoformat(),
-                "equity": round(eq, 2),
-                "initial_equity": init_eq,
-                "peak_equity": round(peak, 2),
-                "pnl_usdt": round(eq - init_eq, 2),
-                "pnl_pct": round(ret_pct, 4),
-                # CHIEF-4: ``drawdown_pct`` retained for backward compat
-                # (=current/instantaneous).  New fields are the real maxima.
-                "drawdown_pct": round(cur_dd_pct, 4),
-                "current_drawdown_pct": round(cur_dd_pct, 4),
-                "max_drawdown_pct": round(peak_dd_pct, 4),
-                "intraday_drawdown_pct": round(intraday_dd_pct, 4),
-                "total_return_pct": round(ret_pct, 4),
-                "rolling_sharpe_32d": self._rolling_sharpe(),
-                "n_trades": self._audit.records_written,
-                "bars_processed": self._bars_processed,
-                "n_bars_processed": self._bars_processed,
-                "cb_active": self._cb.is_active,
-                "positions": positions,
-                "prices": prices,
+        positions: Dict[str, dict] = {}
+        for sym, pos in self._paper_oms.tracker.get_all_positions().items():
+            # B-2 FIX (2026-05-27): PositionRecord uses .qty, not .size
+            qty_val = getattr(pos, "qty", None) or getattr(pos, "size", 0.0)
+            side_val = (
+                pos.side.value if hasattr(pos, "side") and hasattr(pos.side, "value")
+                else ("LONG" if qty_val >= 0 else "SHORT")
+            )
+            positions[sym] = {
+                "qty": round(float(qty_val), 6),
+                "notional": round(float(pos.notional), 2),
+                "side": side_val,
             }
 
-            # Atomic write via tmp → rename
-            out_dir = self._state_out_dir
-            tmp = out_dir / "state.tmp"
-            tmp.write_text(json.dumps(state_doc, default=str))
-            tmp.replace(out_dir / "state.json")
+        prices = {}
+        if hasattr(self._paper_oms, "_last_close"):
+            prices = {s: round(float(v), 6) for s, v in self._paper_oms._last_close.items()}
 
-            # Append to equity curve
-            ec_line = json.dumps({
-                "ts": pd.Timestamp.now(tz="UTC").isoformat(),
-                "equity": round(eq, 2),
-                "bar": self._bars_processed,
-            })
-            with open(out_dir / "equity_curve.jsonl", "a", encoding="utf-8") as fh:
-                fh.write(ec_line + "\n")
+        state_doc = {
+            "mode": self._cfg.mode.value,
+            "start_ts": self._start_ts,
+            "current_bar_ts": current_bar_ts.isoformat() if current_bar_ts else None,
+            "timestamp": pd.Timestamp.now(tz="UTC").isoformat(),
+            "equity": round(eq, 2),
+            "initial_equity": init_eq,
+            "peak_equity": round(peak, 2),
+            "pnl_usdt": round(eq - init_eq, 2),
+            "pnl_pct": round(ret_pct, 4),
+            # CHIEF-4: ``drawdown_pct`` retained for backward compat
+            # (=current/instantaneous).  New fields are the real maxima.
+            "drawdown_pct": round(cur_dd_pct, 4),
+            "current_drawdown_pct": round(cur_dd_pct, 4),
+            "max_drawdown_pct": round(peak_dd_pct, 4),
+            "intraday_drawdown_pct": round(intraday_dd_pct, 4),
+            "total_return_pct": round(ret_pct, 4),
+            "rolling_sharpe_32d": self._rolling_sharpe(),
+            "n_trades": self._audit.records_written,
+            "bars_processed": self._bars_processed,
+            "n_bars_processed": self._bars_processed,
+            "cb_active": self._cb.is_active,
+            "positions": positions,
+            "prices": prices,
+        }
 
-        except Exception as exc:
-            logger.warning("LiveEngine: state write failed: %s", exc)
+        # Atomic write via tmp → rename
+        out_dir = self._state_out_dir
+        tmp = out_dir / "state.tmp"
+        tmp.write_text(json.dumps(state_doc, default=str))
+        tmp.replace(out_dir / "state.json")
+
+        # Append to equity curve
+        ec_line = json.dumps({
+            "ts": pd.Timestamp.now(tz="UTC").isoformat(),
+            "equity": round(eq, 2),
+            "bar": self._bars_processed,
+        })
+        with open(out_dir / "equity_curve.jsonl", "a", encoding="utf-8") as fh:
+            fh.write(ec_line + "\n")
 
     # ------------------------------------------------------------------
     # Halt procedure
@@ -811,11 +797,8 @@ class LiveEngine:
             "LiveEngine: HALT triggered. reason=%s — closing all positions.",
             self._cb.halt_reason,
         )
-        try:
-            fills = self._paper_oms.close_all()
-            logger.critical("LiveEngine: closed %d positions.", len(fills))
-        except Exception as exc:
-            logger.critical("LiveEngine: close_all() failed: %s", exc)
+        fills = self._paper_oms.close_all()
+        logger.critical("LiveEngine: closed %d positions.", len(fills))
         self._stop_event.set()
 
     async def _emergency_halt(self) -> None:
@@ -824,14 +807,11 @@ class LiveEngine:
         Called on KILL SWITCH signal (Wave 15 P0-5.1).
         """
         logger.critical("EMERGENCY HALT — cancelling all open orders.")
-        try:
-            if hasattr(self, "_router") and self._router is not None:
-                await self._router.close_all()
-            else:
-                # Fallback to paper OMS
-                self._paper_oms.close_all()
-        except Exception as exc:
-            logger.error("Error during emergency halt: %s", exc)
+        if hasattr(self, "_router") and self._router is not None:
+            await self._router.close_all()
+        else:
+            # Fallback to paper OMS
+            self._paper_oms.close_all()
         self._stop_event.set()
 
     # ------------------------------------------------------------------

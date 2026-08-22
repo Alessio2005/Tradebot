@@ -237,24 +237,20 @@ def evt_gpd_var(
     if len(tail) < 10:
         return cornish_fisher_var(arr, confidence)
 
-    try:
-        # Fit GPD to losses (flip sign so tail > 0)
-        losses = -tail  # now positive
-        # CHIEF AUDIT 2026-05-23 (P-11): seed numpy global state vóór fit
-        # voor deterministische L-BFGS-B initialisatie.
-        np.random.seed(int(seed))
-        shape, loc, scale = _genpareto.fit(losses, floc=0)
-        # Quantile via GPD CDF inversion
-        p_exceed = (1.0 - confidence) / (1.0 - threshold_quantile)
-        if p_exceed <= 0 or p_exceed >= 1:
-            return cornish_fisher_var(arr, confidence)
-        if shape == 0:
-            gpd_q = scale * np.log(1.0 / p_exceed)
-        else:
-            gpd_q = (scale / shape) * ((1.0 / p_exceed) ** shape - 1.0)
-        return float(u - gpd_q)
-    except Exception:
+    losses = -tail  # now positive
+    # CHIEF AUDIT 2026-05-23 (P-11): seed numpy global state vóór fit
+    # voor deterministische L-BFGS-B initialisatie.
+    np.random.seed(int(seed))
+    shape, loc, scale = _genpareto.fit(losses, floc=0)
+    # Quantile via GPD CDF inversion
+    p_exceed = (1.0 - confidence) / (1.0 - threshold_quantile)
+    if p_exceed <= 0 or p_exceed >= 1:
         return cornish_fisher_var(arr, confidence)
+    if shape == 0:
+        gpd_q = scale * np.log(1.0 / p_exceed)
+    else:
+        gpd_q = (scale / shape) * ((1.0 / p_exceed) ** shape - 1.0)
+    return float(u - gpd_q)
 
 
 def best_var(

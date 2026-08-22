@@ -108,85 +108,77 @@ def _safe_corr(
     #   correlatie-explosie die EWMA pas reproduceert na ~λ-decay-bars
     #   (te traag bij flash-crashes).
     if use_shrinkage and returns.shape[1] >= 2:
-        try:
-            corr_lw, _delta = ledoit_wolf_shrunk_corr(
-                returns,
-                target=shrinkage_target,
-                min_obs=min_obs,
-            )
-            return corr_lw
-        except Exception:  # pragma: no cover
-            # Numeriek of import-issue → val terug op EWMA-pad hieronder.
-            pass
+        corr_lw, _delta = ledoit_wolf_shrunk_corr(
+            returns,
+            target=shrinkage_target,
+            min_obs=min_obs,
+        )
+        return corr_lw
 
     lam = float(np.clip(ewma_lambda, 0.0, 1.0))
 
-    try:
-        n_t, n_assets = returns.shape
+    n_t, n_assets = returns.shape
 
-        if lam >= 1.0 - 1e-9:
-            # Fallback: gelijke gewichten = origineel Pearson pairwise gedrag (N22)
-            df = pd.DataFrame(returns)
-            corr_df = df.corr(method="pearson", min_periods=min_obs).fillna(0.0)
-            corr = corr_df.to_numpy(dtype=np.float64)
-            if corr.ndim == 0:
-                return np.array([[1.0]])
-            corr = np.where(np.isfinite(corr), corr, 0.0)
-            np.fill_diagonal(corr, 1.0)
-            return corr
-
-        # ── EWMA gewogen covariantie ─────────────────────────────────────────
-        # Gewichten: w_t ∝ λ^(T-1-t), nieuwste bar krijgt gewicht λ^0 = 1.
-        # Normalisering zodat Σw=1 → gewogen covariantie is schaalvrij.
-        raw_w: np.ndarray = np.power(
-            lam, np.arange(n_t - 1, -1, -1, dtype=np.float64)
-        )  # shape (T,): [λ^(T-1), λ^(T-2), ..., λ^0]
-        raw_w /= raw_w.sum()  # normaliseer
-
-        # NaN-masker: behandel NaN-bars per asset als missing weight.
-        # Pairwise: cov[i,j] gebruikt alleen bars waar BEIDE assets geldig zijn.
-        valid = np.isfinite(returns)  # (T, N) bool
-
-        cov = np.zeros((n_assets, n_assets), dtype=np.float64)
-        for i in range(n_assets):
-            for j in range(i, n_assets):
-                mask_ij = valid[:, i] & valid[:, j]
-                if mask_ij.sum() < min_obs:
-                    # Minder dan min_obs gemeenschappelijke obs → behandel als ongecorr.
-                    cov[i, j] = 0.0
-                    cov[j, i] = 0.0
-                    if i == j:
-                        cov[i, i] = 1.0
-                    continue
-                w_ij = raw_w * mask_ij.astype(np.float64)
-                w_sum = w_ij.sum()
-                if w_sum < 1e-15:
-                    cov[i, j] = 0.0
-                    cov[j, i] = 0.0
-                    if i == j:
-                        cov[i, i] = 1.0
-                    continue
-                w_ij_norm = w_ij / w_sum
-                mu_i = float(np.dot(w_ij_norm, returns[:, i]))
-                mu_j = float(np.dot(w_ij_norm, returns[:, j]))
-                r_i = returns[:, i] - mu_i
-                r_j = returns[:, j] - mu_j
-                c_ij = float(np.dot(w_ij_norm, r_i * r_j))
-                cov[i, j] = c_ij
-                cov[j, i] = c_ij
-
-        # Converteer covariantie → correlatie
-        std_arr = np.sqrt(np.diag(cov))
-        std_safe = np.where(std_arr > 1e-9, std_arr, 1.0)
-        corr = cov / np.outer(std_safe, std_safe)
-        np.fill_diagonal(corr, 1.0)
-        corr = np.clip(corr, -1.0, 1.0)
+    if lam >= 1.0 - 1e-9:
+        # Fallback: gelijke gewichten = origineel Pearson pairwise gedrag (N22)
+        df = pd.DataFrame(returns)
+        corr_df = df.corr(method="pearson", min_periods=min_obs).fillna(0.0)
+        corr = corr_df.to_numpy(dtype=np.float64)
+        if corr.ndim == 0:
+            return np.array([[1.0]])
         corr = np.where(np.isfinite(corr), corr, 0.0)
         np.fill_diagonal(corr, 1.0)
         return corr
 
-    except Exception:
-        return np.eye(returns.shape[1])
+    # ── EWMA gewogen covariantie ─────────────────────────────────────────
+    # Gewichten: w_t ∝ λ^(T-1-t), nieuwste bar krijgt gewicht λ^0 = 1.
+    # Normalisering zodat Σw=1 → gewogen covariantie is schaalvrij.
+    raw_w: np.ndarray = np.power(
+        lam, np.arange(n_t - 1, -1, -1, dtype=np.float64)
+    )  # shape (T,): [λ^(T-1), λ^(T-2), ..., λ^0]
+    raw_w /= raw_w.sum()  # normaliseer
+
+    # NaN-masker: behandel NaN-bars per asset als missing weight.
+    # Pairwise: cov[i,j] gebruikt alleen bars waar BEIDE assets geldig zijn.
+    valid = np.isfinite(returns)  # (T, N) bool
+
+    cov = np.zeros((n_assets, n_assets), dtype=np.float64)
+    for i in range(n_assets):
+        for j in range(i, n_assets):
+            mask_ij = valid[:, i] & valid[:, j]
+            if mask_ij.sum() < min_obs:
+                # Minder dan min_obs gemeenschappelijke obs → behandel als ongecorr.
+                cov[i, j] = 0.0
+                cov[j, i] = 0.0
+                if i == j:
+                    cov[i, i] = 1.0
+                continue
+            w_ij = raw_w * mask_ij.astype(np.float64)
+            w_sum = w_ij.sum()
+            if w_sum < 1e-15:
+                cov[i, j] = 0.0
+                cov[j, i] = 0.0
+                if i == j:
+                    cov[i, i] = 1.0
+                continue
+            w_ij_norm = w_ij / w_sum
+            mu_i = float(np.dot(w_ij_norm, returns[:, i]))
+            mu_j = float(np.dot(w_ij_norm, returns[:, j]))
+            r_i = returns[:, i] - mu_i
+            r_j = returns[:, j] - mu_j
+            c_ij = float(np.dot(w_ij_norm, r_i * r_j))
+            cov[i, j] = c_ij
+            cov[j, i] = c_ij
+
+    # Converteer covariantie → correlatie
+    std_arr = np.sqrt(np.diag(cov))
+    std_safe = np.where(std_arr > 1e-9, std_arr, 1.0)
+    corr = cov / np.outer(std_safe, std_safe)
+    np.fill_diagonal(corr, 1.0)
+    corr = np.clip(corr, -1.0, 1.0)
+    corr = np.where(np.isfinite(corr), corr, 0.0)
+    np.fill_diagonal(corr, 1.0)
+    return corr
 
 
 def _avg_offdiag(corr: np.ndarray) -> float:
@@ -235,18 +227,14 @@ def effective_n_assets(corr: np.ndarray) -> float:
     """
     if corr.shape[0] < 1:
         return 1.0
-    try:
-        # Symmetriseer voor eigenvalsh stabiliteit
-        c = 0.5 * (corr + corr.T)
-        evals = np.linalg.eigvalsh(c)
-        evals = np.maximum(evals, 1e-10)
-        s1 = float(evals.sum())
-        s2 = float((evals ** 2).sum())
-        if s2 <= 0:
-            return float(corr.shape[0])
-        return s1 * s1 / s2
-    except Exception:
+    c = 0.5 * (corr + corr.T)
+    evals = np.linalg.eigvalsh(c)
+    evals = np.maximum(evals, 1e-10)
+    s1 = float(evals.sum())
+    s2 = float((evals ** 2).sum())
+    if s2 <= 0:
         return float(corr.shape[0])
+    return s1 * s1 / s2
 
 
 # =============================================================================
@@ -596,17 +584,14 @@ class PortfolioRiskManager:
         hist_nonzero = hist_nonzero[hist_nonzero != 0.0]
         if hist_nonzero.size < 30:
             return 1.0, self._crisis_state_active
-        try:
-            mult, new_state = negative_skew_crisis_multiplier(
-                hist_nonzero,
-                skew_panic=self._skew_panic,
-                skew_resume=self._skew_resume,
-                state_active=self._crisis_state_active,
-                multiplier_active=self._crisis_mult_active,
-                multiplier_calm=1.0,
-            )
-        except Exception:  # pragma: no cover
-            return 1.0, self._crisis_state_active
+        mult, new_state = negative_skew_crisis_multiplier(
+            hist_nonzero,
+            skew_panic=self._skew_panic,
+            skew_resume=self._skew_resume,
+            state_active=self._crisis_state_active,
+            multiplier_active=self._crisis_mult_active,
+            multiplier_calm=1.0,
+        )
         if new_state and not self._crisis_state_active:
             logger.warning(
                 "[Portfolio Risk] Crisis multiplier ACTIVE (%s skew -> panic): "
@@ -800,17 +785,14 @@ class PortfolioRiskManager:
 
         # v3 T1.4: HMM regime cap — reduceer LONG met 50% in Bear-regime
         if side > 0 and self._hmm_detector is not None:
-            try:
-                if len(self._hmm_returns_buffer) >= 20:
-                    import pandas as _pd_hmm
-                    _recent = _pd_hmm.Series(self._hmm_returns_buffer[-200:])
-                    _regime = self._hmm_detector.current_regime(_recent)
-                    _long_cap = self._hmm_detector.get_long_cap(int(_regime))
-                    scaled_capped = scaled_capped * _long_cap
-                    if _long_cap < 1.0:
-                        logger.debug("HMM Bear-regime: LONG-cap %.1f×", _long_cap)
-            except Exception as _hmm_exc:
-                logger.debug("HMM regime cap fout (doorgaan): %s", _hmm_exc)
+            if len(self._hmm_returns_buffer) >= 20:
+                import pandas as _pd_hmm
+                _recent = _pd_hmm.Series(self._hmm_returns_buffer[-200:])
+                _regime = self._hmm_detector.current_regime(_recent)
+                _long_cap = self._hmm_detector.get_long_cap(int(_regime))
+                scaled_capped = scaled_capped * _long_cap
+                if _long_cap < 1.0:
+                    logger.debug("HMM Bear-regime: LONG-cap %.1f×", _long_cap)
 
         return SizingDecision(
             raw_leverage=float(raw_leverage),

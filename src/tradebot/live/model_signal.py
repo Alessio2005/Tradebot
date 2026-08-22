@@ -39,7 +39,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from ..alpha.base import AlphaSignal, SignalResult
+from ..alpha.base import SignalResult
 
 logger = logging.getLogger(__name__)
 
@@ -217,23 +217,16 @@ class ModelSignal:
         # spot the case where the live buffer was never pre-populated.
         feat_path = art / "features" / f"{sym}.parquet"
         if feat_path.exists():
-            try:
-                feat_df = pd.read_parquet(feat_path)
-                warm_df = feat_df.tail(_WARMUP_BARS)
-                logger.warning(
-                    "ModelSignal [%s/%s]: live buffer empty — falling back to "
-                    "STALE features parquet (%d bars, last close=%.4f). "
-                    "CUSUM threshold may not reflect current vol regime.",
-                    sym, self._cfg.side, len(warm_df),
-                    float(warm_df["close"].iloc[-1]) if "close" in warm_df.columns and not warm_df.empty else 0.0,
-                )
-                self._replay_history(warm_df)
-            except Exception as exc:
-                logger.error(
-                    "ModelSignal [%s/%s]: parquet warm-start failed (%s) — "
-                    "CUSUM starts COLD (s_pos=s_neg=0).",
-                    sym, self._cfg.side, exc,
-                )
+            feat_df = pd.read_parquet(feat_path)
+            warm_df = feat_df.tail(_WARMUP_BARS)
+            logger.warning(
+                "ModelSignal [%s/%s]: live buffer empty — falling back to "
+                "STALE features parquet (%d bars, last close=%.4f). "
+                "CUSUM threshold may not reflect current vol regime.",
+                sym, self._cfg.side, len(warm_df),
+                float(warm_df["close"].iloc[-1]) if "close" in warm_df.columns and not warm_df.empty else 0.0,
+            )
+            self._replay_history(warm_df)
         else:
             logger.error(
                 "ModelSignal [%s/%s]: no live buffer AND no parquet at %s — "
@@ -317,10 +310,7 @@ class ModelSignal:
         # ── Update bandit live scalers every bar ──────────────────────────────
         # This keeps the Thompson sampling weights warm regardless of CUSUM.
         x_micro, x_meso, x_macro = self._extract_features(df)
-        try:
-            self._ensemble.update_live_scalers(x_micro, x_meso, x_macro)
-        except Exception as exc:
-            logger.debug("ModelSignal [%s/%s]: update_live_scalers failed: %s", sym, self._cfg.side, exc)
+        self._ensemble.update_live_scalers(x_micro, x_meso, x_macro)
 
         # ── Skip prediction if CUSUM did not fire ────────────────────────────
         if not cusum_fired:
@@ -348,32 +338,18 @@ class ModelSignal:
             )
             return self._flat_result(now)
 
-        try:
-            raw_result = self._ensemble.predict_greybox_strategy(
-                x_micro, x_meso, x_macro
-            )
-        except Exception as exc:
-            logger.error(
-                "ModelSignal [%s/%s]: predict_greybox_strategy failed: %s",
-                sym, self._cfg.side, exc,
-            )
-            return self._flat_result(now)
+        raw_result = self._ensemble.predict_greybox_strategy(
+            x_micro, x_meso, x_macro
+        )
 
         raw_prob = float(raw_result.get("prob_win", 0.0))
 
         # ── Platt calibration ─────────────────────────────────────────────────
-        try:
-            calibrated_probs = self._calibrator.predict_proba(
-                np.array([raw_prob], dtype=np.float64),
-                path_id=None,
-            )
-            cal_prob = float(calibrated_probs[0])
-        except Exception as exc:
-            logger.warning(
-                "ModelSignal [%s/%s]: Platt calibration failed (%s) — using raw_prob.",
-                sym, self._cfg.side, exc,
-            )
-            cal_prob = raw_prob
+        calibrated_probs = self._calibrator.predict_proba(
+            np.array([raw_prob], dtype=np.float64),
+            path_id=None,
+        )
+        cal_prob = float(calibrated_probs[0])
 
         # ── Confidence gate ───────────────────────────────────────────────────
         if cal_prob < self._min_conf:
@@ -453,10 +429,7 @@ class ModelSignal:
 
         # Update bandit scalers every event
         x_micro, x_meso, x_macro = self._extract_features(df)
-        try:
-            self._ensemble.update_live_scalers(x_micro, x_meso, x_macro)
-        except Exception:
-            pass
+        self._ensemble.update_live_scalers(x_micro, x_meso, x_macro)
 
         # Regime filter for SHORT
         if self._cfg.side == "SHORT":
@@ -475,22 +448,15 @@ class ModelSignal:
             )
             return self._flat_result(now)
 
-        try:
-            raw_result = self._ensemble.predict_greybox_strategy(x_micro, x_meso, x_macro)
-        except Exception as exc:
-            logger.error("ModelSignal [%s/%s]: predict failed: %s", sym, self._cfg.side, exc)
-            return self._flat_result(now)
+        raw_result = self._ensemble.predict_greybox_strategy(x_micro, x_meso, x_macro)
 
         raw_prob = float(raw_result.get("prob_win", 0.0))
 
-        try:
-            cal_prob = float(
-                self._calibrator.predict_proba(
-                    np.array([raw_prob], dtype=np.float64), path_id=None
-                )[0]
-            )
-        except Exception:
-            cal_prob = raw_prob
+        cal_prob = float(
+            self._calibrator.predict_proba(
+                np.array([raw_prob], dtype=np.float64), path_id=None
+            )[0]
+        )
 
         if cal_prob < self._min_conf:
             return self._flat_result(now)

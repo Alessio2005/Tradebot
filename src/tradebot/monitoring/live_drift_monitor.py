@@ -105,15 +105,7 @@ class LiveDriftMonitor:
             )
             self._reference[symbol] = {}
             return
-        try:
-            df = pd.read_parquet(ref_path)
-        except Exception as exc:
-            logger.warning(
-                "LiveDriftMonitor [%s]: parquet load failed (%s) — disabled.",
-                symbol, exc,
-            )
-            self._reference[symbol] = {}
-            return
+        df = pd.read_parquet(ref_path)
         df = df.tail(self._cfg.ref_window)
         ref: Dict[str, np.ndarray] = {}
         for col in df.columns:
@@ -143,10 +135,7 @@ class LiveDriftMonitor:
             return
         if feature_row is None or feature_row.empty:
             return
-        try:
-            last = feature_row.iloc[-1]
-        except Exception:
-            return
+        last = feature_row.iloc[-1]
         self._current[symbol].append(last)
         self._refresh_counts[symbol] += 1
         if self._refresh_counts[symbol] % self._cfg.check_every_n != 0:
@@ -180,16 +169,9 @@ class LiveDriftMonitor:
         # Restrict reference to the feature set we actually have live.
         ref_subset = {k: v for k, v in ref.items() if k in cur}
 
-        try:
-            # assess_reference=False — we trust the parquet baseline; the
-            # reference-stability check is expensive and only useful at
-            # offline analysis time.
-            results = check_feature_drift(
-                ref_subset, cur, n_bins=10, assess_reference=False,
-            )
-        except Exception as exc:
-            logger.debug("LiveDriftMonitor [%s]: drift check failed: %s", symbol, exc)
-            return
+        results = check_feature_drift(
+            ref_subset, cur, n_bins=10, assess_reference=False,
+        )
 
         # Filter on finite PSI; sort by descending PSI.
         finite = [r for r in results if np.isfinite(r.psi_value)]
@@ -220,21 +202,18 @@ class LiveDriftMonitor:
 
         # Emit machine-readable record (one line per check)
         if self._cfg.drift_report_path is not None:
-            try:
-                self._cfg.drift_report_path.parent.mkdir(parents=True, exist_ok=True)
-                record = {
-                    "ts": pd.Timestamp.now(tz="UTC").isoformat(),
-                    "symbol": symbol,
-                    "n_features_checked": len(finite),
-                    "n_critical": n_critical,
-                    "n_moderate": n_moderate,
-                    "max_psi": float(top[0].psi_value) if top else 0.0,
-                    "top": [
-                        {"f": r.feature, "psi": float(r.psi_value), "ks_p": float(r.ks_pvalue)}
-                        for r in top
-                    ],
-                }
-                with open(self._cfg.drift_report_path, "a", encoding="utf-8") as fh:
-                    fh.write(json.dumps(record) + "\n")
-            except Exception as exc:
-                logger.debug("LiveDriftMonitor: report write failed: %s", exc)
+            self._cfg.drift_report_path.parent.mkdir(parents=True, exist_ok=True)
+            record = {
+                "ts": pd.Timestamp.now(tz="UTC").isoformat(),
+                "symbol": symbol,
+                "n_features_checked": len(finite),
+                "n_critical": n_critical,
+                "n_moderate": n_moderate,
+                "max_psi": float(top[0].psi_value) if top else 0.0,
+                "top": [
+                    {"f": r.feature, "psi": float(r.psi_value), "ks_p": float(r.ks_pvalue)}
+                    for r in top
+                ],
+            }
+            with open(self._cfg.drift_report_path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record) + "\n")

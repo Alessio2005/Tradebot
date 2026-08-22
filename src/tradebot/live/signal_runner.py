@@ -179,17 +179,14 @@ class SignalRunner:
 
         # Update combiner with forward return if available
         if fwd_return is not None and len(self._return_history) >= 1:
-            try:
-                hist_df = pd.DataFrame(self._signal_history)
-                if not hist_df.empty and len(hist_df) >= 5:
-                    returns_s = pd.Series(self._return_history)
-                    self._combiner.fit(
-                        hist_df.iloc[-self._cfg.ic_lookback:],
-                        returns_s.iloc[-self._cfg.ic_lookback:],
-                        lookback=self._cfg.ic_lookback,
-                    )
-            except Exception as exc:
-                logger.debug("SignalRunner: combiner.fit() failed: %s", exc)
+            hist_df = pd.DataFrame(self._signal_history)
+            if not hist_df.empty and len(hist_df) >= 5:
+                returns_s = pd.Series(self._return_history)
+                self._combiner.fit(
+                    hist_df.iloc[-self._cfg.ic_lookback:],
+                    returns_s.iloc[-self._cfg.ic_lookback:],
+                    lookback=self._cfg.ic_lookback,
+                )
 
         # Accumulate history
         for sid, val in signal_values.items():
@@ -199,12 +196,8 @@ class SignalRunner:
         if fwd_return is not None:
             self._return_history.append(fwd_return)
 
-        try:
-            combined_series = self._combiner.predict(signals_df)  # type: ignore[union-attr]
-            combined_val = float(combined_series.iloc[0])
-        except Exception as exc:
-            logger.warning("SignalRunner: combiner.predict() failed: %s — using mean.", exc)
-            combined_val = sum(r.signal for r in raw_results) / len(raw_results)
+        combined_series = self._combiner.predict(signals_df)  # type: ignore[union-attr]
+        combined_val = float(combined_series.iloc[0])
 
         # Use the highest-confidence individual result as metadata template
         best = max(raw_results, key=lambda r: r.confidence)
@@ -295,10 +288,7 @@ class SignalRunner:
 
         signal_values = {r.signal_id: r.signal for r in raw_results}
         signals_df = pd.DataFrame([signal_values])
-        try:
-            combined_val = float(self._combiner.predict(signals_df).iloc[0])  # type: ignore[union-attr]
-        except Exception:
-            combined_val = sum(r.signal for r in raw_results) / len(raw_results)
+        combined_val = float(self._combiner.predict(signals_df).iloc[0])  # type: ignore[union-attr]
 
         best = max(raw_results, key=lambda r: r.confidence)
         return SignalResult(

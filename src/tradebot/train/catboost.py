@@ -159,16 +159,11 @@ class RegimeCatAgent:
         guard = getattr(stack, "schema_guard", None)
         if guard is None:
             return
-        try:
-            fp = guard.stamp(self.feature_names_trained)
-            logger.info(
-                "FeatureSchemaGuard gestempeld voor [%s]: sha=%s… (%d features).",
-                self.symbol, str(fp.sha256)[:16], int(fp.feature_count),
-            )
-        except Exception as exc:  # pragma: no cover
-            logger.warning(
-                "stamp_schema_into_stack faalde voor [%s]: %s.", self.symbol, exc
-            )
+        fp = guard.stamp(self.feature_names_trained)
+        logger.info(
+            "FeatureSchemaGuard gestempeld voor [%s]: sha=%s… (%d features).",
+            self.symbol, str(fp.sha256)[:16], int(fp.feature_count),
+        )
 
     def validate_schema(self, runtime_feature_schema: str, runtime_feature_names: list[str] | None = None) -> None:
         """Valideer compatibiliteit van opgeslagen model-schema met huidige config.
@@ -303,28 +298,23 @@ class RegimeCatAgent:
             logger.warning("predict_binary aangeroepen maar model is None.")
             return {"prob_win": 0.0, "prob_loss": 1.0}
 
-        try:
-            X = self.prepare_inference_data(x_micro, x_meso, x_macro, base_feature_map, is_pre_scaled)
-            if X is None or X.size == 0 or X.shape[1] == 0:
-                return {"prob_win": 0.0, "prob_loss": 1.0}
-
-            probs = self.model.predict_proba(X)[0]
-            # M4-FIX: Als CatBoost slechts één klasse heeft gezien (edge-case bij
-            # extreme klasse-onbalans in een CPCV-fold), retourneert predict_proba
-            # één waarde. De oude code zette prob_loss = 0.0, waardoor de kansen
-            # niet optelden tot 1.0. Correcte afhandeling: prob_loss = 1 - prob_win.
-            if len(probs) == 1:
-                prob_win  = float(probs[0])
-                prob_loss = 1.0 - prob_win
-            else:
-                prob_win  = float(probs[1])
-                prob_loss = float(probs[0])
-
-            return {"prob_win": prob_win, "prob_loss": prob_loss}
-
-        except Exception as e:
-            logger.error(f"Predict error: {e}")
+        X = self.prepare_inference_data(x_micro, x_meso, x_macro, base_feature_map, is_pre_scaled)
+        if X is None or X.size == 0 or X.shape[1] == 0:
             return {"prob_win": 0.0, "prob_loss": 1.0}
+
+        probs = self.model.predict_proba(X)[0]
+        # M4-FIX: Als CatBoost slechts één klasse heeft gezien (edge-case bij
+        # extreme klasse-onbalans in een CPCV-fold), retourneert predict_proba
+        # één waarde. De oude code zette prob_loss = 0.0, waardoor de kansen
+        # niet optelden tot 1.0. Correcte afhandeling: prob_loss = 1 - prob_win.
+        if len(probs) == 1:
+            prob_win  = float(probs[0])
+            prob_loss = 1.0 - prob_win
+        else:
+            prob_win  = float(probs[1])
+            prob_loss = float(probs[0])
+
+        return {"prob_win": prob_win, "prob_loss": prob_loss}
 
     def train(
         self,
@@ -419,29 +409,22 @@ class RegimeCatAgent:
                     train_pool, eval_set=eval_pool,
                     early_stopping_rounds=50, verbose=False, use_best_model=True,
                 )
-                try:
-                    _est = _FrozenEstimator(base_model) if _FrozenEstimator is not None else cast(Any, base_model)
-                    calibrator = CalibratedClassifierCV(
-                        estimator=_est, cv="prefit", method="sigmoid"
-                    )
-                    # Geen sample_weight: kalibratie moet de NATUURLIJKE klassen-
-                    # distributie zien, niet de gebalanceerde trainingsgewichten.
-                    calibrator.fit(cX_platt, cy_platt)
-                    self.model = calibrator
-                    logger.info(
-                        "Platt scaling succesvol toegepast — kansen gecalibreerd "
-                        "op afgescheiden Platt-set (%d samples, %.1f%% wins). "
-                        "ES-set: %d samples.",
-                        len(cy_platt),
-                        float(np.mean(cy_platt)) * 100.0,
-                        len(cy_es),
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "Platt calibratie mislukt (%s) — ongekalibreerde CatBoost "
-                        "kansen worden gebruikt. Controleer drempelwaarden.", exc
-                    )
-                    self.model = base_model
+                _est = _FrozenEstimator(base_model) if _FrozenEstimator is not None else cast(Any, base_model)
+                calibrator = CalibratedClassifierCV(
+                    estimator=_est, cv="prefit", method="sigmoid"
+                )
+                # Geen sample_weight: kalibratie moet de NATUURLIJKE klassen-
+                # distributie zien, niet de gebalanceerde trainingsgewichten.
+                calibrator.fit(cX_platt, cy_platt)
+                self.model = calibrator
+                logger.info(
+                    "Platt scaling succesvol toegepast — kansen gecalibreerd "
+                    "op afgescheiden Platt-set (%d samples, %.1f%% wins). "
+                    "ES-set: %d samples.",
+                    len(cy_platt),
+                    float(np.mean(cy_platt)) * 100.0,
+                    len(cy_es),
+                )
             else:
                 # Niet genoeg samples voor een schone 3-way split.
                 # Val terug op early stopping op de volledige calib-set zonder Platt.
