@@ -33,32 +33,13 @@ from numba import njit, prange
 # op het pre-blueprint gedrag (np.random.multivariate_normal, geen entropy gate,
 # geen schema-guard). Pylance-strict: alle namen worden hier expliciet als
 # Optional[type] geannoteerd zodat downstream geen `Any`-leakage ontstaat.
-try:
-    from quant_architect import (
-        EntropyGate,
-        EntropyGateDecision,
-        FeatureSchemaGuard,
-        LedoitWolfThompsonSampler,
-        NetAlphaResult,
-        NetAlphaReward,
-        QuantArchitectStack,
-        SchemaMismatchError,
-    )
-    _QUANT_ARCHITECT_AVAILABLE: bool = True
-except ImportError:  # pragma: no cover
-    _QUANT_ARCHITECT_AVAILABLE = False
-    # Stub-typen zodat type-annotaties ergens elders in dit bestand niet
-    # verbroken worden (Pylance: NameError bij forward-references vermijden).
-    EntropyGate = Any  # type: ignore[assignment, misc]
-    EntropyGateDecision = Any  # type: ignore[assignment, misc]
-    FeatureSchemaGuard = Any  # type: ignore[assignment, misc]
-    LedoitWolfThompsonSampler = Any  # type: ignore[assignment, misc]
-    NetAlphaResult = Any  # type: ignore[assignment, misc]
-    NetAlphaReward = Any  # type: ignore[assignment, misc]
-    QuantArchitectStack = Any  # type: ignore[assignment, misc]
-
-    class SchemaMismatchError(RuntimeError):  # type: ignore[no-redef]
-        """Stub bij ontbrekende quant_architect — geen runtime gebruik."""
+# Phase 0 stap 5: dit bestand importeerde acht symbolen uit het niet-bestaande
+# pakket `quant_architect`. De except-tak verving elk symbool door `Any`. Meting
+# wijst uit dat GEEN van die symbolen in dit bestand ooit werd gebruikt: het
+# importblok was volledig dode code die alleen de illusie van een
+# blueprint-integratie wekte. De symbolen leven in tradebot.train.{reward,
+# schema_guard,stack,thompson} en worden daar geimporteerd waar ze echt nodig
+# zijn (zie train/ensemble.py).
 
 # Configureer de logger eenmalig
 logger = logging.getLogger("CatAgent_Binary_V4")
