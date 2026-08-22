@@ -1,0 +1,78 @@
+# params.yaml — DVC parameter shim for Hydra config tracking.
+#
+# This file is NOT the config source of truth — that is conf/conf_config.yaml.
+# Its sole purpose is to expose the Hydra keys that DVC should track for
+# cache-invalidation.  When a param changes, dvc repro re-runs the affected stages.
+#
+# Keep values in sync with conf/conf_config.yaml defaults.
+# Run `python -m scripts.sync_params` (future) to auto-generate from resolved cfg.
+
+# ── Symbols (drives foreach in dvc.yaml) ─────────────────────────────────────
+# CHIEF AUDIT 2026-05-25: BTC permanently excluded (negative-alpha confirmed,
+# memory project_portfolio_results.md → MTM-Sharpe=-0.73 historisch).  Training
+# universe = 5-asset prod set; keeps DVC and conf/env/prod.yaml in sync.
+symbols:
+  - ETHUSDT
+  - SOLUSDT
+  - AVAXUSDT
+  - LINKUSDT
+  - DOTUSDT
+
+symbol_side_pairs:
+  - symbol: ETHUSDT
+    side:   LONG
+  - symbol: ETHUSDT
+    side:   SHORT
+  - symbol: SOLUSDT
+    side:   LONG
+  - symbol: SOLUSDT
+    side:   SHORT
+  - symbol: AVAXUSDT
+    side:   LONG
+  - symbol: AVAXUSDT
+    side:   SHORT
+  - symbol: LINKUSDT
+    side:   LONG
+  - symbol: LINKUSDT
+    side:   SHORT
+  - symbol: DOTUSDT
+    side:   LONG
+  - symbol: DOTUSDT
+    side:   SHORT
+
+# ── Stage 1 params ────────────────────────────────────────────────────────────
+training:
+  cusum_threshold_multiplier: 1.0
+  label_horizon:              24
+  label_t_min:                5
+  label_min_tstat:            2.0
+
+  # Stage 2 (tune_hparams)
+  # 2026-05-25 bumped 100 → 200: needed for ETH LONG convergence after Optuna
+  # MT-penalty fix.  With pad-to-25 startup correction in tune/objective.py,
+  # 200 trials should reliably find min_conf without the early-trial bias.
+  optuna_trials:             200
+  optuna_timeout_seconds:    ~     # null = no timeout
+  cpcv_n_groups:               6
+  cpcv_n_test_groups:          2
+
+  # F3 — Hurst-meso live-parity mask: 30% probability of setting feat_hurst_meso=0
+  # during training so the model learns robustness to live state where the
+  # 175-day lookback isn't satisfied yet.
+  hurst_meso_mask_prob:        0.30
+
+  # Stage 3 (train_cpcv) — determinism seed
+  random_seed:               42
+
+  # Stage 4 (backtest_portfolio)
+  # P2-1: Aligned with conf/risk/default.yaml (max_gross_leverage: 1.5) and
+  # conf/strategy/balanced.yaml (max_leverage: 1.5).  Previous values
+  # (max_leverage: 2.0, max_portfolio_leverage: 2.5) were inconsistent with
+  # the live risk config and would let the backtest run at higher leverage
+  # than the live engine permits, inflating simulated Sharpe.
+  account_size:              100000.0
+  target_risk:                   0.01
+  max_leverage:                  1.5   # per-asset cap — matches risk/default.yaml
+  min_conf:                      0.55  # raised from 0.50 to match ExecutionControllerConfig default
+  max_portfolio_leverage:        2.0   # gross sum-of-|weights| cap
+  rebalance_cost_bps:            5.0   # Binance taker fee (was 0.0 — free-lunch bias)

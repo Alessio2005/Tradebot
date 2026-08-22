@@ -1,0 +1,193 @@
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PEP 621 project metadata — single source of truth.
+# Install editable: pip install -e .[dev]
+# ─────────────────────────────────────────────────────────────────────────────
+[project]
+name            = "tradebot"
+version         = "0.4.0"
+description     = "MFT crypto trading research stack — DAG-architectured CPCV/Optuna/Portfolio pipeline."
+readme          = "README.md"
+requires-python = ">=3.10"
+license         = { text = "Proprietary" }
+authors         = [{ name = "Tradebot Quant Team" }]
+
+# ---------------------------------------------------------------------------
+# HARDE afhankelijkheden. Zie docs/DEPENDENCY_CONTRACT.md.
+#
+# DOCTRINE (Phase 0, audit sectie 5.2 / 26-AC5): elke dependency hieronder is
+# HARD. Ontbreekt er een, dan crasht het platform bij import. Er bestaat geen
+# codepad waarin een ontbrekende dependency leidt tot een naievere benadering.
+# `try/except ImportError` is verboden in src/ en wordt door
+# scripts/audit_fallbacks.py --strict afgedwongen.
+# ---------------------------------------------------------------------------
+dependencies = [
+    # Core numerics
+    "numpy>=1.24,<2.0",
+    "pandas>=2.0,<3.0",
+    "scipy>=1.10",
+    "numba>=0.58",
+    # Econometrie - D-10: ontbraken, waardoor ADF-gate, FracDiff, GARCH en
+    # HMM-regimes stilzwijgend werden overgeslagen of vervangen door een EMA.
+    "statsmodels>=0.14",   # ADF/KPSS, min_frac_diff, Ljung-Box
+    "arch>=6.2",           # GARCH/EGARCH/GJR (L2, Phase 6)
+    "hmmlearn>=0.3",       # 3-state Gaussian HMM (L3) - GEEN EMA-fallback
+    # ML
+    "catboost>=1.2",
+    "scikit-learn>=1.3",
+    "optuna>=3.4",
+    # Data
+    "pyarrow>=14",
+    "joblib>=1.3",
+    "pandera[pandas]>=0.18",
+    "dvc>=3.30",           # data-lineage; verplicht vanaf Phase 1
+    # Config + orchestration
+    "hydra-core>=1.3",
+    "omegaconf>=2.3",
+    "pydantic>=2.6",       # config-contracten (Phase 0, deliverable 4)
+    "PyYAML>=6.0",
+    # Ingestion (verplicht vanaf Phase 1 - crypto ingestion is geen extra)
+    "requests>=2.31",
+    "aiohttp>=3.9",
+    # Utility
+    "python-dateutil>=2.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.1",
+    "hypothesis>=6.100",
+    "mypy>=1.7",
+    "ruff>=0.1.8",
+    "types-PyYAML",
+    "types-requests",
+]
+# ccxt is een OPTIONELE alternatieve venue-adapter. De Phase 1-ingestion
+# gebruikt de Bybit V5 REST API rechtstreeks via `requests` (hard dependency),
+# zodat er geen enkel ingestion-pad afhangt van een optionele package.
+ingestion = [
+    "ccxt>=4.1",
+]
+
+[project.scripts]
+tb-data-sync          = "apps.data_sync:main"
+tb-build-features     = "apps.build_features:main"
+tb-tune-hparams       = "apps.tune_hparams:main"
+tb-train-cpcv         = "apps.train_cpcv:main"
+tb-backtest-portfolio = "apps.backtest_portfolio:main"
+tb-make-tearsheet     = "apps.make_tearsheet:main"
+tb-monitor-drift      = "apps.monitor_drift:main"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Setuptools — src-layout (PEP 621 src-layout convention).
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where   = ["src"]
+include = ["tradebot*"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pytest
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion   = "7.4"
+testpaths    = ["tests", "tests/unit", "tests/integration", "tests/regression", "tests/property", "tests/lookahead", "tests/benchmark", "tests/killgates"]
+python_files = ["test_*.py"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "-q",
+]
+markers = [
+    "slow:       tests that take > 5s (skip in fast CI: -m 'not slow')",
+    "regression: bit-equivalence tests vs frozen baseline",
+    "property:   property-based invariant tests (parameterised)",
+    "lookahead:  lookahead / causality guard tests",
+    "benchmark:  performance benchmark tests",
+    "integration: end-to-end pipeline smoke tests",
+    "killgate:   pre-registered go/no-go gates for a unit or setup (docs/EXPANSION_RESEARCH_2026-08-10.md §3B)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:pandera.*",
+    "ignore::FutureWarning:pandas.*",
+    "ignore::UserWarning:numba.*",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ruff
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length    = 100
+target-version = "py310"
+src            = ["src", "apps", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "PL", "RUF"]
+ignore = [
+    "E501",     # line-length handled by formatter
+    "PLR0913",  # too-many-args intrinsic to legacy backtest signatures
+    "PLR0912",  # too-many-branches in objective.py — intentional
+    "PLR0915",  # too-many-statements idem
+    # ── Domain-appropriate suppressions (MFT crypto quant codebase) ──────────
+    "PLR2004",  # magic-value-comparison: 1/-1 LONG/SHORT, 0.5 prob thresholds are domain constants
+    "RUF001",   # ambiguous-unicode-string: Greek letters (α β σ τ) are standard quant notation
+    "RUF002",   # ambiguous-unicode-docstring: idem — intentional in mathematical docstrings
+    "RUF003",   # ambiguous-unicode-comment: idem — intentional in inline math comments
+    "PLC0415",  # import-outside-top-level: lazy imports for optional numba/scipy deps
+    "E702",     # multiple-statements-semicolon: compact dataclass init assignments
+    "E701",     # multiple-statements-colon: exception hierarchy one-liners are idiomatic
+    "B905",     # zip-without-strict: iterables intentionally may differ in length
+    "RUF022",   # unsorted-dunder-all: __all__ ordered by logical group, not alpha
+    "PLR0911",  # too-many-return-statements: samplers/dispatcher functions need many paths
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004", "E741"]  # magic numbers and single-letter vars OK in tests
+# OHLCV convention: h=high, l=low, o=open, c=close — l is ambiguous but universal
+"src/tradebot/bars/*.py"         = ["E741"]
+"src/tradebot/volatility/*.py"   = ["E741"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mypy — strict on schemas/utils/apps; relaxed on legacy ports.
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version       = "3.10"
+warn_unused_configs  = true
+warn_redundant_casts = true
+warn_unused_ignores  = true
+no_implicit_optional = true
+check_untyped_defs   = true
+
+[[tool.mypy.overrides]]
+module = ["tradebot.schemas.*", "tradebot.utils.arrays", "apps.*"]
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["catboost.*", "optuna.*", "joblib.*", "numba.*", "hydra.*", "ccxt.*", "pandera.*"]
+ignore_missing_imports = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Coverage
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["src/tradebot"]
+omit = ["*/tests/*", "*/__pycache__/*", "*/migrations/*"]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]

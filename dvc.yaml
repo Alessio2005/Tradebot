@@ -1,0 +1,175 @@
+# dvc.yaml — Tradebot DAG Pipeline
+#
+# Four stages: build_features → tune_hparams → train_cpcv → backtest_portfolio
+#
+# Usage:
+#   dvc repro                          # full rebuild (only stale stages)
+#   dvc repro build_features[BTCUSDT]  # single symbol
+#   dvc repro -P                       # CI subset (set params.yaml ci_mode: true)
+#
+# Reproducibility guarantee:
+#   Same code + same config + same data → same artefacts.
+#   DVC hashes inputs/code/params. Cached outputs are reused.
+#   Use `dvc push` + `dvc pull` for team artefact sharing.
+#
+# REFACTOR_BLUEPRINT §3.4: DVC + Hydra integration.
+#   params.yaml is a thin shim exposing Hydra config keys for DVC tracking.
+#   Hydra remains the config ground-truth; DVC triggers re-run on hash change.
+
+vars:
+  - params.yaml
+
+stages:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # STAGE 0: Sync high-resolution aggTrade data from Binance Vision
+  # Output: market_data_parquet/{symbol}/{year}/{symbol}_YYYY-MM.parquet
+  # ────────────────────────────────────────────────────────────────────────────
+  data_sync:
+    foreach: ${symbols}
+    do:
+      cmd: python -m apps.data_sync sync_symbol=${item}
+      deps:
+        - apps/data_sync.py
+        - conf/data_sync.yaml
+      outs:
+        - market_data_parquet/${item}/
+
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # STAGE 1: Raw data → Bars → Features → Events
+  # Per-symbol, embarrassingly parallel.
+  # ────────────────────────────────────────────────────────────────────────────
+  build_features:
+    foreach: ${symbols}
+    do:
+      cmd: python -m apps.build_features symbol=${item}
+      deps:
+        - apps/build_features.py
+        - src/tradebot/data/ingestion.py
+        - src/tradebot/data/macro.py
+        - src/tradebot/features/pipeline.py
+        - src/tradebot/labeling/cusum.py
+        - src/tradebot/schemas/bars.py
+        - src/tradebot/schemas/features.py
+        - src/tradebot/schemas/events.py
+        - conf/conf_config.yaml
+        - conf/symbols/${item}.yaml
+      params:
+        - params.yaml:
+          - training.cusum_threshold_multiplier
+          - training.label_horizon
+      outs:
+        - artefacts/bars/${item}.parquet
+        - artefacts/features/${item}.parquet
+        - artefacts/events/${item}.parquet
+        - artefacts/feature_map_${item}.json
+        - artefacts/orthogonalizers/
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # STAGE 2: Features + Events → Optuna best hyperparameters
+  # Per (symbol × side) pair. Resumeable via SQLite study.
+  # ────────────────────────────────────────────────────────────────────────────
+  tune_hparams:
+    foreach: ${symbol_side_pairs}
+    do:
+      cmd: python -m apps.tune_hparams pair=${item}
+      deps:
+        - apps/tune_hparams.py
+        - src/tradebot/tune/objective.py
+        - src/tradebot/tune/search_space.py
+        - src/tradebot/tune/pruning.py
+        - src/tradebot/cv/cpcv.py
+        - src/tradebot/cv/uniqueness.py
+        - src/tradebot/labeling/triple_barrier.py
+        # Stage 1 outputs
+        - artefacts/features/${item.symbol}.parquet
+        - artefacts/events/${item.symbol}.parquet
+      params:
+        - params.yaml:
+          - training.optuna_trials
+          - training.optuna_timeout_seconds
+          - training.cpcv_n_groups
+          - training.cpcv_n_test_groups
+      outs:
+        - artefacts/hparams/${item}_study.db
+      metrics:
+        - artefacts/hparams/${item}_best_score.json:
+            cache: false
+      # best_params JSON is a metric-like artefact we always want to track.
+      # Written by the entrypoint alongside the study db.
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # STAGE 3: Best params → CPCV ensemble + Platt calibration
+  # Per (symbol × side). Deterministic given seed.
+  # ────────────────────────────────────────────────────────────────────────────
+  train_cpcv:
+    foreach: ${symbol_side_pairs}
+    do:
+      cmd: python -m apps.train_cpcv pair=${item}
+      deps:
+        - apps/train_cpcv.py
+        - src/tradebot/cv/cpcv.py
+        - src/tradebot/cv/uniqueness.py
+        - src/tradebot/labeling/trend_scanning.py
+        - src/tradebot/features/blocks.py
+        # Stage 1 + 2 outputs
+        - artefacts/features/${item.symbol}.parquet
+        - artefacts/events/${item.symbol}.parquet
+        - artefacts/hparams/${item}.json
+      params:
+        - params.yaml:
+          - training.label_t_min
+          - training.label_horizon
+          - training.cpcv_n_groups
+          - training.cpcv_n_test_groups
+      outs:
+        - artefacts/models/${item}_ensemble.joblib
+        - artefacts/calibrators/${item}_platt.joblib
+        - artefacts/oos_probs/${item}.parquet
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # STAGE 4: OOS probs + asset features → per-asset tracks → portfolio
+  # Single run across all symbols. Fast: no training, vector-ops only.
+  # ────────────────────────────────────────────────────────────────────────────
+  backtest_portfolio:
+    cmd: python -m apps.backtest_portfolio
+    deps:
+      - apps/backtest_portfolio.py
+      - src/tradebot/backtest/per_side.py
+      - src/tradebot/backtest/bidirectional.py
+      - src/tradebot/backtest/_kernels.py
+      - src/tradebot/data/funding.py
+      # Stage 3 outputs (all symbols + sides)
+      - artefacts/oos_probs/
+      - artefacts/models/
+      - artefacts/features/
+    params:
+      - params.yaml:
+        - training.account_size
+        - training.target_risk
+        - training.max_leverage
+        - training.min_conf
+    outs:
+      - artefacts/tracks/
+      - artefacts/portfolio/result.joblib
+      - artefacts/portfolio/equity_curve.parquet
+    metrics:
+      - reports/portfolio_metrics.json:
+          cache: false
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # STAGE 4.5: Generate tearsheet from portfolio result
+  # ────────────────────────────────────────────────────────────────────────────
+  make_tearsheet:
+    cmd: python -m apps.make_tearsheet
+    deps:
+      - apps/make_tearsheet.py
+      - src/tradebot/reporting/
+      - artefacts/portfolio/result.joblib
+    outs:
+      - reports/tearsheets/
+    metrics:
+      - reports/tearsheets/default_tearsheet.json:
+          cache: false
+
