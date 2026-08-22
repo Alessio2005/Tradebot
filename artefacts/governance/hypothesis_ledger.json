@@ -1,0 +1,139 @@
+{
+  "seed_total": 2363,
+  "seed_note": "Itemised reconstruction quoted verbatim from docs/WAVE_LOG.md W20 §0.1: 2000 (audit §10/§11) + W14:204 + W15:21 + W16:8 + W17:49 + W18:1 + W19:80 = 2363. Conservative floor.",
+  "reconstructed_utc": "2026-08-10",
+  "reconstruction_note": "Rebuilt in Wave 28 step 0.1 after the canonical file was lost. Source of truth: docs/WAVE_LOG.md. Arithmetic reconciles to the independently stated W26 total of 2702; W27 (+4) is merged from its staging file afterwards -> 2706.",
+  "entries": [
+    {
+      "wave": 20,
+      "unit": "w20_rebaseline_plus_4_crypto_units",
+      "market": "book",
+      "config_hash": "25559926a800ac31",
+      "n_trials": 5,
+      "result": "accepted",
+      "ts_utc": "2026-08-10T14:02:53.771553+00:00",
+      "metrics": {},
+      "notes": "RECONSTRUCTED (config hashes lost with the original ledger file; trial count exact). WAVE_LOG line 143: rebaseline entry + 4 accepted crypto units (ML-XS, LOWVOL, REVERSAL-k10, CARRY); 2363->2368."
+    },
+    {
+      "wave": 22,
+      "unit": "w22_run1_void",
+      "market": "equities",
+      "config_hash": "d348b401de8fbb5b",
+      "n_trials": 3,
+      "result": "archived",
+      "ts_utc": "2026-08-10T14:02:53.771666+00:00",
+      "metrics": {},
+      "notes": "RECONSTRUCTED (config hashes lost with the original ledger file; trial count exact). WAVE_LOG line 202: run 1 void (data artifact); +3 archived -> 2371."
+    },
+    {
+      "wave": 22,
+      "unit": "w22_run3_eq_units",
+      "market": "equities",
+      "config_hash": "fb7a48edfdb18d27",
+      "n_trials": 3,
+      "result": "interim",
+      "ts_utc": "2026-08-10T14:02:53.771704+00:00",
+      "metrics": {},
+      "notes": "RECONSTRUCTED (config hashes lost with the original ledger file; trial count exact). WAVE_LOG line 227: run-3 evals of eq_xsmom/eq_lowvol/eq_strev -> 2374."
+    },
+    {
+      "wave": 23,
+      "unit": "w23c_eq_overnight",
+      "market": "equities",
+      "config_hash": "104b4885a73a57ff",
+      "n_trials": 4,
+      "result": "archived",
+      "ts_utc": "2026-08-10T14:02:53.771734+00:00",
+      "metrics": {},
+      "notes": "RECONSTRUCTED (config hashes lost with the original ledger file; trial count exact). WAVE_LOG line 242: W23c merge -> 2378. Closed as F15."
+    },
+    {
+      "wave": 24,
+      "unit": "w23ab_w24_eq_units",
+      "market": "equities",
+      "config_hash": "900d81be687168ab",
+      "n_trials": 3,
+      "result": "archived",
+      "ts_utc": "2026-08-10T14:02:53.771762+00:00",
+      "metrics": {},
+      "notes": "RECONSTRUCTED (config hashes lost with the original ledger file; trial count exact). WAVE_LOG line 276: W23a PEAD / W23b quality / W24 resid-strev -> 2381. Closed as F16/F17/F18."
+    },
+    {
+      "wave": 26,
+      "unit": "w26_crypto_clock_seasonality",
+      "market": "crypto",
+      "config_hash": "35b4b29d2e77f9d6",
+      "n_trials": 321,
+      "result": "falsified",
+      "ts_utc": "2026-08-10T14:02:53.771787+00:00",
+      "metrics": {},
+      "notes": "RECONSTRUCTED (config hashes lost with the original ledger file; trial count exact). WAVE_LOG line 366: 24 HOD + 7 DOW + 2 funding + 288 window scan = 321 -> 2702. Closed as F19."
+    },
+    {
+      "wave": 27,
+      "unit": "cm_tsmom_xasset",
+      "market": "commodities",
+      "config_hash": "55383e0e422a3332",
+      "n_trials": 4,
+      "result": "archived",
+      "ts_utc": "2026-08-10T13:33:33.258927+00:00",
+      "metrics": {
+        "net_sharpe": 0.487,
+        "gross_sharpe": 0.543,
+        "net_cagr": 0.02,
+        "ann_vol": 0.042,
+        "max_drawdown": -0.114,
+        "calmar": 0.173,
+        "dd_over_vol": 2.717,
+        "years_positive_frac": 0.739,
+        "oos_sharpe": 0.675,
+        "is_sharpe": 0.395,
+        "bootstrap_p_pos": 0.993,
+        "rho_vs_crypto_book": 0.006,
+        "g4_t_nominal": 2.33,
+        "g4_t_passive": 2.26,
+        "g4_t_strict": 1.75,
+        "n_eff": 5.19
+      },
+      "notes": "MOP2012 cross-asset TSMOM on roll-inclusive ETF proxy panel (26 instr, 2004-2026). Archived: KG-B1 dd-shape (calmar 0.17<0.25, dd/vol 2.72>2.5) + G4-strict (t=1.75<2.0). 4 trials = 1 unit config + 3 nested G4 specs."
+    },
+    {
+      "wave": 28,
+      "unit": "w28_gate_rederivation",
+      "market": "book",
+      "config_hash": "b989c727a4dc3222",
+      "n_trials": 1,
+      "result": "interim",
+      "ts_utc": "2026-08-10T14:28:47.279676+00:00",
+      "metrics": {},
+      "notes": "Governance, not a strategy test: KG-B1 drawdown-shape criterion re-derived after the stationary-vs-maximum drawdown error. Counted conservatively as 1 trial because a gate choice is a researcher degree of freedom."
+    },
+    {
+      "wave": 28,
+      "unit": "cm_carry_energy",
+      "market": "commodities",
+      "config_hash": "990db7f2329eabae",
+      "n_trials": 4,
+      "result": "falsified",
+      "ts_utc": "2026-08-10T14:47:09.054456+00:00",
+      "metrics": {
+        "net_sharpe": 0.0999,
+        "gross_sharpe": 0.1484,
+        "net_cagr": -0.0065,
+        "ann_vol": 0.2515,
+        "max_drawdown": 0.807,
+        "dd_over_vol": 3.209,
+        "years_positive_frac": 0.4516,
+        "is_sharpe": 0.4543,
+        "oos_sharpe": -0.2784,
+        "sharpe_decay": 1.613,
+        "bootstrap_p_positive": 0.723,
+        "g4_t_strict": -0.91,
+        "g4_alpha_strict": -0.0456,
+        "n_eff": 1.54
+      },
+      "notes": "F20. Energy term-structure carry on the EIA archive, 1994-2024 n=7585. 8/9 gates red; IS +0.454 -> OOS -0.278. 4 trials = 1 unit config + 3 nested G4 specs."
+    }
+  ]
+}

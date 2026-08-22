@@ -1,0 +1,12 @@
+# conf/strategy/balanced.yaml — target_risk=0.008, max_lev=1.5
+# @package _global_
+risk:
+  target_risk: 0.008
+  max_leverage: 1.5
+  kelly_divisor: 4
+  max_kelly_fraction: 0.25
+
+portfolio:
+  method: hrp
+  max_weight: 0.25
+  returns_window: 120

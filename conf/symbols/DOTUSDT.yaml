@@ -1,0 +1,92 @@
+# conf/symbols/DOTUSDT.yaml
+# Per-asset overrides for DOTUSDT (Polkadot).
+#
+# Vol-profiel: ~80-95% annualized — vergelijkbaar met SOL. Parachain-auction-
+# cycli (6-wekelijks) creëren idiosyncratische CUSUM-events die niet aanwezig
+# zijn in BTC/ETH/SOL. Vult de interoperability-sector in de portfolio die
+# momenteel ontbreekt. ρ(BTC)≈0.68 — goede diversificatie-bijdrage.
+asset_class: crypto
+binance_symbol: DOTUSDT
+
+# CUSUM event-filter — vol-profiel gelijk aan SOL; parachain-governance en
+# auction-events zorgen voor structurele breakouts op het juiste niveau.
+# Targets ~5-8 events/dag op 1h bars (gelijk aan SOL).
+cusum_threshold_multiplier: 2.0
+
+# Label-horizon: 18 bars — vergelijkbaar met SOL. Parachain-auction-momentum
+# is kort maar scherp; governance-votes hebben ~15-20 bar follow-through.
+label_horizon: 18
+label_t_min: 4
+label_t_max: 18
+label_min_tstat: 2.1
+label_pt_width: 2.0
+label_sl_width: 1.0
+label_candidate_horizons: [10, 15, 22]
+
+# Spread: DOT orderboek iets dunner dan SOL op Binance perp.
+# Empirische Binance-perp 2023-2025 round-trip ≈ 10-14bp → conservatief 12bp.
+spread: 0.0012                  # round-trip 12bp
+half_spread: 0.0005             # voor PrimaryScout.from_config (5bp one-way)
+
+# Sample-weight time-decay: 120 dagen.
+# Parachain-auction-cycli (~6 weken per batch) creëren regime-shifts die sneller
+# zijn dan ETH (180d) maar vergelijkbaar met AVAX (120d).
+sample_weight_decay_days: 120
+
+# Gap-risk ATR-multiple: 2.0
+# Parachain-governance-aanvallen, auction-lock-ups, en relay-chain-issues kunnen
+# scherpe gap-downs veroorzaken. Gelijk aan AVAX; minder catastrofaal dan SOL-
+# validator-outages (2.5) maar hoger dan ETH (1.5).
+gap_atr_multiple: 2.0
+
+# Spearman dedup threshold: 0.18
+# DOT-features zijn idiosyncratisch (parachain-bond-metrics, governance-activity)
+# maar minder extreem dan SOL/AVAX → iets conservatiever.
+spearman_cluster_threshold: 0.18
+
+# CPCV bar-space purging: t_max=18 → purge_bars=19
+cpcv_purge_bars: 19
+
+# Bandit adaptatiesnelheid — iets sneller dan AVAX; parachain-auction-resultaten
+# creëren abruptere regime-transities.
+bandit_gamma_max: 0.992
+
+# Leverage caps — conservatief gelijk aan AVAX/LINK door governance/auction-risico.
+max_leverage: 1.5
+max_portfolio_leverage: 1.5
+max_portfolio_leverage_bidir: 3.0
+
+# Optuna trial-budget
+optuna_trials: 200
+
+# Adaptive SL-barrier (wick-gebaseerd): 0.30
+# Parachain-governance-aanvallen en relay-chain-issues rechtvaardigen een
+# wick-gebaseerde SL-verbreding; gelijk aan AVAX (0.30).
+sl_jump_max_mult: 0.3
+
+# Asset-niveau drawdown circuit-breaker: 15%
+# DOT fat-tail events (governance-aanval, auction-mislukt) rechtvaardigen vroege
+# positie-reductie; gelijk aan SOL/AVAX profiel.
+dd_breaker_threshold: 0.15
+
+# =============================================================================
+# SHORT-MODEL VERBETERING (Agent C — 2026-05-22)
+# Root cause: DOTUSDT_SHORT had slechts 78 trades over 4.78 jaar (~1.4/mnd).
+# Oorzaken identiek aan AVAXUSDT: CUSUM te strict, barriers niet SHORT-afgestemd.
+# DOT heeft parachain-auction cycli (6-wekelijks) die scherpe DOWN-impulsen
+# veroorzaken die door cusum_threshold_multiplier=2.0 te snel worden gefilterd.
+# =============================================================================
+
+# SHORT-specifieke CUSUM drempel
+# DOT parachain-auction correcties zijn structureel en directioneel.
+# Lagere drempel vangt deze cyclische bear-moves eerder.
+cusum_threshold_multiplier_short: 1.5
+
+# SHORT-specifieke label barriers
+# DOT bear-moves zijn scherp maar niet langdurig (auction-gedreven, ~5-10 bars).
+# Kleiner PT past bij de kortere downward momentum van parachain-corrections.
+label_pt_width_short: 1.5    # vs 2.0 voor LONG
+label_sl_width_short: 0.8    # tight SL voor cleanere negatieve DOT-SHORT labels
+
+# SHORT min_conf override
+min_conf_short_max: 0.42

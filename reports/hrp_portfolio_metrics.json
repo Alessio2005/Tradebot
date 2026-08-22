@@ -1,0 +1,31 @@
+{
+  "config": {
+    "target_annual_vol": 0.25,
+    "max_gross_leverage": 6.0,
+    "kelly_fraction": 0.4,
+    "dd_breaker_threshold": 0.3,
+    "hrp_lookback_bars": 2000
+  },
+  "sharpe": 4.3133901470916,
+  "calmar": 5.618919461682095,
+  "max_drawdown": 0.08134632521525509,
+  "total_return": 2.160778188253704,
+  "deflated_sharpe": 4.294825343747814,
+  "avg_gross_leverage": 0.007511376104438918,
+  "avg_net_leverage": -0.0002982996402959665,
+  "realized_vol": 0.15221944374902177,
+  "n_dd_breaker_bars": 0,
+  "n_bars": 107122,
+  "total_rebalance_cost": 0.7409267125328967,
+  "total_funding_cost": -0.001053339462123409,
+  "per_asset_contribution": {
+    "BTCUSDT": 0.814538018297279,
+    "ETHUSDT": 0.7137780484929609,
+    "SOLUSDT": 0.37425566279900413
+  },
+  "n_trades": {
+    "BTCUSDT": 794,
+    "ETHUSDT": 474,
+    "SOLUSDT": 904
+  }
+}

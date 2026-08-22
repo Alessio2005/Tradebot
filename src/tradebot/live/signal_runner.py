@@ -1,0 +1,311 @@
+# src/tradebot/live/signal_runner.py
+"""Load models and run predict() per bar-close event.
+
+Combines outputs from all registered AlphaSignals using the
+ICWeightedCombiner to produce a single combined signal per symbol.
+"""
+from __future__ import annotations
+
+import logging
+from typing import Dict, List, Optional
+
+import pandas as pd
+
+from ..alpha.base import AlphaSignal, SignalResult
+from ..alpha.combination import ICWeightedCombiner
+
+logger = logging.getLogger(__name__)
+
+__all__ = ["SignalRunnerConfig", "SignalRunner"]
+
+
+class SignalRunnerConfig:
+    """Configuration for the signal runner.
+
+    Parameters
+    ----------
+    min_confidence :
+        Signals with confidence < this value are suppressed (R-9 §9).
+    use_combiner :
+        If True, combine signals with ICWeightedCombiner before returning.
+        When both a LONG (signal>0) and SHORT (signal<0) result pass the
+        confidence gate, the combiner is NOT used — the signals would just
+        cancel to 0 (FLAT).  Instead, direction disambiguation fires:
+        return the higher-confidence direction if the conviction delta
+        exceeds ``min_direction_delta``, else return None (ambiguous, FLAT).
+        ICWeightedCombiner is only applied when all raw_results point the
+        same direction (i.e. multiple independent alphas for one side).
+    ic_lookback :
+        IC estimation lookback window (bars) for the combiner.
+    min_direction_delta :
+        Minimum absolute confidence difference between the best LONG and
+        best SHORT signal to elect a winner.  If
+        |conf_LONG - conf_SHORT| < min_direction_delta the bar is treated
+        as FLAT (no signal returned).  Default 0.02 (2 pp).
+    """
+
+    def __init__(
+        self,
+        min_confidence: float = 0.55,
+        use_combiner: bool = True,
+        ic_lookback: int = 60,
+        min_direction_delta: float = 0.02,
+    ) -> None:
+        self.min_confidence = min_confidence
+        self.use_combiner = use_combiner
+        self.ic_lookback = ic_lookback
+        self.min_direction_delta = min_direction_delta
+
+
+class SignalRunner:
+    """Runs all registered AlphaSignals and returns a combined prediction.
+
+    Parameters
+    ----------
+    signals :
+        List of AlphaSignal implementations.
+    config :
+        Runner configuration.
+    """
+
+    def __init__(
+        self,
+        signals: List[AlphaSignal],
+        config: Optional[SignalRunnerConfig] = None,
+    ) -> None:
+        self._signals = signals
+        self._cfg = config or SignalRunnerConfig()
+        self._combiner: Optional[ICWeightedCombiner] = None  # lazy init on first predict
+        # Rolling history for IC computation: signal_id → list of signal values
+        self._signal_history: Dict[str, List[float]] = {}
+        self._return_history: List[float] = []
+
+    # ------------------------------------------------------------------
+    # Per-bar predict
+    # ------------------------------------------------------------------
+
+    def predict(
+        self,
+        symbol: str,
+        features: pd.DataFrame,
+        fwd_return: Optional[float] = None,
+        bar_ts: Optional[pd.Timestamp] = None,
+    ) -> Optional[SignalResult]:
+        """Run all signals on ``features`` and return a combined SignalResult.
+
+        Parameters
+        ----------
+        symbol :
+            Trading pair.
+        features :
+            Feature DataFrame ending at bar t (last row = current bar).
+        fwd_return :
+            Realised forward return for updating IC estimates (None at bar t).
+
+        Returns
+        -------
+        Combined SignalResult, or None if no signal passes the confidence gate.
+        """
+        raw_results: List[SignalResult] = []
+        for sig in self._signals:
+            # Only run signals that are configured for this symbol.
+            # Without this guard every bar (e.g. ETHUSDT) would step the CUSUM
+            # accumulator and EMA-200 of SOLUSDT/AVAXUSDT/... with ETH close
+            # prices, corrupting their internal state permanently.
+            sig_symbol = getattr(getattr(sig, "_cfg", None), "symbol", symbol)
+            if sig_symbol != symbol:
+                continue
+            try:
+                # P1-5: forward bar_ts so SignalResult.timestamp = bar close,
+                # not wall-clock.  Compatible with signals that ignore it.
+                try:
+                    result = sig.predict(features, bar_ts=bar_ts)
+                except TypeError:
+                    result = sig.predict(features)
+                if result.confidence >= self._cfg.min_confidence:
+                    raw_results.append(result)
+            except Exception as exc:
+                logger.warning("SignalRunner: %s.predict() failed: %s", sig.signal_id, exc)
+
+        if not raw_results:
+            return None
+
+        if not self._cfg.use_combiner or len(raw_results) == 1:
+            return raw_results[0]
+
+        # ── Direction disambiguation ──────────────────────────────────────────
+        # When LONG (signal>0) and SHORT (signal<0) results are both present,
+        # running ICWeightedCombiner would average them to ~0 (FLAT) — which is
+        # mathematically correct but useless: it suppresses all trades whenever
+        # two opposing-direction signals fire simultaneously (e.g. Platt-
+        # calibrator OOD bias where both sides output ~0.72 cal_prob).
+        #
+        # Fix: pick the higher-confidence direction if the conviction delta
+        # (|conf_LONG - conf_SHORT|) exceeds min_direction_delta; otherwise
+        # return None (genuinely ambiguous bar → FLAT, no position change).
+        # ICWeightedCombiner is ONLY applied when all raw_results agree on
+        # direction (multiple independent alpha sources for the same side).
+        longs = [r for r in raw_results if r.signal > 0]
+        shorts = [r for r in raw_results if r.signal < 0]
+        if longs and shorts:
+            best_long = max(longs, key=lambda r: r.confidence)
+            best_short = max(shorts, key=lambda r: r.confidence)
+            delta = abs(best_long.confidence - best_short.confidence)
+            if delta < self._cfg.min_direction_delta:
+                logger.debug(
+                    "SignalRunner [%s] predict: direction ambiguous "
+                    "(delta=%.4f < threshold=%.4f) → FLAT",
+                    symbol, delta, self._cfg.min_direction_delta,
+                )
+                return None
+            winner = (
+                best_long if best_long.confidence >= best_short.confidence else best_short
+            )
+            logger.debug(
+                "SignalRunner [%s] predict: direction=%s delta=%.4f",
+                symbol, "LONG" if winner.signal > 0 else "SHORT", delta,
+            )
+            return winner
+
+        # All signals agree on direction — safe to combine with ICWeightedCombiner.
+        # Lazy-init combiner with discovered signal IDs
+        signal_ids = [r.signal_id for r in raw_results]
+        if self._combiner is None or self._combiner.signal_names != signal_ids:
+            self._combiner = ICWeightedCombiner(signal_names=signal_ids)
+
+        # Build a one-row signals DataFrame for the combiner
+        signal_values = {r.signal_id: r.signal for r in raw_results}
+        signals_df = pd.DataFrame([signal_values])
+
+        # Update combiner with forward return if available
+        if fwd_return is not None and len(self._return_history) >= 1:
+            try:
+                hist_df = pd.DataFrame(self._signal_history)
+                if not hist_df.empty and len(hist_df) >= 5:
+                    returns_s = pd.Series(self._return_history)
+                    self._combiner.fit(
+                        hist_df.iloc[-self._cfg.ic_lookback:],
+                        returns_s.iloc[-self._cfg.ic_lookback:],
+                        lookback=self._cfg.ic_lookback,
+                    )
+            except Exception as exc:
+                logger.debug("SignalRunner: combiner.fit() failed: %s", exc)
+
+        # Accumulate history
+        for sid, val in signal_values.items():
+            if sid not in self._signal_history:
+                self._signal_history[sid] = []
+            self._signal_history[sid].append(val)
+        if fwd_return is not None:
+            self._return_history.append(fwd_return)
+
+        try:
+            combined_series = self._combiner.predict(signals_df)  # type: ignore[union-attr]
+            combined_val = float(combined_series.iloc[0])
+        except Exception as exc:
+            logger.warning("SignalRunner: combiner.predict() failed: %s — using mean.", exc)
+            combined_val = sum(r.signal for r in raw_results) / len(raw_results)
+
+        # Use the highest-confidence individual result as metadata template
+        best = max(raw_results, key=lambda r: r.confidence)
+        return SignalResult(
+            symbol=best.symbol,
+            timestamp=best.timestamp,
+            signal=combined_val,
+            confidence=best.confidence,
+            horizon_bars=best.horizon_bars,
+            signal_id=f"{symbol}_combined",
+        )
+
+    # ------------------------------------------------------------------
+    # AFML event-driven prediction (CUSUM already fired externally)
+    # ------------------------------------------------------------------
+
+    def predict_on_event(
+        self,
+        symbol: str,
+        features: pd.DataFrame,
+        bar_ts: Optional[pd.Timestamp] = None,
+    ) -> Optional[SignalResult]:
+        """Run all signals for ``symbol`` using predict_on_event().
+
+        Called by the engine after CUSUMFilter fires and FeaturePipeline has
+        computed FRESH features.  Delegates to ModelSignal.predict_on_event()
+        which skips the internal CUSUM step (already fired externally).
+
+        Returns the first non-zero SignalResult, or None.
+        """
+        raw_results: list[SignalResult] = []
+        for sig in self._signals:
+            sig_symbol = getattr(getattr(sig, "_cfg", None), "symbol", symbol)
+            if sig_symbol != symbol:
+                continue
+            predict_fn = getattr(sig, "predict_on_event", None)
+            if predict_fn is None:
+                # Fallback for signals that don't implement predict_on_event
+                predict_fn = sig.predict
+            try:
+                # P1-5: forward bar timestamp; tolerate older signal signatures.
+                try:
+                    result = predict_fn(features, bar_ts=bar_ts)
+                except TypeError:
+                    result = predict_fn(features)
+                if result is not None and result.confidence >= self._cfg.min_confidence:
+                    raw_results.append(result)
+            except Exception as exc:
+                logger.warning(
+                    "SignalRunner: %s.predict_on_event() failed: %s",
+                    getattr(sig, "signal_id", "?"), exc,
+                )
+
+        if not raw_results:
+            return None
+
+        if not self._cfg.use_combiner or len(raw_results) == 1:
+            return raw_results[0]
+
+        # ── Direction disambiguation (same logic as predict()) ────────────────
+        longs = [r for r in raw_results if r.signal > 0]
+        shorts = [r for r in raw_results if r.signal < 0]
+        if longs and shorts:
+            best_long = max(longs, key=lambda r: r.confidence)
+            best_short = max(shorts, key=lambda r: r.confidence)
+            delta = abs(best_long.confidence - best_short.confidence)
+            if delta < self._cfg.min_direction_delta:
+                logger.debug(
+                    "SignalRunner [%s] predict_on_event: direction ambiguous "
+                    "(delta=%.4f < threshold=%.4f) → FLAT",
+                    symbol, delta, self._cfg.min_direction_delta,
+                )
+                return None
+            winner = (
+                best_long if best_long.confidence >= best_short.confidence else best_short
+            )
+            logger.info(
+                "SignalRunner [%s] predict_on_event: direction=%s delta=%.4f conf=%.4f",
+                symbol, "LONG" if winner.signal > 0 else "SHORT", delta, winner.confidence,
+            )
+            return winner
+
+        # All signals agree on direction — safe to combine.
+        # Same combiner path as predict()
+        signal_ids = [r.signal_id for r in raw_results]
+        if self._combiner is None or self._combiner.signal_names != signal_ids:
+            self._combiner = ICWeightedCombiner(signal_names=signal_ids)
+
+        signal_values = {r.signal_id: r.signal for r in raw_results}
+        signals_df = pd.DataFrame([signal_values])
+        try:
+            combined_val = float(self._combiner.predict(signals_df).iloc[0])  # type: ignore[union-attr]
+        except Exception:
+            combined_val = sum(r.signal for r in raw_results) / len(raw_results)
+
+        best = max(raw_results, key=lambda r: r.confidence)
+        return SignalResult(
+            symbol=best.symbol,
+            timestamp=best.timestamp,
+            signal=combined_val,
+            confidence=best.confidence,
+            horizon_bars=best.horizon_bars,
+            signal_id=f"{symbol}_combined",
+        )

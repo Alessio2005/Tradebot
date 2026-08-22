@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main", "develop"]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint:
+    name: Lint (ruff + mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dev deps
+        run: pip install -e ".[dev]" --no-cache-dir
+      - name: Ruff
+        run: ruff check src/ apps/ tests/
+      - name: Mypy
+        run: mypy src/tradebot/schemas/ src/tradebot/utils/ apps/ --ignore-missing-imports
+
+  loc-guard:
+    name: LOC Guard (800-line limit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check no file > 800 LOC
+        # Whitelist: tightly-coupled algorithm files (# LOC-EXCEPTION in each header)
+        run: |
+          LOC_WHITELIST="train/ensemble.py labeling/meta.py risk/portfolio.py tune/objective.py risk/portfolio.py tune/objective.py"
+          find src/ -name "*.py" | while read f; do
+            lines=$(wc -l < "$f")
+            basename=$(echo "$f" | sed 's|src/tradebot/||')
+            exempt=0
+            for w in $LOC_WHITELIST; do [ "$basename" = "$w" ] && exempt=1 && break; done
+            if [ "$lines" -gt 800 ] && [ "$exempt" -eq 0 ]; then
+              echo "FAIL: $f has $lines lines (> 800 limit)"
+              exit 1
+            fi
+          done
+
+  test-fast:
+    name: Fast tests (not slow, not regression)
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install deps
+        run: pip install -e ".[dev]" --no-cache-dir
+      - name: Run fast tests
+        run: pytest -m "not slow and not regression" --cov=src/tradebot --cov-report=xml -q
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: coverage.xml
+          fail_ci_if_error: false

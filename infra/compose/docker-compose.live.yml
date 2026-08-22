@@ -1,0 +1,110 @@
+# =============================================================================
+# docker-compose.live.yml — production live-trade stack
+# Brings up: live engine + Prometheus + Grafana + audit-log forwarder.
+# Designed for single-host deployment (small market maker / paper test).
+# For K8s, see infra/k8s/.
+# Start: `docker compose -f infra/compose/docker-compose.live.yml up -d`
+# =============================================================================
+version: "3.9"
+
+services:
+  # --------------------------------------------------------------------------
+  # Live engine — asyncio event loop
+  # --------------------------------------------------------------------------
+  live_engine:
+    container_name: tradebot-live
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.live
+    image: tradebot/live:1.0.0
+    restart: unless-stopped
+    environment:
+      - PYTHONPATH=/opt/tradebot/src:/opt/tradebot
+      - TRADEBOT_LIVE_STATE_DIR=/opt/tradebot/state
+      - BINANCE_API_KEY=${BINANCE_API_KEY:-}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET:-}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - TZ=UTC
+    volumes:
+      - ./state:/opt/tradebot/state:rw
+      - ../../artefacts:/opt/tradebot/artefacts:ro
+      - ../../conf:/opt/tradebot/conf:ro
+    command:
+      - python
+      - -m
+      - apps.live_trader
+      - env=prod
+      - strategy=balanced
+      - risk=default
+      - live.mode=paper
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "1.0"
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "python", "-m", "apps.doctor"]
+      interval: 30s
+      timeout: 15s
+      retries: 4
+      start_period: 60s
+    networks: [tradebot_live]
+
+  # --------------------------------------------------------------------------
+  # Prometheus — scrape engine metrics endpoint (`/metrics` on engine HTTP)
+  # --------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: tradebot-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+    ports: ["9090:9090"]
+    depends_on: [live_engine]
+    networks: [tradebot_live]
+
+  # --------------------------------------------------------------------------
+  # Grafana — dashboard for live PnL, latency, circuit-breaker state
+  # --------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: tradebot-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-tradebot}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+    networks: [tradebot_live]
+
+  # --------------------------------------------------------------------------
+  # Audit-log forwarder — tail JSONL, ship to log sink (Loki / S3 / etc.)
+  # In dev: just print. Replace command in prod.
+  # --------------------------------------------------------------------------
+  audit_forwarder:
+    image: alpine:3.19
+    container_name: tradebot-audit-forwarder
+    restart: unless-stopped
+    volumes:
+      - ./state:/state:ro
+    command: ["sh", "-c", "tail -F /state/audit_log.jsonl /state/circuit_log.jsonl"]
+    depends_on: [live_engine]
+    networks: [tradebot_live]
+
+volumes:
+  prom_data:
+  grafana_data:
+
+networks:
+  tradebot_live:
+    driver: bridge

@@ -1,0 +1,18 @@
+{
+  "sharpe": 2.761981201153199,
+  "calmar": 1.725971563749241,
+  "max_drawdown": 0.1491398704980026,
+  "total_return": 2.121269445302495,
+  "deflated_sharpe": 2.7370136304696917,
+  "avg_gross_leverage": 0.04385902704907632,
+  "realized_vol": 0.12524163183790943,
+  "n_dd_breaker_bars": 0,
+  "n_assets": 5,
+  "n_trades": {
+    "ETHUSDT": 648,
+    "SOLUSDT": 5281,
+    "AVAXUSDT": 7129,
+    "LINKUSDT": 3707,
+    "DOTUSDT": 7264
+  }
+}

@@ -1,0 +1,27 @@
+# conf/data_sync.yaml — Hydra config for apps/data_sync.py (Stage 0)
+#
+# Downloads Binance Vision spot aggTrades and resamples to 5-second OHLCV bars.
+# Output: market_data_parquet/{symbol}/{year}/{symbol}_YYYY-MM.parquet
+#
+# Usage:
+#   python -m apps.data_sync                          # sync full universe
+#   python -m apps.data_sync sync_symbol=AVAXUSDT    # sync single symbol
+
+machine:
+  data_dir: market_data_parquet
+
+data:
+  history_fetch_years: 5        # years of aggTrade history to maintain
+  inter_symbol_sleep: 0.5       # seconds between symbols (rate-limit safe)
+
+training:
+  training_universe:
+    - BTCUSDT
+    - ETHUSDT
+    - SOLUSDT
+    - AVAXUSDT
+    - LINKUSDT
+    - DOTUSDT
+
+# Optional single-symbol override (set via CLI: sync_symbol=AVAXUSDT)
+sync_symbol: null

@@ -1,0 +1,28 @@
+# Persistent storage for live-engine state.
+# - audit_log.jsonl   (append-only, R-8 audit trail)
+# - circuit_log.jsonl (every circuit-breaker trigger)
+# - position snapshots (daily)
+# Adjust storageClassName for your cluster (gp3 on EKS, premium-rwo on GKE).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tradebot-live-state
+  namespace: tradebot
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tradebot-artefacts
+  namespace: tradebot
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 200Gi

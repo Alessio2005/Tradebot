@@ -1,0 +1,32 @@
+name: Security Scan
+
+on:
+  push:
+    branches: ["main"]
+  schedule:
+    - cron: "0 6 * * 1"    # Monday 06:00 UTC weekly
+
+jobs:
+  bandit:
+    name: Bandit SAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install bandit[toml]
+      - name: Run Bandit
+        run: bandit -r src/ apps/ -ll -q
+
+  pip-audit:
+    name: pip-audit (dependency CVEs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pip-audit
+      - name: Audit dependencies
+        run: pip-audit --require-hashes --disable-pip || true

@@ -1,0 +1,96 @@
+# =============================================================================
+# Deployment — long-running live-engine pod.
+# Single replica only (no horizontal scaling — order state is per-pod).
+# Strategy: Recreate (avoid two pods placing orders in parallel during rollout).
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tradebot-live
+  namespace: tradebot
+  labels:
+    app.kubernetes.io/name: tradebot
+    app.kubernetes.io/component: live-engine
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # prevent two engines simultaneously
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tradebot
+      app.kubernetes.io/component: live-engine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tradebot
+        app.kubernetes.io/component: live-engine
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "8000"
+        prometheus.io/path:   "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 60   # graceful: cancel open orders, snapshot state
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+
+      containers:
+        - name: engine
+          image: tradebot/live:1.0.0
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "apps.live_trader"]
+          args:
+            - env=prod
+            - strategy=balanced
+            - risk=default
+            - live.mode=paper        # flip to "live" only after 14d shadow run
+          envFrom:
+            - configMapRef: { name: tradebot-config }
+            - secretRef:    { name: tradebot-binance }
+          ports:
+            - { name: metrics, containerPort: 8000 }
+          resources:
+            requests: { cpu: "1",   memory: "2Gi" }
+            limits:   { cpu: "2",   memory: "4Gi" }
+          volumeMounts:
+            - { name: state,      mountPath: /opt/tradebot/state }
+            - { name: artefacts,  mountPath: /opt/tradebot/artefacts, readOnly: true }
+          livenessProbe:
+            exec: { command: ["python", "-m", "apps.doctor"] }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket: { port: 8000 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          startupProbe:
+            exec: { command: ["python", "-m", "apps.doctor"] }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 12       # 2 min max startup
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem:   true
+            capabilities: { drop: ["ALL"] }
+
+      volumes:
+        - name: state
+          persistentVolumeClaim: { claimName: tradebot-live-state }
+        - name: artefacts
+          persistentVolumeClaim: { claimName: tradebot-artefacts }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tradebot-live-metrics
+  namespace: tradebot
+spec:
+  selector:
+    app.kubernetes.io/component: live-engine
+  ports:
+    - { name: metrics, port: 8000, targetPort: 8000 }
+  type: ClusterIP

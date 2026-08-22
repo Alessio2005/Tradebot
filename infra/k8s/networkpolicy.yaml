@@ -1,0 +1,57 @@
+# =============================================================================
+# Default-deny network policy. Whitelist only what the live engine needs:
+# - egress to Binance API (fapi.binance.com, stream.binance.com — TCP/443, TCP/9443)
+# - egress to Slack webhook (hooks.slack.com — TCP/443)
+# - ingress from Prometheus only on metrics port
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tradebot-default-deny
+  namespace: tradebot
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tradebot-live-egress
+  namespace: tradebot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: live-engine
+  policyTypes: [Egress]
+  egress:
+    # Cluster DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # Binance REST/WS + Slack — wildcard egress on 443/9443 (cluster CIDR-aware
+    # variant: replace with explicit ipBlock CIDR for tighter control).
+    - to:
+        - ipBlock: { cidr: 0.0.0.0/0 }
+      ports:
+        - { protocol: TCP, port: 443  }
+        - { protocol: TCP, port: 9443 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tradebot-live-ingress-metrics
+  namespace: tradebot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: live-engine
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - { protocol: TCP, port: 8000 }

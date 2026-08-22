@@ -1,0 +1,76 @@
+# =============================================================================
+# Dockerfile.live — Tradebot v3.0
+# Asyncio live-engine container. Runs apps/live_trader.py with cfg.live.mode in
+# {paper, live}. Designed for long-running production deployment.
+# Strict: non-root, read-only fs except /opt/tradebot/state, healthcheck-aware.
+# =============================================================================
+ARG  PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/tradebot
+COPY pyproject.toml ./
+COPY src/ ./src/
+COPY apps/ ./apps/
+
+# Production install: only ingestion extra. No dev/test deps.
+RUN pip install --upgrade pip wheel \
+ && pip install --prefix=/install ".[ingestion]" \
+        aiohttp>=3.9 websockets>=12 uvloop>=0.19
+
+# ----------------------------------------------------------------------------
+# Stage 2: runtime
+# ----------------------------------------------------------------------------
+FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/opt/tradebot/src:/opt/tradebot \
+    NUMBA_CACHE_DIR=/opt/tradebot/.numba_cache \
+    TRADEBOT_LIVE_STATE_DIR=/opt/tradebot/state \
+    TZ=UTC
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgomp1 tini ca-certificates tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /bin/bash --uid 10001 tradebot
+
+COPY --from=builder /install /usr/local
+
+WORKDIR /opt/tradebot
+COPY --chown=tradebot:tradebot src/   ./src/
+COPY --chown=tradebot:tradebot apps/  ./apps/
+COPY --chown=tradebot:tradebot conf/  ./conf/
+
+# State directory: audit log, circuit log, position snapshots — must be writable
+# volume in production (mount k8s PVC or docker volume).
+RUN mkdir -p ${TRADEBOT_LIVE_STATE_DIR} \
+             ${NUMBA_CACHE_DIR} \
+             artefacts/models artefacts/calibrators \
+ && chown -R tradebot:tradebot /opt/tradebot
+
+# Precompile Numba kernels at build time (live engine cannot afford cold-start).
+RUN python -c "from tradebot.bars._kernels import numba_imbalance_bars, numba_runs_bars; \
+               from tradebot.cv.uniqueness import _calculate_average_uniqueness; \
+               print('numba precompiled for live')"
+
+USER tradebot
+
+# Liveness probe: doctor.py + check that audit log timestamp is fresh (< 5 min).
+HEALTHCHECK --interval=15s --timeout=10s --start-period=45s --retries=4 \
+    CMD python -m apps.doctor && \
+        python -c "import time, json, os; \
+                   p=os.path.join(os.environ['TRADEBOT_LIVE_STATE_DIR'],'audit_log.jsonl'); \
+                   age=time.time()-os.path.getmtime(p) if os.path.exists(p) else 0; \
+                   exit(0 if age < 300 else 1)" || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+# Hydra command-line overrides: env, strategy, risk, live.mode.
+CMD ["python", "-m", "apps.live_trader", "env=prod", "live.mode=paper"]

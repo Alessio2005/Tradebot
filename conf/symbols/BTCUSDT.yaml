@@ -1,0 +1,70 @@
+# conf/symbols/BTCUSDT.yaml
+# Per-asset overrides voor BTCUSDT. Worden door train_regime.py samengevoegd
+# met de globale `training` block.
+asset_class: crypto
+binance_symbol: BTCUSDT
+
+# CUSUM event-filter — BTC heeft de laagste vol → kleinere multiplier voor
+# meer events (anders te weinig trainingsdata).
+cusum_threshold_multiplier: 1.5
+
+# Label-horizon (in micro bars). BTC trends zijn typisch het meest persistent.
+label_horizon: 25
+label_t_min: 5
+label_t_max: 25
+label_min_tstat: 2.0
+label_pt_width: 2.0
+label_sl_width: 1.0
+label_candidate_horizons: [15, 20, 30]
+
+# Spread (mid-price feed → bid/ask round-trip ≈ 1bp aan elke kant).
+# AUDIT-FIX (N25): werkelijk Binance-perp 2024-2026 round-trip = 2-4bp.
+# Oude waarde 0.0010 (10bp) was 2.5-5× te conservatief:
+#   - TBM markeert minder hits als wins (PT te ver weg na half_spread)
+#   - MetaLabelingEngine profit_threshold 2× te hoog → te weinig label=1
+spread: 0.0004                  # round-trip 4bp (2bp half-spread aan elke kant)
+half_spread: 0.0002             # voor PrimaryScout.from_config (1-way)
+
+# AUDIT-FIX (N4): sample-weight time-decay per asset
+# BTC: 270 dagen (langere trends, persistente structurele regimes)
+sample_weight_decay_days: 270
+
+# AUDIT-FIX (N13): gap-risk ATR-multiple per asset
+# BTC: 1.0 (24/7 liquide, minimale gap-risk)
+gap_atr_multiple: 1.0
+
+# AUDIT-FIX (N20): Spearman dedup threshold
+# BTC features sterk gecorreleerd (ATR-varianten ρ≈0.85-0.92) → agressief dedup
+spearman_cluster_threshold: 0.10
+
+# AUDIT-FIX (N16 / N3): CPCV bar-space purging
+# t_max=25 bars → purge_bars=26 (één meer dan max horizon)
+cpcv_purge_bars: 26
+
+# Bandit parameters
+bandit_gamma_max: 0.997
+
+# Risk sizing (per-trade Kelly cap)
+max_leverage: 2.0
+max_portfolio_leverage: 2.0
+max_portfolio_leverage_bidir: 4.0
+
+# Optuna trial budget
+optuna_trials: 200
+
+# =============================================================================
+# SHORT-MODEL VERBETERING (Agent C — 2026-05-22)
+# BTC SHORT is al uitgesloten van het universum (individual MTM-Sharpe=-0.73).
+# Toch voegen we de SHORT-parameters toe zodat de labeling-pipeline consistent
+# is voor het geval BTC SHORT opnieuw wordt geactiveerd na model-verbetering.
+# =============================================================================
+
+# SHORT-specifieke CUSUM drempel (BTC heeft lagere vol → kleinere multiplier al)
+cusum_threshold_multiplier_short: 1.2    # vs 1.5 global, BTC DOWN-moves zijn persistent
+
+# SHORT-specifieke label barriers
+label_pt_width_short: 1.5    # vs 2.0 voor LONG
+label_sl_width_short: 0.8    # tight SL voor cleanere negatieve BTC-SHORT labels
+
+# SHORT min_conf override
+min_conf_short_max: 0.42

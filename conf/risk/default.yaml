@@ -1,0 +1,11 @@
+# conf/risk/default.yaml — institutional risk budget
+# @package _global_
+risk:
+  max_position_pct: 0.25
+  max_gross_leverage: 1.5
+  max_net_imbalance: 0.40
+  daily_var_limit_pct: 0.02
+  max_drawdown_pct: 0.08
+  max_position_age_h: 48
+  min_signal_confidence: 0.55
+  max_funding_cost_bps_day: 30

@@ -1,0 +1,80 @@
+# conf/symbols/SOLUSDT.yaml
+asset_class: crypto
+binance_symbol: SOLUSDT
+
+# SOL is de meest volatiele van de drie → nog hogere CUSUM-drempel zodat
+# events slechts triggeren bij echte structurele moves, niet ruis.
+cusum_threshold_multiplier: 2.0
+
+# SOL trends zijn snel en kort. Korte horizon, agressievere PT/SL ratio.
+label_horizon: 18
+label_t_min: 4
+label_t_max: 18
+label_min_tstat: 2.2
+label_pt_width: 2.0
+label_sl_width: 1.0
+label_candidate_horizons: [10, 15, 22]
+
+# SOL spread is doorgaans hoger door dunner orderboek vs BTC/ETH.
+# AUDIT-FIX (N25): werkelijk Binance-perp SOL half-spread = 3-8bp
+# Oude waarde 0.0018 (18bp) iets conservatief; update naar marktwaarde.
+spread: 0.0010                  # round-trip 10bp (conservatief voor SOL, volatiel)
+half_spread: 0.0004             # voor PrimaryScout.from_config (4bp one-way)
+
+# AUDIT-FIX (N4): sample-weight time-decay
+# SOL: 90 dagen — snelle regime-shifts, validator-concentratie, Pyth-outages
+sample_weight_decay_days: 90
+
+# AUDIT-FIX (N13): gap-risk SOL KRITIEK
+# SOL: 2.5 (Solana network outages 5-10% historisch → Kelly 40% lager dan bij 1.5)
+gap_atr_multiple: 2.5
+
+# AUDIT-FIX (N20): Spearman dedup threshold
+# SOL features minder gecorreleerd (idiosyncratisch) → behoud meer features
+spearman_cluster_threshold: 0.20
+
+# AUDIT-FIX (N16): CPCV bar-space purging
+# t_max=18 bars → purge_bars=19
+cpcv_purge_bars: 19
+
+# AUDIT-FIX: SOL-specifieke DD-breaker
+# SOL can crash harder/faster dan BTC/ETH → vroegere bescherming
+dd_breaker_threshold: 0.15
+
+# Bandit parameters — snellere adaptatie voor SOL regime-shifts
+bandit_gamma_max: 0.99
+
+# Lagere leverage cap omdat SOL gap-risk en CVaR fatter zijn.
+max_leverage: 1.25
+max_portfolio_leverage: 1.25
+max_portfolio_leverage_bidir: 2.5
+
+optuna_trials: 200
+
+# AUDIT-FIX (Round 3 — SOL adaptive SL barrier):
+# Bij Solana validator-outages en liquidatiecascades is de intrabar wick-ratio
+# (high-low)/ATR een directe proxy voor jump-intensiteit.
+# sl_jump_max_mult: maximale relatieve SL-verbreding op wick-basis.
+#   0.0  = uitgeschakeld (BTC/ETH default)
+#   0.5  = SL max 50% breder bij wick ≥ 3×ATR (lineaire schaling erboven)
+# Formule in kernel: SL_eff = sl_width × (1 + sl_jump_max_mult × wick_score)
+#   wick_score = clip((wick_ratio - 1) / 2, 0, 1)
+sl_jump_max_mult: 0.5
+
+# =============================================================================
+# SHORT-MODEL VERBETERING (Agent C — 2026-05-22)
+# SOL is uitgesloten van het universum (72 trades/4.78yr) maar SHORT-parameters
+# worden gedocumenteerd voor toekomstige re-evaluatie na SHORT-model verbetering.
+# SOL heeft extreme bear-moves (validator-outages, liquidatiecascades) die
+# juist SHORT kansen zijn — te weinig SHORT events door hoge CUSUM drempel.
+# =============================================================================
+
+# SHORT-specifieke CUSUM drempel (SOL validator-crashes zijn DOWN-impulsen)
+cusum_threshold_multiplier_short: 1.5    # vs 2.0 default, meer SHORT events bij crashes
+
+# SHORT-specifieke label barriers (SOL crashes zijn snel en diep)
+label_pt_width_short: 1.3    # SOL bear-crashes zijn snel → tight PT voor meer label=1
+label_sl_width_short: 0.7    # Extreem tight SL want een SOL SHORT die reversed is gevaarlijk
+
+# SHORT min_conf override
+min_conf_short_max: 0.40    # SOL heeft nog lagere gemiddelde SHORT prob door weinig data
