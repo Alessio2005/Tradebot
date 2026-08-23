@@ -38,6 +38,7 @@ import numpy as np
 import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 
+from ..features.volatility import causal_expanding_std
 from ..utils.failfast import DataContractError, require
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,15 @@ logger = logging.getLogger(__name__)
 # Minimum aantal bruikbare observaties voor een 3-state Gaussian HMM met
 # full covariance. Onder deze grens is de EM-schatting niet identificeerbaar.
 _MIN_OBS_FOR_FIT = 50
+
+# Venster van de vol-feature. Blijft hier als module-constante in plaats van in
+# `conf/`: `hmm_regime.py` is een REDESIGN-item voor Phase 6 (audit sectie 24) en
+# wordt daar geparametriseerd. Phase 2 raakt uitsluitend de CAUSALITEIT van deze
+# feature (DI-2), niet de parametrisatie ervan (DI-10/DI-11).
+_VOL_WINDOW_BARS = 5
+# Minimaal aantal returns voordat de expanding std tijdens de opstartfase een
+# waarde vrijgeeft. Daaronder bestaat er geen schatting en blijft het NaN.
+_VOL_MIN_PERIODS = 2
 
 
 class Regime(IntEnum):
@@ -74,12 +84,36 @@ class HMMRegimeDetector:
         self._random_state = random_state
 
     def _features(self, returns: pd.Series) -> np.ndarray:
-        # DEFERRED (Phase 6, zie docs/DEFERRED_ISSUES.md DI-2): `fillna(returns.std())`
-        # vult met de std over de VOLLEDIGE sample. Dat is een lookahead-lek in de
-        # vol-feature. Phase 0 wijzigt geen modelgedrag; de regel blijft
-        # ongewijzigd tot de M2-herontwerpfase, waar hij door een expanding std
-        # wordt vervangen en de Phase 2-gates het bewijs leveren.
-        vol = returns.rolling(5, min_periods=2).std().fillna(returns.std())
+        """Return- en volatiliteitskolom. CAUSAAL - zie DI-2 hieronder.
+
+        PHASE 2 - DI-2 GESLOTEN
+        -----------------------
+        Deze regel luidde:
+
+            vol = returns.rolling(5, min_periods=2).std().fillna(returns.std())
+
+        `returns.std()` is de standaarddeviatie over de VOLLEDIGE sample. Op
+        bar 1 kreeg de vol-feature daarmee een waarde die pas aan het EINDE van
+        de reeks bekend kon zijn, en het HMM werd dus deels gefit op informatie
+        die het op dat moment niet had. De fout is bovendien systematisch:
+        de opvulwaarde is de gemiddelde volatiliteit van het hele venster, wat
+        een rustige beginperiode te hoog en een crisisperiode te laag schat.
+
+        De vervanging gebruikt uitsluitend `[0, t]`:
+          * zodra er een volledig venster is, telt de rolling std;
+          * daarvoor de EXPANDING std over de tot dan toe bekende returns;
+          * daarvoor is er geen schatting, en blijft de waarde NaN. Die rijen
+            vallen weg in de finite-filter hieronder in plaats van te worden
+            opgevuld.
+
+        DI-1 (Viterbi-smoothing in `predict`) staat hier LOS van en blijft
+        toegewezen aan Phase 6; deze wijziging raakt uitsluitend de feature.
+        """
+        vol_rolling = returns.rolling(
+            _VOL_WINDOW_BARS, min_periods=_VOL_WINDOW_BARS
+        ).std()
+        vol_warmup = causal_expanding_std(returns, min_periods=_VOL_MIN_PERIODS)
+        vol = vol_rolling.where(vol_rolling.notna(), vol_warmup)
         X = np.column_stack([returns.values, vol.values])
         return X[np.isfinite(X).all(axis=1)]
 
