@@ -145,6 +145,22 @@
       "ts_utc": "2026-08-23T10:51:12.203992+00:00",
       "metrics": {},
       "notes": "Pre-registratie bevroren VOOR de eerste run; de geplande trials tellen mee in M. preregistration_id=086430701e325429ecc1a4f93d600edb"
+    },
+    {
+      "wave": 29,
+      "unit": "phase3_baseline_result",
+      "market": "crypto",
+      "config_hash": "086430701e325429",
+      "n_trials": 1,
+      "result": "falsified",
+      "ts_utc": "2026-08-23T14:11:22.036291+00:00",
+      "metrics": {
+        "net_oos_sharpe": -0.4830969590910057,
+        "dsr_probability": 2.7017615736467985e-06,
+        "spa_p_value": 1.0,
+        "cost_drag_fraction": null
+      },
+      "notes": "Baseline-resultaat; preregistration_id=086430701e325429ecc1a4f93d600edb; git_sha=bac4427"
     }
   ]
 }

@@ -1,0 +1,170 @@
+{
+  "alpha_unit": "cross_sectional_momentum(lookback_bars=60,min_assets=3,rebalance_every_bars=1,signal_cap=1.0,signal_floor=-1.0,skip_bars=1)",
+  "benchmark_track": "long_only_equal_weight",
+  "cost_model": {
+    "half_spread_bps": 1.0,
+    "is_provisional": true,
+    "per_side_decimal": 0.00065,
+    "taker_fee_bps": 5.5
+  },
+  "data_hashes": {
+    "crypto/ohlcv/AVAXUSDT/1d": "af05b4f95d0e282111641f85904c22f9",
+    "crypto/ohlcv/BTCUSDT/1d": "4f21f2c7ab071ddc19da5eb3f38172f3",
+    "crypto/ohlcv/DOTUSDT/1d": "17be1f4206997f12fd7e1825f123299b",
+    "crypto/ohlcv/ETHUSDT/1d": "d67c9bb18b2c794ba416067556227a5a",
+    "crypto/ohlcv/LINKUSDT/1d": "8d6a82f316253c2626d016bbbad804d4",
+    "crypto/ohlcv/SOLUSDT/1d": "1d64b001993b575f34ef04ce548616c5"
+  },
+  "dsr": {
+    "long_only_equal_weight": {
+      "dsr_p_value": 0.9993148967650778,
+      "dsr_probability": 0.0006851032349221776,
+      "n_obs": 1615.0,
+      "n_trials": 2715.0,
+      "passes": false,
+      "per_bar_sharpe": 0.00817904344821664
+    },
+    "long_only_risk_parity": {
+      "dsr_p_value": 0.9994378902487371,
+      "dsr_probability": 0.0005621097512629084,
+      "n_obs": 1615.0,
+      "n_trials": 2715.0,
+      "passes": false,
+      "per_bar_sharpe": 0.006768933554299041
+    },
+    "xs_momentum_equal_weight": {
+      "dsr_p_value": 0.9999537619010703,
+      "dsr_probability": 4.623809892969092e-05,
+      "n_obs": 1615.0,
+      "n_trials": 2715.0,
+      "passes": false,
+      "per_bar_sharpe": -0.00944978365302229
+    },
+    "xs_momentum_risk_parity": {
+      "dsr_p_value": 0.9999972982384263,
+      "dsr_probability": 2.7017615736467985e-06,
+      "n_obs": 1615.0,
+      "n_trials": 2715.0,
+      "passes": false,
+      "per_bar_sharpe": -0.025286450531881822
+    }
+  },
+  "gate": {
+    "n_binding_stop_criteria": 3,
+    "promoted_to_candidate": false,
+    "verdicts": [
+      {
+        "action": "falsify",
+        "measured": -0.4830969590910057,
+        "metric": "net_oos_sharpe",
+        "name": "no_edge_after_costs",
+        "note": "falsify",
+        "rule": "net_oos_sharpe <= 0.0",
+        "status": "BINDING"
+      },
+      {
+        "action": "archive",
+        "measured": 2.7017615736467985e-06,
+        "metric": "dsr_probability",
+        "name": "dsr_indistinguishable_from_selection_noise",
+        "note": "archive",
+        "rule": "dsr_probability < 0.95",
+        "status": "BINDING"
+      },
+      {
+        "action": "archive",
+        "measured": 1.0,
+        "metric": "spa_p_value",
+        "name": "spa_no_superiority_over_benchmark",
+        "note": "archive",
+        "rule": "spa_p_value >= 0.05",
+        "status": "BINDING"
+      },
+      {
+        "action": "descope",
+        "measured": null,
+        "metric": "cost_drag_fraction",
+        "name": "costs_dominate_gross_edge",
+        "note": "niet te beoordelen op deze meting; zie het rapport voor de reden",
+        "rule": "cost_drag_fraction > 0.5",
+        "status": "NOT_APPLICABLE"
+      },
+      {
+        "action": "promote",
+        "measured": 3.0,
+        "metric": "n_binding_stop_criteria",
+        "name": "promotion_requires_all_gates_clear",
+        "note": "promotie geblokkeerd",
+        "rule": "n_binding_stop_criteria <= 0.0",
+        "status": "BINDING"
+      }
+    ]
+  },
+  "git_sha": "bac4427",
+  "gross_target": 1.0,
+  "ledger_total_at_freeze": 2711,
+  "m_trials": 2715,
+  "measured": {
+    "cost_drag_fraction": null,
+    "dsr_probability": 2.7017615736467985e-06,
+    "net_oos_sharpe": -0.4830969590910057,
+    "spa_p_value": 1.0
+  },
+  "metrics": {
+    "long_only_equal_weight": {
+      "avg_daily_turnover": 0.0002063983488132095,
+      "calmar": -0.16652424261407348,
+      "gross_sharpe": 0.1563280826319836,
+      "max_drawdown": 0.8349812901055234,
+      "n_folds": 17.0,
+      "n_oos_bars": 1615.0,
+      "net_sharpe": 0.15626040567159893,
+      "net_total_return": -0.4892343746960276
+    },
+    "long_only_risk_parity": {
+      "avg_daily_turnover": 0.016892073791733873,
+      "calmar": -0.16117617123149866,
+      "gross_sharpe": 0.13522410672566784,
+      "max_drawdown": 0.8222950047810375,
+      "n_folds": 17.0,
+      "n_oos_bars": 1615.0,
+      "net_sharpe": 0.12932029397514583,
+      "net_total_return": -0.4729062659083467
+    },
+    "xs_momentum_equal_weight": {
+      "avg_daily_turnover": 0.15464396284829723,
+      "calmar": -0.16366210106742973,
+      "gross_sharpe": -0.04134614909354198,
+      "max_drawdown": 0.5076138599777987,
+      "n_folds": 17.0,
+      "n_oos_bars": 1615.0,
+      "net_sharpe": -0.18053786319622392,
+      "net_total_return": -0.30597549382839806
+    },
+    "xs_momentum_risk_parity": {
+      "avg_daily_turnover": 0.17638161399588337,
+      "calmar": -0.21183442203795727,
+      "gross_sharpe": -0.28351391471166754,
+      "max_drawdown": 0.5629305555354237,
+      "n_folds": 17.0,
+      "n_oos_bars": 1615.0,
+      "net_sharpe": -0.4830969590910057,
+      "net_total_return": -0.42086659818382677
+    }
+  },
+  "preregistration_id": "086430701e325429ecc1a4f93d600edb",
+  "primary_track": "xs_momentum_risk_parity",
+  "spa": {
+    "benchmark_track": "long_only_equal_weight",
+    "best_candidate": "long_only_risk_parity",
+    "candidate_tracks": [
+      "xs_momentum_risk_parity",
+      "xs_momentum_equal_weight",
+      "long_only_risk_parity"
+    ],
+    "passes": false,
+    "reject_null": false,
+    "spa_p_value": 1.0
+  },
+  "warmup_bars": 61
+}
