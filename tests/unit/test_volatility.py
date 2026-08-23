@@ -5,10 +5,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tradebot.utils.failfast import TradebotContractError
 from tradebot.volatility import (
+    ewma_volatility,
+    get_ewma_volatility,
     get_garman_klass_volatility,
     get_parkinson_volatility,
-    get_ewma_volatility,
 )
 
 
@@ -48,10 +50,28 @@ def test_parkinson_fallback_no_open() -> None:
 
 
 def test_ewma_volatility() -> None:
+    """Phase 3: lambda en burn-in komen uit conf/, niet uit een default."""
     df = _make_ohlcv()
-    vol = get_ewma_volatility(df, halflife=10)
+    burn_in = 10
+    vol = ewma_volatility(
+        df["close"], lam=0.94, burn_in_bars=burn_in, annualisation_factor=365.0
+    )
     assert vol.shape == (len(df),)
     assert vol.dropna().ge(0).all()
+    # De burn-in blijft NaN: geen fillna(0.0), geen ffill (DI-12).
+    assert vol.iloc[:burn_in].isna().all()
+    assert vol.iloc[burn_in:].notna().all()
+
+
+def test_deprecated_ewma_entrypoint_crashes() -> None:
+    """De oude get_ewma_volatility vulde de burn-in met een vol van NUL.
+
+    In Naive Risk Parity levert dat een oneindig gewicht op. Er is geen
+    doorgeefpad naar de nieuwe functie: stil vertalen zou de gedragswijziging
+    onopgemerkt maken.
+    """
+    with pytest.raises(TradebotContractError, match="fillna"):
+        get_ewma_volatility(_make_ohlcv(), halflife=10)
 
 
 def test_empty_dataframe_returns_zeros() -> None:

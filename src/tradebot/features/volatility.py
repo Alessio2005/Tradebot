@@ -42,6 +42,7 @@ import numpy as np
 import pandas as pd
 
 from ..utils.failfast import DataContractError, require
+from ..volatility.ewma import ewma_variance_causal
 from .base import BaseFeature, InputSpec
 
 __all__ = [
@@ -278,25 +279,12 @@ class EwmaVolatility(BaseFeature):
         seed_bars = int(self.params["burn_in_bars"])
         scale = math.sqrt(float(self.params["annualisation_factor"]))
 
-        r2 = log_returns(frame["close"]).pow(2.0)
-        n = len(r2)
-        var = np.full(n, np.nan, dtype="float64")
-        if n > seed_bars:
-            arr = r2.to_numpy(dtype="float64")
-            # Seed: gemiddelde van r^2 over r_1..r_seed. Positie 0 draagt geen
-            # return en telt dus niet mee.
-            seed_slice = arr[1 : seed_bars + 1]
-            var[seed_bars] = float(np.mean(seed_slice))
-            # Voorwaartse recursie. `ewm(adjust=False)` op de staart levert exact
-            # sigma^2_t = lambda * sigma^2_{t-1} + (1-lambda) * r_t^2.
-            tail = arr[seed_bars:].copy()
-            tail[0] = var[seed_bars]
-            var[seed_bars:] = (
-                pd.Series(tail)
-                .ewm(alpha=1.0 - lam, adjust=False)
-                .mean()
-                .to_numpy(dtype="float64")
-            )
+        # De recursie zelf woont in L2 (`volatility/ewma.py`); deze feature is
+        # er de L3-verpakking van. Twee implementaties van dezelfde schatter
+        # zouden onvermijdelijk uit elkaar lopen.
+        var = ewma_variance_causal(
+            log_returns(frame["close"]), lam=lam, burn_in_bars=seed_bars
+        ).to_numpy(dtype="float64")
         vol = np.sqrt(var) * scale
         return pd.DataFrame({self.output_columns[0]: vol}, index=frame.index)
 

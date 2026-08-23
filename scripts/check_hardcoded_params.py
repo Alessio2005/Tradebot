@@ -175,7 +175,9 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
     # -- utils/ --
     "utils/hashing.py": (0, "DI-14 Phase 7"),
     # -- volatility/ --
-    "volatility/ewma.py": (2, "DI-11 Phase 6"),
+    # Phase 3: gehard naar het L2-baselinecontract; lambda en burn-in komen
+    # uit conf/model/volatility.yaml. Budget verlaagd 2 -> 0.
+    "volatility/ewma.py": (0, "GESLOTEN Phase 3"),
     "volatility/garman_klass.py": (2, "DI-11 Phase 6"),
     "volatility/har_rv.py": (4, "DI-11 Phase 6"),
     "volatility/parkinson.py": (1, "DI-11 Phase 6"),
@@ -195,7 +197,12 @@ GOVERNED = ("features/transforms.py", "features/pipeline.py",
             # causaliteitscontract; elke vensterlengte, decay en drempel
             # komt uit conf/features/default.yaml.
             "features/base.py", "features/volatility.py",
-            "features/momentum.py", "features/registry.py")
+            "features/momentum.py", "features/registry.py",
+            # Phase 3 - L1 transforms, L2 EWMA-baseline en de
+            # governance-modules. Nieuw of herschreven onder het
+            # baselinecontract; elke drempel komt uit conf/.
+            "features/transforms.py", "volatility/ewma.py",
+            "registry/preregistration.py")
 
 
 def iter_py(base: Path):
