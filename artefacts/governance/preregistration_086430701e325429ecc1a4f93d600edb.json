@@ -1,0 +1,138 @@
+{
+  "content": {
+    "data_hashes": [
+      [
+        "crypto/ohlcv/AVAXUSDT/1d",
+        "af05b4f95d0e282111641f85904c22f9"
+      ],
+      [
+        "crypto/ohlcv/BTCUSDT/1d",
+        "4f21f2c7ab071ddc19da5eb3f38172f3"
+      ],
+      [
+        "crypto/ohlcv/DOTUSDT/1d",
+        "17be1f4206997f12fd7e1825f123299b"
+      ],
+      [
+        "crypto/ohlcv/ETHUSDT/1d",
+        "d67c9bb18b2c794ba416067556227a5a"
+      ],
+      [
+        "crypto/ohlcv/LINKUSDT/1d",
+        "8d6a82f316253c2626d016bbbad804d4"
+      ],
+      [
+        "crypto/ohlcv/SOLUSDT/1d",
+        "1d64b001993b575f34ef04ce548616c5"
+      ]
+    ],
+    "evaluation_start": "2021-05-16",
+    "granularity": "1d",
+    "hypothesis": "Cross-Sectional Momentum, geconstrueerd als een schaalloze exposure a_t in [-1, +1] op een rank-gedemeaned 60-bars log-rendement met een skip van 1 bar, levert in combinatie met Naive Risk Parity (gewichten omgekeerd evenredig aan de causale EWMA-volatiliteit, lambda = 0.94) over het crypto-universum een POSITIEVE netto out-of-sample Sharpe na transactiekosten, gemeten via Purged Walk-Forward met embargo over de volledige gecertificeerde dataset uit Phase 1.",
+    "null_hypothesis": "De netto out-of-sample Sharpe van Cross-Sectional Momentum met Naive Risk Parity is kleiner dan of gelijk aan nul na transactiekosten, en is bovendien niet statistisch te onderscheiden van de 1/N equal-weight referentie onder correctie voor het cumulatieve aantal uitgevoerde trials (DSR) en voor multiple testing over de vergeleken varianten (Hansen SPA).",
+    "parameters": {
+      "allocators": [
+        "equal_weight",
+        "risk_parity"
+      ],
+      "alpha": {
+        "lookback_bars": 60,
+        "min_assets": 3,
+        "rebalance_every_bars": 1,
+        "signal_cap": 1.0,
+        "signal_floor": -1.0,
+        "skip_bars": 1,
+        "winsorise_quantile": 0.02
+      },
+      "execution": {
+        "assumed_half_spread_bps": 1.0,
+        "cost_assumption_is_provisional": true,
+        "impact_eta": 0.142,
+        "maker_fee_bps": 2.0,
+        "slippage_model": "half_spread",
+        "taker_fee_bps": 5.5
+      },
+      "validation": {
+        "cpcv_is_gate": false,
+        "dsr_alpha": 0.05,
+        "embargo_bars": 5,
+        "label_horizon_bars": 1,
+        "n_splits": 6,
+        "pbo_is_gate": false,
+        "scheme": "purged_walk_forward",
+        "spa_alpha": 0.05,
+        "spa_block_length": 10,
+        "spa_bootstrap_reps": 1000,
+        "test_bars": 100,
+        "train_bars": 500
+      },
+      "volatility": {
+        "annualisation_factor": 365.0,
+        "burn_in_bars": 60,
+        "estimator": "ewma",
+        "ewma_lambda": 0.94,
+        "min_periods": 2
+      }
+    },
+    "period_end": "2026-08-23",
+    "period_start": "2020-03-26",
+    "planned_trials": 4,
+    "primary_metric": "net_oos_sharpe",
+    "stop_criteria": [
+      {
+        "action": "falsify",
+        "metric": "net_oos_sharpe",
+        "name": "no_edge_after_costs",
+        "operator": "<=",
+        "rationale": "Een baseline met een niet-positieve netto OOS Sharpe heeft in deze configuratie geen edge na kosten. Dat wordt als zodanig gerapporteerd en geregistreerd. Het is expliciet GEEN aanleiding om vensters te sweepen tot het resultaat omslaat; dat zou de baseline in een gefit model veranderen en elk later model ten onrechte laten winnen.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "dsr_probability",
+        "name": "dsr_indistinguishable_from_selection_noise",
+        "operator": "<",
+        "rationale": "De Deflated Sharpe Ratio moet na correctie voor non-normaliteit en voor het EERLIJKE cumulatieve aantal trials M uit de hypothese-ledger boven 1 - dsr_alpha (0.05) uitkomen. Daaronder is de gemeten Sharpe niet te onderscheiden van de beste trekking uit M pogingen. Het resultaat blijft dan een benchmark en bereikt nooit de status CANDIDATE.",
+        "threshold": 0.95
+      },
+      {
+        "action": "archive",
+        "metric": "spa_p_value",
+        "name": "spa_no_superiority_over_benchmark",
+        "operator": ">=",
+        "rationale": "Zonder verwerping van de SPA-nulhypothese op 5% is superioriteit ten opzichte van de 1/N-referentie niet vastgesteld onder multiple testing. De variant mag dan wel worden gerapporteerd, maar niet als \"beter dan equal weight\".",
+        "threshold": 0.05
+      },
+      {
+        "action": "descope",
+        "metric": "cost_drag_fraction",
+        "name": "costs_dominate_gross_edge",
+        "operator": ">",
+        "rationale": "Verdwijnt meer dan de helft van de bruto Sharpe in transactiekosten, dan is de herbalanceringsfrequentie het probleem en niet het signaal. De toegestane reactie is de-scopen naar een lager-turnover configuratie in een NIEUWE pre-registratie, nooit het stilzwijgend verlagen van de kostenaanname.",
+        "threshold": 0.5
+      },
+      {
+        "action": "promote",
+        "metric": "n_binding_stop_criteria",
+        "name": "promotion_requires_all_gates_clear",
+        "operator": "<=",
+        "rationale": "Promotie van REGISTERED naar CANDIDATE vereist dat GEEN van de bovenstaande criteria bindt. Een enkel bindend criterium blokkeert de promotie; er bestaat geen afweging waarin twee zwakke uitkomsten samen een sterke vormen.",
+        "threshold": 0.0
+      }
+    ],
+    "title": "Level-1 baseline: Cross-Sectional Momentum met EWMA-gebaseerde Naive Risk Parity op het gecertificeerde crypto-perpetueluniversum.",
+    "universe": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "AVAXUSDT",
+      "LINKUSDT",
+      "DOTUSDT"
+    ],
+    "wave": "phase3_baseline"
+  },
+  "frozen_utc": "2026-08-23T10:51:12.202212+00:00",
+  "git_sha": "6940293",
+  "ledger_total_at_freeze": 2711,
+  "preregistration_id": "086430701e325429ecc1a4f93d600edb"
+}

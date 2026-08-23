@@ -134,6 +134,17 @@
         "n_eff": 1.54
       },
       "notes": "F20. Energy term-structure carry on the EIA archive, 1994-2024 n=7585. 8/9 gates red; IS +0.454 -> OOS -0.278. 4 trials = 1 unit config + 3 nested G4 specs."
+    },
+    {
+      "wave": 29,
+      "unit": "phase3_baseline",
+      "market": "crypto",
+      "config_hash": "086430701e325429",
+      "n_trials": 4,
+      "result": "interim",
+      "ts_utc": "2026-08-23T10:51:12.203992+00:00",
+      "metrics": {},
+      "notes": "Pre-registratie bevroren VOOR de eerste run; de geplande trials tellen mee in M. preregistration_id=086430701e325429ecc1a4f93d600edb"
     }
   ]
 }
