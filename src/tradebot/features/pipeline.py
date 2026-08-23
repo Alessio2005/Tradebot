@@ -170,3 +170,219 @@ def load_orthogonalizers(
         if path.exists():
             out[tier] = joblib.load(path)
     return out
+
+
+# =========================================================================== #
+# PHASE 3 - L1 CAUSAL TRANSFORM PIPELINE
+# =========================================================================== #
+# Alles BOVEN deze regel is de legacy-adapter rond `features.regime`-
+# FeaturePipeline (Level 2+, DI-12/Phase 6): een strangler-fig wrapper zonder
+# provenance-contract. Die code is hier bewust ONGEWIJZIGD gelaten - hem nu
+# aanraken zou `features/__init__.py` en `apps/build_features.py` breken.
+#
+# Alles HIERONDER is Phase 3: de L1-compositie van de toestandsloze transforms
+# uit `features/transforms.py` tot EEN artefact, met verplichte propagatie van
+# de `data_hash` van elke bronreeks.
+#
+# Waarom een tweede pipeline-abstractie naast `features.base.FeaturePipeline`?
+# Omdat ze op iets anders werken. `base.FeaturePipeline` (Phase 2) componeert
+# `BaseFeature`-objecten op EEN symbool: rijen zijn bars, kolommen zijn features.
+# `PanelPipeline` (hier) componeert transforms op een CROSS-SECTIE: rijen zijn
+# bars, kolommen zijn symbolen. Een rangschikking over assets bestaat niet in de
+# eerste vorm, en dat is precies wat Cross-Sectional Momentum nodig heeft.
+# --------------------------------------------------------------------------- #
+from collections.abc import Mapping as _Mapping
+from collections.abc import Sequence as _Sequence
+from dataclasses import dataclass as _dataclass
+from typing import Any as _Any
+
+import numpy as np
+
+from ..utils.failfast import DataContractError as _DataContractError
+from ..utils.failfast import require as _require
+from ..utils.hashing import DATA_HASH_LENGTH as _HASH_LENGTH
+from ..utils.hashing import hash_config as _hash_config
+from .base import ASOF_INDEX_NAME as _ASOF_INDEX_NAME
+from .base import FEATURE_DTYPE as _FEATURE_DTYPE
+from .base import CertifiedPanel as _CertifiedPanel
+from .transforms import burn_in_of as _burn_in_of
+from .transforms import resolve_transform as _resolve_transform
+
+#: Versie van de hash-receptuur van het L1-artefact. Wijzigt de samenstelling
+#: van de payload, dan verschuiven alle hashes zichtbaar in plaats van
+#: onopgemerkt. Zie `features.registry.FEATURE_HASH_VERSION` voor de L3-variant.
+PANEL_HASH_VERSION = "phase3.l1.v1"
+
+
+@_dataclass(frozen=True)
+class TransformStep:
+    """Een transform plus zijn parameters. Beide gaan mee in de hash."""
+
+    name: str
+    params: _Mapping[str, _Any]
+
+    def __post_init__(self) -> None:
+        _resolve_transform(self.name)  # crasht op een onbekende naam
+
+    @property
+    def burn_in_period(self) -> int:
+        return _burn_in_of(self.name, self.params)
+
+    def as_dict(self) -> dict[str, _Any]:
+        return {
+            "name": self.name,
+            "params": {k: self.params[k] for k in sorted(self.params)},
+        }
+
+
+@_dataclass(frozen=True)
+class PanelFeature:
+    """Het L1-artefact: een panel plus de volledige herkomst ervan.
+
+    `values` draagt de uitkomst; `data_hashes` de gecertificeerde bronreeksen;
+    `steps` de exacte transformketen; `panel_hash` de identiteit van het geheel.
+    Een consument die dit artefact citeert, citeert daarmee ook zijn data.
+    """
+
+    values: pd.DataFrame
+    data_hashes: tuple[tuple[str, str], ...]
+    steps: tuple[TransformStep, ...]
+    burn_in_period: int
+    panel_hash: str
+
+    @property
+    def symbols(self) -> tuple[str, ...]:
+        return tuple(str(c) for c in self.values.columns)
+
+    def drop_burn_in(self) -> pd.DataFrame:
+        """Kap de burn-in af. Het alternatief is hem expliciet documenteren."""
+        return self.values.iloc[self.burn_in_period :]
+
+
+class PanelPipeline:
+    """Compositie van L1-transforms met verplichte `data_hash`-propagatie.
+
+    De pipeline voegt geen wiskunde toe. Hij dwingt af dat:
+
+      * elke stap een BEKENDE transform is (een typo crasht in plaats van
+        stilzwijgend een stap over te slaan);
+      * de burn-in van de keten vooraf bekend is - de som van de burn-ins van
+        de stappen, want ze werken sequentieel op elkaars output;
+      * het resultaat float64 blijft en dezelfde asof-index houdt;
+      * het artefact niet los te maken is van de data waarop het is berekend.
+
+    De keten is bewust NIET zelf-optimaliserend en kent geen conditionele
+    stappen: dezelfde stappen in dezelfde volgorde, elke run.
+    """
+
+    def __init__(self, steps: _Sequence[TransformStep]) -> None:
+        _require(
+            len(steps) > 0,
+            "Lege PanelPipeline. Een keten zonder stappen levert het ruwe panel "
+            "terug, wat later als 'signaal' zou worden gelezen.",
+            _DataContractError,
+        )
+        for s in steps:
+            _require(
+                isinstance(s, TransformStep),
+                "Elke stap in een PanelPipeline moet een TransformStep zijn.",
+                _DataContractError,
+                got=type(s).__name__,
+            )
+        self._steps: tuple[TransformStep, ...] = tuple(steps)
+
+    @property
+    def steps(self) -> tuple[TransformStep, ...]:
+        return self._steps
+
+    @property
+    def burn_in_period(self) -> int:
+        """De burn-ins tellen OP: elke stap werkt op de output van de vorige."""
+        return sum(int(s.burn_in_period) for s in self._steps)
+
+    def panel_hash(
+        self, *, data_hashes: _Sequence[tuple[str, str]], git_sha: str
+    ) -> str:
+        """Identiteit van het artefact: keten + brondata + codeversie."""
+        _require(
+            bool(data_hashes),
+            "Een panel_hash zonder input-data_hash is betekenisloos: het artefact "
+            "zou niet aan een gecertificeerde dataset te koppelen zijn.",
+            _DataContractError,
+        )
+        _require(
+            bool(git_sha),
+            "Een panel_hash zonder git_sha is niet auditbaar.",
+            _DataContractError,
+        )
+        return _hash_config(
+            {
+                "hash_version": PANEL_HASH_VERSION,
+                "steps": [s.as_dict() for s in self._steps],
+                "burn_in_period": self.burn_in_period,
+                "input_data_hashes": [list(p) for p in sorted(data_hashes)],
+                "git_sha": git_sha,
+            },
+            length=_HASH_LENGTH,
+        )
+
+    def transform(self, panel: _CertifiedPanel, *, git_sha: str) -> PanelFeature:
+        _require(
+            isinstance(panel, _CertifiedPanel),
+            "PanelPipeline eist een CertifiedPanel; een kaal DataFrame draagt "
+            "geen provenance en mag geen L1-artefact voeden.",
+            _DataContractError,
+            got=type(panel).__name__,
+        )
+        values = panel.values
+        for step in self._steps:
+            values = _resolve_transform(step.name)(values, **dict(step.params))
+            _require(
+                bool(values.index.equals(panel.values.index)),
+                "Een transform heeft de index gewijzigd. Een L1-transform mag "
+                "rijen niet herordenen, toevoegen of laten vallen.",
+                _DataContractError,
+                step=step.name,
+            )
+            _require(
+                list(values.columns) == list(panel.values.columns),
+                "Een transform heeft de kolommen gewijzigd; het universum moet "
+                "de keten ongeschonden doorkomen.",
+                _DataContractError,
+                step=step.name,
+            )
+        for col in values.columns:
+            _require(
+                values[col].dtype == _FEATURE_DTYPE,
+                "Impliciete dtype-conversie in de transformketen; L1 blijft "
+                "float64.",
+                _DataContractError,
+                column=str(col),
+                dtype=str(values[col].dtype),
+            )
+        arr = values.to_numpy(dtype="float64")
+        _require(
+            not bool(np.isinf(arr).any()),
+            "De transformketen produceerde plus/min oneindig. Dat is geen waarde "
+            "maar een deling door nul, en het propageert door elk later gewicht.",
+            _DataContractError,
+        )
+        burn_in = self.burn_in_period
+        head = arr[: min(burn_in, len(arr))]
+        _require(
+            (int(np.isfinite(head).sum()) if head.size else 0) == 0,
+            "Er bestaat een EINDIGE waarde binnen de burn-in van de keten. Dat "
+            "kan alleen wanneer een stap zijn opstartfase heeft opgevuld.",
+            _DataContractError,
+            burn_in=burn_in,
+        )
+        values.index.name = _ASOF_INDEX_NAME
+        return PanelFeature(
+            values=values,
+            data_hashes=panel.data_hashes,
+            steps=self._steps,
+            burn_in_period=burn_in,
+            panel_hash=self.panel_hash(
+                data_hashes=panel.data_hashes, git_sha=git_sha
+            ),
+        )

@@ -51,6 +51,7 @@ __all__ = [
     "ASOF_INDEX_NAME",
     "BaseFeature",
     "CertifiedFrame",
+    "CertifiedPanel",
     "DATA_REGISTER_RELPATH",
     "DataRegister",
     "FEATURE_DTYPE",
@@ -59,6 +60,7 @@ __all__ = [
     "FeatureResult",
     "InputSpec",
     "REQUIRED_TIME_COLUMNS",
+    "load_certified_close_panel",
     "load_certified_series",
     "repo_root",
 ]
@@ -240,6 +242,64 @@ class CertifiedFrame:
         return CertifiedFrame(
             frame=self.frame.loc[self.frame.index <= cutoff],
             symbol=self.symbol,
+            data_hashes=self.data_hashes,
+        )
+
+
+@dataclass(frozen=True)
+class CertifiedPanel:
+    """Een BREED panel plus provenance: rijen `asof_ts`, kolommen symbolen.
+
+    Phase 3 (L1). De cross-sectionele tegenhanger van `CertifiedFrame`. Een
+    rangschikking over assets vereist dat de waarden van alle symbolen op
+    hetzelfde BESCHIKBAARHEIDSmoment naast elkaar staan; daarom is de index
+    `asof_ts` en niet `event_ts`.
+
+    Een symbool dat op `t` nog niet bestond, staat op NaN. Dat is geen gat om te
+    vullen maar het feit dat het instrument er niet was; het invullen ervan zou
+    survivorship bias introduceren.
+    """
+
+    values: pd.DataFrame
+    data_hashes: tuple[tuple[str, str], ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "data_hashes", tuple(sorted(self.data_hashes)))
+        assert_utc_index(self.values, name="CertifiedPanel")
+        require(
+            bool(self.values.index.is_unique),
+            "Dubbele tijdstempels in het panel.",
+            DataContractError,
+        )
+        require(
+            len(self.values.columns) > 0,
+            "Panel zonder symbolen.",
+            DataContractError,
+        )
+        require(
+            bool(self.data_hashes),
+            "CertifiedPanel zonder data_hash. Een cross-sectie op "
+            "ongecertificeerde data is INVALID (sectie 7.2).",
+            DataContractError,
+        )
+        for col in self.values.columns:
+            require(
+                self.values[col].dtype == FEATURE_DTYPE,
+                "Elke panelkolom is float64; impliciete dtype-conversie maakt "
+                "cross-platform determinisme onmogelijk.",
+                DataContractError,
+                column=str(col),
+                dtype=str(self.values[col].dtype),
+            )
+
+    @property
+    def symbols(self) -> tuple[str, ...]:
+        return tuple(str(c) for c in self.values.columns)
+
+    def truncate(self, cutoff: pd.Timestamp) -> CertifiedPanel:
+        """Alles NA `cutoff` weggooien. Het instrument van de invariantietest."""
+        return CertifiedPanel(
+            values=self.values.loc[self.values.index <= cutoff],
             data_hashes=self.data_hashes,
         )
 
@@ -682,3 +742,44 @@ def load_certified_series(
         name="event_ts",
     )
     return out, certified
+
+
+def load_certified_close_panel(
+    store: Any,
+    register: DataRegister,
+    *,
+    symbols: Sequence[str],
+    granularity: str,
+    asset_class: str,
+) -> CertifiedPanel:
+    """Bouw het brede close-panel voor de cross-sectie, met provenance.
+
+    Geindexeerd op `asof_ts`: de close van een daily bar is pas bekend wanneer
+    die bar sluit. Symbolen met een latere listing krijgen NaN vooraan - het
+    instrument bestond dan niet, en dat is informatie.
+    """
+    require(
+        len(symbols) > 0,
+        "Leeg symboluniversum; er valt niets te rangschikken.",
+        DataContractError,
+    )
+    columns: dict[str, pd.Series] = {}
+    hashes: list[tuple[str, str]] = []
+    for symbol in symbols:
+        df, certified = load_certified_series(
+            store, register, asset_class=asset_class, dataset="ohlcv",
+            symbol=symbol, granularity=granularity,
+        )
+        asof = pd.DatetimeIndex(
+            pd.to_datetime(df["asof_ts_ns"].to_numpy(), unit="ns", utc=True),
+            name=ASOF_INDEX_NAME,
+        )
+        columns[symbol] = pd.Series(
+            df["close"].to_numpy(dtype="float64"), index=asof, name=symbol
+        )
+        hashes.append(
+            (DataRegister.key(asset_class, "ohlcv", symbol, granularity), certified)
+        )
+    panel = pd.DataFrame(columns).sort_index()
+    panel.index.name = ASOF_INDEX_NAME
+    return CertifiedPanel(values=panel.astype("float64"), data_hashes=tuple(hashes))

@@ -1,5 +1,10 @@
 """Volatility estimator suite (AFML §3)."""
-from .ewma import get_ewma_volatility
+from .ewma import (
+    ewma_variance_causal,
+    ewma_volatility,
+    ewma_volatility_panel,
+    get_ewma_volatility,  # GEDEPRECIEERD: crasht
+)
 from .garman_klass import (
     get_garman_klass_volatility,
     get_jump_adjusted_volatility,
@@ -10,6 +15,9 @@ from .rogers_satchell import get_rogers_satchell_volatility
 from .yang_zhang import get_yang_zhang_volatility
 
 __all__ = [
+    "ewma_variance_causal",
+    "ewma_volatility",
+    "ewma_volatility_panel",
     "get_ewma_volatility",
     "get_garman_klass_volatility",
     "get_jump_adjusted_volatility",
