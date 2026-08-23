@@ -91,3 +91,6 @@ desktop.ini
 # Kleine, deterministische testfixtures mogen wel mee: zij zijn onderdeel van
 # het bewijs dat de lookahead-gates reproduceerbaar zijn.
 !tests/**/fixtures/**/*.parquet
+
+# Phase 2 - afgeleide L3 feature store (herbouwbaar uit de PIT-store + conf/)
+data/feature_store/

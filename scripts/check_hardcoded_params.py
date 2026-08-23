@@ -190,7 +190,12 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
 # herschrijft (dan valt zijn ratchet-budget naar 0).
 GOVERNED = ("features/transforms.py", "features/pipeline.py",
             "alpha/base.py", "portfolio/risk_parity.py",
-            "portfolio/equal_weight.py", "validation/")
+            "portfolio/equal_weight.py", "validation/",
+            # Phase 2 - L3 feature engine. Nieuw geschreven onder het
+            # causaliteitscontract; elke vensterlengte, decay en drempel
+            # komt uit conf/features/default.yaml.
+            "features/base.py", "features/volatility.py",
+            "features/momentum.py", "features/registry.py")
 
 
 def iter_py(base: Path):

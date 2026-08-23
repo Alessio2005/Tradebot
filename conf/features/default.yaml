@@ -1,0 +1,69 @@
+# conf/features/default.yaml — L3 Feature Store & Causal Pipeline
+# Gevalideerd tegen schemas/config.py::FeatureConfig (extra="forbid", frozen=True).
+#
+# BINDEND (Phase 2, exit criterium 5): geen enkele vensterlengte, decay factor of
+# drempel staat als literal in `src/tradebot/features/`. Elke waarde hieronder is
+# een BELEIDSKEUZE en verandert bij wijziging gegarandeerd de `feature_hash`.
+features:
+  # ---------------------------------------------------------------- contract
+  # De burn-in-politiek van de hele laag. `nan` is de ENIGE toegestane waarde in
+  # Phase 2: een feature die zijn burn-in vult met een sample-brede statistiek
+  # (DI-2) of met een constante is per definitie INVALID. De sleutel bestaat
+  # zodat het rapport hem kan citeren, niet om hem om te zetten.
+  burn_in_policy: nan
+
+  # Root van de L3 feature store. GESCHEIDEN van data.feature_store_root, dat
+  # naar de oudere live-featurestore in artefacts/ wijst.
+  store_root: data/feature_store
+
+  # Crypto handelt 365 dagen per jaar; dit is de annualisatiefactor voor elke
+  # volatiliteitsfeature. Rekenkundig feit, maar expliciet vastgelegd zodat een
+  # rapport de gebruikte conventie kan citeren.
+  annualisation_factor: 365.0
+
+  # Minimaal aantal observaties voordat een EXPANDING statistiek wordt
+  # vrijgegeven. Daarvoor is de output NaN. Dit is de causale vervanging van het
+  # DI-2-lek: waar voorheen de std over de VOLLEDIGE sample werd ingevuld,
+  # bestaat er nu simpelweg nog geen schatting.
+  min_expanding_periods: 20
+
+  # Maximale ouderdom van een rechter-rij in elke asof_join (sectie 7.2).
+  # Funding settelt elke 8 uur; open interest is dagelijks.
+  funding_tolerance_hours: 8
+  open_interest_tolerance_hours: 24
+
+  # ------------------------------------------------------------- volatility
+  volatility:
+    # Rolling realized-vol vensters (bars). min_periods == window: tijdens de
+    # burn-in blijft de waarde NaN, er wordt NIETS ingevuld.
+    realized_windows: [5, 20, 60]
+
+    # RiskMetrics-conventie, identiek aan conf/model/volatility.yaml. De
+    # EWMA-recursie is causaal: sigma^2_t hangt uitsluitend af van r_t en
+    # sigma^2_{t-1}.
+    ewma_lambda: 0.94
+    # Aantal returns dat de causale opstartfase van de EWMA-variantie voedt via
+    # een EXPANDING gemiddelde. Daarvoor is de output NaN.
+    ewma_burn_in_bars: 20
+
+    # Range-gebaseerde estimators (Parkinson, Garman-Klass) op OHLC.
+    range_window: 20
+
+  # --------------------------------------------------------------- momentum
+  momentum:
+    # Log-return lookbacks (bars).
+    lookback_windows: [5, 20, 60]
+    # Skip-periode tegen de bekende 1-bar reversal. 0 = geen skip.
+    skip_bars: 1
+    # EWMA return-spread (trendfilter). Spans in bars, fast < slow.
+    ewma_fast_span: 12
+    ewma_slow_span: 26
+
+  # --------------------------------------------------------- microstructure
+  microstructure:
+    # Vensters voor het gemiddelde van de funding rate (in 1d-bars).
+    funding_windows: [3, 21]
+    # Minimaal aantal observaties voor de EXPANDING z-score van funding.
+    funding_zscore_min_periods: 60
+    # Vensters voor de log-verandering in open interest (in 1d-bars).
+    oi_change_windows: [1, 7]
