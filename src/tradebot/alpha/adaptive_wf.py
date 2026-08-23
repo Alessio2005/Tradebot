@@ -52,7 +52,6 @@ class AdaptiveWFConfig:
     refit_days: int = 91                    # walk-forward refit cadence (quarterly)
     embargo_days: int = 13                  # purge gap train->test (>= horizon)
     recency_halflife_days: float = 365.0    # sample-weight time-decay
-    target_vol: float = 0.40                # book vol target (annualised)
     cost_bps: float = 10.0                  # round-trip taker cost
     wf_start: str = "2023-01-01"            # first forward block
     min_train_rows: int = 8000
@@ -60,7 +59,6 @@ class AdaptiveWFConfig:
     decile: float = 0.20                    # (unused in continuous harvest; kept for grid)
     smooth_span: int = 5                    # EWMA turnover control
     band: float = 0.004                     # no-trade band (gross fraction)
-    regime_degross: float = 0.7             # max gross cut in bull mania
     mda_keep: int = 28                      # frozen top-N features by causal MDA
     seed: int = 0
     catboost_params: dict = field(default_factory=lambda: {
@@ -230,11 +228,19 @@ class AdaptiveWalkForward:
         P["__p"] = oos
         return P
 
-    # ----- regime-guarded harvest ------------------------------------------- #
-    def harvest(self, P: pd.DataFrame, *, neutralise=True, smooth=True,
-                band=True, regime=True) -> pd.Series:
+    # ----- L4: gewenste exposure, en verder niets --------------------------- #
+    def weights(self, P: pd.DataFrame, *, neutralise=True, smooth=True,
+                band=True) -> pd.DataFrame:
+        """De gewenste exposure per symbool: dollar-neutraal, gross genormaliseerd.
+
+        Phase 4, stap 8. Dit is het volledige L4-product van deze harness.
+        Er zat hier eerder ook risicologica in - een boek-volatiliteitstarget
+        van 40% en een regime-afhankelijke de-grossing - en die is verwijderd.
+        Beide zijn L7-ingrepen (audit sectie 14.1); wat er met deze gewichten
+        gebeurt, beslist `risk.engine.RiskEngine`.
+        """
         cfg, pan = self.cfg, self._panels
-        close, rets, mkt, btc_ret = pan["close"], pan["rets"], pan["mkt"], pan["btc_ret"]
+        close, rets, btc_ret = pan["close"], pan["rets"], pan["btc_ret"]
         m = P["__p"].notna()
         score = (P[m].pivot_table(index="__date", columns="__sym", values="__p", aggfunc="last")
                  .reindex(close.index).reindex(columns=pan["syms"]))
@@ -249,14 +255,26 @@ class AdaptiveWalkForward:
             sig = sig.ewm(span=cfg.smooth_span).mean()
         g = sig.abs().sum(axis=1).replace(0, np.nan)
         wn = sig.div(g, axis=0).fillna(0.0)
-        if regime:
-            wn = wn.mul(self._regime_gross(mkt), axis=0)
         if band:
             wn = self._apply_band(wn, cfg.band)
-        pnl = ((wn.shift(1) * rets).sum(axis=1)
-               - (wn - wn.shift(1)).abs().sum(axis=1) * cfg.cost_bps / 1e4).dropna()
-        bv = pnl.std() * np.sqrt(DAYS)
-        return pnl * (cfg.target_vol / bv) if bv > 0 else pnl
+        return wn
+
+    # ----- L10: kale PnL van die gewichten, ZONDER risicolaag ---------------- #
+    def harvest(self, P: pd.DataFrame, *, neutralise=True, smooth=True,
+                band=True) -> pd.Series:
+        """Bruto-na-kosten PnL van `weights()`. Geen vol-target, geen de-grossing.
+
+        De vol-schaling die hier stond (`pnl * (target_vol / bv)`) had drie
+        problemen: zij woonde in L4, zij kende geen `MaxLeverage`-cap, en zij
+        gaf bij `bv <= 0` de ongeschaalde PnL terug - een stille terugval naar
+        "geen targeting" op het moment dat de schatter niets wist. De
+        vervanger is `risk.vol_targeting`, die op alle drie punten crasht of
+        begrenst.
+        """
+        cfg, rets = self.cfg, self._panels["rets"]
+        wn = self.weights(P, neutralise=neutralise, smooth=smooth, band=band)
+        return ((wn.shift(1) * rets).sum(axis=1)
+                - (wn - wn.shift(1)).abs().sum(axis=1) * cfg.cost_bps / 1e4).dropna()
 
     @staticmethod
     def _neutralise(sig, logvol, betaf):
@@ -291,13 +309,6 @@ class AdaptiveWalkForward:
                 ) from exc
         return out
 
-    def _regime_gross(self, mkt: pd.Series) -> pd.Series:
-        """De-gross in strong bull manias (short-biased book's failure mode)."""
-        strength = (mkt.rolling(60).mean() / mkt.rolling(60).std()).shift(1)
-        hi = strength.clip(lower=0).quantile(0.9)
-        cut = (strength.clip(lower=0) / (hi if hi > 0 else 1.0)).clip(0, 1) * self.cfg.regime_degross
-        return (1.0 - cut).fillna(1.0)
-
     @staticmethod
     def _apply_band(wn: pd.DataFrame, band: float) -> pd.DataFrame:
         held = wn * 0.0
@@ -314,12 +325,18 @@ class AdaptiveWalkForward:
         cfg = self.cfg
         # construction-variant grid for honest overfit accounting (PBO + deflated DSR)
         variants = {}
+        # Phase 4, stap 8: de regime-de-grossing is uit L4 verwijderd en is dus
+        # geen constructiekeuze meer. Het no-trade-band NEEMT die plek in het
+        # raster in - dat is wel een echte keuze, en hij stond eerder vast op
+        # True zonder in de trial-telling mee te doen. `n_trials` blijft 8 en
+        # blijft de daadwerkelijk beproefde varianten tellen; hem laten dalen
+        # zou de deflated Sharpe onterecht gunstiger maken.
         for neu in (True, False):
             for sm in (True, False):
-                for reg in (True, False):
-                    key = f"n{int(neu)}s{int(sm)}r{int(reg)}"
+                for bd in (True, False):
+                    key = f"n{int(neu)}s{int(sm)}b{int(bd)}"
                     variants[key] = self.harvest(P, neutralise=neu, smooth=sm,
-                                                 band=True, regime=reg)
+                                                 band=bd)
         idx = sorted(set().union(*[v.index for v in variants.values()]))
         mat = pd.DataFrame({k: v.reindex(idx) for k, v in variants.items()}).fillna(0.0)
         n_trials = mat.shape[1]
