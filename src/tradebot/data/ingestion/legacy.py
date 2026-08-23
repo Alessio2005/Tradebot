@@ -1,4 +1,11 @@
-"""ingestion.py — Raw data ingestion: engine routing + sync + load.
+"""legacy.py — Raw data ingestion: engine routing + sync + load.
+
+Phase 1: verplaatst van data/ingestion.py naar data/ingestion/legacy.py
+toen data/ingestion een subpackage werd (audit sectie 20). De publieke
+API `ingest_raw` blijft ongewijzigd bereikbaar via
+`tradebot.data.ingestion`. Dit pad schrijft NIET naar de PIT-store; het
+blijft bestaan voor apps/build_features.py tot Phase 5 de pijplijnen
+consolideert.
 
 Extracted from train_regime.py lines 3582-3605 (per-symbol engine routing
 inside train_pipeline).
@@ -27,7 +34,7 @@ from omegaconf import DictConfig, OmegaConf
 # Phase 0: `.crypto` is een interne module binnen data/. De try/except zette de
 # engine op None en logde "Bybit data ingestion is disabled" - waarna de hele
 # ingestion-pijplijn stil bleef staan zonder dat een aanroeper dat merkte.
-from .crypto import CryptoIngestionEngine as _BybitEngine
+from ..crypto import CryptoIngestionEngine as _BybitEngine
 
 logger = logging.getLogger(__name__)
 

@@ -4,8 +4,16 @@ De onveranderlijke opslaglaag waarop elke latere statistische claim rust.
 
 CONTRACT
 --------
-1. **Partitionering** op `(asset_class, symbol, granularity, date)`. Het pad is
-   de sleutel; er bestaat geen index-bestand dat uit sync kan raken.
+1. **Partitionering** op `(asset_class, dataset, symbol, granularity, date)`.
+   Het pad is de sleutel; er bestaat geen index-bestand dat uit sync kan raken.
+
+   *Afwijking van het auditdocument, bewust.* Sectie/deliverable 1 schrijft
+   `(asset_class, symbol, granularity, date)` voor. Die sleutel is
+   ONDERGESPECIFICEERD: OHLCV, funding rates en open interest van hetzelfde
+   symbool op dezelfde granulariteit vallen er allemaal in dezelfde partitie.
+   Aangetroffen tijdens de eerste volledige ingestion - de append-only guard
+   van deze store ving de botsing (BTCUSDT/1d/2020: 282 OHLCV-rijen versus
+   149 open-interest-rijen). `dataset` is daarom aan de sleutel toegevoegd.
 2. **Append-only.** Een tweede schrijfactie op dezelfde partitie met AFWIJKENDE
    inhoud crasht met `DataContractError`. Een schrijfactie met identieke inhoud
    is een no-op — zodat een herstart van een ingestion-run veilig is.
@@ -38,7 +46,7 @@ __all__ = [
     "PartitionRef",
 ]
 
-PARTITION_KEYS = ("asset_class", "symbol", "granularity", "date")
+PARTITION_KEYS = ("asset_class", "dataset", "symbol", "granularity", "date")
 
 #: Verplichte kolommen in elke PIT-partitie.
 REQUIRED_COLUMNS = ("event_ts_ns", "asof_ts_ns")
@@ -51,13 +59,15 @@ class PartitionRef:
     """Onveranderlijke verwijzing naar één partitie in de store."""
 
     asset_class: str
+    dataset: str          # "ohlcv" | "funding" | "open_interest" | ...
     symbol: str
     granularity: str
-    date: str  # ISO yyyy-mm-dd
+    date: str             # ISO yyyy-mm-dd
 
     def relpath(self) -> Path:
         return Path(
             f"asset_class={self.asset_class}",
+            f"dataset={self.dataset}",
             f"symbol={self.symbol}",
             f"granularity={self.granularity}",
             f"date={self.date}",
@@ -175,6 +185,7 @@ class PitStore:
 
         meta = {
             "asset_class": ref.asset_class,
+            "dataset": ref.dataset,
             "symbol": ref.symbol,
             "granularity": ref.granularity,
             "date": ref.date,
@@ -214,6 +225,7 @@ class PitStore:
     def partitions(
         self,
         asset_class: str | None = None,
+        dataset: str | None = None,
         symbol: str | None = None,
         granularity: str | None = None,
     ) -> list[PartitionRef]:
@@ -223,17 +235,19 @@ class PitStore:
         out: list[PartitionRef] = []
         for p in sorted(self.root.rglob(self._DATA_FILE)):
             parts = p.relative_to(self.root).parts
-            if len(parts) < 5:
+            if len(parts) < 6:
                 continue
             kv = {}
-            for seg in parts[:4]:
+            for seg in parts[:5]:
                 k, _, v = seg.partition("=")
                 kv[k] = v
             if set(kv) != set(PARTITION_KEYS):
                 continue
-            ref = PartitionRef(kv["asset_class"], kv["symbol"],
+            ref = PartitionRef(kv["asset_class"], kv["dataset"], kv["symbol"],
                                kv["granularity"], kv["date"])
             if asset_class and ref.asset_class != asset_class:
+                continue
+            if dataset and ref.dataset != dataset:
                 continue
             if symbol and ref.symbol != symbol:
                 continue
@@ -245,28 +259,31 @@ class PitStore:
     def load(
         self,
         asset_class: str,
+        dataset: str,
         symbol: str,
         granularity: str,
     ) -> pd.DataFrame:
         """Concateneer elke partitie van één reeks tot één oplopende frame."""
-        refs = self.partitions(asset_class, symbol, granularity)
+        refs = self.partitions(asset_class, dataset, symbol, granularity)
         require(
             refs,
             "Geen enkele partitie gevonden voor deze reeks. Er wordt GEEN lege "
             "DataFrame teruggegeven: dat zou stilzwijgend als 'geen signaal' "
             "worden geinterpreteerd in plaats van als ontbrekende data.",
             DataContractError,
-            asset_class=asset_class, symbol=symbol, granularity=granularity,
-            root=str(self.root),
+            asset_class=asset_class, dataset=dataset, symbol=symbol,
+            granularity=granularity, root=str(self.root),
         )
         frames = [self.read(r) for r in refs]
         df = pd.concat(frames, ignore_index=True)
         df = df.sort_values("event_ts_ns", kind="stable").reset_index(drop=True)
         return df
 
-    def series_hash(self, asset_class: str, symbol: str, granularity: str) -> str:
+    def series_hash(self, asset_class: str, dataset: str, symbol: str,
+                    granularity: str) -> str:
         """Deterministische `data_hash` over de volledige, gesorteerde reeks."""
-        return dataframe_content_hash(self.load(asset_class, symbol, granularity))
+        return dataframe_content_hash(
+            self.load(asset_class, dataset, symbol, granularity))
 
     # ----------------------------------------------------------------- delete
     def drop_partition(self, ref: PartitionRef, *, i_understand: bool = False) -> None:
