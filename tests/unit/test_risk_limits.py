@@ -115,10 +115,26 @@ class TestConcentrationCap:
         for c in bound:
             assert c.measured > c.threshold
 
-    def test_an_infeasible_cap_crashes_instead_of_zeroing_the_book(self) -> None:
-        """n * cap < 1 heeft geen oplossing behalve nul; dat moet luid falen."""
-        with pytest.raises(ConfigContractError):
-            apply_concentration_cap({"A": 0.5, "B": 0.5}, max_concentration=0.40)
+    def test_an_infeasible_cap_floors_at_an_equal_split(self) -> None:
+        """`n * cap < 1` heeft geen oplossing behalve nul, en nul is fout.
+
+        Het aantal actieve posities is een eigenschap van het BOEK op deze bar,
+        niet van de configuratie: een bar waarop alpha twee namen aanwijst mag
+        het platform niet stilleggen en al helemaal niet stilzwijgend naar nul
+        brengen. De cap wordt dan afgedwongen op zijn strengst HAALBARE vorm,
+        de gelijke verdeling.
+        """
+        out, _ = apply_concentration_cap({"A": 0.9, "B": -0.1}, max_concentration=0.40)
+        g = gross_exposure(out)
+        assert max(abs(v) for v in out.values()) / g == pytest.approx(0.5)
+        assert g > 0.0, "de limiet heeft het boek gesloten"
+
+    def test_the_floor_never_permits_more_than_an_equal_split(self) -> None:
+        for n in (2, 3, 5):
+            book = {f"S{i}": (1.0 if i == 0 else 0.01) for i in range(n)}
+            out, _ = apply_concentration_cap(book, max_concentration=0.40)
+            g = gross_exposure(out)
+            assert max(abs(v) for v in out.values()) / g <= max(0.40, 1.0 / n) + 1e-9
 
     def test_a_flat_book_is_left_alone(self) -> None:
         out, bound = apply_concentration_cap({"A": 0.0}, max_concentration=0.40)
@@ -227,8 +243,6 @@ class TestSharedInvariants:
 
     @pytest.mark.parametrize("limit_idx", range(len(ALL_LIMITS)))
     def test_the_source_book_is_never_mutated(self, limit_idx: int) -> None:
-        # Drie assets: bij cap=0.40 is een boek van twee per constructie
-        # onhaalbaar (2 x 0.40 < 1) en crasht de concentratielimiet terecht.
         book = {"A": 1.0, "B": -1.0, "C": 0.5}
         ALL_LIMITS[limit_idx](book)
         assert book == {"A": 1.0, "B": -1.0, "C": 0.5}
