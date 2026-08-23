@@ -25,8 +25,21 @@ from tradebot.utils.time import asof_join
 __all__ = ["load_fx_panels", "build_fx_factors"]
 
 
+#: Maximale ouderdom van een FRED-observatie bij het vullen van het panel.
+#: FRED-macroreeksen zijn dagelijks met weekend- en feestdaggaten; 10 kalenderdagen
+#: overbrugt een lang weekend plus een feestdag zonder een reeks die maandenlang
+#: stilstaat alsnog als "actueel" te presenteren. Phase 1: expliciet gemaakt
+#: omdat asof_join nu een verplichte tolerance kent (voorheen: onbegrensd, een
+#: waarde uit 1999 kon aan een bar uit 2026 worden gekoppeld).
+FRED_ASOF_TOLERANCE = pd.Timedelta(days=10)
+
+
 def _panel_from_long(
-    long: pd.DataFrame, ids: dict[str, str], bidx: pd.DatetimeIndex
+    long: pd.DataFrame,
+    ids: dict[str, str],
+    bidx: pd.DatetimeIndex,
+    *,
+    tolerance: pd.Timedelta = FRED_ASOF_TOLERANCE,
 ) -> pd.DataFrame:
     """Long PIT frame [series_id, event_ts, value, asof_ts] -> wide panel on
     ``bidx`` where each cell is the latest value KNOWN at that date."""
@@ -36,7 +49,7 @@ def _panel_from_long(
         sub = long[long["series_id"] == sid][["value", "asof_ts"]]
         if sub.empty:
             continue
-        joined = asof_join(base, sub)
+        joined = asof_join(base, sub, tolerance=tolerance)
         out[ccy] = joined["value"]
     return pd.DataFrame(out, index=bidx)
 

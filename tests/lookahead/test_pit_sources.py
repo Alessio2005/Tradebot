@@ -15,6 +15,12 @@ from tradebot.data.sources.base import ASOF_COL, EVENT_COL, stamp_asof, validate
 from tradebot.data.sources.wiki_constituents import build_membership_calendar
 from tradebot.utils.time import asof_join
 
+# Phase 1: asof_join kent een VERPLICHTE tolerance. Deze tests werken op
+# dag-granulariteit; 30 dagen is ruim genoeg om het backward-gedrag te
+# tonen zonder de tolerance zelf te testen (dat doet
+# tests/lookahead/test_asof_join_crypto.py).
+TOL = pd.Timedelta(days=30)
+
 UTC = "UTC"
 
 
@@ -51,7 +57,7 @@ def test_asof_join_never_uses_future_rows() -> None:
     t = pd.date_range("2024-01-01", periods=5, freq="D", tz=UTC)
     left = pd.DataFrame({"sig": np.arange(5.0)}, index=t)
     right = _pit_frame(["2024-01-02"], lag_days=1, value=[10.0])
-    out = asof_join(left, right)
+    out = asof_join(left, right, tolerance=TOL)
     # asof = 2024-01-03 -> rows before that must be NaN
     assert out.loc["2024-01-01", "value"] != out.loc["2024-01-01", "value"]  # NaN
     assert np.isnan(out.loc["2024-01-02", "value"])
@@ -64,7 +70,7 @@ def test_asof_join_lag_shifts_availability() -> None:
     left = pd.DataFrame({"sig": np.zeros(10)}, index=t)
     for lag in (0, 1, 3):
         right = _pit_frame(["2024-01-05"], lag_days=lag, value=[1.0])
-        out = asof_join(left, right)
+        out = asof_join(left, right, tolerance=TOL)
         first = out["value"].first_valid_index()
         assert first == pd.Timestamp("2024-01-05", tz=UTC) + pd.Timedelta(days=lag)
 
@@ -82,7 +88,7 @@ def test_asof_join_grouped_by_symbol() -> None:
         ],
         ignore_index=True,
     )
-    out = asof_join(left, right, by="symbol")
+    out = asof_join(left, right, by="symbol", tolerance=TOL)
     a = out[out["symbol"] == "A"]["value"]
     b = out[out["symbol"] == "B"]["value"]
     assert np.isnan(a.iloc[0]) and a.iloc[1] == 1.0  # A known from Jan 2
@@ -98,8 +104,8 @@ def test_asof_join_deterministic() -> None:
         lag_days=2,
         value=rng.normal(size=20),
     )
-    out1 = asof_join(left, right)
-    out2 = asof_join(left, right)
+    out1 = asof_join(left, right, tolerance=TOL)
+    out2 = asof_join(left, right, tolerance=TOL)
     pd.testing.assert_frame_equal(out1, out2)  # R-5
 
 
