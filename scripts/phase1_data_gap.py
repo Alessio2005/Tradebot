@@ -135,7 +135,7 @@ def main() -> int:
     A("|---|---:|---:|---:|")
     for name in ("OHLCV daily", "OHLCV 5m", "funding rates", "open interest",
                  "liquidaties", "orderboek L1", "orderboek L2"):
-        A("| {} | {} | **0** | **0%** |".format(name, len(universe)))
+        A(f"| {name} | {len(universe)} | **0** | **0%** |")
     A("")
     A("**Er is nul byte crypto-data in de werkkopie.** `market_data_parquet/`")
     A("bevat uitsluitend FX-, macro-, commodity- en equity-reeksen. De bevinding")
