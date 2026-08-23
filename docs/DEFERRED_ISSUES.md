@@ -29,6 +29,7 @@
 | **DI-12** | `volatility/ewma.py`, `features/`, `alpha/` | Idem. `ewma.py` heeft géén lambda-parameter maar een `halflife=20`, en vult de burn-in met `fillna(0.0)` — een **impliciete constante volatiliteit van nul**, wat in risk parity een oneindig gewicht oplevert. | Het harden van de EWMA-estimator (lambda uit `conf`, expliciete burn-in, NaN-propagatie i.p.v. nul) is expliciet Phase 3 stap 3. Het nu al doen is scope creep. | **Phase 3** |
 | **DI-13** | `data/`, `bars/` | Idem. | Phase 1 herschrijft de ingestion-laag volledig. | **Phase 1** |
 | **DI-14** | `live/`, `oms/`, `monitoring/`, `compliance/`, `registry/`, `utils/` | Idem. | Phase 7 (productie-readiness). | **Phase 7** |
+| **DI-15** | `artefacts/governance/symbol_lifecycle.json` | **Survivorship bias.** De publieke Bybit V5-API retourneert uitsluitend nog-verhandelde instrumenten (gemeten: 833 van 833 met status `Trading`, nul delistings). Het universum bestaat daardoor uit zes ex-post gekozen overlevers. Een momentum-strategie op overlevers oogt gunstiger dan dezelfde strategie op een periodiek hersamengesteld universum. | Vereist een TWEEDE databron met delisting-historie; dat is een inkoopbesluit, geen technische keuze. Het contract (`SymbolLifecycle`, `validate_continuity`) is wel gebouwd en weigert bars voor de listing of na de delisting, dus de data plugt in zodra hij er is. | **Phase 3** (vermelden bij elke baseline-claim), sluiten zodra een bron beschikbaar is |
 
 ---
 
@@ -36,4 +37,4 @@
 
 | ID | Probleem | Gesloten door |
 |---|---|---|
-| — | _(nog geen)_ | — |
+| **DI-13** | Hardcoded parameters in `data/`, `bars/` | Deels: de NIEUWE ingestion-laag (`data/ingestion/`, `data/validation/`, `data/pit_store.py`, `data/panel.py`) is volledig config-gedreven en heeft ratchet-budget 0. De legacy `data/`-modules blijven staan tot Phase 5 consolideert. |

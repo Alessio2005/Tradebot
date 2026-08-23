@@ -1,0 +1,50 @@
+{
+  "AVAXUSDT": {
+    "delisted_ts_ns": null,
+    "listed_iso": "2021-09-15 00:00:00+00:00",
+    "listed_ts_ns": 1631664000000000000,
+    "source": "bybit-v5/instruments-info",
+    "status": "Trading",
+    "symbol": "AVAXUSDT"
+  },
+  "BTCUSDT": {
+    "delisted_ts_ns": null,
+    "listed_iso": "2020-03-15 00:00:00+00:00",
+    "listed_ts_ns": 1584230400000000000,
+    "source": "bybit-v5/instruments-info",
+    "status": "Trading",
+    "symbol": "BTCUSDT"
+  },
+  "DOTUSDT": {
+    "delisted_ts_ns": null,
+    "listed_iso": "2021-03-18 09:34:00+00:00",
+    "listed_ts_ns": 1616060040000000000,
+    "source": "bybit-v5/instruments-info",
+    "status": "Trading",
+    "symbol": "DOTUSDT"
+  },
+  "ETHUSDT": {
+    "delisted_ts_ns": null,
+    "listed_iso": "2021-03-15 00:00:00+00:00",
+    "listed_ts_ns": 1615766400000000000,
+    "source": "bybit-v5/instruments-info",
+    "status": "Trading",
+    "symbol": "ETHUSDT"
+  },
+  "LINKUSDT": {
+    "delisted_ts_ns": null,
+    "listed_iso": "2018-01-01 00:00:00+00:00",
+    "listed_ts_ns": 1514764800000000000,
+    "source": "bybit-v5/instruments-info",
+    "status": "Trading",
+    "symbol": "LINKUSDT"
+  },
+  "SOLUSDT": {
+    "delisted_ts_ns": null,
+    "listed_iso": "2021-10-15 00:00:00+00:00",
+    "listed_ts_ns": 1634256000000000000,
+    "source": "bybit-v5/instruments-info",
+    "status": "Trading",
+    "symbol": "SOLUSDT"
+  }
+}
