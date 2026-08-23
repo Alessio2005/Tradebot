@@ -1,0 +1,6 @@
+outs:
+- md5: e04fff202fdc77d375a990fa99c43c3d.dir
+  size: 2340376
+  nfiles: 228
+  hash: md5
+  path: pit_store

@@ -12,6 +12,13 @@
 #   DVC hashes inputs/code/params. Cached outputs are reused.
 #   Use `dvc push` + `dvc pull` for team artefact sharing.
 #
+# Phase 1 (2026-08-22): `${item}` interpoleerde een DICT voor elke stage die
+# over `symbol_side_pairs` itereert (een lijst van {symbol, side}-mappings).
+# DVC kan een dict niet in een pad stringificeren, waardoor `dvc repro` en zelfs
+# `dvc add` afbraken met "Cannot interpolate data of type 'dict'". De pipeline
+# is dus NOOIT uitvoerbaar geweest en de reproduceerbaarheidsgarantie hierboven
+# werd nergens afgedwongen. Gecorrigeerd naar `${item.symbol}_${item.side}`.
+#
 # REFACTOR_BLUEPRINT §3.4: DVC + Hydra integration.
 #   params.yaml is a thin shim exposing Hydra config keys for DVC tracking.
 #   Hydra remains the config ground-truth; DVC triggers re-run on hash change.
@@ -64,7 +71,10 @@ stages:
         - artefacts/features/${item}.parquet
         - artefacts/events/${item}.parquet
         - artefacts/feature_map_${item}.json
-        - artefacts/orthogonalizers/
+        # Phase 1: was `artefacts/orthogonalizers/` - een MAP die door elke
+        # symbol-instantie van deze stage werd geclaimd, waardoor DVC
+        # overlappende outputs meldde en het hele project weigerde te laden.
+        - artefacts/orthogonalizers/${item}.joblib
 
   # ────────────────────────────────────────────────────────────────────────────
   # STAGE 2: Features + Events → Optuna best hyperparameters
@@ -73,7 +83,7 @@ stages:
   tune_hparams:
     foreach: ${symbol_side_pairs}
     do:
-      cmd: python -m apps.tune_hparams pair=${item}
+      cmd: python -m apps.tune_hparams pair=${item.symbol}_${item.side}
       deps:
         - apps/tune_hparams.py
         - src/tradebot/tune/objective.py
@@ -92,9 +102,9 @@ stages:
           - training.cpcv_n_groups
           - training.cpcv_n_test_groups
       outs:
-        - artefacts/hparams/${item}_study.db
+        - artefacts/hparams/${item.symbol}_${item.side}_study.db
       metrics:
-        - artefacts/hparams/${item}_best_score.json:
+        - artefacts/hparams/${item.symbol}_${item.side}_best_score.json:
             cache: false
       # best_params JSON is a metric-like artefact we always want to track.
       # Written by the entrypoint alongside the study db.
@@ -106,7 +116,7 @@ stages:
   train_cpcv:
     foreach: ${symbol_side_pairs}
     do:
-      cmd: python -m apps.train_cpcv pair=${item}
+      cmd: python -m apps.train_cpcv pair=${item.symbol}_${item.side}
       deps:
         - apps/train_cpcv.py
         - src/tradebot/cv/cpcv.py
@@ -116,7 +126,7 @@ stages:
         # Stage 1 + 2 outputs
         - artefacts/features/${item.symbol}.parquet
         - artefacts/events/${item.symbol}.parquet
-        - artefacts/hparams/${item}.json
+        - artefacts/hparams/${item.symbol}_${item.side}.json
       params:
         - params.yaml:
           - training.label_t_min
@@ -124,9 +134,9 @@ stages:
           - training.cpcv_n_groups
           - training.cpcv_n_test_groups
       outs:
-        - artefacts/models/${item}_ensemble.joblib
-        - artefacts/calibrators/${item}_platt.joblib
-        - artefacts/oos_probs/${item}.parquet
+        - artefacts/models/${item.symbol}_${item.side}_ensemble.joblib
+        - artefacts/calibrators/${item.symbol}_${item.side}_platt.joblib
+        - artefacts/oos_probs/${item.symbol}_${item.side}.parquet
 
   # ────────────────────────────────────────────────────────────────────────────
   # STAGE 4: OOS probs + asset features → per-asset tracks → portfolio
@@ -167,8 +177,9 @@ stages:
       - apps/make_tearsheet.py
       - src/tradebot/reporting/
       - artefacts/portfolio/result.joblib
-    outs:
-      - reports/tearsheets/
+    # Phase 1: `outs: reports/tearsheets/` (de MAP) overlapte met de metric
+    # eronder; DVC weigert een out en een metric in dezelfde tracked directory.
+    # De metric tracked het JSON-bestand al, dus de map-out is verwijderd.
     metrics:
       - reports/tearsheets/default_tearsheet.json:
           cache: false

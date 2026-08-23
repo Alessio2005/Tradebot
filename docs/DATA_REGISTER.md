@@ -1,39 +1,109 @@
-# DATA REGISTER — G8 (alles gratis, point-in-time, lag expliciet)
+# DATA REGISTER
 
-> Mandaat v3 §10 G8 / §12.5. Elke bron die een unit voedt staat hier vóór de
-> unit geaccepteerd wordt. Kolom "status" wordt pas `verified` na een
-> geslaagde smoke-fetch + schema-validatie + lookahead-test (0.2
-> done-criterium). Code: `src/tradebot/data/sources/`.
+> **De enige geldige bron voor de vraag: welke data mag ik gebruiken?**
+>
+> Een onderzoeksresultaat dat geen `data_hash` uit dit register citeert,
+> is per definitie `INVALID` (audit sectie 7.2).
 
-| Bron | URL | Licentie | Publicatie-lag (as-of-regel) | Dekking | Survivorship | Kwaliteit/notes | Status |
-|------|-----|----------|------------------------------|---------|--------------|-----------------|--------|
-| stooq | https://stooq.com/q/d/l/ | gratis (persoonlijk/research) | EOD close → volgende kalenderdag 00:00 UTC (conservatief) | US/intl equities, ETF's, FX, futures-continuaties; daily; decennia | PARTIEEL delisted — gap per universum meten (Wave 21) | 2026-06-11: PoW-wall opgelost (SHA-256-challenge → `/__verify`, `_get_verified` in `stooq.py`); quote-pagina toegankelijk maar het **CSV-download-endpoint `/q/d/l/` geeft apart "Access denied"** (13 bytes) ook ná verify+cookie_uu+referer — een tweede, hardere IP-blok op de bulk-download. | GEBLOKKEERD (download-endpoint); quote-scrape mogelijk maar niet praktisch voor bulk; yfinance-fallback blijft |
-| yfinance (fallback) | https://finance.yahoo.com via yfinance | gratis; **ToS: persoonlijk gebruik, geen redistributie** (mandaat §5.2: alleen aanvulling — caveat geregistreerd) | EOD close → volgende kalenderdag 00:00 UTC | US equities daily; **delisted grotendeels afwezig** | gap meten als bij Stooq (G8) | auto-fallback in `equity_universe.build_universe(source="auto")`; raw close, auto_adjust=False | code klaar; eerste run open |
-| kenfrench | https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ | gratis (academisch) | conservatief 90d; voor G4-evaluatie (diagnostisch) is lag irrelevant | US factor-returns daily 1963→ | n.v.t. (factorreturns) | %→decimaal geconverteerd in module | **verified 2026-06-10 (15813 rijen)** |
-| AQR BAB | https://www.aqr.com/Insights/Datasets | gratis (AQR datasets) | maandelijkse refresh; conservatief 90d | BAB daily/monthly | n.v.t. | aparte download (xlsx); nodig voor G4-equities | TODO (Wave 21) |
-| edgar | https://data.sec.gov/ | gratis (US gov; UA met contact verplicht) | GEEN gegokte lag — asof = acceptance-timestamp; companyfacts: filed-datum + 1d | alle SEC-registrants; filings 1993→, XBRL ~2009→ | inclusief delisted registrants | rate-limit 10 req/s; ET→UTC | **verified 2026-06-10 (149 filings AAPL)** |
-| fred | https://fred.stlouisfed.org/graph/fredgraph.csv | gratis (geen key) | VERPLICHT per serie: daily rates 1bd; OECD/maandseries ~45d | US+intl rates/macro; decennia | n.v.t. | '.' = missing; chunked-CSV per decennium + staleness-alarm (>120d → hard fail); 2026-06-11: rate-limit na ~100 snelle requests → exp-backoff in `http_get_text` (2/4/8s) + 0.4s pacing per chunk | **rates verified 2026-06-11 (3883 rijen, USD-serie t/m 2026)**; spots herrun loopt |
-| cboe | https://cdn.cboe.com/api/global/us_indices/daily_prices/ | gratis (CBOE published) | EOD close → volgende kalenderdag 00:00 UTC | VIX 1990→, VIX3M 2002→ | n.v.t. (index) | F5 bindend: alleen conditioner/de-grosser | **verified 2026-06-10 (4206 rijen VIX-TS)** |
-| wiki_constituents | https://en.wikipedia.org/wiki/List_of_S%26P_500_companies | gratis (CC BY-SA) | effective date + 1d (aankondiging gaat vooraf) | S&P 500 leden + wijzigingshistorie (~2000→ betrouwbaar) | DIT is de survivorship-fix (bevat removals) | StopIteration op tabel-layout (2026-06-10) → robuuste tabel-detectie | fix gedaan; herrun open |
-| binance/bybit dumps (bestaand) | public data dumps | gratis | klines settled op bar close; funding 8h | 99 USDT-perps 2021-06→ (onboard <2022-07) | delisted ONTBREEKT — opwaartse bias, gedocumenteerd + te stressen (audit §12) | bestaande pipeline (`data/crypto.py`) | verified (bestaand) |
-| FRED DEX-spots (FX) | fredgraph.csv / data-tabel, series DEXUSEU/DEXJPUS/… | gratis | H.10 daily; 1bd lag | G10-crosses vs USD, decennia | n.v.t. | richting-map (USD-per-FX vs FX-per-USD) expliciet in `G10_SPOT_SERIES`, unit-getest | code klaar; ingest = `apps/ingest_fx.py` |
-| FRED 3m-rates (G10) | series DTB3 + IR3TIB01*; lags in `G10_RATE_SERIES` | gratis | USD 1bd; OECD-series 45d (conservatief) | G10, decennia | n.v.t. | carry-signaal alleen via asof_join (lag-getest) | code klaar; ingest = `apps/ingest_fx.py` |
-| OECD PPP | https://stats.oecd.org / SDMX | gratis | jaarlijks; conservatief 6m lag | G10 PPP | n.v.t. | nodig voor FX-value (Wave 26b) | TODO (Fase 2) |
-| **eia_nymex_futures** | https://www.eia.gov/dnav/{ng,pet}/hist_xls/`<SERIE>`d.xls (RNGC1-4, RCLC1-4, EER_EPD2F_PE1-4…, EER_EPMRR_PE1-4) | gratis (US gov) | settlement EOD → volgende kalenderdag 00:00 UTC (als stooq/cboe) | **NYMEX Contract 1–4**: WTI 1983→, Henry Hub NG C1-C3 1994→ C4 1993→, heating oil 1980→, RBOB, propaan | n.v.t. (continuatie-tenors, geen namen) | Enige gratis decennia-diepe échte termijnstructuur. **⚠ BEVROREN ARCHIEF: stopt op 2024-04-05** — EIA publiceert NYMEX-futuresprijzen daarna niet meer (bronpagina zegt dit expliciet). Bruikbaar voor backtest 1980-2024, NIET voor een live unit. **De HTML-route (`LeafHandler.ashx`) kapt bovendien stilzwijgend af — gebruik uitsluitend het .xls-endpoint** (vereist `xlrd`). | **LIVE MODULE, W28**: `src/tradebot/data/sources/eia.py` + `apps/ingest_eia.py`; PIT-gevalideerd, 126 614 rijen, 4 producten x 4 tenors ingelezen 2026-08-10. **Seriecodes gecorrigeerd**: heating oil / RBOB zijn `EER_EPD2F_PE{1-4}_Y35NY_DPG` en `EER_EPMRR_PE{1-4}_Y35NY_DPG` (de eerder genoteerde `_RGC_`-varianten bestaan niet — geverifieerd tegen de EIA-bronpagina). Archiefgrens hard afgedwongen door `assert_archive_bounds` (laatste bar 2024-04-05). Rolkalender komt uit de CME-contractspecificatie, NIET uit de data; gevalideerd op 12,00-12,02 rolls/jr en shift-evidence AUC 0,84-0,96 op het steilste deciel. Geconstrueerde returns gekruisvalideerd tegen roll-inclusieve ETF-NAVs: WTI +1,73%/jr, NG -0,63%/jr afwijking (referentie: gratis continue futures wijken +7,0% resp. +25,1%/jr af). |
-| ~~yfinance futures-continuaties~~ | `GC=F`, `CL=F`, `NG=F`, … | gratis | EOD → volgende kalenderdag | front-month ~2000→, alle sectoren | n.v.t. | **AFGEKEURD voor P&L (W27, gemeten):** front-month en NIET terug-aangepast → de roll-yield ontbreekt. `CL=F +3,38%/jr vs USO −3,63%/jr` = **+7,01%/jr te veel**; `NG=F −5,02%/jr vs UNG −30,07%/jr` = **+25,05%/jr te veel**. Losse contractmaanden bestaan (`CLZ26.NYM`, historie vanaf notering) maar **verlopen contracten worden verwijderd** → front-curve niet historisch reconstrueerbaar. | **AFGEKEURD** voor returns; hooguit als signaal-input met expliciete motivering |
-| **yfinance_xasset_proxy** | yfinance, `auto_adjust=True` — zie `data/xasset_proxy.py` | gratis; ToS persoonlijk gebruik (regel 4) | EOD close → volgende kalenderdag 00:00 UTC | 26 US-genoteerde ETF/ETC total-return-series, 6 sectoren (commodity/rates/credit/equity/fx/real-estate), 2004-01-02→ | **panel van vandaag levende fondsen; opgeheven fondsen ontbreken** → milde opwaartse bias longkant, gedocumenteerd | **Roll-INCLUSIEF** (ETC-NAV rolt de contracten zelf) en dividend-aangepast → lost de contaminatie hierboven op; dit is de §5.4-"ETF-proxies"-route. TER zit al in de NAV (niet dubbel tellen). Selectie vooraf op ADV ≥ ~$5M (F12). | **verified 2026-08-10** — 135.183 rijen, PIT-gevalideerd, `apps/ingest_xasset.py` weigert truncatie/staleness |
-| ~~Nasdaq Data Link `CHRIS`~~ | https://www.quandl.com/api/v3/datasets/CHRIS/ | was gratis | — | continuaties 1990–2018, alle tenors | n.v.t. | **DEPRECATED, toegang door provider beperkt** (geverifieerd 2026-08-10). De klassieke gratis termijnstructuur-route bestaat niet meer. | **DOOD** — niet opnieuw proberen |
-| CFTC COT | https://www.cftc.gov/MarketReports/CommitmentsofTraders/ | gratis (US gov) | wekelijks, dinsdag-standen, **vrijdag 15:30 ET gepubliceerd** → as-of = publicatie, niet meetdatum | speculanten-/commercials-posities per contract, 1986→ | n.v.t. | crowding-overlay op TSMOM (Uhl 2025); as-of-fout hier = klassieke lookahead | TODO (alleen bij accept van cm_tsmom) |
-| Databento (betaald, escape-hatch) | https://databento.com/futures | betaald, pay-as-you-go | real-time/historisch | CME/ICE volledige termijnstructuur | n.v.t. | **alleen kopen ná** een geslaagde KG-B1/B2 op de gratis energie-panel — niet als startpunt (mandaat §5.2 gratis-eerst) | niet aangeschaft |
+**Gegenereerd:** 2026-08-23T09:18:03+00:00  
+**Generator:** `scripts/build_data_register.py`  
+**git_sha:** `661f351`  
+**DVC dir-hash van de PIT-store:** `e04fff202fdc77d375a990fa99c43c3d.dir`  
+**PIT-store root:** `data/pit_store`
 
-## Regels
+---
 
-1. **As-of join uitsluitend via `tradebot.utils.time.asof_join`** (conditioneert
-   op `asof_ts`, nooit op event-datum). Elke andere merge van een PIT-bron is
-   een R-1-schending.
-2. **Lag onderschatten = lookahead; overschatten kost alleen versheid.** Bij
-   twijfel: naar boven afronden en hier documenteren.
-3. Nieuwe bron = nieuwe rij hier + Pandera/PIT-validatie in de module +
-   lookahead-test in `tests/lookahead/` vóór eerste gebruik in een unit.
-4. yfinance alleen als aanvulling, met ToS-registratie hier, nooit als
-   primaire bron (mandaat §5.2).
+## 1. Gecertificeerde datasets
+
+| Asset class | Dataset | Symbool | Gran. | Rijen | Van | Tot | `data_hash` |
+|---|---|---|---|---:|---|---|---|
+| crypto | funding | AVAXUSDT | 8h | 5,408 | 2021-09-15 | 2026-08-23 | `8edfe83d0a02f02a6871a9a95877d054` |
+| crypto | funding | BTCUSDT | 8h | 7,025 | 2020-03-25 | 2026-08-23 | `a69aa5fbc2c0e0c3a214c4b672b8f4e8` |
+| crypto | funding | DOTUSDT | 8h | 5,951 | 2021-03-18 | 2026-08-23 | `28f49d9a617fd93f36023efc35b568be` |
+| crypto | funding | ETHUSDT | 8h | 5,962 | 2021-03-15 | 2026-08-23 | `02aef54a332ac99c5f93205d375f8737` |
+| crypto | funding | LINKUSDT | 8h | 6,396 | 2020-10-21 | 2026-08-23 | `ce6cfcd63ddd681178ebb611b87fd621` |
+| crypto | funding | SOLUSDT | 8h | 5,680 | 2021-10-15 | 2026-08-23 | `8f2c70dbf68f1fe635c937b2e6b67c36` |
+| crypto | ohlcv | AVAXUSDT | 1d | 1,803 | 2021-09-15 | 2026-08-22 | `af05b4f95d0e282111641f85904c22f9` |
+| crypto | ohlcv | BTCUSDT | 1d | 2,342 | 2020-03-25 | 2026-08-22 | `4f21f2c7ab071ddc19da5eb3f38172f3` |
+| crypto | ohlcv | DOTUSDT | 1d | 1,983 | 2021-03-19 | 2026-08-22 | `17be1f4206997f12fd7e1825f123299b` |
+| crypto | ohlcv | ETHUSDT | 1d | 1,987 | 2021-03-15 | 2026-08-22 | `d67c9bb18b2c794ba416067556227a5a` |
+| crypto | ohlcv | LINKUSDT | 1d | 2,132 | 2020-10-21 | 2026-08-22 | `8d6a82f316253c2626d016bbbad804d4` |
+| crypto | ohlcv | SOLUSDT | 1d | 1,773 | 2021-10-15 | 2026-08-22 | `1d64b001993b575f34ef04ce548616c5` |
+| crypto | open_interest | AVAXUSDT | 1d | 1,803 | 2021-09-16 | 2026-08-23 | `5f642bd6e318ad795103682c530dd952` |
+| crypto | open_interest | BTCUSDT | 1d | 2,210 | 2020-08-05 | 2026-08-23 | `4fe481c71f8237e9ba2bbd80f0d84e96` |
+| crypto | open_interest | DOTUSDT | 1d | 1,984 | 2021-03-19 | 2026-08-23 | `1795c58ed7ab641fd80219a26272b313` |
+| crypto | open_interest | ETHUSDT | 1d | 1,988 | 2021-03-15 | 2026-08-23 | `be986e9314c9f28ef3fd147b01bfefd4` |
+| crypto | open_interest | LINKUSDT | 1d | 2,132 | 2020-10-22 | 2026-08-23 | `9024d7e536d7ced7e8e23a4dc97eb952` |
+| crypto | open_interest | SOLUSDT | 1d | 1,774 | 2021-10-15 | 2026-08-23 | `9267e0accf0055a1cba7c9db1ab5d4e2` |
+
+**Totaal:** funding: 36,422 rijen, ohlcv: 12,020 rijen, open_interest: 11,891 rijen — 18 reeksen, 114 partities.
+
+---
+
+## 2. Bekende gaps
+
+**Nul ontbrekende bars over alle reeksen.** Gemeten met
+`data/validation/gaps.py` op de bar-cadans van elke granulariteit.
+De gap-ledger (`artefacts/governance/gap_ledger.jsonl`) is leeg.
+
+Er wordt **nooit** geinterpoleerd. `gap_policy` staat in
+`conf/data/default.yaml`; bij `reject` breekt een gat de ingestion.
+
+---
+
+## 3. Gemeten uitschieters
+
+Drempel: `max_abs_log_return = 0.35` (uit `conf/data/`), `allow_price_jumps = True`.
+
+| Symbool | Bars | Sprongen > drempel | Grootste \|log-return\| | Zwaarste dag |
+|---|---:|---:|---:|---|
+| AVAXUSDT | 1,803 | 1 | 0.3582 | 2022-05-11 |
+| BTCUSDT | 2,342 | 0 | 0.1782 | - |
+| DOTUSDT | 1,983 | 1 | 0.4828 | 2021-05-19 |
+| ETHUSDT | 1,987 | 0 | 0.3238 | - |
+| LINKUSDT | 2,132 | 1 | 0.4837 | 2021-05-19 |
+| SOLUSDT | 1,773 | 2 | 0.8121 | 2022-11-09 |
+
+`allow_price_jumps = true` betekent: **gemeten, beoordeeld en als echte
+marktgebeurtenis geaccepteerd**. Crypto kent dagen met bewegingen van
+tientallen procenten (12 maart 2020, 19 mei 2021, november 2022); die
+weggooien of winsoriseren zou de staartverdeling vervalsen, en juist die
+staart bepaalt de drawdown. `high < low` en `volume == 0` blijven
+onvoorwaardelijk fataal.
+
+---
+
+## 4. Toegang per research track (sectie 7.1)
+
+| Dataset | Mag gebruikt worden door |
+|---|---|
+| `funding` | Alpha Research (carry), Execution & TCA Research |
+| `ohlcv` | Alpha Research, Volatility Research (daily GARCH/EWMA), Regime Research |
+| `open_interest` | Alpha Research (positionering), Regime Research |
+
+---
+
+## 5. Semantiek van de tijdkolommen
+
+| Dataset | `event_ts_ns` | `asof_ts_ns` |
+|---|---|---|
+| `ohlcv` | openingstijd van de bar | **sluitingstijd** — een daily bar over 3 jan is pas op 4 jan 00:00 UTC compleet |
+| `funding` | settlement-moment | settlement-moment — een rate die om 08:00 UTC settelt is **pas dan** bekend |
+| `open_interest` | snapshot-moment | snapshot-moment |
+
+Elke koppeling tussen deze reeksen loopt via
+`utils.time.asof_join(direction="backward")` met een **verplichte**
+tolerance. Bewezen truncatie-invariant in
+`tests/lookahead/test_asof_join_crypto.py`.
+
+---
+
+## 6. Wat hier NIET staat
+
+| Ontbrekend | Gevolg |
+|---|---|
+| OHLCV 1m/5m | Realized Variance en HAR-RV zijn niet te schatten; de Volatility Research track blijft beperkt tot daily (EWMA, GARCH). |
+| Orderboek L1/L2 | De eta-kalibratie (Phase 5) kan niet op echte depth-data. Open Question 1 blijft onbeantwoordbaar. |
+| Liquidaties | Bybit publiceert geen historische liquidatie-feed via de publieke REST-API. |
+| Historische delistings | Het universum bevat uitsluitend nog-actieve symbolen; zie het exit-rapport voor de omvang van de survivorship bias. |
+

@@ -1,0 +1,20 @@
+{
+  "crypto/funding/AVAXUSDT/8h": "8edfe83d0a02f02a6871a9a95877d054",
+  "crypto/funding/BTCUSDT/8h": "a69aa5fbc2c0e0c3a214c4b672b8f4e8",
+  "crypto/funding/DOTUSDT/8h": "28f49d9a617fd93f36023efc35b568be",
+  "crypto/funding/ETHUSDT/8h": "02aef54a332ac99c5f93205d375f8737",
+  "crypto/funding/LINKUSDT/8h": "ce6cfcd63ddd681178ebb611b87fd621",
+  "crypto/funding/SOLUSDT/8h": "8f2c70dbf68f1fe635c937b2e6b67c36",
+  "crypto/ohlcv/AVAXUSDT/1d": "af05b4f95d0e282111641f85904c22f9",
+  "crypto/ohlcv/BTCUSDT/1d": "4f21f2c7ab071ddc19da5eb3f38172f3",
+  "crypto/ohlcv/DOTUSDT/1d": "17be1f4206997f12fd7e1825f123299b",
+  "crypto/ohlcv/ETHUSDT/1d": "d67c9bb18b2c794ba416067556227a5a",
+  "crypto/ohlcv/LINKUSDT/1d": "8d6a82f316253c2626d016bbbad804d4",
+  "crypto/ohlcv/SOLUSDT/1d": "1d64b001993b575f34ef04ce548616c5",
+  "crypto/open_interest/AVAXUSDT/1d": "5f642bd6e318ad795103682c530dd952",
+  "crypto/open_interest/BTCUSDT/1d": "4fe481c71f8237e9ba2bbd80f0d84e96",
+  "crypto/open_interest/DOTUSDT/1d": "1795c58ed7ab641fd80219a26272b313",
+  "crypto/open_interest/ETHUSDT/1d": "be986e9314c9f28ef3fd147b01bfefd4",
+  "crypto/open_interest/LINKUSDT/1d": "9024d7e536d7ced7e8e23a4dc97eb952",
+  "crypto/open_interest/SOLUSDT/1d": "9267e0accf0055a1cba7c9db1ab5d4e2"
+}
