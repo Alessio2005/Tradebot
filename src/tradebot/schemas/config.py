@@ -29,11 +29,15 @@ __all__ = [
     "BacktestConfig",
     "DataConfig",
     "ExecutionConfig",
+    "FeatureConfig",
+    "MicrostructureFeatureConfig",
+    "MomentumFeatureConfig",
     "RiskConfig",
     "StrictModel",
     "TradebotConfig",
     "ValidationConfig",
     "VolatilityConfig",
+    "VolatilityFeatureConfig",
     "load_config",
     "validate_mapping",
 ]
@@ -118,6 +122,89 @@ class VolatilityConfig(StrictModel):
     annualisation_factor: Annotated[float, Field(gt=0.0)] = 365.0
 
     min_periods: PositiveInt = 2
+
+
+# --------------------------------------------------------------------------- #
+# L3 - Feature Store & Causal Pipeline
+# --------------------------------------------------------------------------- #
+class VolatilityFeatureConfig(StrictModel):
+    """Vensters en decay-factoren van de causale volatiliteitsfeatures (L3)."""
+
+    #: Rolling realized-vol vensters in bars. `min_periods == window`: tijdens de
+    #: burn-in blijft de waarde NaN. Er wordt NOOIT ingevuld - dat was DI-2.
+    realized_windows: tuple[PositiveInt, ...] = Field(min_length=1)
+
+    #: RiskMetrics-conventie, gelijk aan `VolatilityConfig.ewma_lambda`.
+    ewma_lambda: Annotated[float, Field(gt=0.0, lt=1.0)]
+    #: Aantal returns dat de causale opstartfase van de EWMA-variantie voedt.
+    ewma_burn_in_bars: PositiveInt
+
+    #: Venster voor de range-estimators (Parkinson, Garman-Klass).
+    range_window: PositiveInt
+
+
+class MomentumFeatureConfig(StrictModel):
+    """Vensters van de causale momentum-features (L3)."""
+
+    lookback_windows: tuple[PositiveInt, ...] = Field(min_length=1)
+    #: Skip-periode tegen de 1-bar reversal. 0 = geen skip.
+    skip_bars: Annotated[int, Field(ge=0)]
+    ewma_fast_span: PositiveInt
+    ewma_slow_span: PositiveInt
+
+    @field_validator("ewma_slow_span")
+    @classmethod
+    def _slow_above_fast(cls, v: int, info: Any) -> int:
+        fast = info.data.get("ewma_fast_span")
+        if fast is not None and v <= fast:
+            raise ValueError(
+                f"ewma_slow_span ({v}) moet groter zijn dan ewma_fast_span ({fast}); "
+                f"anders is de spread per constructie omgekeerd van teken"
+            )
+        return v
+
+
+class MicrostructureFeatureConfig(StrictModel):
+    """Vensters van de funding- en open-interest-features (L3)."""
+
+    funding_windows: tuple[PositiveInt, ...] = Field(min_length=1)
+    funding_zscore_min_periods: PositiveInt
+    oi_change_windows: tuple[PositiveInt, ...] = Field(min_length=1)
+
+
+class FeatureConfig(StrictModel):
+    """Contract voor de feature-laag (L3). Zie `conf/features/default.yaml`.
+
+    Phase 2, exit criterium 5: geen enkele vensterlengte, decay factor of drempel
+    staat als literal in `src/tradebot/features/`. Elke waarde hier gaat mee in
+    de `feature_hash`, zodat een parameterwijziging gegarandeerd een ander
+    artefact oplevert.
+    """
+
+    #: `nan` is de ENIGE toegestane burn-in-politiek. Een feature die zijn
+    #: burn-in vult met een sample-brede statistiek (DI-2) of met een constante
+    #: is per definitie INVALID. De sleutel bestaat zodat het validatierapport
+    #: hem kan citeren, niet om hem om te zetten.
+    burn_in_policy: Literal["nan"] = "nan"
+
+    #: Root van de L3 feature store. Bewust GESCHEIDEN van
+    #: `DataConfig.feature_store_root`, dat naar de oudere live-featurestore in
+    #: `artefacts/` wijst. Twee verschillende artefacten onder een sleutel laten
+    #: vallen zou precies de verwarring opleveren die dit contract uitsluit.
+    store_root: Path = Path("data/feature_store")
+
+    annualisation_factor: Annotated[float, Field(gt=0.0)] = 365.0
+
+    #: Minimaal aantal observaties voordat een EXPANDING statistiek wordt
+    #: vrijgegeven. Dit is de causale vervanging van het DI-2-lek.
+    min_expanding_periods: PositiveInt = 20
+
+    funding_tolerance_hours: PositiveInt = 8
+    open_interest_tolerance_hours: PositiveInt = 24
+
+    volatility: VolatilityFeatureConfig
+    momentum: MomentumFeatureConfig
+    microstructure: MicrostructureFeatureConfig
 
 
 # --------------------------------------------------------------------------- #
@@ -248,6 +335,7 @@ class TradebotConfig(StrictModel):
 
     data: DataConfig
     volatility: VolatilityConfig
+    features: FeatureConfig
     alpha: AlphaConfig
     risk: RiskConfig
     execution: ExecutionConfig
@@ -262,6 +350,7 @@ _M = TypeVar("_M", bound=BaseModel)
 DOMAIN_SCHEMAS: dict[str, type[StrictModel]] = {
     "data": DataConfig,
     "volatility": VolatilityConfig,
+    "features": FeatureConfig,
     "alpha": AlphaConfig,
     "risk": RiskConfig,
     "execution": ExecutionConfig,
