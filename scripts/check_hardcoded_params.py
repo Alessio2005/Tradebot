@@ -140,6 +140,10 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
     # -- portfolio/ --
     "portfolio/black_litterman.py": (1, "DI-10 Phase 4"),
     "portfolio/markowitz.py": (1, "DI-10 Phase 4"),
+    # Phase 4 stap 7: verhuisd uit risk/portfolio.py. Legacy L8-machinerie,
+    # bewust ongewijzigd zodat de Phase 3-baseline reproduceerbaar blijft.
+    "portfolio/legacy_sizing.py": (10, "DI-10 legacy, research-only"),
+    "portfolio/covariance.py": (5, "DI-10 legacy, research-only"),
     # -- registry/ --
     "registry/lineage.py": (1, "DI-14 Phase 7"),
     # -- risk/ --
@@ -147,7 +151,6 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
     "risk/hmm_regime.py": (1, "DI-10 Phase 4"),
     "risk/kelly.py": (7, "DI-10 Phase 4"),
     "risk/liquidity_risk.py": (6, "DI-10 Phase 4"),
-    "risk/portfolio.py": (15, "DI-10 Phase 4"),
     "risk/stress_test.py": (5, "DI-10 Phase 4"),
     "risk/var.py": (10, "DI-10 Phase 4"),
     # -- selection/ --

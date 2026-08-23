@@ -444,7 +444,7 @@ def main(cfg: DictConfig) -> None:
     per_asset_cap = float(OmegaConf.select(cfg, "portfolio.max_per_asset_leverage", default=2.0))
 
     from tradebot.backtest.portfolio import PortfolioBacktester
-    from tradebot.risk.portfolio import PortfolioRiskManager
+    from tradebot.portfolio.legacy_sizing import PortfolioRiskManager
 
     all_tracks: List[AssetTrack] = []
     all_weights: Dict[str, float] = {}

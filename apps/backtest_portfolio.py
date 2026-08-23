@@ -900,7 +900,7 @@ def backtest_symbol(
 @hydra.main(config_path="../conf", config_name="conf_config", version_base="1.3")
 def main(cfg: DictConfig) -> None:
     from tradebot.backtest.portfolio import PortfolioBacktester
-    from tradebot.risk.portfolio import PortfolioRiskManager
+    from tradebot.portfolio.legacy_sizing import PortfolioRiskManager
 
     artefacts_dir = Path(cfg.machine.get("artefacts_dir", "artefacts"))
     symbols       = list(cfg.training.training_universe)
