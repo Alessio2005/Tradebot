@@ -202,7 +202,12 @@ GOVERNED = ("features/transforms.py", "features/pipeline.py",
             # governance-modules. Nieuw of herschreven onder het
             # baselinecontract; elke drempel komt uit conf/.
             "features/transforms.py", "volatility/ewma.py",
-            "registry/preregistration.py")
+            "registry/preregistration.py",
+            # Phase 4 - L7 soevereine risicolaag. Nieuw geschreven onder het
+            # risicocontract (docs/RISK_CONTRACT.md); elke drempel komt uit
+            # conf/risk/default.yaml en nul ervan staat in een handtekening.
+            "risk/contract.py", "risk/vol_targeting.py", "risk/limits.py",
+            "risk/kill_switches.py", "risk/engine.py")
 
 
 def iter_py(base: Path):
