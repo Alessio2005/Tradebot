@@ -79,6 +79,13 @@ class DataConfig(StrictModel):
     # Hoe om te gaan met gaten. NOOIT impliciet in een ingestion-functie.
     gap_policy: Literal["reject", "register"] = "reject"
 
+    # Drempel op |ln(close_t / close_{t-1})| waarboven een bar als uitschieter
+    # wordt gemeld. Op crypto is een dagelijkse beweging van 30% een ECHTE
+    # marktgebeurtenis, geen fout - vandaar dat de drempel hier staat en niet
+    # in de code, en dat `allow_price_jumps` los configureerbaar is.
+    max_abs_log_return: Annotated[float, Field(gt=0.0)] = 0.35
+    allow_price_jumps: bool = True
+
     @field_validator("symbols", "granularities")
     @classmethod
     def _no_blanks(cls, v: tuple[str, ...]) -> tuple[str, ...]:

@@ -36,3 +36,12 @@ data:
   # "reject" = een gat in de reeks crasht de ingestion. Gaten worden nooit
   # stilzwijgend geinterpoleerd (Phase 1, regels).
   gap_policy: reject
+
+  # Uitschieterdrempel op |log-return| per bar. 0.35 komt overeen met ongeveer
+  # +42% / -30% op een dag. Zulke bewegingen KOMEN VOOR op crypto (12 maart
+  # 2020, 19 mei 2021, november 2022) en zijn echte marktgebeurtenissen.
+  # allow_price_jumps=true betekent: gemeten, beoordeeld, en als echt
+  # geaccepteerd. De gemeten sprongen staan in docs/DATA_REGISTER.md.
+  # high < low en volume == 0 blijven ALTIJD fataal, ongeacht deze vlag.
+  max_abs_log_return: 0.35
+  allow_price_jumps: true

@@ -13,7 +13,7 @@ from tradebot.data.pit_store import PartitionRef, PitStore
 from tradebot.utils.failfast import DataContractError
 from tradebot.utils.hashing import dataframe_content_hash
 
-REF = PartitionRef("crypto", "BTCUSDT", "1d", "2024-01-01")
+REF = PartitionRef("crypto", "ohlcv", "BTCUSDT", "1d", "2024-01-01")
 
 
 def frame(n: int = 5, seed: int = 0, close_shift: float = 0.0) -> pd.DataFrame:
@@ -151,7 +151,7 @@ class TestRoundTripAndHash:
     def test_load_crashes_instead_of_returning_empty(self, store: PitStore) -> None:
         """Nooit een lege DataFrame teruggeven en doorgaan."""
         with pytest.raises(DataContractError, match="GEEN lege"):
-            store.load("crypto", "NOPEUSDT", "1d")
+            store.load("crypto", "ohlcv", "NOPEUSDT", "1d")
 
     def test_read_missing_partition_crashes(self, store: PitStore) -> None:
         with pytest.raises(DataContractError, match="bestaat niet"):
@@ -161,25 +161,27 @@ class TestRoundTripAndHash:
 class TestPartitioning:
     def test_partition_path_encodes_the_key(self) -> None:
         assert str(REF) == (
-            "asset_class=crypto/symbol=BTCUSDT/granularity=1d/date=2024-01-01")
+            "asset_class=crypto/dataset=ohlcv/symbol=BTCUSDT/"
+            "granularity=1d/date=2024-01-01")
 
     def test_scan_finds_written_partitions(self, store: PitStore) -> None:
         for d in ("2024-01-01", "2024-01-02"):
-            store.write(frame(), PartitionRef("crypto", "BTCUSDT", "1d", d),
+            store.write(frame(), PartitionRef("crypto", "ohlcv", "BTCUSDT", "1d", d),
                         source="test")
-        store.write(frame(), PartitionRef("crypto", "ETHUSDT", "1d", "2024-01-01"),
+        store.write(frame(), PartitionRef("crypto", "ohlcv", "ETHUSDT", "1d", "2024-01-01"),
                     source="test")
         assert len(store.partitions("crypto")) == 3
-        assert len(store.partitions("crypto", "BTCUSDT")) == 2
-        assert len(store.partitions("crypto", "ETHUSDT")) == 1
+        assert len(store.partitions("crypto", "ohlcv")) == 3
+        assert len(store.partitions("crypto", "ohlcv", "BTCUSDT")) == 2
+        assert len(store.partitions("crypto", "ohlcv", "ETHUSDT")) == 1
 
     def test_load_concatenates_in_time_order(self, store: PitStore) -> None:
         for i, d in enumerate(("2024-01-02", "2024-01-01")):  # bewust omgekeerd
             df = frame()
             df["event_ts_ns"] += i * 10**15
             df["asof_ts_ns"] += i * 10**15
-            store.write(df, PartitionRef("crypto", "BTCUSDT", "1d", d), source="test")
-        out = store.load("crypto", "BTCUSDT", "1d")
+            store.write(df, PartitionRef("crypto", "ohlcv", "BTCUSDT", "1d", d), source="test")
+        out = store.load("crypto", "ohlcv", "BTCUSDT", "1d")
         assert out["event_ts_ns"].is_monotonic_increasing
         assert len(out) == 10
 
