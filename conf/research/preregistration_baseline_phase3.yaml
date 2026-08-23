@@ -1,0 +1,136 @@
+# conf/research/preregistration_baseline_phase3.yaml
+# PRE-REGISTRATIE — Phase 3 baseline-golf (Level 1).
+#
+# Dit document legt de hypothese vast VOORDAT er een run heeft plaatsgevonden.
+# Het wordt bevroren door `apps/freeze_preregistration.py`, dat er de
+# gecertificeerde data_hashes en de parameterruimte uit `conf/` aan koppelt en
+# er een onveranderlijke `preregistration_id` uit afleidt.
+#
+# `parameters` staat hier BEWUST NIET. De parameterruimte komt uit
+# conf/model/alpha.yaml, conf/model/volatility.yaml, conf/validation/default.yaml
+# en conf/execution/fees.yaml, zodat er precies een bron van waarheid is.
+#
+# Een drempel hieronder verlagen omdat een resultaat tegenviel is fraude. De
+# toegestane zet is de-scopen (een unit laten vallen, eerlijk archiveren) of een
+# NIEUWE pre-registratie schrijven — die dan opnieuw meetelt in M.
+preregistration:
+  wave: phase3_baseline
+
+  title: >-
+    Level-1 baseline: Cross-Sectional Momentum met EWMA-gebaseerde Naive Risk
+    Parity op het gecertificeerde crypto-perpetueluniversum.
+
+  hypothesis: >-
+    Cross-Sectional Momentum, geconstrueerd als een schaalloze exposure
+    a_t in [-1, +1] op een rank-gedemeaned 60-bars log-rendement met een
+    skip van 1 bar, levert in combinatie met Naive Risk Parity (gewichten
+    omgekeerd evenredig aan de causale EWMA-volatiliteit, lambda = 0.94) over
+    het crypto-universum een POSITIEVE netto out-of-sample Sharpe na
+    transactiekosten, gemeten via Purged Walk-Forward met embargo over de
+    volledige gecertificeerde dataset uit Phase 1.
+
+  null_hypothesis: >-
+    De netto out-of-sample Sharpe van Cross-Sectional Momentum met Naive Risk
+    Parity is kleiner dan of gelijk aan nul na transactiekosten, en is bovendien
+    niet statistisch te onderscheiden van de 1/N equal-weight referentie onder
+    correctie voor het cumulatieve aantal uitgevoerde trials (DSR) en voor
+    multiple testing over de vergeleken varianten (Hansen SPA).
+
+  universe:
+    - BTCUSDT
+    - ETHUSDT
+    - SOLUSDT
+    - AVAXUSDT
+    - LINKUSDT
+    - DOTUSDT
+
+  granularity: 1d
+
+  # Volledige gecertificeerde reeks (asof-tijd, uit docs/DATA_REGISTER.md).
+  period_start: "2020-03-26"
+  period_end: "2026-08-23"
+
+  # Eerste bar waarop minstens `min_assets` (3) symbolen een geldig signaal EN
+  # een geldige EWMA-vol hebben: BTCUSDT vanaf 2020-05-26, LINKUSDT vanaf
+  # 2020-12-22, ETHUSDT vanaf 2021-05-16. De volledige zes-asset cross-sectie
+  # bestaat pas vanaf 2021-12-16 (SOLUSDT + 61 bars warmup); dat wordt in het
+  # benchmarkrapport apart vermeld maar verandert het evaluatievenster niet.
+  evaluation_start: "2021-05-16"
+
+  primary_metric: net_oos_sharpe
+
+  # Vier configuraties, vooraf vastgelegd. Er is GEEN parametersweep: de
+  # vensters komen uit conf/ en worden niet gevarieerd. Elke extra variant
+  # vereist een nieuwe pre-registratie en verhoogt M opnieuw.
+  #   1. xs_momentum + naive risk parity   (de hypothese)
+  #   2. xs_momentum + equal weight        (isoleert het effect van de sizing)
+  #   3. long-only equal weight            (absolute referentie, sectie 13.1)
+  #   4. long-only naive risk parity       (referentie zonder alpha)
+  planned_trials: 4
+
+  data_series:
+    - crypto/ohlcv/BTCUSDT/1d
+    - crypto/ohlcv/ETHUSDT/1d
+    - crypto/ohlcv/SOLUSDT/1d
+    - crypto/ohlcv/AVAXUSDT/1d
+    - crypto/ohlcv/LINKUSDT/1d
+    - crypto/ohlcv/DOTUSDT/1d
+
+  stop_criteria:
+    - name: no_edge_after_costs
+      metric: net_oos_sharpe
+      operator: "<="
+      threshold: 0.0
+      action: falsify
+      rationale: >-
+        Een baseline met een niet-positieve netto OOS Sharpe heeft in deze
+        configuratie geen edge na kosten. Dat wordt als zodanig gerapporteerd en
+        geregistreerd. Het is expliciet GEEN aanleiding om vensters te sweepen
+        tot het resultaat omslaat; dat zou de baseline in een gefit model
+        veranderen en elk later model ten onrechte laten winnen.
+
+    - name: dsr_indistinguishable_from_selection_noise
+      metric: dsr_probability
+      operator: "<"
+      threshold: 0.95
+      action: archive
+      rationale: >-
+        De Deflated Sharpe Ratio moet na correctie voor non-normaliteit en voor
+        het EERLIJKE cumulatieve aantal trials M uit de hypothese-ledger boven
+        1 - dsr_alpha (0.05) uitkomen. Daaronder is de gemeten Sharpe niet te
+        onderscheiden van de beste trekking uit M pogingen. Het resultaat blijft
+        dan een benchmark en bereikt nooit de status CANDIDATE.
+
+    - name: spa_no_superiority_over_benchmark
+      metric: spa_p_value
+      operator: ">="
+      threshold: 0.05
+      action: archive
+      rationale: >-
+        Zonder verwerping van de SPA-nulhypothese op 5% is superioriteit ten
+        opzichte van de 1/N-referentie niet vastgesteld onder multiple testing.
+        De variant mag dan wel worden gerapporteerd, maar niet als "beter dan
+        equal weight".
+
+    - name: costs_dominate_gross_edge
+      metric: cost_drag_fraction
+      operator: ">"
+      threshold: 0.5
+      action: descope
+      rationale: >-
+        Verdwijnt meer dan de helft van de bruto Sharpe in transactiekosten, dan
+        is de herbalanceringsfrequentie het probleem en niet het signaal. De
+        toegestane reactie is de-scopen naar een lager-turnover configuratie in
+        een NIEUWE pre-registratie, nooit het stilzwijgend verlagen van de
+        kostenaanname.
+
+    - name: promotion_requires_all_gates_clear
+      metric: n_binding_stop_criteria
+      operator: "<="
+      threshold: 0.0
+      action: promote
+      rationale: >-
+        Promotie van REGISTERED naar CANDIDATE vereist dat GEEN van de
+        bovenstaande criteria bindt. Een enkel bindend criterium blokkeert de
+        promotie; er bestaat geen afweging waarin twee zwakke uitkomsten samen
+        een sterke vormen.
