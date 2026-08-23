@@ -1,9 +1,29 @@
 # src/tradebot/risk/__init__.py
-"""Risk sub-package — portfolio risk manager, Kelly sizing, position limits, drawdown, VaR,
-factor risk, stress testing, and liquidity risk."""
+"""L7 — de soevereine risicolaag.
+
+Phase 4 maakt `RiskEngine` het enige besluitpad: hij neemt `a_t` plus een
+gemeten marktstaat en geeft de toegestane exposure terug met een volledig
+machineleesbaar auditspoor. Zie `docs/RISK_CONTRACT.md`.
+
+Wat hier NIET meer woont: `factor_alpha.py` (verhuisd naar `alpha/`) en
+`portfolio.py` (gesplitst naar `portfolio/covariance.py` en
+`portfolio/legacy_sizing.py`). Beide waren instanties van de alpha/risk-
+verstrengeling uit auditsectie 24.
+
+Daarnaast: Kelly-sizing, positielimieten, drawdown, VaR, factor risk, stress
+testing en liquiditeitsrisico."""
 from __future__ import annotations
 
 from .beta_hedge import compute_btc_hedge_size, compute_rolling_betas
+from .contract import (
+    BindingConstraint,
+    ConstraintKind,
+    MarketState,
+    RiskDecision,
+    RiskState,
+)
+from .engine import RiskEngine
+from .kill_switches import HaltStore
 
 # Phase 0: `Regime` bestaat TWEE keer in dit pakket en betekent iets volledig
 # anders. daily_loss_governor.Regime is een PROPFIRM-accountregime
@@ -26,17 +46,19 @@ from .factor_risk import FactorExposure, FactorRiskModel, compute_factor_risk
 from .hmm_regime import HMMRegimeDetector, Regime
 from .kelly import gap_risk_kelly_size, kelly_fraction, meta_label_kelly
 from .liquidity_risk import LiquidityRiskAssessment, assess_liquidity_risk, liquidity_adjusted_var
-from .portfolio import PortfolioRiskManager, RiskState, SizingDecision, effective_n_assets
 from .position_limits import PositionLimits, PositionViolation, check_position_limits
 from .stress_test import StressResult, StressScenario, StressTestSuite
 from .var import historical_cvar, historical_var, rolling_cvar, rolling_var, stress_test_var
 
 __all__ = [
-    # portfolio
-    "PortfolioRiskManager",
+    # L7 contract + soevereine engine (Phase 4)
+    "BindingConstraint",
+    "ConstraintKind",
+    "HaltStore",
+    "MarketState",
+    "RiskDecision",
+    "RiskEngine",
     "RiskState",
-    "SizingDecision",
-    "effective_n_assets",
     # kelly
     "kelly_fraction",
     "gap_risk_kelly_size",

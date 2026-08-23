@@ -11,7 +11,12 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 
-from ..risk.portfolio import PortfolioRiskManager, RiskState
+# Phase 4: `risk/portfolio.py` is ontmanteld. De legacy sizing-machinerie
+# waar deze backtester op draait is L8 en woont nu in `portfolio/`; de
+# soevereine risicolaag is `risk.engine.RiskEngine`. Zie
+# `reports/phase4_entanglement_map.md` sectie 6.
+from ..portfolio.legacy_sizing import LegacyRiskState as RiskState
+from ..portfolio.legacy_sizing import PortfolioRiskManager
 
 # Phase 0 stap 5: het pakket `quant_architect` bestaat nergens. SchemaMismatchError
 # is ooit geextraheerd naar tradebot.train.schema_guard zonder dat deze importsite
