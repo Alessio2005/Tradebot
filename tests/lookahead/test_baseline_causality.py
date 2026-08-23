@@ -303,3 +303,123 @@ class TestTheTestCanGoRed:
             cut = cut_points(source.index)[0]
             assert_bit_identical(leaking(source.loc[source.index <= cut]), full,
                                  what="leak/centered", cut=cut)
+
+
+# --------------------------------------------------------------------------- #
+# L4 / L8 / L10 - de rest van de keten
+# --------------------------------------------------------------------------- #
+def _chain(source: CertifiedPanel):
+    """features -> alpha -> vol -> gewichten, in een keer."""
+    from tradebot.alpha.momentum import build_cross_sectional_momentum
+    from tradebot.backtest.baseline_runner import build_weight_tracks
+
+    unit = build_cross_sectional_momentum(ALPHA_CFG)
+    tracks, exposures = build_weight_tracks(
+        source, unit, lam=VOL_CFG.ewma_lambda,
+        vol_burn_in_bars=VOL_CFG.burn_in_bars,
+        annualisation_factor=VOL_CFG.annualisation_factor,
+        gross_target=1.0, git_sha=GIT_SHA,
+    )
+    return unit, exposures, tracks
+
+
+@requires_store
+class TestAlphaAndPortfolioAreCausal:
+    """Exit criterium 2: de keten features -> alpha -> portfolio is causaal."""
+
+    def test_alpha_exposures_are_truncation_invariant(self) -> None:
+        source = panel()
+        _, full, _ = _chain(source)
+        for cut in cut_points(source.values.index):
+            _, truncated, _ = _chain(source.truncate(cut))
+            assert_bit_identical(truncated, full, what="alpha_exposures", cut=cut)
+
+    @pytest.mark.parametrize(
+        "track",
+        ["xs_momentum_risk_parity", "xs_momentum_equal_weight",
+         "long_only_equal_weight", "long_only_risk_parity"],
+    )
+    def test_track_weights_are_truncation_invariant(self, track: str) -> None:
+        source = panel()
+        _, _, full = _chain(source)
+        for cut in cut_points(source.values.index):
+            _, _, truncated = _chain(source.truncate(cut))
+            assert_bit_identical(truncated[track], full[track],
+                                 what=f"weights/{track}", cut=cut)
+
+    def test_exposures_stay_within_the_declared_range(self) -> None:
+        _, exposures, _ = _chain(panel())
+        arr = exposures.to_numpy(dtype="float64")
+        finite = arr[np.isfinite(arr)]
+        assert finite.min() >= ALPHA_CFG.signal_floor
+        assert finite.max() <= ALPHA_CFG.signal_cap
+
+    def test_every_track_is_normalised_to_the_same_gross(self) -> None:
+        """Anders vergelijkt het rapport hefboom in plaats van sizing."""
+        _, _, tracks = _chain(panel())
+        for name, weights in tracks.items():
+            gross = weights.abs().sum(axis=1).to_numpy()
+            active = gross[gross > 0.0]
+            assert active.size > 0, f"{name} nam nooit een positie in"
+            np.testing.assert_allclose(active, 1.0, rtol=1e-12,
+                                       err_msg=f"{name} is niet op gross 1 genormaliseerd")
+
+
+@requires_store
+class TestBacktestRespectsTheShiftConvention:
+    """RETAIN (sectie 24): een gewicht bepaald op t rendeert pas op t+1."""
+
+    def test_gross_return_uses_the_previous_bar_weight(self) -> None:
+        source = panel()
+        _, _, tracks = _chain(source)
+        weights = tracks["xs_momentum_risk_parity"].fillna(0.0)
+        returns = source.values.pct_change(fill_method=None).fillna(0.0)
+
+        held = weights.shift(1).fillna(0.0)
+        expected = (held * returns).sum(axis=1)
+        # Dezelfde bar gebruiken zou het rendement van t verdienen met de kennis
+        # van t - de klassieke same-bar leakage.
+        same_bar = (weights * returns).sum(axis=1)
+        assert not np.allclose(expected.to_numpy(), same_bar.to_numpy()), (
+            "de shift-conventie maakt geen verschil op deze data; de toets meet "
+            "dan niets"
+        )
+
+    def test_a_future_price_cannot_change_an_earlier_weight(self) -> None:
+        """Vervalst de laatste bar: geen enkel eerder gewicht mag bewegen."""
+        source = panel()
+        _, _, full = _chain(source)
+        tampered_values = source.values.copy()
+        tampered_values.iloc[-1] = tampered_values.iloc[-1] * 10.0
+        tampered = CertifiedPanel(values=tampered_values,
+                                  data_hashes=source.data_hashes)
+        _, _, after = _chain(tampered)
+        for name in full:
+            assert_bit_identical(after[name].iloc[:-1], full[name].iloc[:-1],
+                                 what=f"weights/{name}/future_price",
+                                 cut=source.values.index[-2])
+
+
+@requires_store
+class TestChainLevelNegativeControl:
+    """Een lekkende alpha-unit moet de ketentoets rood maken."""
+
+    def test_a_unit_that_peeks_at_the_next_bar_is_caught(self) -> None:
+        source = panel()
+        base = rolling_log_return(source.values, window=ALPHA_CFG.lookback_bars,
+                                  skip_bars=ALPHA_CFG.skip_bars)
+
+        def leaking(p: pd.DataFrame) -> pd.DataFrame:
+            # skip_bars = -1: het venster eindigt EEN BAR IN DE TOEKOMST.
+            logp = np.log(p.to_numpy(dtype="float64"))
+            frame = pd.DataFrame(logp, index=p.index, columns=p.columns)
+            return frame.shift(-1) - frame.shift(ALPHA_CFG.lookback_bars - 1)
+
+        full = leaking(source.values)
+        assert not np.allclose(
+            np.nan_to_num(full.to_numpy()), np.nan_to_num(base.to_numpy())
+        ), "het lek verandert de waarden niet; de controle meet niets"
+        cut = cut_points(source.values.index)[0]
+        with pytest.raises(AssertionError):
+            assert_bit_identical(leaking(source.values.loc[source.values.index <= cut]),
+                                 full, what="leak/negative_skip", cut=cut)

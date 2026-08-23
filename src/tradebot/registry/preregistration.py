@@ -61,6 +61,7 @@ __all__ = [
     "PREREGISTRATION_ID_LENGTH",
     "PreRegistration",
     "StopCriterion",
+    "freeze_metadata",
     "freeze_preregistration",
     "load_preregistration_spec",
     "require_preregistration",
@@ -435,6 +436,32 @@ def freeze_preregistration(
         encoding="utf-8",
     )
     return path
+
+
+def freeze_metadata(
+    preregistration_id: str,
+    *,
+    directory: Path | str = DEFAULT_PREREGISTRATION_DIR,
+) -> dict[str, Any]:
+    """De metadata van het bevriezen: `git_sha`, tijdstip, en de ledgerstand.
+
+    De ledgerstand OP HET MOMENT VAN BEVRIEZEN is wat de `M` van de DSR
+    reproduceerbaar maakt. `ledger.total_n_hypotheses()` live uitlezen zou de
+    toets laten meebewegen met alles wat er na de meting nog wordt bijgeschreven
+    - inclusief de resultaat-entry van de meting zelf. Twee runs zouden dan een
+    andere M gebruiken, en de DSR is dan niet reproduceerbaar.
+    """
+    prereg = require_preregistration(preregistration_id, directory=directory)
+    path = Path(directory) / f"preregistration_{preregistration_id}.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        "git_sha": document["git_sha"],
+        "frozen_utc": document["frozen_utc"],
+        "ledger_total_at_freeze": int(document["ledger_total_at_freeze"]),
+        "planned_trials": int(prereg.planned_trials),
+        #: De EERLIJKE M: alles wat er al was, plus de trials van deze golf.
+        "m_trials": int(document["ledger_total_at_freeze"]) + int(prereg.planned_trials),
+    }
 
 
 def require_preregistration(
