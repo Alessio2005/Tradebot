@@ -219,3 +219,186 @@ class CSMomentum:
 
     def feature_names(self) -> list[str]:
         return ["close"]
+
+
+# =========================================================================== #
+# PHASE 3 - L4 CROSS-SECTIONAL MOMENTUM (Level 1 baseline)
+# =========================================================================== #
+# Alles BOVEN deze regel is legacy: `TSMomentum` en `CSMomentum` op het oude
+# `AlphaSignal`-protocol, met een per-bar `predict()` die ook `confidence`,
+# `horizon_bars` en - in het geval van TSMomentum - een VOL-SCHALING teruggeeft.
+# Die vol-schaling is precies wat sectie 11.1 uit L4 verbant: het is
+# positiegrootte, geen richting. De code is hier bewust ONGEWIJZIGD gelaten
+# (26 modules en `alpha/__init__.py` hangen eraan) en valt onder DI-12.
+#
+# Alles HIERONDER is de Level-1 baseline op het nieuwe L4-contract:
+#
+#     a_t = rank-gedemeaned 60-bars log-rendement, geschaald naar [-1, +1]
+#
+# Nul risicologica, nul leverage, nul stop-losses, nul executiekennis. Wat er
+# met `a_t` gebeurt, beslissen L7 en L8.
+# --------------------------------------------------------------------------- #
+from typing import Any as _Any
+from typing import ClassVar as _ClassVar
+
+from ..features.pipeline import PanelPipeline as _PanelPipeline
+from ..features.pipeline import TransformStep as _TransformStep
+from ..utils.failfast import DataContractError as _DataContractError
+from ..utils.failfast import require as _require
+from .base import AlphaUnit as _AlphaUnit
+
+
+class CrossSectionalMomentum(_AlphaUnit):
+    """Level-1 Cross-Sectional Momentum. De meetlat, niet het slimme model.
+
+    De constructie is met opzet zo simpel als het onderwerp toelaat:
+
+      1. het cumulatieve log-rendement over `lookback_bars`, eindigend
+         `skip_bars` voor `t` (Jegadeesh-Titman skip tegen de korte-termijn
+         reversal);
+      2. per tijdstip een rangschikking over de assets, lineair geschaald naar
+         `[-1, +1]`.
+
+    Beide stappen zijn L1-transforms; deze unit voegt er geen wiskunde aan toe.
+    Wat hij WEL bezit, is de **rebalance-kalender**: hoe vaak de view wordt
+    ververst is een alpha-beslissing en staat in `conf/model/alpha.yaml`.
+
+    WAAROM DE RANG EN NIET DE Z-SCORE
+    ---------------------------------
+    Een rang is per constructie begrensd op `[-1, +1]` en per rij som-nul bij
+    symmetrische bezetting: hij is dus schaalvrij en dollar-neutraal zonder dat
+    er ergens een normalisatie hoeft te worden bijgehouden. Een z-score zou dat
+    bereik moeten afdwingen met een clip, en een clip die vaak bindt is een
+    verborgen positielimiet - oftewel risicologica in L4.
+
+    WAT HIER NIET IN ZIT, EN WAAROM
+    -------------------------------
+    Geen vol-schaling (dat is L7 vol-targeting), geen gewichten (L8), geen
+    kosten (L9/L10), geen stop-loss (L7). De legacy `TSMomentum` hierboven doet
+    het eerste wel; dat is exact de verstrengeling die Phase 4 moet ontwarren en
+    die hier niet opnieuw wordt geintroduceerd.
+
+    DE FANTOOM-HERBALANCERINGSFIX (RETAIN, audit sectie 24)
+    -------------------------------------------------------
+    `alpha/xs_unit.py` bevat de fix waarbij de rebalance-kalender wordt bepaald
+    door met de VOLGENDE bar te vergelijken, zodat de laatste bar van een
+    afgekapt panel nooit een rebalance wordt. Diezelfde eigenschap wordt hier
+    op een andere manier bereikt en NIET verwaterd: de kalender telt posities
+    vanaf het BEGIN van het panel (`i % rebalance_every_bars == 0`) en kijkt
+    dus nergens naar het einde. Truncatie kan de kalender daarmee per
+    constructie niet verschuiven - bewezen in
+    `tests/lookahead/test_baseline_causality.py`.
+    """
+
+    name: _ClassVar[str] = "cross_sectional_momentum"
+
+    def __init__(
+        self,
+        *,
+        lookback_bars: int,
+        skip_bars: int,
+        min_assets: int,
+        rebalance_every_bars: int,
+        signal_floor: float,
+        signal_cap: float,
+    ) -> None:
+        _require(
+            lookback_bars > 0,
+            "Een momentum-lookback moet positief zijn.",
+            _DataContractError,
+            lookback_bars=lookback_bars,
+        )
+        _require(
+            skip_bars >= 0,
+            "Een NEGATIEVE skip verschuift het formatievenster naar de TOEKOMST.",
+            _DataContractError,
+            skip_bars=skip_bars,
+        )
+        _require(
+            min_assets > 1,
+            "Een cross-sectie over minder dan twee assets bestaat niet.",
+            _DataContractError,
+            min_assets=min_assets,
+        )
+        _require(
+            rebalance_every_bars > 0,
+            "De rebalance-frequentie moet positief zijn.",
+            _DataContractError,
+            rebalance_every_bars=rebalance_every_bars,
+        )
+        super().__init__(
+            signal_floor=signal_floor,
+            signal_cap=signal_cap,
+            params={
+                "lookback_bars": int(lookback_bars),
+                "skip_bars": int(skip_bars),
+                "min_assets": int(min_assets),
+                "rebalance_every_bars": int(rebalance_every_bars),
+            },
+        )
+
+    # ------------------------------------------------------------- features
+    def feature_steps(self) -> tuple[_TransformStep, ...]:
+        """De L1-transforms die deze unit nodig heeft, in volgorde.
+
+        De unit DECLAREERT zijn features maar berekent ze niet zelf: de
+        berekening hoort in L1, waar hij getoetst en gehasht wordt.
+        """
+        return (
+            _TransformStep(
+                "rolling_log_return",
+                {"window": int(self.params["lookback_bars"]),
+                 "skip_bars": int(self.params["skip_bars"])},
+            ),
+            _TransformStep(
+                "cross_sectional_rank",
+                {"min_assets": int(self.params["min_assets"])},
+            ),
+        )
+
+    def feature_pipeline(self) -> _PanelPipeline:
+        return _PanelPipeline(self.feature_steps())
+
+    # ------------------------------------------------------------- contract
+    @property
+    def burn_in_period(self) -> int:
+        return int(self.params["lookback_bars"]) + int(self.params["skip_bars"])
+
+    def _generate(self, features: pd.DataFrame) -> pd.DataFrame:
+        every = int(self.params["rebalance_every_bars"])
+        if every == 1:
+            exposures = features.astype("float64")
+        else:
+            # Kalender geteld vanaf het BEGIN van het panel, nooit vanaf het
+            # einde: truncatie kan hem daarmee niet verschuiven. `ffill` draagt
+            # hier een GENOMEN beslissing vooruit (de positie wordt gehouden) en
+            # vult geen ontbrekende schatting in - dat onderscheid is de reden
+            # dat het geen contractbreuk is.
+            is_rebalance = pd.Series(
+                (np.arange(len(features)) % every) == 0, index=features.index
+            )
+            exposures = (
+                features.astype("float64")
+                .where(is_rebalance, other=np.nan)
+                .ffill()
+            )
+        return exposures.clip(
+            lower=float(self.params["signal_floor"]),
+            upper=float(self.params["signal_cap"]),
+        ).astype("float64")
+
+
+def build_cross_sectional_momentum(cfg: _Any) -> CrossSectionalMomentum:
+    """Bouw de baseline-unit uit `conf/model/alpha.yaml`.
+
+    De enige plek waar deze unit wordt geinstantieerd voor productie- en
+    testgebruik; er staat geen enkele parameter als literal in deze functie.
+    """
+    return CrossSectionalMomentum(
+        lookback_bars=cfg.lookback_bars,
+        skip_bars=cfg.skip_bars,
+        min_assets=cfg.min_assets,
+        rebalance_every_bars=cfg.rebalance_every_bars,
+        signal_floor=cfg.signal_floor,
+        signal_cap=cfg.signal_cap,
+    )

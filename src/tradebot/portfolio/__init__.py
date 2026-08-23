@@ -4,11 +4,21 @@ from __future__ import annotations
 
 from .black_litterman import BLViews, black_litterman_weights
 from .constraints import PortfolioConstraints, apply_constraints, compute_turnover
+from .equal_weight import (
+    equal_weight_long_only,
+    normalise_to_gross,
+    sized_by_equal_weight,
+)
 from .hrp import HRPOptimizer, hrp_weights
 from .markowitz import min_variance_weights, mvo_weights
 from .optimizer import OptimisationMethod, optimize
 from .rebalance import RebalanceConfig, RebalanceDecision, should_rebalance
-from .risk_parity import erc_weights, risk_contributions
+from .risk_parity import (
+    erc_weights,
+    inverse_volatility_long_only,
+    risk_contributions,
+    sized_by_risk_parity,
+)
 
 __all__ = [
     # HRP
@@ -20,6 +30,12 @@ __all__ = [
     # ERC
     "erc_weights",
     "risk_contributions",
+    # Level 1 baselines (Phase 3)
+    "equal_weight_long_only",
+    "sized_by_equal_weight",
+    "inverse_volatility_long_only",
+    "sized_by_risk_parity",
+    "normalise_to_gross",
     # MVO / MinVar
     "mvo_weights",
     "min_variance_weights",
