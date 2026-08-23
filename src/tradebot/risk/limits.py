@@ -54,6 +54,7 @@ __all__ = [
     "apply_gross_cap",
     "apply_net_cap",
     "apply_per_asset_cap",
+    "effective_relative_cap",
     "gross_exposure",
     "net_exposure",
 ]
@@ -205,24 +206,33 @@ def apply_adv_cap(
 # --------------------------------------------------------------------------- #
 # Relatieve limieten (vast punt: clippen verlaagt de gross)
 # --------------------------------------------------------------------------- #
-def _feasible_or_crash(n_groups: int, cap: float, *, key: str) -> None:
-    """Een relatieve cap onder `1/n` is wiskundig onhaalbaar.
+def effective_relative_cap(n_active: int, cap: float) -> float:
+    """De afdwingbare vorm van een relatieve cap: `max(cap, 1/n_active)`.
 
-    Sommeren over de groepen geeft `gross <= n * cap * gross`, dus `n * cap >= 1`
-    is noodzakelijk. Zonder deze controle loopt de vaste-puntiteratie het boek
-    stilzwijgend naar nul - een limiet die alles blokkeert ziet er in de logs
-    uit als een limiet die werkt.
+    Een cap onder `1/n` is wiskundig onhaalbaar - sommeren over de groepen
+    geeft `gross <= n * cap * gross`, dus `n * cap >= 1` is noodzakelijk. Bij
+    `cap = 0.40` en twee actieve posities bestaat er geen andere oplossing dan
+    het hele boek naar nul.
+
+    Daar hoort geen crash bij. Het aantal actieve posities is een eigenschap
+    van het BOEK op deze bar, niet van de configuratie: een bar waarop alpha
+    toevallig twee namen aanwijst, mag het platform niet stilleggen. En het
+    hoort al helemaal geen stille nul te worden - een limiet die alles
+    blokkeert ziet er in de logs uit als een limiet die werkt.
+
+    De juiste lezing is dat de cap de dominantie van één groep begrenst. Bij
+    `n` actieve groepen is de minst dominante verdeling gelijk verdeeld, dus
+    `1/n`. Die vloer is de strengst AFDWINGBARE vorm van de limiet: hij staat
+    nooit meer concentratie toe dan een gelijke verdeling, en hij is per
+    constructie haalbaar.
     """
     require(
-        n_groups * cap >= 1.0 - _TOL,
-        f"{key}={cap} is onhaalbaar voor {n_groups} groep(en): de som van de "
-        f"caps ({n_groups * cap:.3f}) haalt 1.0 niet. Elke exposure zou naar "
-        "nul lopen. Verruim de limiet of vergroot het universum.",
+        n_active > 0,
+        "Een relatieve limiet op een leeg boek.",
         ConfigContractError,
-        key=key,
         cap=cap,
-        n_groups=n_groups,
     )
+    return float(max(float(cap), 1.0 / float(n_active)))
 
 
 def _water_filling_limit(magnitudes: list[float], cap: float, *, key: str) -> float:
@@ -287,7 +297,7 @@ def apply_concentration_cap(
         return out, []
 
     active = [s for s, w in out.items() if abs(w) > _TOL]
-    _feasible_or_crash(len(active), cap, key=CONCENTRATION_KEY)
+    cap = effective_relative_cap(len(active), cap)
 
     limit = _water_filling_limit(
         [abs(w) for w in out.values()], cap, key=CONCENTRATION_KEY
@@ -363,7 +373,7 @@ def apply_cluster_cap(
         per_cluster[labels[symbol]] = per_cluster.get(labels[symbol], 0.0) + abs(w)
 
     active_clusters = {c for c, g in per_cluster.items() if g > _TOL}
-    _feasible_or_crash(len(active_clusters), cap, key=CLUSTER_CAP_KEY)
+    cap = effective_relative_cap(len(active_clusters), cap)
 
     limit = _water_filling_limit(
         list(per_cluster.values()), cap, key=CLUSTER_CAP_KEY
