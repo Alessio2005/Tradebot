@@ -124,6 +124,76 @@ class TestErrorTranslation:
             pytest.fail("ruwe pydantic.ValidationError lekte naar de aanroeper")
 
 
+class TestRiskConfigCarriesNoAlphaParameters:
+    """Exit-criterium 2 (Phase 4): `risk/` bevat nul alpha-parameters.
+
+    Vóór Phase 4 stond `min_signal_confidence` in RiskConfig en werd hij ook
+    daadwerkelijk gezet in conf/risk/default.yaml. Een risicolaag die een
+    signaaldrempel kent, kan positiegrootte koppelen aan modelovertuiging -
+    precies de bypass die audit sectie 14 uitsluit.
+    """
+
+    FORBIDDEN = {
+        "min_signal_confidence", "max_funding_cost_bps_day",
+        "expected_alpha", "alpha", "edge", "mu", "signal_threshold",
+        "confidence", "conviction", "model", "strategy", "sharpe",
+    }
+
+    def test_schema_has_no_alpha_field(self) -> None:
+        leaked = set(RiskConfig.model_fields) & self.FORBIDDEN
+        assert not leaked, f"alpha-parameter in RiskConfig: {sorted(leaked)}"
+
+    def test_conf_risk_yaml_has_no_alpha_key(self) -> None:
+        import yaml
+
+        raw = yaml.safe_load((CONF / "risk/default.yaml").read_text(encoding="utf-8"))
+        leaked = set(raw["risk"]) & self.FORBIDDEN
+        assert not leaked, f"alpha-parameter in conf/risk/default.yaml: {sorted(leaked)}"
+
+
+class TestRiskBudgetIsComplete:
+    """Deliverable 11: elke Phase 4-limiet komt uit conf/risk/, niet uit code."""
+
+    REQUIRED = (
+        "sigma_target", "max_leverage", "max_concentration", "gross_cap",
+        "net_cap", "drawdown_breaker_levels", "daily_loss_limit",
+        "adv_participation_cap", "constraint_order",
+    )
+
+    @pytest.mark.parametrize("key", REQUIRED)
+    def test_key_is_present_and_set(self, key: str) -> None:
+        import yaml
+
+        raw = yaml.safe_load((CONF / "risk/default.yaml").read_text(encoding="utf-8"))
+        assert key in raw["risk"], f"{key} ontbreekt in conf/risk/default.yaml"
+
+    def test_strictest_of_the_conflicting_values_was_chosen(self) -> None:
+        """Sectie 5 van de entanglement map: 1.5 / 2.0 / 4.0 -> 1.5."""
+        cfg = load_config(CONF / "risk/default.yaml", RiskConfig)
+        assert cfg.gross_cap == pytest.approx(1.5)
+        assert cfg.max_drawdown_pct == pytest.approx(0.08)
+
+    def test_degrossing_tiers_stay_below_the_hard_halt(self) -> None:
+        """Een trap boven de eindlimiet is dode code."""
+        cfg = load_config(CONF / "risk/default.yaml", RiskConfig)
+        assert cfg.drawdown_breaker_levels, "geen getrapte de-grossing geconfigureerd"
+        assert all(t.drawdown < cfg.max_drawdown_pct for t in cfg.drawdown_breaker_levels)
+
+    def test_monotone_tiers_are_enforced(self) -> None:
+        with pytest.raises(ConfigContractError):
+            validate_mapping(RiskConfig, {"drawdown_breaker_levels": [
+                {"drawdown": 0.06, "gross_multiplier": 0.25},
+                {"drawdown": 0.04, "gross_multiplier": 0.50},
+            ]})
+
+    def test_a_deeper_drawdown_may_not_loosen_the_multiplier(self) -> None:
+        with pytest.raises(ConfigContractError):
+            validate_mapping(RiskConfig, {"drawdown_breaker_levels": [
+                {"drawdown": 0.04, "gross_multiplier": 0.25},
+                {"drawdown": 0.06, "gross_multiplier": 0.50},
+            ]})
+
+
 class TestBindingConstantsLiveInConf:
     """De constanten die het auditdocument bindend maakt, staan in conf/."""
 

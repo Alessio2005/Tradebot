@@ -1,16 +1,127 @@
 # conf/risk/default.yaml — L7 institutioneel risicobudget
-# Gevalideerd tegen schemas/config.py::RiskConfig.
+#
+# BINDEND (audit sectie 14): risicobeheer is het soevereine controle-orgaan van
+# het handelssysteem. Risico overruled altijd Alpha.
+#
+# Dit bestand is sinds Phase 4 de ENIGE bron van waarheid voor elke
+# risicodrempel. Vóór deze fase stond `max_gross_leverage` op vijf plaatsen met
+# vier verschillende waarden (1.5 / 2.0 / 4.0), en `dd_breaker_threshold` op
+# vier plaatsen met vier waarden (0.15 / 0.18 / 0.20 / 0.35). Zie
+# `reports/phase4_entanglement_map.md` sectie 5.
+#
+# WAAR WAARDEN UITEENLIEPEN IS DE STRENGSTE GEKOZEN. Dat is de faseregel
+# "conservatief bij twijfel": de kosten van een te ruime limiet zijn
+# asymmetrisch ten opzichte van de kosten van een te strakke.
+#
+# Gevalideerd tegen `schemas/config.py::RiskConfig` (extra="forbid", frozen).
 # @package _global_
 risk:
-  max_position_pct:         0.25
-  max_gross_leverage:       1.5
-  max_net_imbalance:        0.40
-  daily_var_limit_pct:      0.02
-  max_drawdown_pct:         0.08
-  max_daily_loss_pct:       0.03
-  max_position_age_h:       48
-  min_signal_confidence:    0.55
-  max_funding_cost_bps_day: 30
+
+  # ── L7 Unconditional Volatility Targeting (audit sectie 14.1) ─────────────
+  #     w_t = min( max_leverage , sigma_target / sigma_hat_{t+1|t} )
+  #
+  # sigma_hat komt uit L2 (`volatility/ewma.py`, lambda=0.94). Bij een
+  # ontbrekende of niet-eindige sigma_hat crasht `risk/vol_targeting.py`. Er is
+  # geen laatste-bekende-waarde en geen constante vol.
+  #
+  # sigma_target: de twee bestaande waarden waren 0.08 (conf_config.yaml, het
+  #   pad dat backtest_portfolio.py feitelijk draaide) en 0.12
+  #   (risk/portfolio.py constructordefault). De strengste is gekozen. Context:
+  #   de Phase 3 1/N-baseline draaide op 72% geannualiseerde vol met een
+  #   geometrische drag van 25 procentpunt (reports/BASELINE_BENCHMARK.md);
+  #   0.08 geeft daar w_t = 0.111, en dat is het punt van deze fase.
+  sigma_target: 0.08
+
+  # max_leverage: bestaande waarden 1.5 / 2.0 / 4.0. Strengste gekozen. Dit is
+  #   de cap op de vol-targeting SCALAR, niet op de som van de posities; die
+  #   staat hieronder als gross_cap.
+  max_leverage: 1.5
+
+  # ── Harde limieten (audit sectie 14.1) ────────────────────────────────────
+  # max_position_pct: absolute exposure-cap per asset.
+  max_position_pct: 0.25
+
+  # max_concentration: maximale fractie van de gross exposure in één asset.
+  #   Bestaande waarden: 0.80 (risk/position_limits.py) en 0.40
+  #   (portfolio/constraints.py, live/portfolio_controller.py). Strengste.
+  max_concentration: 0.40
+
+  # max_cluster_concentration: idem per sector/cluster. Nieuw in Phase 4 — er
+  #   bestond geen clusterlimiet, terwijl een crypto-boek per constructie in
+  #   één cluster kan belanden zodra correlaties naar 1 gaan (scenario S2).
+  max_cluster_concentration: 0.60
+
+  # gross_cap: max sum(|w_i|). Bestaande waarden 1.5 / 2.0 / 4.0. Strengste.
+  gross_cap: 1.5
+
+  # net_cap: max |sum(w_i)|, absoluut. De oude formulering was een FRACTIE van
+  #   de gross (max_net_imbalance = 0.40); die is hier omgezet naar een
+  #   absolute cap 0.40 x 1.5 = 0.60, zodat de limiet niet meebeweegt met de
+  #   gross en dus niet ruimer wordt naarmate het boek groter is.
+  net_cap: 0.60
+
+  # adv_participation_cap: per-asset positielimiet afgeleid van liquiditeit,
+  #   als fractie van de Average Daily Volume. 1% is de waarde die
+  #   risk/portfolio.py zelf al als aanbeveling documenteerde maar nooit
+  #   afdwong (`max_adv_fraction=None`).
+  adv_participation_cap: 0.01
+
+  # ── Kill switches (audit sectie 14.1) ─────────────────────────────────────
+  # Drawdown Breaker op High-Water Mark, met GETRAPTE de-grossing. Vóór Phase 4
+  # was elke breaker binair: hij deed niets tot de eindlimiet en zette dan
+  # alles op nul. De trappen grijpen in waar dat nog goedkoop is.
+  #
+  # `drawdown` loopt strikt op, `gross_multiplier` strikt af — afgedwongen door
+  # RiskConfig._tiers_are_monotone.
+  drawdown_breaker_levels:
+    - drawdown: 0.04
+      gross_multiplier: 0.50
+    - drawdown: 0.06
+      gross_multiplier: 0.25
+
+  # max_drawdown_pct: de harde grens. Hierboven is het geen de-grossing meer
+  #   maar een HALT, en die is onherroepelijk tot een handmatige reset.
+  #   Bestaande waarden 0.08 (conf/risk, conf/env/prod) / 0.15 / 0.18 / 0.20 /
+  #   0.35. Strengste.
+  max_drawdown_pct: 0.08
+
+  # daily_loss_limit: Daily Loss Governor — onmiddellijke kill switch op het
+  #   verlies sinds de openingsequity van de dag. Geen trappen: dit is een
+  #   propfirm-lijn, en die is binair.
+  daily_loss_limit: 0.03
+
+  # ── Overig ────────────────────────────────────────────────────────────────
+  daily_var_limit_pct: 0.02
+  max_position_age_h: 48
+
+  # Sector/cluster-labels voor max_cluster_concentration. Het huidige universum
+  # is monolithisch crypto-perp; dat is expliciet vastgelegd in plaats van
+  # impliciet gelaten, want een clusterlimiet met lege labels is een limiet die
+  # nooit bindt.
+  clusters:
+    BTCUSDT:  crypto_l1
+    ETHUSDT:  crypto_l1
+    SOLUSDT:  crypto_l1
+    AVAXUSDT: crypto_l1
+    DOTUSDT:  crypto_l1
+    LINKUSDT: crypto_oracle
+
+  # Toepassingsvolgorde. Expliciet geconfigureerd, nooit impliciet in de
+  # code-volgorde (Phase 4, stap 4). Zie docs/RISK_CONTRACT.md sectie 6:
+  # de boekbrede caps staan als LAATSTE, want alleen dan geldt hun garantie
+  # onvoorwaardelijk. Een limiet die hier ontbreekt wordt niet stilzwijgend
+  # overgeslagen — de engine crasht.
+  constraint_order:
+    - halted
+    - daily_loss_governor
+    - drawdown_breaker
+    - vol_target
+    - per_asset_cap
+    - adv_cap
+    - concentration_cap
+    - cluster_cap
+    - gross_cap
+    - net_cap
 
   # 1/N is de BASELINE, Inverse Volatility (Naive Risk Parity) is de PRODUCTION
   # DEFAULT (audit sectie 13.1). HRP, Markowitz en Black-Litterman zijn in

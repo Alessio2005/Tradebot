@@ -236,20 +236,78 @@ class AlphaConfig(StrictModel):
 # --------------------------------------------------------------------------- #
 # L7/L8 - Risk & Portfolio
 # --------------------------------------------------------------------------- #
-class RiskConfig(StrictModel):
-    """Contract voor de onafhankelijke risicolaag (L7). Zie `conf/risk/`."""
+class DrawdownTier(StrictModel):
+    """Eén trap van de Drawdown Breaker: vanaf `drawdown` geldt `gross_multiplier`.
 
+    Getrapte de-grossing i.p.v. een binaire schakelaar (Phase 4, deliverable 3).
+    Een breaker die pas bij de eindlimiet vuurt, doet niets in het traject waar
+    ingrijpen nog goedkoop is.
+    """
+
+    drawdown: Fraction
+    gross_multiplier: Annotated[float, Field(ge=0.0, le=1.0)]
+
+
+class RiskConfig(StrictModel):
+    """Contract voor de soevereine risicolaag (L7). Zie `conf/risk/`.
+
+    Phase 4 maakt dit de ENIGE bron van waarheid voor elke risicodrempel. Vóór
+    deze fase stond `max_gross_leverage` op vijf plaatsen met vier verschillende
+    waarden (`reports/phase4_entanglement_map.md` sectie 5); waar die uiteenliepen
+    is hier consequent de STRENGSTE gekozen, conform de faseregel "conservatief
+    bij twijfel" - de kosten van een te ruime limiet zijn asymmetrisch.
+    """
+
+    # -- L7 volatility targeting: w_t = min(max_leverage, sigma_target/sigma_hat) --
+    sigma_target: Fraction = 0.08
+    max_leverage: Annotated[float, Field(gt=0.0)] = 1.5
+
+    # -- harde limieten --
     max_position_pct: Fraction = 0.25
-    max_gross_leverage: Annotated[float, Field(gt=0.0)] = 1.5
-    max_net_imbalance: Fraction = 0.40
-    daily_var_limit_pct: Fraction = 0.02
+    max_concentration: Fraction = 0.40
+    max_cluster_concentration: Fraction = 0.60
+    gross_cap: Annotated[float, Field(gt=0.0)] = 1.5
+    net_cap: Annotated[float, Field(gt=0.0)] = 0.60
+    adv_participation_cap: Fraction = 0.01
+
+    # -- kill switches --
+    drawdown_breaker_levels: tuple[DrawdownTier, ...] = ()
     max_drawdown_pct: Fraction = 0.08
-    max_daily_loss_pct: Fraction = 0.03
+    daily_loss_limit: Fraction = 0.03
+
+    # -- overig --
+    daily_var_limit_pct: Fraction = 0.02
     max_position_age_h: PositiveInt = 48
-    min_signal_confidence: Fraction = 0.55
-    max_funding_cost_bps_day: Annotated[float, Field(ge=0.0)] = 30.0
+
+    #: Symbool -> sector/cluster-label voor de clusterlimiet. Een symbool dat
+    #: hier ontbreekt terwijl de clusterlimiet bindt, is een crash en geen
+    #: "overige"-emmer: een onbekend cluster maakt de limiet betekenisloos.
+    clusters: dict[str, str] = Field(default_factory=dict)
+
+    #: Toepassingsvolgorde van de limieten. Expliciet en geconfigureerd, nooit
+    #: impliciet in de code-volgorde (Phase 4, stap 4). Zie docs/RISK_CONTRACT.md
+    #: sectie 6 voor waarom de boekbrede caps als laatste komen.
+    constraint_order: tuple[str, ...] = ()
 
     allocator: Literal["equal_weight", "risk_parity"] = "risk_parity"
+
+    @field_validator("drawdown_breaker_levels")
+    @classmethod
+    def _tiers_are_monotone(cls, v: tuple[DrawdownTier, ...]) -> tuple[DrawdownTier, ...]:
+        """Diepere drawdown mag nooit een RUIMERE multiplier krijgen."""
+        for prev, nxt in zip(v, v[1:]):
+            if nxt.drawdown <= prev.drawdown:
+                raise ValueError(
+                    "drawdown_breaker_levels moet strikt oplopen in `drawdown`; "
+                    f"kreeg {prev.drawdown} gevolgd door {nxt.drawdown}."
+                )
+            if nxt.gross_multiplier > prev.gross_multiplier:
+                raise ValueError(
+                    "Een diepere drawdown mag geen ruimere gross_multiplier "
+                    f"krijgen; {nxt.drawdown} geeft {nxt.gross_multiplier} "
+                    f"tegen {prev.gross_multiplier} op {prev.drawdown}."
+                )
+        return v
 
 
 # --------------------------------------------------------------------------- #
