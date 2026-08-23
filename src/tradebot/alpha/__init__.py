@@ -17,6 +17,11 @@ from __future__ import annotations
 from .base import AlphaSignal, SignalResult
 from .carry import FundingCarry
 from .combination import ICWeightedCombiner
+from .factor_alpha import (
+    G4_FACTORSETS,
+    FactorAlphaResult,
+    factor_residual_alpha,
+)
 from .csm_volume_clock import (
     CSMVolumeClockSignal,
     compute_csm_volume_clock_signals,
@@ -33,6 +38,10 @@ __all__ = [
     # protocol + result
     "AlphaSignal",
     "SignalResult",
+    # factor lab / G4 (Phase 4: verplaatst uit risk/)
+    "G4_FACTORSETS",
+    "FactorAlphaResult",
+    "factor_residual_alpha",
     # signals — calendar time
     "TSMomentum",
     "CSMomentum",

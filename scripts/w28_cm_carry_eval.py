@@ -23,7 +23,7 @@ from tradebot.alpha import cm_carry
 from tradebot.alpha.xs_unit import CostModel, ann_sharpe
 from tradebot.backtest.dd_shape import max_dd_over_vol_quantile
 from tradebot.data.sources.kenfrench import fetch_factors_daily
-from tradebot.risk.factor_alpha import factor_residual_alpha
+from tradebot.alpha.factor_alpha import factor_residual_alpha
 
 TS_PANEL = "market_data_parquet/commodities/eia_term_structure.parquet"
 XASSET = "market_data_parquet/xasset/tr_panel.parquet"

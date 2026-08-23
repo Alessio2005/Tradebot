@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from tradebot.data.equity_universe import load_price_panel  # noqa: E402
 from tradebot.registry import HypothesisLedger, LedgerEntry  # noqa: E402
-from tradebot.risk import factor_residual_alpha  # noqa: E402
+from tradebot.alpha import factor_residual_alpha  # noqa: E402
 
 START = "2010-01-01"  # XBRL fundamentals reliable ~2009+; documented in wave log
 

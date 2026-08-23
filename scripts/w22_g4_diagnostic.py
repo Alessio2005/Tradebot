@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from tradebot.alpha import eq_lowvol, eq_strev, eq_xsmom  # noqa: E402
 from tradebot.alpha.xs_unit import decile_weights  # noqa: E402
 from tradebot.data.equity_universe import load_price_panel  # noqa: E402
-from tradebot.risk import factor_residual_alpha  # noqa: E402
+from tradebot.alpha import factor_residual_alpha  # noqa: E402
 
 START = "2000-01-01"
 

@@ -289,7 +289,7 @@ class TestNoAlphaKnowledgeInTheDecisionPath:
         """Op de AST, niet op de tekst — een docstring die HMM NOEMT is prima.
 
         Wat niet mag, is een import. `risk/kelly.py` (expected_alpha),
-        `risk/factor_alpha.py` en `risk/hmm_regime.py` staan alle drie buiten
+        `alpha/factor_alpha.py` en `risk/hmm_regime.py` staan alle drie buiten
         het besluitpad; deze test houdt dat zo.
         """
         import ast

@@ -22,7 +22,7 @@ import pandas as pd
 from tradebot.alpha.cm_tsmom import COST, UNIT, run
 from tradebot.data.sources.kenfrench import fetch_factors_daily
 from tradebot.data.xasset_proxy import sector_of, to_tr_panel
-from tradebot.risk.factor_alpha import factor_residual_alpha
+from tradebot.alpha.factor_alpha import factor_residual_alpha
 
 PANEL = "market_data_parquet/xasset/tr_panel.parquet"
 _KF = ("Mkt-RF", "SMB", "HML", "RMW", "CMA", "MOM")

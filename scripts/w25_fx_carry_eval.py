@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from tradebot.alpha import fx_carry  # noqa: E402
 from tradebot.data.fx_universe import build_fx_factors, load_fx_panels  # noqa: E402
-from tradebot.risk.factor_alpha import factor_residual_alpha  # noqa: E402
+from tradebot.alpha.factor_alpha import factor_residual_alpha  # noqa: E402
 
 DAYS_CRYPTO = 365.0
 COST_BPS = 10.0

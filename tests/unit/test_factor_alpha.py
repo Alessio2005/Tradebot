@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tradebot.risk import G4_FACTORSETS, factor_residual_alpha
+from tradebot.alpha import G4_FACTORSETS, factor_residual_alpha
 
 ROOT = Path(__file__).resolve().parents[2]
 N = 1500

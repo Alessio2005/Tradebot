@@ -22,7 +22,6 @@ from .daily_loss_governor import (
 )
 from .daily_loss_governor import Regime as AccountRegime
 from .drawdown import BreakerState, DrawdownBreaker, DrawdownConfig, compute_current_drawdown
-from .factor_alpha import G4_FACTORSETS, FactorAlphaResult, factor_residual_alpha
 from .factor_risk import FactorExposure, FactorRiskModel, compute_factor_risk
 from .hmm_regime import HMMRegimeDetector, Regime
 from .kelly import gap_risk_kelly_size, kelly_fraction, meta_label_kelly
@@ -65,10 +64,6 @@ __all__ = [
     "rolling_var",
     "rolling_cvar",
     "stress_test_var",
-    # factor alpha / G4 lab (Wave 20)
-    "G4_FACTORSETS",
-    "FactorAlphaResult",
-    "factor_residual_alpha",
     # factor risk (Wave 7)
     "FactorExposure",
     "FactorRiskModel",
