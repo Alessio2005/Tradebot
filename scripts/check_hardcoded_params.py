@@ -173,7 +173,7 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
     "tune/samplers.py": (1, "DI-11 Phase 6"),
     "tune/search_space.py": (1, "DI-11 Phase 6"),
     # -- utils/ --
-    "utils/hashing.py": (4, "DI-14 Phase 7"),
+    "utils/hashing.py": (0, "DI-14 Phase 7"),
     # -- volatility/ --
     "volatility/ewma.py": (2, "DI-11 Phase 6"),
     "volatility/garman_klass.py": (2, "DI-11 Phase 6"),
