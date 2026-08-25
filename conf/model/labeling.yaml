@@ -1,0 +1,37 @@
+# conf/model/labeling.yaml — L6 meta-labeling (Phase 6, deliverable 19)
+# Gevalideerd tegen schemas/config.py::LabelingConfig (extra="forbid", frozen).
+#
+# Elke breedte hieronder is een PARAMETER VAN HET EXPERIMENT en telt daarom mee
+# in M. Een tweede set breedtes is een tweede trial, geen verfijning.
+labeling:
+  # Barrières in eenheden van de causale EWMA-volatiliteit per bar. Schalen op
+  # sigma in plaats van op een vast percentage is wat de labels vergelijkbaar
+  # maakt tussen BTCUSDT (sigma ~ 0,03/dag) en AVAXUSDT (sigma ~ 0,06/dag);
+  # vaste percentages zouden het label voor het ene symbool bijna altijd op de
+  # verticale barrière laten eindigen en voor het andere bijna nooit.
+  profit_target_sigma: 2.0
+  stop_loss_sigma:     2.0
+
+  # Verticale barrière. 10 daily bars ~ twee handelsweken; lang genoeg dat de
+  # horizontale barrières kunnen binden, kort genoeg dat de labels van
+  # opeenvolgende events niet massaal overlappen (uniqueness).
+  horizon_bars: 10
+
+  # DE shift(2)-CONVENTIE, EXPLICIET (§0.2).
+  #
+  # `reports/phase5_engine_diff.md` bewees met per-bar RMSE over drie seeds dat
+  # de authoritative engine `shift(2)` matcht. Vertaald naar labeling:
+  #
+  #   bar t      het event wordt gedetecteerd; ALLE informatie t/m de close
+  #              van t mag daarvoor worden gebruikt.
+  #   bar t+1    de order vult. `entry_lag_bars: 1` IS die ene bar latency.
+  #   bar t+2..  de barrières worden gemonitord op de high/low van deze bars.
+  #
+  # `entry_lag_bars: 0` zou betekenen: handelen op de close waarop je besluit.
+  # Dat is precies de aanname die de Phase 3-baseline maakte en die Phase 5
+  # weerlegde. Het schema staat de waarde 0 daarom niet toe.
+  entry_lag_bars: 1
+
+  # Onder dit aantal geldige sigma-waarden is een event niet te labelen; het
+  # wordt overgeslagen in plaats van op een geïmputeerde sigma gelabeld.
+  min_sigma_obs: 60

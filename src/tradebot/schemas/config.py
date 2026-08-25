@@ -33,16 +33,24 @@ from pydantic import (
 from ..utils.failfast import ConfigContractError
 
 __all__ = [
+    "AdequacyConfig",
     "BacktestConfig",
     "DataConfig",
     "ExecutionConfig",
     "FeatureConfig",
     "ImpactConfig",
+    "LabelingConfig",
     "MicrostructureFeatureConfig",
     "MomentumFeatureConfig",
     "RiskConfig",
     "StrictModel",
     "TcaConfig",
+    "GarchAdequacyConfig",
+    "HarRvAdequacyConfig",
+    "HmmAdequacyConfig",
+    "HrpAdequacyConfig",
+    "MetaLabelingAdequacyConfig",
+    "PowerConfig",
     "TradebotConfig",
     "ValidationConfig",
     "VolatilityConfig",
@@ -468,6 +476,104 @@ class ValidationConfig(StrictModel):
 
 
 # --------------------------------------------------------------------------- #
+# L11 - Data Adequacy Gate (Phase 6, §3)
+# --------------------------------------------------------------------------- #
+class GarchAdequacyConfig(StrictModel):
+    """Minimumeisen voor een Level-2 GARCH-fit. Zie `conf/model/adequacy.yaml`."""
+
+    min_obs_per_fit_window: PositiveInt = 250
+    min_convergence_ratio: Fraction = 0.90
+    persistence_boundary: Annotated[float, Field(gt=0.0, le=1.0)] = 0.999
+    max_boundary_solution_ratio: Annotated[float, Field(ge=0.0, le=1.0)] = 0.10
+
+
+class HarRvAdequacyConfig(StrictModel):
+    """Minimumeisen voor Level-3 HAR-RV op realized variance."""
+
+    intraday_granularity: str = "5m"
+    min_bars_per_day: PositiveInt = 200
+    min_days_with_coverage_pct: Annotated[float, Field(ge=0.0, le=100.0)] = 80.0
+    min_obs_per_fit_window: PositiveInt = 500
+
+
+class HmmAdequacyConfig(StrictModel):
+    """Minimumeisen voor een M2 Filtered HMM per toestand per fold."""
+
+    min_obs_per_state_per_fold: PositiveInt = 100
+    min_state_occupancy_fraction: Fraction = 0.10
+
+
+class MetaLabelingAdequacyConfig(StrictModel):
+    """Minimumeisen voor een CatBoost secondary model per fold."""
+
+    min_events_per_fold: PositiveInt = 200
+    min_effective_events_per_fold: PositiveInt = 100
+    min_positive_class_ratio: Fraction = 0.20
+    max_positive_class_ratio: Fraction = 0.80
+
+    @model_validator(mode="after")
+    def _band_is_ordered(self) -> MetaLabelingAdequacyConfig:
+        if self.min_positive_class_ratio >= self.max_positive_class_ratio:
+            raise ValueError(
+                "min_positive_class_ratio moet onder max_positive_class_ratio "
+                f"liggen; kreeg {self.min_positive_class_ratio} >= "
+                f"{self.max_positive_class_ratio}"
+            )
+        return self
+
+
+class HrpAdequacyConfig(StrictModel):
+    """Minimumeisen voor een stabiele correlatiematrix onder HRP."""
+
+    min_obs_per_asset: PositiveInt = 10
+    max_condition_number: Annotated[float, Field(gt=1.0)] = 100.0
+
+
+class PowerConfig(StrictModel):
+    """Parameters van de power-analyse die elke pre-registratie draagt."""
+
+    alpha: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.05
+    target_power: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.80
+    two_sided: bool = True
+
+
+class AdequacyConfig(StrictModel):
+    """Contract voor de Data Adequacy Gate (L11). Zie `conf/model/adequacy.yaml`.
+
+    Phase 6 §3: geen enkel model mag worden gefit voordat zijn data-adequaatheid
+    is gemeten en geregistreerd. De drempels staan hier en niet in code, zodat
+    een drempel niet achteraf kan worden verlaagd om een model door de poort te
+    krijgen.
+    """
+
+    garch: GarchAdequacyConfig = Field(default_factory=GarchAdequacyConfig)
+    har_rv: HarRvAdequacyConfig = Field(default_factory=HarRvAdequacyConfig)
+    hmm: HmmAdequacyConfig = Field(default_factory=HmmAdequacyConfig)
+    meta_labeling: MetaLabelingAdequacyConfig = Field(
+        default_factory=MetaLabelingAdequacyConfig)
+    hrp: HrpAdequacyConfig = Field(default_factory=HrpAdequacyConfig)
+    power: PowerConfig = Field(default_factory=PowerConfig)
+
+
+# --------------------------------------------------------------------------- #
+# L6 - Meta-labeling (Phase 6, deliverable 19)
+# --------------------------------------------------------------------------- #
+class LabelingConfig(StrictModel):
+    """Contract voor triple-barrier labeling. Zie `conf/model/labeling.yaml`."""
+
+    profit_target_sigma: Annotated[float, Field(gt=0.0)] = 2.0
+    stop_loss_sigma: Annotated[float, Field(gt=0.0)] = 2.0
+    horizon_bars: PositiveInt = 10
+
+    #: >= 1 en niet configureerbaar naar 0. Zie `conf/model/labeling.yaml` voor
+    #: waarom: 0 betekent handelen op de close waarop je besluit, en dat is de
+    #: aanname die `reports/phase5_engine_diff.md` weerlegde.
+    entry_lag_bars: Annotated[int, Field(ge=1)] = 1
+
+    min_sigma_obs: PositiveInt = 60
+
+
+# --------------------------------------------------------------------------- #
 # Root
 # --------------------------------------------------------------------------- #
 class TradebotConfig(StrictModel):
@@ -498,6 +604,8 @@ DOMAIN_SCHEMAS: dict[str, type[StrictModel]] = {
     "tca": TcaConfig,
     "backtest": BacktestConfig,
     "validation": ValidationConfig,
+    "adequacy": AdequacyConfig,
+    "labeling": LabelingConfig,
 }
 
 
