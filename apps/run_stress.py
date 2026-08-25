@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from tradebot.backtest.baseline_report import risk_overlay_wave  # noqa: E402
 from tradebot.features.registry import current_git_sha  # noqa: E402
+from tradebot.registry.risk_registry import RiskConfigRegistry  # noqa: E402
 from tradebot.risk.engine import RiskEngine  # noqa: E402
 from tradebot.risk.kill_switches import HaltStore  # noqa: E402
 from tradebot.risk.stress_test import BaseBook, RiskStressHarness  # noqa: E402
@@ -61,6 +62,14 @@ def main(argv: list[str] | None = None) -> int:
     store = HaltStore(args.halt_store) if args.halt_store else None
     engine = RiskEngine(cfg, halt_store=store)
     git_sha = current_git_sha()
+
+    # Een risicoconfiguratie zonder hash is niet auditbaar (stap 11). Bewust
+    # NIET in de hypothese-ledger: die telt trials en zou de DSR deflateren.
+    RiskConfigRegistry(ROOT / "artefacts" / "governance" / "risk_config_registry.json").register(
+        config_hash=engine.config_hash, git_sha=git_sha,
+        config=cfg.model_dump(mode="json"), audit_header=engine.audit_header(),
+        notes="Phase 4 stress run.",
+    )
 
     scenarios = [
         outcome.as_record()
