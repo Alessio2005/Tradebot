@@ -1,0 +1,187 @@
+# conf/research/preregistration_h3_meta_labeling.yaml
+# PRE-REGISTRATIE H3 — CatBoost als secondary model (meta-labeling).
+#
+# ===========================================================================
+# WAT HET MODEL WEL EN NIET MAG DOEN (§12.1, §24)
+# ===========================================================================
+# CatBoost keerde in §24 terug met het oordeel ARCHIVE voor directionele
+# voorspelling. De ENIGE route terug is als meta-labeler: het primaire
+# Phase 3-signaal bepaalt de richting, het ML-model voorspelt uitsluitend de
+# KANS OP SUCCES van de trade die dat signaal wilde doen.
+#
+# Dat is geen afspraak maar een constructie. `train/meta_label.py` blokkeert
+# directionele voorspelling technisch; het doelvector is per definitie binair en
+# de richting zit al in het teken van de positie verwerkt voordat het label
+# bestaat.
+#
+# ===========================================================================
+# DE PRIMAIRE SIGNAALTRACK EN HET HALTPROBLEEM (§0.5)
+# ===========================================================================
+# Identiek aan H2: `xs_momentum_risk_parity`. `long_only_equal_weight` halteert
+# op 2022-05-10 en levert ~130 handelende bars; een meta-labeler daarop zou op
+# de eerste zes maanden van het venster worden getraind en getoetst.
+#
+# ===========================================================================
+# POWER-ANALYSE — DE UITKOMST HANGT AF VAN WAT JE ONAFHANKELIJK NOEMT
+# ===========================================================================
+# Toets: AUC tegen de nulwaarde 0,50 met de standaardfout van Hanley & McNeil
+# (1982), afgezet tegen de drempel 0,58 uit §24 (een overschot van 0,08).
+#
+# Het aantal events is GEMETEN, niet aangenomen
+# (`artefacts/governance/phase6_data_adequacy.json`):
+#
+#   nominaal per testfold          600   (100 bars × 6 symbolen)
+#   uniqueness-ratio             0,1622   (AFML hoofdstuk 4; met een event op
+#                                          vrijwel elke bar en een horizon van
+#                                          10 bars delen buren negen van hun
+#                                          tien toekomstige bars)
+#   effectief per testfold          97
+#   gepoold over 12 folds        7.200 nominaal / 1.168 effectief
+#
+#   Bovenop de labeloverlap staat de cross-sectionele afhankelijkheid: zes
+#   perpetuals met een gemeten gemiddelde correlatie van 0,7485 zijn 1,265
+#   onafhankelijke reeksen waard, niet zes. Gepoold en dubbel gecorrigeerd
+#   blijven er ~246 onafhankelijke labels over.
+#
+# MDE bij alpha = 0,05 tweezijdig en 80 % power, in AUC-overschot boven 0,50:
+#
+#   gepoold nominaal (7.200)                  MDE = 0,019   deficit 0,24×
+#   gepoold uniqueness-gecorrigeerd (1.168)   MDE = 0,047   deficit 0,59×
+#   gepoold + cross-sectie (246)              MDE = 0,103   deficit 1,29×
+#
+# OORDEEL VOORAF: H3 ligt PRECIES OP DE GRENS, en aan welke kant hangt af van
+# een keuze die niet uit de data volgt. Twee labels van verschillende symbolen
+# op dezelfde bar zijn verschillende trades met verschillende uitkomsten, maar
+# hun uitkomsten zijn gecorreleerd. De waarheid ligt tussen 1.168 en 246.
+#
+# VASTGELEGD VOOR DE RUN: het betrouwbaarheidsinterval om de AUC wordt
+# gerapporteerd op BEIDE effectieve steekproefgroottes. Promotie vereist dat de
+# ONDERGRENS van het CONSERVATIEVE interval (n = 246) boven 0,58 ligt. Een AUC
+# waarvan alleen het optimistische interval de drempel haalt, is `UNPROVEN` —
+# niet `PROMOTED` en niet `FALSIFIED`.
+#
+# Het nominale interval (n = 7.200) wordt ook gerapporteerd, uitsluitend om te
+# laten zien hoeveel te smal het is. Dat is het interval dat een pipeline zonder
+# uniqueness-correctie zou produceren, en het verschil is de reden dat
+# meta-labeling-resultaten in de literatuur zo vaak niet repliceren.
+preregistration:
+  wave: phase6_h3_meta_labeling
+
+  title: >-
+    H3 — CatBoost als secondary model op triple-barrier labels van het
+    Phase 3-baselinesignaal, getoetst tegen de drempel OOS AUC > 0.58 uit §24,
+    onder Purged Walk-Forward met embargo en per fold gefitte scaler.
+
+  hypothesis: >-
+    Een CatBoost-classifier die uitsluitend de SUCCESKANS van het primaire
+    cross-sectionele momentumsignaal voorspelt — richting gegeven, label uit
+    triple-barrier met barrières op de causale EWMA-volatiliteit en de
+    shift(2)-conventie — bereikt een out-of-sample AUC boven 0.58 onder Purged
+    Walk-Forward met embargo, met een betrouwbaarheidsinterval waarvan de
+    ondergrens op de conservatieve effectieve steekproefgrootte boven 0.58 ligt.
+
+  null_hypothesis: >-
+    De out-of-sample AUC van het secondary model is niet te onderscheiden van
+    0.50, dat wil zeggen: het model draagt geen informatie over de succeskans
+    van het primaire signaal. Onder deze nulhypothese blijft CatBoost ARCHIVED
+    zoals §24 vastlegt. Een AUC tussen 0.50 en 0.58, of een AUC boven 0.58
+    waarvan het conservatieve betrouwbaarheidsinterval de drempel omvat, is
+    NIET voldoende voor promotie.
+
+  universe:
+    - BTCUSDT
+    - ETHUSDT
+    - SOLUSDT
+    - AVAXUSDT
+    - LINKUSDT
+    - DOTUSDT
+
+  granularity: 1d
+
+  period_start: "2020-03-26"
+  period_end: "2026-08-23"
+  evaluation_start: "2021-11-15"
+
+  primary_metric: oos_auc
+
+  # CatBoost-hyperparameterruimte, VOORAF vastgelegd:
+  #   depth in {3, 4, 6}  ×  learning_rate in {0.03, 0.1}  =  6 trials.
+  #
+  # Eén barrièreconfiguratie (2 sigma / 2 sigma / 10 bars, uit
+  # conf/model/labeling.yaml). Een tweede set breedtes is een tweede trial en
+  # vereist een nieuwe pre-registratie; barrièrebreedtes zoeken tot de AUC de
+  # drempel haalt, is de meest directe manier om deze hypothese te vervalsen
+  # zonder het te merken.
+  #
+  # De negatieve controle op gerandomiseerde labels telt NIET mee: zij is een
+  # controle op de PIPELINE (lekt er informatie?) en geen hypothese over de markt.
+  planned_trials: 6
+
+  data_series:
+    - crypto/ohlcv/BTCUSDT/1d
+    - crypto/ohlcv/ETHUSDT/1d
+    - crypto/ohlcv/SOLUSDT/1d
+    - crypto/ohlcv/AVAXUSDT/1d
+    - crypto/ohlcv/LINKUSDT/1d
+    - crypto/ohlcv/DOTUSDT/1d
+
+  stop_criteria:
+    - name: negative_control_leaks
+      metric: shuffled_label_auc
+      operator: ">="
+      threshold: 0.55
+      action: falsify
+      rationale: >-
+        Hetzelfde model op GERANDOMISEERDE labels hoort een AUC rond 0.50 te
+        geven. Ligt hij daarboven, dan lekt er informatie in de pipeline —
+        een scaler over folds heen gefit, een feature die de toekomst raakt, of
+        een purging die niet doet wat zij belooft — en is elk ander getal uit
+        deze run waardeloos. Dit criterium bindt VOOR alle andere en zijn actie
+        is falsificatie van de RUN, niet van de hypothese.
+
+    - name: events_below_adequacy
+      metric: min_effective_events_per_fold
+      operator: "<"
+      threshold: 100.0
+      action: descope
+      rationale: >-
+        De Data Adequacy Gate meet het EFFECTIEVE aantal labels per fold na
+        uniqueness-correctie. Zakt dat onder 100, dan is het nominale aantal een
+        illusie van steekproefgrootte en krijgt het model
+        `UNPROVEN — insufficient data` zonder gefit te zijn.
+
+    - name: auc_below_threshold
+      metric: oos_auc_lower_bound_conservative
+      operator: "<="
+      threshold: 0.58
+      action: archive
+      rationale: >-
+        §24 legt de drempel op OOS AUC > 0.58 vast als de enige route waarlangs
+        CatBoost terugkeert. Ligt de ONDERGRENS van het conservatieve
+        betrouwbaarheidsinterval daaronder, dan blijft het model ARCHIVED. De
+        drempel wordt niet verlaagd en er wordt geen ander werkpunt gezocht
+        waarop hij wel wordt gehaald.
+
+    - name: filter_adds_no_net_value_through_the_engine
+      metric: net_sharpe_delta_of_filtered_signal
+      operator: "<="
+      threshold: 0.0
+      action: archive
+      rationale: >-
+        Een AUC boven 0.58 is een statistisch resultaat, geen economisch. Het
+        gefilterde signaal gaat door de authoritative engine met volledige
+        kosten; voegt het filter daar netto niets toe, dan wordt het niet
+        gepromoveerd hoe goed de AUC ook is. Een filter dat de helft van de
+        trades weghaalt en de Sharpe met 0,02 verbetert, verdient geen promotie.
+
+    - name: promotion_requires_all_gates_clear
+      metric: n_binding_stop_criteria
+      operator: "<="
+      threshold: 0.0
+      action: promote
+      rationale: >-
+        Promotie vereist dat GEEN van de bovenstaande criteria bindt: de
+        negatieve controle schoon, de adequaatheid gehaald, de conservatieve
+        AUC-ondergrens boven 0.58, en netto economische waarde door de engine.
+        Plus de volledige Phase 2-gate: 6 lookahead-tests, DSR met de eerlijke
+        M, SPA over de multi-modelvergelijking.

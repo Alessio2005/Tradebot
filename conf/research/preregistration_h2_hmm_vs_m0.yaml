@@ -1,0 +1,197 @@
+# conf/research/preregistration_h2_hmm_vs_m0.yaml
+# PRE-REGISTRATIE H2 — M2 Filtered HMM tegen M0 Causal Vol-Buckets.
+#
+# ===========================================================================
+# DE KEUZE VAN DE PRIMAIRE SIGNAALTRACK, EN HET HALTPROBLEEM (§0.5)
+# ===========================================================================
+# `long_only_equal_weight` HALTEERT DEFINITIEF op 2022-05-10 (LUNA) bij 8,31 %
+# drawdown op de High-Water Mark. De drawdown-breaker is een eenrichtingsdeur:
+# van de 1.743 bars handelt die track er ~130. Elk regime-conditioneringsexperiment
+# erop meet de eerste zes maanden van het venster en daarna niets — de
+# regimewisselingen ná mei 2022 kunnen per constructie geen enkel effect hebben.
+#
+# De primaire signaaltrack is daarom `xs_momentum_risk_parity`. Verantwoording:
+#
+#   * hij handelt het VOLLEDIGE venster (9.655 orders over 1.743 bars) en is
+#     daarmee de enige track met bruikbare OOS-massa;
+#   * hij is de track waarop de Phase 3-hypothese betrekking had, zodat het
+#     experiment over het REGIMEMODEL gaat en niet over een andere strategie;
+#   * zijn L3-netto Sharpe is −0,331 (Phase 5, `artefacts/baseline/phase5_revaluation.json`),
+#     wat betekent dat een verbetering ruimte heeft zonder tegen een plafond te lopen.
+#
+# Het aantal EFFECTIEF HANDELENDE BARS wordt per experiment gerapporteerd, niet
+# de vensterlengte.
+#
+# ===========================================================================
+# POWER-ANALYSE — DE UITKOMST IS DAT DEZE TOETS HET NIET KAN ZIEN
+# ===========================================================================
+# Toets: gepaard Sharpe-verschil (Jobson-Korkie met Memmel-correctie) tussen het
+# M0-geconditioneerde en het M2-geconditioneerde signaal, beide door de
+# authoritative engine met volledige kosten.
+#
+#   SE(SR)  = sqrt((1 + SR² / 2) / T)  met SR = −0,331 en T = 4,769 jaar
+#           = 0,4703
+#   SE(dSR) = SE(SR) × sqrt(2 × (1 − rho))
+#
+# rho is de correlatie tussen de twee returnreeksen. Beide conditioneren
+# HETZELFDE primaire signaal, dus rho is hoog — dat is precies wat een gepaarde
+# toets zo veel preciezer maakt dan twee losse Sharpes.
+#
+#   rho = 0,80  ->  SE(dSR) = 0,2975  ->  MDE = 0,833 Sharpe-eenheden
+#   rho = 0,90  ->  SE(dSR) = 0,2103  ->  MDE = 0,589
+#   rho = 0,95  ->  SE(dSR) = 0,1487  ->  MDE = 0,417
+#   rho = 0,99  ->  SE(dSR) = 0,0665  ->  MDE = 0,186
+#
+# VERWACHT EFFECT: 0,08 Sharpe-eenheden. Dat is de orde van grootte die de
+# regime-literatuur voor een vol-conditionering op één assetklasse rapporteert,
+# en het is ook het voorbeeld dat de fase-opdracht zelf noemt.
+#
+# OORDEEL VOORAF, EXPLICIET: **deze toets is bij voorbaat niet informatief.**
+# De power-deficit is 5,2× tot 10,4× afhankelijk van rho. De correlatie die
+# nodig zou zijn om 0,08 te detecteren is rho = 0,99816 — en bij die correlatie
+# verandert de regime-overlay de returnreeks zo weinig dat er geen effect van
+# 0,08 kán bestaan. De opzet is dus intern tegenstrijdig: elke rho waarbij het
+# effect groot genoeg is om te bestaan, is een rho waarbij de toets het niet ziet.
+#
+# CONSEQUENTIE, VASTGELEGD VOOR DE RUN: de verwachte uitkomst van H2 is
+# `UNPROVEN — insufficient data`. Een niet-significant verschil mag NIET als
+# `FALSIFIED` worden gerapporteerd (§6-doctrine, no-go-conditie 8). Een
+# SIGNIFICANT verschil op deze opzet zou een effect van minstens 0,42
+# Sharpe-eenheden betekenen — vier keer het verwachte — en verdient dan
+# juist extra scepsis in plaats van minder.
+#
+# Het experiment wordt niettemin volledig uitgevoerd. De reden is dat de
+# ANDERE gemeten grootheden wel informatief zijn en niet van power afhangen:
+# het aantal regimewisselingen, de gemiddelde regimeduur, de turnover-delta,
+# de fees die de wisselingen kosten, en de half-spread waarbij een eventuele
+# winst verdwijnt. Een regimemodel dat de turnover verdubbelt, is gefalsificeerd
+# op ECONOMISCHE gronden zonder dat de Sharpe-toets iets hoeft te kunnen zien.
+preregistration:
+  wave: phase6_h2_hmm_vs_m0
+
+  title: >-
+    H2 — M2 Filtered Hidden Markov Model tegen M0 Causal Vol-Buckets als
+    conditioneringslaag op het Phase 3-baselinesignaal, gemeten door de
+    authoritative engine met volledige transactiekosten.
+
+  hypothesis: >-
+    Conditionering van het Phase 3 cross-sectionele momentumsignaal op de
+    FILTERED toestandskansen van een M2 Hidden Markov Model levert op de track
+    xs_momentum_risk_parity een HOGERE netto out-of-sample Sharpe na
+    transactiekosten dan conditionering op M0 Causal Vol-Buckets, gemeten door
+    EventDrivenEngine onder config_hash 1b60cb664fbf9a2a met de shift(2)-conventie,
+    en die verbetering overleeft de extra transactiekosten van de hogere
+    regime-turnover.
+
+  null_hypothesis: >-
+    De netto out-of-sample Sharpe onder M2-conditionering is kleiner dan of
+    gelijk aan die onder M0-conditionering na transactiekosten. Onder deze
+    nulhypothese blijft M0 de productie-baseline en blijft het HMM in de
+    Research Track. De nulhypothese wordt NIET verworpen op een verschil in
+    puntschattingen; zij vereist een gepaarde toets die op deze opzet aantoonbaar
+    onderpowered is, waardoor een niet-verwerping `UNPROVEN` betekent en geen
+    falsificatie.
+
+  universe:
+    - BTCUSDT
+    - ETHUSDT
+    - SOLUSDT
+    - AVAXUSDT
+    - LINKUSDT
+    - DOTUSDT
+
+  granularity: 1d
+
+  period_start: "2020-03-26"
+  period_end: "2026-08-23"
+  evaluation_start: "2021-11-15"
+
+  primary_metric: net_oos_sharpe_after_costs
+
+  # M1 Markov Chain met k = 2 en k = 3   (2)
+  # M2 HMM Gaussian    met k = 2 en k = 3 (2)
+  # M2 HMM Student-t   met k = 2 en k = 3 (2)
+  #                                       = 6 trials.
+  #
+  # M0 Causal Vol-Buckets telt NIET mee: nul latente toestanden, nul geschatte
+  # parameters, drempels uit conf/model/regime.yaml. Er wordt geen ruimte
+  # doorzocht en er valt niets te overfitten — dat is precies waarom hij een
+  # oneerlijk sterke tegenstander is en dus de juiste baseline.
+  #
+  # M3 Markov-Switching GARCH staat NIET in deze ruimte. §2 sluit hem expliciet
+  # uit van deze fase.
+  planned_trials: 6
+
+  data_series:
+    - crypto/ohlcv/BTCUSDT/1d
+    - crypto/ohlcv/ETHUSDT/1d
+    - crypto/ohlcv/SOLUSDT/1d
+    - crypto/ohlcv/AVAXUSDT/1d
+    - crypto/ohlcv/LINKUSDT/1d
+    - crypto/ohlcv/DOTUSDT/1d
+
+  stop_criteria:
+    - name: state_occupancy_below_adequacy
+      metric: rarest_state_obs_per_fold
+      operator: "<"
+      threshold: 100.0
+      action: descope
+      rationale: >-
+        De Data Adequacy Gate meet de FILTERED bezetting van de zeldzaamste
+        toestand per fold. Zakt die onder 100 observaties, dan schat het model
+        daar een mean, een variantie en k-1 transitiekansen op enkele tientallen
+        punten en is de toestand een uitschieterdetector in plaats van een
+        regime. Die configuratie wordt niet gefit, krijgt
+        `UNPROVEN — insufficient data` met de gemeten bezetting erbij, en telt
+        NIET mee in M omdat er geen search heeft plaatsgevonden.
+
+    - name: no_sharpe_improvement_after_costs
+      metric: net_sharpe_delta_vs_m0
+      operator: "<="
+      threshold: 0.0
+      action: descope
+      rationale: >-
+        Zonder positieve netto Sharpe-delta na kosten is superioriteit boven M0
+        niet aangetoond en blijft M0 productie-baseline. De actie is DESCOPE en
+        niet FALSIFY, omdat de power-analyse hierboven vóór de run vaststelt dat
+        deze opzet het verwachte effect van 0,08 niet kan zien; een negatieve of
+        nulmeting is hier bewijs van onvermogen om te meten, niet bewijs van
+        afwezigheid.
+
+    - name: turnover_doubles
+      metric: turnover_ratio_vs_m0
+      operator: ">="
+      threshold: 2.0
+      action: falsify
+      rationale: >-
+        Dit criterium kan WEL falsificeren, omdat het niet van de Sharpe-power
+        afhangt. Verdubbelt de regime-overlay de turnover, dan moet zij een
+        bruto-verbetering opleveren die de extra fees terugverdient; over 1.743
+        bars kost `xs_momentum_risk_parity` al € 2.106,77 aan fees op 9.655
+        orders. Een model dat de turnover verdubbelt zonder een bruto-winst van
+        dezelfde orde, is gefalsificeerd op economische gronden — niet
+        onbewezen.
+
+    - name: improvement_disappears_at_three_bp_spread
+      metric: half_spread_bp_at_which_gain_vanishes
+      operator: "<="
+      threshold: 3.0
+      action: falsify
+      rationale: >-
+        De spread is `SPREAD_ASSUMED` op 1,0 bp; Corwin-Schultz is op deze data
+        verworpen (32,6-65,9 bp, 33-38 % negatief). Verdwijnt een gemeten
+        verbetering al bij een aangenomen half-spread van 3 bp, dan is de
+        promotie een spread-aanname en geen modelresultaat. Ook dit criterium
+        hangt niet van de Sharpe-power af.
+
+    - name: promotion_requires_all_gates_clear
+      metric: n_binding_stop_criteria
+      operator: "<="
+      threshold: 0.0
+      action: promote
+      rationale: >-
+        Promotie van M2 naar de conditioneringslaag L5 vereist dat GEEN van de
+        bovenstaande criteria bindt, EN dat de Phase 2-gate volledig groen is:
+        6 lookahead-tests, DSR met de eerlijke M, SPA over de
+        multi-modelvergelijking. Gegeven de power-analyse is dit een uitkomst
+        die vóór de run als onwaarschijnlijk wordt genoteerd.
