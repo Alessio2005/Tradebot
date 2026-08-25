@@ -1,0 +1,102 @@
+{
+  "evidence": {
+    "data_hashes": {
+      "crypto/ohlcv/AVAXUSDT/1d": "af05b4f95d0e282111641f85904c22f9",
+      "crypto/ohlcv/BTCUSDT/1d": "4f21f2c7ab071ddc19da5eb3f38172f3",
+      "crypto/ohlcv/DOTUSDT/1d": "17be1f4206997f12fd7e1825f123299b",
+      "crypto/ohlcv/ETHUSDT/1d": "d67c9bb18b2c794ba416067556227a5a",
+      "crypto/ohlcv/LINKUSDT/1d": "8d6a82f316253c2626d016bbbad804d4",
+      "crypto/ohlcv/SOLUSDT/1d": "1d64b001993b575f34ef04ce548616c5"
+    },
+    "instruments": [
+      "AVAXUSDT",
+      "BTCUSDT",
+      "DOTUSDT",
+      "ETHUSDT",
+      "LINKUSDT",
+      "SOLUSDT"
+    ],
+    "missing_datasets": [
+      "orderbook_l2",
+      "trades"
+    ],
+    "n_symbol_days": 11660,
+    "per_symbol": {
+      "AVAXUSDT": {
+        "kappa_d": 0.647775637973844,
+        "max": 11.260993516325279,
+        "median": 1.4324673676549264,
+        "n_days": 1743,
+        "p95": 2.9292164869909265
+      },
+      "BTCUSDT": {
+        "kappa_d": 0.679333216050657,
+        "max": 7.962291273615942,
+        "median": 1.378911451150043,
+        "n_days": 2282,
+        "p95": 2.995462556454697
+      },
+      "DOTUSDT": {
+        "kappa_d": 0.6646974532099335,
+        "max": 13.283159899334146,
+        "median": 1.4171717478509052,
+        "n_days": 1923,
+        "p95": 3.1146120200690013
+      },
+      "ETHUSDT": {
+        "kappa_d": 0.6857383014994491,
+        "max": 9.68098937411434,
+        "median": 1.3830931875588282,
+        "n_days": 1927,
+        "p95": 2.970838230880286
+      },
+      "LINKUSDT": {
+        "kappa_d": 0.6606088200144279,
+        "max": 12.659924672236167,
+        "median": 1.4458500004036794,
+        "n_days": 2072,
+        "p95": 2.9763716768546953
+      },
+      "SOLUSDT": {
+        "kappa_d": 0.68518107549004,
+        "max": 8.009078766526526,
+        "median": 1.4785323106709418,
+        "n_days": 1713,
+        "p95": 2.981366660401607
+      }
+    },
+    "period_end": "2026-08-23",
+    "period_start": "2020-05-25",
+    "quantiles": {
+      "max": 13.283159899334146,
+      "p50": 1.421064496173419,
+      "p75": 1.905583524889674,
+      "p90": 2.524081620407773,
+      "p95": 2.99192245798947,
+      "p99": 4.252896922680605
+    },
+    "reason": "Geen orderboek- of trade-data in de gecertificeerde store (ontbreekt: orderbook_l2, trades). eta is niet identificeerbaar zonder eigen orders en hun gemeten prijsrespons; de gerapporteerde waarde is een CONSERVATIEVE BOVENGRENS uit de dagrange, geen schatting. Zie docs/DATA_REGISTER.md sectie 6.",
+    "status": "IMPACT_UNCALIBRATED"
+  },
+  "git_sha": "d26baf9",
+  "params": {
+    "data_hash": "4c113cea9085af5e",
+    "eta": 2.99192245798947,
+    "eta_ci_high": 4.252896922680605,
+    "eta_ci_low": 1.905583524889674,
+    "instruments": [
+      "AVAXUSDT",
+      "BTCUSDT",
+      "DOTUSDT",
+      "ETHUSDT",
+      "LINKUSDT",
+      "SOLUSDT"
+    ],
+    "kappa_d": 0.6720153346302953,
+    "method": "range-implied upper bound: quantile(0.95) of (high-low)/close / sigma_daily, pooled over symbol-days",
+    "period_end": "2026-08-23",
+    "period_start": "2020-05-25",
+    "sample_size": 11660,
+    "status": "IMPACT_UNCALIBRATED"
+  }
+}

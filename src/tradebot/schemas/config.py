@@ -21,7 +21,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated, Any, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from ..utils.failfast import ConfigContractError
 
@@ -30,6 +37,7 @@ __all__ = [
     "DataConfig",
     "ExecutionConfig",
     "FeatureConfig",
+    "ImpactConfig",
     "MicrostructureFeatureConfig",
     "MomentumFeatureConfig",
     "RiskConfig",
@@ -325,8 +333,61 @@ class ExecutionConfig(StrictModel):
     assumed_half_spread_bps: Annotated[float, Field(ge=0.0)] = 1.0
 
     slippage_model: Literal["none", "half_spread", "square_root"] = "half_spread"
-    impact_eta: Annotated[float, Field(ge=0.0)] = 0.142
+
+    # PHASE 5: `impact_eta` stond hier met default 0.142 - een literatuurwaarde
+    # (Bouchaud-Bonart, BTC-perps) die nooit op dit universum is gekalibreerd en
+    # die bovendien door geen enkele module werd gelezen. Fase-opdracht §11
+    # verbiedt exact die constructie: een ontbrekende eta is een
+    # ConfigContractError en nooit een default. Het veld is verplaatst naar
+    # `ImpactConfig` (conf/execution/impact.yaml), waar het GEEN default heeft
+    # en verplicht een status en herkomst draagt.
+    #
+    # Gevolg dat de lezer moet kennen: een NIEUWE `freeze_preregistration`-run
+    # levert een andere `preregistration_id` dan de Phase 3-bevriezing, omdat
+    # `resolve_parameters()` deze config meehasht. Het bestaande bevroren
+    # artefact is niet geraakt - dat leest zijn eigen opgeslagen JSON.
+
     cost_assumption_is_provisional: bool = True
+
+
+class ImpactConfig(StrictModel):
+    """Contract voor het marktimpactmodel (L9). Zie `conf/execution/impact.yaml`.
+
+    GEEN VELD HEEFT EEN DEFAULT. Dat is het hele punt: fase-opdracht §11 eist dat
+    een ontbrekende `eta` een `ConfigContractError` oplevert en nooit nul, een
+    fallback of een stille schatting. Pydantic levert die fout hier gratis,
+    omdat elk veld verplicht is.
+    """
+
+    #: `Impact = eta * sigma_daily * sqrt(order_notional / adv_notional)`.
+    eta: Annotated[float, Field(gt=0.0)]
+
+    #: De PERMANENTE fractie van de impact (Bouchaud-decompositie). Zie
+    #: `execution/impact_model.py` voor waarom deze definitie hier staat en niet
+    #: in de audit.
+    kappa_d: Annotated[float, Field(ge=0.0, le=1.0)]
+
+    #: `CALIBRATED` of `IMPACT_UNCALIBRATED`. Reist mee naar elk rapport.
+    status: Literal["CALIBRATED", "IMPACT_UNCALIBRATED"]
+
+    #: Volledige herkomst. Zonder deze velden is `eta` een getal zonder bron.
+    method: str = Field(min_length=1)
+    data_hash: str = Field(min_length=1)
+    sample_size: PositiveInt
+    period_start: str = Field(min_length=1)
+    period_end: str = Field(min_length=1)
+    instruments: tuple[str, ...] = Field(min_length=1)
+    eta_ci_low: Annotated[float, Field(gt=0.0)]
+    eta_ci_high: Annotated[float, Field(gt=0.0)]
+
+    @model_validator(mode="after")
+    def _ci_contains_point_estimate(self) -> ImpactConfig:
+        if not (self.eta_ci_low <= self.eta <= self.eta_ci_high):
+            raise ValueError(
+                "eta ligt buiten zijn eigen onzekerheidsband "
+                f"[{self.eta_ci_low}, {self.eta_ci_high}]."
+            )
+        return self
 
 
 # --------------------------------------------------------------------------- #
@@ -412,6 +473,7 @@ DOMAIN_SCHEMAS: dict[str, type[StrictModel]] = {
     "alpha": AlphaConfig,
     "risk": RiskConfig,
     "execution": ExecutionConfig,
+    "impact": ImpactConfig,
     "backtest": BacktestConfig,
     "validation": ValidationConfig,
 }

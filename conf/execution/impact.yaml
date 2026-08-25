@@ -1,0 +1,52 @@
+# conf/execution/impact.yaml — L9 marktimpact
+#
+# BINDEND (audit sectie 15.1, fase-opdracht §11):
+#     Impact = eta * sigma_daily * sqrt(order_notional / adv_notional)
+#
+# GEEN ENKEL VELD HEEFT EEN DEFAULT. Dat is het punt van dit bestand. Tot Phase
+# 5 stond `impact_eta: 0.142` in conf/execution/fees.yaml met een default in het
+# schema — een literatuurwaarde (Bouchaud-Bonart, BTC-perps) die nooit op dit
+# universum is gekalibreerd, en die bovendien door geen enkele module werd
+# gelezen. Een ontbrekende eta is nu een ConfigContractError.
+#
+# DIT BESTAND WORDT NIET MET DE HAND GESCHREVEN. Het is gegenereerd door
+# `apps/calibrate_impact.py` uit de gecertificeerde store, en
+# `tests/unit/test_impact_model.py` bewijst dat elke waarde hieronder gelijk is
+# aan `artefacts/execution/impact_params.json`. Een handmatige wijziging valt
+# daardoor onmiddellijk op.
+#
+# STATUS: IMPACT_UNCALIBRATED
+#   Er is geen orderboek- of trade-data in de gecertificeerde store
+#   (docs/DATA_REGISTER.md §6). `eta` is dus NIET geschat maar afgeleid als
+#   conservatieve BOVENGRENS uit de dagrange. Zie
+#   reports/TCA_CALIBRATION_REPORT.md voor de afleiding en voor de reden dat
+#   deze bovengrens ruim maar weinig informatief is.
+#
+# Gevalideerd tegen schemas/config.py::ImpactConfig.
+impact:
+  eta: 2.991922
+  kappa_d: 0.672015
+
+  status: IMPACT_UNCALIBRATED
+
+  method: >-
+    range-implied upper bound: quantile(0.95) of (high-low)/close / sigma_daily, pooled over symbol-days
+
+  data_hash: 4c113cea9085af5e
+  sample_size: 11660
+  period_start: "2020-05-25"
+  period_end: "2026-08-23"
+
+  # De band is geen steekproefinterval maar de spreiding van de BOVENGRENS zelf
+  # over de verdeling: p75 tot p99. Hij begrenst hoeveel de keuze van het
+  # kwantiel het getal verplaatst.
+  eta_ci_low: 1.905584
+  eta_ci_high: 4.252897
+
+  instruments:
+    - AVAXUSDT
+    - BTCUSDT
+    - DOTUSDT
+    - ETHUSDT
+    - LINKUSDT
+    - SOLUSDT
