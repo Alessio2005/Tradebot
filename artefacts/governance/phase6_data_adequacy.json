@@ -1,0 +1,309 @@
+{
+  "git_sha": "a5b4dda",
+  "universe": {
+    "n_bars": 1743,
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "AVAXUSDT",
+      "LINKUSDT",
+      "DOTUSDT"
+    ],
+    "period_start": "2021-11-15",
+    "period_end": "2026-08-23",
+    "data_hashes": {
+      "crypto/ohlcv/AVAXUSDT/1d": "af05b4f95d0e282111641f85904c22f9",
+      "crypto/ohlcv/BTCUSDT/1d": "4f21f2c7ab071ddc19da5eb3f38172f3",
+      "crypto/ohlcv/DOTUSDT/1d": "17be1f4206997f12fd7e1825f123299b",
+      "crypto/ohlcv/ETHUSDT/1d": "d67c9bb18b2c794ba416067556227a5a",
+      "crypto/ohlcv/LINKUSDT/1d": "8d6a82f316253c2626d016bbbad804d4",
+      "crypto/ohlcv/SOLUSDT/1d": "1d64b001993b575f34ef04ce548616c5"
+    }
+  },
+  "verdicts": {
+    "garch:BTCUSDT": {
+      "model_class": "garch:BTCUSDT",
+      "adequate": true,
+      "requirement": "elk fit-venster >= 250 observaties",
+      "measured": {
+        "n_windows": 12,
+        "min_obs_in_window": 495,
+        "median_obs_in_window": 495.0,
+        "max_obs_in_window": 495,
+        "required_min_obs": 250
+      },
+      "shortfall": "",
+      "verdict": ""
+    },
+    "garch:ETHUSDT": {
+      "model_class": "garch:ETHUSDT",
+      "adequate": true,
+      "requirement": "elk fit-venster >= 250 observaties",
+      "measured": {
+        "n_windows": 12,
+        "min_obs_in_window": 495,
+        "median_obs_in_window": 495.0,
+        "max_obs_in_window": 495,
+        "required_min_obs": 250
+      },
+      "shortfall": "",
+      "verdict": ""
+    },
+    "garch:SOLUSDT": {
+      "model_class": "garch:SOLUSDT",
+      "adequate": true,
+      "requirement": "elk fit-venster >= 250 observaties",
+      "measured": {
+        "n_windows": 12,
+        "min_obs_in_window": 495,
+        "median_obs_in_window": 495.0,
+        "max_obs_in_window": 495,
+        "required_min_obs": 250
+      },
+      "shortfall": "",
+      "verdict": ""
+    },
+    "garch:AVAXUSDT": {
+      "model_class": "garch:AVAXUSDT",
+      "adequate": true,
+      "requirement": "elk fit-venster >= 250 observaties",
+      "measured": {
+        "n_windows": 12,
+        "min_obs_in_window": 495,
+        "median_obs_in_window": 495.0,
+        "max_obs_in_window": 495,
+        "required_min_obs": 250
+      },
+      "shortfall": "",
+      "verdict": ""
+    },
+    "garch:LINKUSDT": {
+      "model_class": "garch:LINKUSDT",
+      "adequate": true,
+      "requirement": "elk fit-venster >= 250 observaties",
+      "measured": {
+        "n_windows": 12,
+        "min_obs_in_window": 495,
+        "median_obs_in_window": 495.0,
+        "max_obs_in_window": 495,
+        "required_min_obs": 250
+      },
+      "shortfall": "",
+      "verdict": ""
+    },
+    "garch:DOTUSDT": {
+      "model_class": "garch:DOTUSDT",
+      "adequate": true,
+      "requirement": "elk fit-venster >= 250 observaties",
+      "measured": {
+        "n_windows": 12,
+        "min_obs_in_window": 495,
+        "median_obs_in_window": 495.0,
+        "max_obs_in_window": 495,
+        "required_min_obs": 250
+      },
+      "shortfall": "",
+      "verdict": ""
+    },
+    "har_rv": {
+      "model_class": "har_rv",
+      "adequate": false,
+      "requirement": ">= 80.0 % van de dagen met >= 200 5m-bars",
+      "measured": {
+        "n_days_total": 1742,
+        "n_days_with_coverage": 0,
+        "coverage_pct": 0.0,
+        "required_coverage_pct": 80.0,
+        "required_granularity": "5m",
+        "observed_granularity": "geen (alleen 1d, 8h funding, 1d OI)"
+      },
+      "shortfall": "0.00 % van de dagen heeft voldoende 5m-dekking tegen een eis van 80.0 %; realized variance is op deze store niet te schatten.",
+      "verdict": "UNPROVEN \u2014 insufficient data"
+    },
+    "hmm_k2": {
+      "model_class": "hmm_k2",
+      "adequate": true,
+      "requirement": ">= 100 observaties per toestand per fold \u00e9n een bezettingsfractie >= 0.10",
+      "measured": {
+        "n_states": 2,
+        "n_folds": 12,
+        "smallest_fold_bars": 495,
+        "median_fold_bars": 495.0,
+        "rarest_state_occupancy_fraction": 0.5,
+        "rarest_state_obs_in_smallest_fold": 247.5,
+        "occupancy_source": "uniform (1/k) \u2014 optimistisch",
+        "required_obs_per_state_per_fold": 100,
+        "required_occupancy_fraction": 0.1
+      },
+      "shortfall": "",
+      "verdict": ""
+    },
+    "hmm_k3": {
+      "model_class": "hmm_k3",
+      "adequate": true,
+      "requirement": ">= 100 observaties per toestand per fold \u00e9n een bezettingsfractie >= 0.10",
+      "measured": {
+        "n_states": 3,
+        "n_folds": 12,
+        "smallest_fold_bars": 495,
+        "median_fold_bars": 495.0,
+        "rarest_state_occupancy_fraction": 0.3333333333333333,
+        "rarest_state_obs_in_smallest_fold": 165.0,
+        "occupancy_source": "uniform (1/k) \u2014 optimistisch",
+        "required_obs_per_state_per_fold": 100,
+        "required_occupancy_fraction": 0.1
+      },
+      "shortfall": "",
+      "verdict": ""
+    },
+    "meta_labeling": {
+      "model_class": "meta_labeling",
+      "adequate": true,
+      "requirement": ">= 200 nominale \u00e9n >= 100 effectieve events per fold, met een positieve-klasseratio in [0.20, 0.80]",
+      "measured": {
+        "n_folds": 12,
+        "min_events_per_fold": 2867,
+        "median_events_per_fold": 2938.0,
+        "total_events": 35173,
+        "min_effective_events_per_fold": 442.6743987689199,
+        "median_effective_events_per_fold": 476.524509679484,
+        "uniqueness_ratio": 0.16219350227347992,
+        "min_positive_ratio": 0.482324949014276,
+        "max_positive_ratio": 0.5119535519125683,
+        "required_min_events": 200,
+        "required_min_effective_events": 100,
+        "required_ratio_band": [
+          0.2,
+          0.8
+        ]
+      },
+      "shortfall": "",
+      "verdict": ""
+    },
+    "hrp": {
+      "model_class": "hrp",
+      "adequate": true,
+      "requirement": "T/N >= 10 per fold \u00e9n conditiegetal <= 100",
+      "measured": {
+        "n_obs": 1742,
+        "n_assets": 6,
+        "n_folds": 12,
+        "obs_per_fold": 145,
+        "obs_per_asset_per_fold": 24.166666666666668,
+        "condition_number": 32.54938966101622,
+        "smallest_eigenvalue": 0.1457451249506584,
+        "mean_pairwise_correlation": 0.7485161612328999,
+        "required_obs_per_asset": 10,
+        "required_max_condition": 100.0
+      },
+      "shortfall": "",
+      "verdict": ""
+    }
+  },
+  "details": {
+    "fold_geometry": {
+      "n_bars": 1742,
+      "n_folds": 12,
+      "train_bars_min": 495,
+      "train_bars_max": 495,
+      "test_bars_min": 100,
+      "test_bars_max": 100,
+      "total_oos_bars": 1200
+    },
+    "meta_labeling": {
+      "events_per_fold": [
+        2867,
+        2934,
+        2947,
+        2928,
+        2919,
+        2957,
+        2951,
+        2927,
+        2944,
+        2913,
+        2944,
+        2942
+      ],
+      "effective_events_per_fold": [
+        457.58095368626476,
+        448.7671017638766,
+        442.6743987689199,
+        457.49889754195215,
+        476.2954423525609,
+        478.58502162289767,
+        495.08822881984133,
+        501.31595914957654,
+        480.6668947475684,
+        478.1421453415312,
+        476.7535770064071,
+        469.5321784532607
+      ],
+      "positive_ratio_per_fold": [
+        0.4848273456574817,
+        0.49693251533742333,
+        0.5042416016287751,
+        0.5119535519125683,
+        0.5063377869133264,
+        0.5092999661819412,
+        0.5089800067773637,
+        0.490946361462248,
+        0.49626358695652173,
+        0.4977686234122897,
+        0.4891304347826087,
+        0.482324949014276
+      ],
+      "per_symbol": {
+        "BTCUSDT": {
+          "n_events": 1712,
+          "positive_ratio": 0.5134345794392523,
+          "n_profit_target": 734,
+          "n_stop_loss": 723,
+          "n_vertical": 255,
+          "mean_holding_bars": 5.906542056074766
+        },
+        "ETHUSDT": {
+          "n_events": 1725,
+          "positive_ratio": 0.4643478260869565,
+          "n_profit_target": 683,
+          "n_stop_loss": 783,
+          "n_vertical": 259,
+          "mean_holding_bars": 5.907246376811594
+        },
+        "SOLUSDT": {
+          "n_events": 1701,
+          "positive_ratio": 0.46149323927101704,
+          "n_profit_target": 681,
+          "n_stop_loss": 819,
+          "n_vertical": 201,
+          "mean_holding_bars": 5.62610229276896
+        },
+        "AVAXUSDT": {
+          "n_events": 1731,
+          "positive_ratio": 0.5216637781629117,
+          "n_profit_target": 793,
+          "n_stop_loss": 745,
+          "n_vertical": 193,
+          "mean_holding_bars": 5.631426920854997
+        },
+        "LINKUSDT": {
+          "n_events": 1732,
+          "positive_ratio": 0.5173210161662818,
+          "n_profit_target": 802,
+          "n_stop_loss": 722,
+          "n_vertical": 208,
+          "mean_holding_bars": 5.5796766743648964
+        },
+        "DOTUSDT": {
+          "n_events": 1729,
+          "positive_ratio": 0.496818970503181,
+          "n_profit_target": 753,
+          "n_stop_loss": 790,
+          "n_vertical": 186,
+          "mean_holding_bars": 5.549450549450549
+        }
+      }
+    }
+  }
+}
