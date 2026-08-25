@@ -210,7 +210,8 @@ GOVERNED = ("features/transforms.py", "features/pipeline.py",
             # risicocontract (docs/RISK_CONTRACT.md); elke drempel komt uit
             # conf/risk/default.yaml en nul ervan staat in een handtekening.
             "risk/contract.py", "risk/vol_targeting.py", "risk/limits.py",
-            "risk/kill_switches.py", "risk/engine.py")
+            "risk/kill_switches.py", "risk/engine.py",
+            "risk/stress_report.py")
 
 
 def iter_py(base: Path):

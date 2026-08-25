@@ -395,3 +395,94 @@ def execute_baseline_wave(
         "gate": gate.as_dict(),
     }
     return payload, gate
+
+
+def risk_overlay_wave(root: Any, engine: Any, *, git_sha: str) -> dict[str, Any]:
+    """Draai de Phase 3-baselinetracks OPNIEUW, met de L7-risicolaag in het pad.
+
+    Phase 4, stap 10 / exit-criterium 8. De vergelijking is alleen geldig als
+    beide kanten van precies dezelfde tracks, dezelfde folds en dezelfde
+    kostenaanname komen - vandaar dat dit dezelfde bouwstenen gebruikt als
+    `execute_baseline_wave` en niet een eigen reconstructie.
+
+    De richting van de afhankelijkheid klopt: L10 (backtest) consumeert L7
+    (risk). Andersom zou de risicolaag van de backtester afhangen, en dan is
+    zij niet meer soeverein.
+    """
+    from ..alpha.momentum import build_cross_sectional_momentum
+    from ..data.pit_store import PitStore
+    from ..features.base import DataRegister, load_certified_close_panel
+    from ..risk.stress_report import apply_risk_overlay
+    from ..volatility.ewma import ewma_volatility_panel
+    from .baseline_runner import CostModel, build_weight_tracks, run_baseline_tracks
+
+    cfg = load_baseline_configs(root)
+    gov = root / "artefacts" / "governance"
+    panel = load_certified_close_panel(
+        PitStore(root / cfg["data"].pit_store_root),
+        DataRegister(gov / "data_hashes.json"),
+        symbols=list(cfg["data"].symbols),
+        granularity="1d",
+        asset_class="crypto",
+    )
+    unit = build_cross_sectional_momentum(cfg["alpha"])
+    tracks, _ = build_weight_tracks(
+        panel, unit, lam=cfg["vol"].ewma_lambda,
+        vol_burn_in_bars=cfg["vol"].burn_in_bars,
+        annualisation_factor=cfg["vol"].annualisation_factor,
+        gross_target=GROSS_TARGET, git_sha=git_sha,
+    )
+    cost = CostModel(
+        taker_fee_bps=cfg["exec"].taker_fee_bps,
+        half_spread_bps=cfg["exec"].assumed_half_spread_bps,
+        is_provisional=cfg["exec"].cost_assumption_is_provisional,
+    )
+    results = run_baseline_tracks(
+        panel, tracks, cost=cost, train_bars=cfg["val"].train_bars,
+        test_bars=cfg["val"].test_bars, embargo_bars=cfg["val"].embargo_bars,
+        min_splits=cfg["val"].n_splits,
+        warmup_bars=max(unit.burn_in_period, cfg["vol"].burn_in_bars),
+    )
+
+    # De ex-ante sigma per asset komt uit L2, causaal, met dezelfde lambda en
+    # burn-in als de baseline zelf gebruikte.
+    sigma = ewma_volatility_panel(
+        panel.values, lam=cfg["vol"].ewma_lambda,
+        burn_in_bars=cfg["vol"].burn_in_bars,
+        annualisation_factor=cfg["vol"].annualisation_factor,
+    )
+    asset_returns = panel.values.pct_change(fill_method=None)
+    ppy = float(cfg["bt"].bars_per_year)
+
+    # ADV bij benadering uit de dollarwaarde van het universum. De
+    # liquiditeitslimiet is op deze schaal niet bindend (equity = 1 eenheid);
+    # hij staat in het pad zodat hij mee wordt geverifieerd, niet omdat hij
+    # hier iets afknijpt.
+    adv = {str(c): 1e12 for c in panel.values.columns}
+
+    overlays = {}
+    for name, result in results.items():
+        idx = result.weights.index
+        overlays[name] = apply_risk_overlay(
+            name,
+            weights=result.weights,
+            asset_returns=asset_returns.loc[idx],
+            sigma_hat=sigma.loc[idx],
+            engine=engine,
+            adv_usd=adv,
+            cost_per_side=cost.per_side,
+            periods_per_year=ppy,
+            baseline_returns=result.net_returns,
+        ).as_record()
+
+    return {
+        "git_sha": git_sha,
+        "data_hashes": dict(panel.data_hashes),
+        "cost_model": cost.as_dict(),
+        "gross_target": GROSS_TARGET,
+        "alpha_unit": unit.unit_id,
+        "periods_per_year": ppy,
+        "risk_config_hash": engine.config_hash,
+        "risk_audit_header": engine.audit_header(),
+        "overlays": overlays,
+    }

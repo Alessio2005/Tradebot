@@ -63,7 +63,14 @@ Uitsluitend **gemeten marktgrootheden**, niet-conditioneel op enige strategie.
 | `asof_ts` | UTC timestamp | de bar | ontbrekend of niet-UTC |
 | `sigma_hat` | symbool → ex-ante `σ̂_{t+1\|t}`, geannualiseerd | **L2**, `volatility/ewma.py` met λ uit `conf/model/volatility.yaml` | ontbrekend, `NaN`, `±inf`, `<= 0` |
 | `adv_usd` | symbool → average daily volume in USD | L0/L3 | ontbrekend wanneer de ADV-limiet aanstaat |
-| `cluster` | symbool → sector/cluster-label | `conf/risk/` | onbekend symbool wanneer de clusterlimiet aanstaat |
+| `cluster` | symbool → sector/cluster-label | gemeten; leeg ⇒ terugval op `conf/risk/` | onbekend symbool wanneer de clusterlimiet aanstaat |
+
+**De clusterstructuur is een marktfeit, geen alleen-configuratie.** Normaal
+levert de caller er geen en gebruikt de engine de labels uit `conf/risk/`. Maar
+wanneer alle correlaties naar 1 gaan (scenario S2), *is* het universum één
+cluster; een engine die dan blijft rekenen met de geconfigureerde labels meet
+een diversificatie die er niet meer is. Wordt `cluster` wél geleverd, dan wint
+de gemeten structuur — ook in de postconditiecontrole.
 
 **`σ̂` is ex-ante en causaal.** Hij gebruikt uitsluitend informatie tot en met
 `t`. De EWMA-estimator propageert `NaN` tijdens de burn-in en vult die bewust
