@@ -224,7 +224,17 @@ class EventDrivenEngine:
         n_clipped = n_halted = 0
 
         hwm = self._ledger.initial_equity
+        # De Daily Loss Governor meet het verlies sinds de OPENINGSEQUITY VAN
+        # DE DAG. Die moet dus per kalenderdag rollen.
+        #
+        # Een eerdere versie zette hem eenmalig op de startequity en liet hem
+        # staan. Op de Phase 3-baseline halteerde het boek daardoor op 1.676 van
+        # 1.743 bars: `daily_loss` mat het CUMULATIEVE verlies over vijf jaar en
+        # passeerde de 3%-lijn permanent. Dat is precies het soort fout dat
+        # alleen zichtbaar wordt door de echte baseline te draaien - op een
+        # synthetische replay van 60 bars bond hij nooit.
         day_start = self._ledger.initial_equity
+        current_day = slices[0].ts.date()
 
         for index, market in enumerate(slices):
             # ---------------------------------------------------------- #
@@ -266,6 +276,9 @@ class EventDrivenEngine:
             snapshot = self._ledger.mark(dict(market.marks), market.ts)
             equity = snapshot.equity
             hwm = max(hwm, equity)
+            if market.ts.date() != current_day:
+                current_day = market.ts.date()
+                day_start = equity
             equity_points.append(equity)
             snapshots.append(snapshot)
             mark_history.append(dict(market.marks))
