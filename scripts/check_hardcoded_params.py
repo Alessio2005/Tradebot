@@ -66,12 +66,10 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
     "alpha/research_harness.py": (3, "DI-12 Phase 3"),
     "alpha/xs_unit.py": (2, "DI-12 Phase 3"),
     # -- backtest/ --
-    "backtest/bidirectional.py": (8, "DI-9  Phase 5"),
     "backtest/dd_shape.py": (5, "DI-9  Phase 5"),
     "backtest/evaluation.py": (14, "DI-9  Phase 5"),
     "backtest/metrics.py": (4, "DI-9  Phase 5"),
     "backtest/pbo.py": (1, "DI-9  Phase 5"),
-    "backtest/per_side.py": (5, "DI-9  Phase 5"),
     "backtest/portfolio.py": (4, "DI-9  Phase 5"),
     "backtest/spa.py": (2, "DI-9  Phase 5"),
     "backtest/tracks.py": (1, "DI-9  Phase 5"),

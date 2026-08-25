@@ -73,19 +73,34 @@ def test_guard_rejects_inverted_params():
 # ---------------------------------------------------------------------------
 # M-1 — Deflated Sharpe responds to the true hypothesis count
 # ---------------------------------------------------------------------------
-from tradebot.backtest.portfolio import _deflated_sharpe
+# PHASE 5: `backtest/portfolio.py::_deflated_sharpe` is verwijderd met de
+# legacy-engine. De eigenschap die deze test bewaakt is echter niet
+# engine-specifiek, en de canonieke implementatie blijft bestaan: audit
+# sectie 24 merkt `backtest/metrics.py::DSR` aan als RETAIN (Bailey-LdP,
+# met de dimensionaliteitsfix). De test is daarheen verlegd in plaats van
+# verwijderd - de bevinding M-1 blijft gelden.
+from tradebot.backtest.metrics import deflated_sharpe as _deflated_sharpe
 
 
 def test_deflated_sharpe_decreases_with_more_hypotheses():
-    sr = 2.85
-    n_obs = 100_000
-    dsr_small = _deflated_sharpe(sr, n_obs, total_n_hypotheses=10)
-    dsr_large = _deflated_sharpe(sr, n_obs, total_n_hypotheses=2000)
+    # De parameters wijken af van de oorspronkelijke test omdat de CONVENTIE
+    # verschilt: het verwijderde `portfolio.py::_deflated_sharpe` nam een
+    # GEANNUALISEERDE Sharpe, terwijl `metrics.py::deflated_sharpe` de
+    # PER-BAR Sharpe neemt (Bailey-LdP; de dimensionaliteitsfix die audit
+    # sectie 24 als RETAIN aanmerkt). Bij sr=2.85 per bar is elke DSR
+    # numeriek 1.0 en meet de test niets.
+    #
+    # De bewaakte eigenschap is ongewijzigd: meer beproefde hypothesen ->
+    # lagere DSR, en het effect is materieel.
+    sr = 0.10
+    n_obs = 2_000
+    dsr_small = _deflated_sharpe(sr, n_trials=10, n_obs=n_obs)
+    dsr_large = _deflated_sharpe(sr, n_trials=2000, n_obs=n_obs)
     assert dsr_large < dsr_small, (
         "DSR must shrink as the multiple-testing burden grows "
-        f"(N=10 ⇒ {dsr_small:.3f}, N=2000 ⇒ {dsr_large:.3f})"
+        f"(N=10 => {dsr_small:.3f}, N=2000 => {dsr_large:.3f})"
     )
-    # The ~200× undercount materially inflated the reported DSR.
+    # De ~200x ondertelling verhoogde de gerapporteerde DSR materieel.
     assert (dsr_small - dsr_large) > 0.01
 
 

@@ -130,6 +130,7 @@ def make_replay(
     funding_rate: float = 0.0001,
     clusters: Mapping[str, str] | None = None,
     exposure: float = 1.0,
+    varying_exposure: bool = False,
 ) -> Replay:
     """Bouw een replay die beide contexts en alle vier de tests delen."""
     rng = np.random.default_rng(seed)
@@ -156,6 +157,17 @@ def make_replay(
     }
     slices = build_slices(prices, sigma_hat, sigma_daily, adv, volume, labels,
                           funding)
-    exposures = exposures_from_frame(
-        pd.DataFrame(exposure, index=index, columns=list(symbols)))
+    if varying_exposure:
+        # Een signaal dat BEWEEGT. Zonder dat is de executie-lag niet
+        # identificeerbaar: bij een constante `a_t` levert vol-targeting een
+        # bijna vlakke gewichtenreeks op, en dan verschillen `shift(1)` en
+        # `shift(2)` nauwelijks. De pariteitstest zou dan groen zijn zonder
+        # iets aan te tonen.
+        signal = pd.DataFrame(
+            rng.choice([-1.0, -0.5, 0.5, 1.0], size=(n_bars, len(symbols))),
+            index=index, columns=list(symbols),
+        )
+    else:
+        signal = pd.DataFrame(exposure, index=index, columns=list(symbols))
+    exposures = exposures_from_frame(signal)
     return Replay(slices=slices, exposures=exposures, prices=prices, index=index)

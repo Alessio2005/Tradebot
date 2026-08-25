@@ -12,7 +12,6 @@ import importlib
 
 import pytest
 
-
 # ── Canonical tradebot.* package modules ─────────────────────────────────────
 TRADEBOT_MODULES = [
     "tradebot.schemas.bars",
@@ -20,7 +19,6 @@ TRADEBOT_MODULES = [
     "tradebot.schemas.features",
     "tradebot.schemas.folds",
     "tradebot.schemas.labels",
-    "tradebot.schemas.tracks",
     "tradebot.utils.arrays",
     "tradebot.utils.parquet_io",
     "tradebot.cv.cpcv",
@@ -38,8 +36,6 @@ TRADEBOT_MODULES = [
     "tradebot.data.ingestion",
     "tradebot.data.macro",
     "tradebot.backtest._kernels",
-    "tradebot.backtest.per_side",
-    "tradebot.backtest.bidirectional",
     "tradebot.tune.search_space",
     "tradebot.tune.pruning",
     "tradebot.tune.objective",
@@ -67,6 +63,37 @@ def test_apps_train_cpcv_imports() -> None:
     importlib.import_module("apps.train_cpcv")
 
 
-def test_apps_backtest_portfolio_imports() -> None:
-    """Stage 4 entrypoint imports."""
-    importlib.import_module("apps.backtest_portfolio")
+def test_the_legacy_backtest_engines_are_gone() -> None:
+    """Phase 5: exact een authoritative engine (audit sectie 16.1, sectie 24).
+
+    `apps/backtest_portfolio.py` was de DVC Stage-4 entrypoint en dreef
+    `bidirectional_backtest` plus `PortfolioBacktester`. Beide zijn verwijderd
+    na het pariteitsbewijs in
+    `tests/integration/test_engine_parity.py::TestExecutionTimingParity`; de
+    forensische vergelijking staat in `reports/phase5_engine_diff.md`.
+
+    Deze test vervangt de oude import-test. Hij bewaakt de verwijdering in
+    plaats van de aanwezigheid: een module die terugkomt, komt terug met zijn
+    eigen leverage-caps.
+    """
+    for name in (
+        "tradebot.backtest.per_side",
+        "tradebot.backtest.bidirectional",
+        "tradebot.backtest.portfolio",
+        "tradebot.backtest.tracks",
+        "tradebot.schemas.tracks",
+        "tradebot.schemas.portfolio",
+        "apps.backtest_portfolio",
+    ):
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(name)
+
+
+def test_the_authoritative_engine_imports() -> None:
+    """Stage 4 is vanaf Phase 5 `backtest.engine`."""
+    module = importlib.import_module("tradebot.backtest.engine")
+    assert hasattr(module, "EventDrivenEngine")
+    importlib.import_module("tradebot.backtest.accounting")
+    importlib.import_module("tradebot.backtest.vectorized")
+    importlib.import_module("tradebot.execution.order_router")
+    importlib.import_module("tradebot.execution.context")
