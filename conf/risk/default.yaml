@@ -94,17 +94,42 @@ risk:
   daily_var_limit_pct: 0.02
   max_position_age_h: 48
 
-  # Sector/cluster-labels voor max_cluster_concentration. Het huidige universum
-  # is monolithisch crypto-perp; dat is expliciet vastgelegd in plaats van
-  # impliciet gelaten, want een clusterlimiet met lege labels is een limiet die
-  # nooit bindt.
+  # Sector/cluster-labels voor max_cluster_concentration.
+  #
+  # PHASE 5 CORRECTIE. Tot deze fase droegen vijf symbolen `crypto_l1` en droeg
+  # LINKUSDT `crypto_oracle`. Die indeling is gemeten en verworpen; het volledige
+  # bewijs staat in `reports/phase5_cluster_concentration_audit.md`. Kort:
+  #
+  #   * de scheiding tussen de twee groepen is +0,0113 met een bootstrap
+  #     95%-BI van [-0,0131, +0,0380] - het interval bevat nul;
+  #   * het teken WISSELT per jaar; in 2025 en 2026 is `crypto_l1` sterker
+  #     gecorreleerd met LINKUSDT dan met zichzelf;
+  #   * jaarlijks herhaalde clustering levert zes verschillende partities in
+  #     zes jaar op.
+  #
+  # Het gevolg was pervers: de clusterlimiet duwde LINKUSDT van 16,7 % naar
+  # 40,0 % van het boek - exact op `max_concentration` - en vernietigde daarbij
+  # 58 % van de bruto-exposure. Een diversificatiebeperking die het meest
+  # geconcentreerde toegestane boek produceert.
+  #
+  # De labels zijn daarom gecorrigeerd naar wat gemeten is: EEN cluster. Zes
+  # crypto-perpetuals met een gemiddelde paarsgewijze correlatie van 0,735
+  # vormen een economische groep; elke tweedeling ervan is een fit op ruis.
+  #
+  # DIT MAAKT DE LIMIET VACUOUS, EN DAT MOET GEZEGD WORDEN. Bij een cluster
+  # geldt `effective_relative_cap(1, 0.60) = max(0.60, 1/1) = 1.0`, dus
+  # `cluster_cap` bindt nooit meer op dit universum. Hij blijft in
+  # `constraint_order` en wordt weer actief zodra er een tweede AANTOONBAAR
+  # cluster bijkomt - een aandelen-, FX- of commodity-sleeve. Tot dat moment is
+  # `max_concentration` (0,40) de enige werkzame spreidingsbescherming.
+  # Bewaakt door `tests/integration/test_cluster_feasibility.py`.
   clusters:
-    BTCUSDT:  crypto_l1
-    ETHUSDT:  crypto_l1
-    SOLUSDT:  crypto_l1
-    AVAXUSDT: crypto_l1
-    DOTUSDT:  crypto_l1
-    LINKUSDT: crypto_oracle
+    BTCUSDT:  crypto_perp
+    ETHUSDT:  crypto_perp
+    SOLUSDT:  crypto_perp
+    AVAXUSDT: crypto_perp
+    DOTUSDT:  crypto_perp
+    LINKUSDT: crypto_perp
 
   # Toepassingsvolgorde. Expliciet geconfigureerd, nooit impliciet in de
   # code-volgorde (Phase 4, stap 4). Zie docs/RISK_CONTRACT.md sectie 6:

@@ -211,6 +211,12 @@ class EventDrivenEngine:
         )
 
         equity_points: list[float] = []
+        # De markprijzen per bar worden bewaard omdat de TCA-roundtrip het boek
+        # opnieuw moet kunnen waarderen tegen exact dezelfde prijzen. Ze
+        # afleiden uit `slices` zou werken tot iemand een symbool zonder prijs
+        # overslaat; dan waardeert de schaduwboekhouding tegen andere prijzen
+        # dan de echte en sluit de roundtrip om de verkeerde reden niet.
+        mark_history: list[dict[str, float]] = []
         snapshots: list[LedgerSnapshot] = []
         reports: list[ExecutionReport] = []
         decisions: list[RiskDecision] = []
@@ -262,6 +268,7 @@ class EventDrivenEngine:
             hwm = max(hwm, equity)
             equity_points.append(equity)
             snapshots.append(snapshot)
+            mark_history.append(dict(market.marks))
 
             # De laatste bar beslist niet: er is geen bar meer om op te vullen.
             if index + 1 >= len(slices):
@@ -335,6 +342,7 @@ class EventDrivenEngine:
                 "context_kind": self._context_kind,
                 "risk_audit_header": self._risk.audit_header(),
                 "initial_equity": self._ledger.initial_equity,
+                "marks": tuple(mark_history),
             },
         )
 

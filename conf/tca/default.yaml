@@ -1,0 +1,35 @@
+# conf/tca/default.yaml — L9 Transaction Cost Analysis
+#
+# BINDEND (audit sectie 15.1, fase-opdracht §13): de TCA-roundtrip moet SLUITEN.
+#
+#     arrival-price boek - werkelijk boek == spread + impact + fees
+#
+# `close_tca_roundtrip` bewijst dat met een SCHADUWBOEKHOUDING: dezelfde fills
+# opnieuw geboekt tegen hun arrival price, zonder fee, tegen dezelfde
+# markprijzen. Wat er tussen de twee eindequities zit, moet volledig door de
+# decompositie verklaard zijn.
+#
+# Gevalideerd tegen schemas/config.py::TcaConfig.
+tca:
+
+  # De VOORAF gedefinieerde numerieke tolerantie, in basispunten van de
+  # startequity. Fase-opdracht §13 eist dat deze vooraf vastligt, en dat is
+  # waarom hij hier staat en niet als default in de code: een tolerantie die de
+  # implementatie kiest, is een tolerantie die met de uitkomst meebeweegt.
+  #
+  # 0.01 bp op een startequity van 100.000 is 0,10 EUR over een volledige run.
+  # Dat is float-accumulatie over duizenden bars, geen beleidsruimte. De
+  # roundtrip sluit in de praktijk op ~1e-9; deze marge bestaat zodat een
+  # langere run niet op afronding faalt.
+  closure_tolerance_bps: 0.01
+
+  # De timing-component (opportuniteitskost van niet-gevulde hoeveelheid) wordt
+  # WEL gerapporteerd maar telt NIET mee in de sluitingsidentiteit. Hij is
+  # contrafeitelijk: dat geld heeft de kas nooit verlaten. Meetellen zou de
+  # roundtrip laten sluiten op een bedrag dat nergens is betaald.
+  timing_counts_towards_closure: false
+
+  # Elk TCA-rapport draagt de herkomststatus van zijn kostencomponenten mee
+  # (IMPACT_UNCALIBRATED / SPREAD_ASSUMED). Uitzetten is niet mogelijk; deze
+  # sleutel bestaat zodat een rapport hem kan citeren.
+  require_cost_provenance: true

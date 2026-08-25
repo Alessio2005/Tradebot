@@ -42,6 +42,7 @@ __all__ = [
     "MomentumFeatureConfig",
     "RiskConfig",
     "StrictModel",
+    "TcaConfig",
     "TradebotConfig",
     "ValidationConfig",
     "VolatilityConfig",
@@ -390,6 +391,26 @@ class ImpactConfig(StrictModel):
         return self
 
 
+class TcaConfig(StrictModel):
+    """Contract voor Transaction Cost Analysis (L9). Zie `conf/tca/default.yaml`.
+
+    De tolerantie staat in configuratie en niet in de code omdat fase-opdracht
+    §13 eist dat zij VOORAF vastligt. Een tolerantie die de implementatie kiest,
+    beweegt mee met de uitkomst die zij moet toetsen.
+    """
+
+    #: Numerieke tolerantie van de sluitingsidentiteit, in basispunten van de
+    #: startequity.
+    closure_tolerance_bps: Annotated[float, Field(gt=0.0)]
+
+    #: De timing-component is contrafeitelijk en telt niet mee in de sluiting.
+    #: `Literal[False]`: dit is geen schakelaar maar een vastgelegde beslissing.
+    timing_counts_towards_closure: Literal[False] = False
+
+    #: Kostencomponenten dragen altijd hun herkomststatus mee.
+    require_cost_provenance: Literal[True] = True
+
+
 # --------------------------------------------------------------------------- #
 # L10 - Backtest
 # --------------------------------------------------------------------------- #
@@ -474,6 +495,7 @@ DOMAIN_SCHEMAS: dict[str, type[StrictModel]] = {
     "risk": RiskConfig,
     "execution": ExecutionConfig,
     "impact": ImpactConfig,
+    "tca": TcaConfig,
     "backtest": BacktestConfig,
     "validation": ValidationConfig,
 }
