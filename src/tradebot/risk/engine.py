@@ -241,7 +241,7 @@ class RiskEngine:
             trail.extend(bound)
 
         permitted = {s: (0.0 if abs(w) <= _TOL else w) for s, w in exposures.items()}
-        self._verify(original, permitted)
+        self._verify(original, permitted, market_state)
         unconstrained = len(trail) == 0
         if unconstrained:
             # Deliverable 4: nooit `a_t` ongewijzigd doorgeven zonder expliciete
@@ -269,7 +269,10 @@ class RiskEngine:
     # ------------------------------------------------------------------ #
     # Postconditie
     # ------------------------------------------------------------------ #
-    def _verify(self, before: dict[str, float], after: dict[str, float]) -> None:
+    def _verify(
+        self, before: dict[str, float], after: dict[str, float],
+        market_state: MarketState,
+    ) -> None:
         """Controleer op de UITKOMST dat elke limiet daadwerkelijk houdt.
 
         Waarom dit nodig is, en niet paranoia. De boekbrede caps (gross, net)
@@ -342,9 +345,10 @@ class RiskEngine:
                 key="risk.max_concentration", measured=worst,
                 threshold=conc_cap,
             )
+            labels = dict(market_state.cluster) or dict(cfg.clusters)
             per_cluster: dict[str, float] = {}
             for symbol, w in after.items():
-                label = str(cfg.clusters.get(symbol, ""))
+                label = str(labels.get(symbol, ""))
                 if label:
                     per_cluster[label] = per_cluster.get(label, 0.0) + abs(w)
             n_clusters = sum(1 for v in per_cluster.values() if v > _TOL)
@@ -422,10 +426,16 @@ class RiskEngine:
             return out, bound, s
 
         def _cluster(
-            e: dict[str, float], _m: MarketState, s: RiskState
+            e: dict[str, float], m: MarketState, s: RiskState
         ) -> tuple[dict[str, float], list[BindingConstraint], RiskState]:
+            # De GEMETEN clusterstructuur wint van de geconfigureerde. Normaal
+            # levert de caller er geen en valt de engine terug op `conf/risk/`,
+            # maar de structuur is een marktfeit: wanneer alle correlaties naar
+            # 1 gaan, IS het universum een cluster (scenario S2). Een engine die
+            # dan blijft rekenen met de labels uit de config, meet een
+            # diversificatie die er niet meer is.
             out, bound = apply_cluster_cap(
-                e, cfg.clusters,
+                e, dict(m.cluster) or cfg.clusters,
                 max_cluster_concentration=cfg.max_cluster_concentration,
             )
             return out, bound, s
