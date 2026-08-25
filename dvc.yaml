@@ -1,6 +1,7 @@
 # dvc.yaml — Tradebot DAG Pipeline
 #
-# Four stages: build_features → tune_hparams → train_cpcv → backtest_portfolio
+# Stages: build_features → tune_hparams → train_cpcv
+# (Stage 4 backtest_portfolio is in Phase 5 verwijderd; zie onder.)
 #
 # Usage:
 #   dvc repro                          # full rebuild (only stale stages)
@@ -139,48 +140,21 @@ stages:
         - artefacts/oos_probs/${item.symbol}_${item.side}.parquet
 
   # ────────────────────────────────────────────────────────────────────────────
-  # STAGE 4: OOS probs + asset features → per-asset tracks → portfolio
-  # Single run across all symbols. Fast: no training, vector-ops only.
-  # ────────────────────────────────────────────────────────────────────────────
-  backtest_portfolio:
-    cmd: python -m apps.backtest_portfolio
-    deps:
-      - apps/backtest_portfolio.py
-      - src/tradebot/backtest/per_side.py
-      - src/tradebot/backtest/bidirectional.py
-      - src/tradebot/backtest/_kernels.py
-      - src/tradebot/data/funding.py
-      # Stage 3 outputs (all symbols + sides)
-      - artefacts/oos_probs/
-      - artefacts/models/
-      - artefacts/features/
-    params:
-      - params.yaml:
-        - training.account_size
-        - training.target_risk
-        - training.max_leverage
-        - training.min_conf
-    outs:
-      - artefacts/tracks/
-      - artefacts/portfolio/result.joblib
-      - artefacts/portfolio/equity_curve.parquet
-    metrics:
-      - reports/portfolio_metrics.json:
-          cache: false
-
-  # ────────────────────────────────────────────────────────────────────────────
-  # STAGE 4.5: Generate tearsheet from portfolio result
-  # ────────────────────────────────────────────────────────────────────────────
-  make_tearsheet:
-    cmd: python -m apps.make_tearsheet
-    deps:
-      - apps/make_tearsheet.py
-      - src/tradebot/reporting/
-      - artefacts/portfolio/result.joblib
-    # Phase 1: `outs: reports/tearsheets/` (de MAP) overlapte met de metric
-    # eronder; DVC weigert een out en een metric in dezelfde tracked directory.
-    # De metric tracked het JSON-bestand al, dus de map-out is verwijderd.
-    metrics:
-      - reports/tearsheets/default_tearsheet.json:
-          cache: false
+  # STAGE 4 en 4.5 — VERWIJDERD IN PHASE 5
+  #
+  # `backtest_portfolio` en `make_tearsheet` dreven `bidirectional_backtest`
+  # en `PortfolioBacktester`. Beide engines zijn verwijderd na het
+  # pariteitsbewijs (audit sectie 16.1 en sectie 24 schrijven consolidatie tot
+  # EEN event-driven engine voor, met een pariteitstest als vereist bewijs).
+  #
+  #   bewijs      : tests/integration/test_engine_parity.py
+  #   vergelijking: reports/phase5_engine_diff.md
+  #   opvolger    : src/tradebot/backtest/engine.py (EventDrivenEngine)
+  #
+  # De opvolger heeft nog GEEN DVC-stage. Hij draait op de gecertificeerde
+  # PIT-store en niet op `artefacts/oos_probs/`, en de baseline-keten die hem
+  # aanroept loopt via `apps/run_baseline.py`. Een eigen stage volgt zodra de
+  # ML-track (Stage 2-3) een pre-registratie heeft die op deze engine is
+  # geschreven; dat is Phase 6-werk en staat als zodanig in
+  # `reports/phase5_exit_report.md`.
 

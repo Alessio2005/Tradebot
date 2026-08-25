@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 
+from ..backtest.vectorized import reject_vectorized_evidence
 from .catalog import ModelCatalog, ModelRecord
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,19 @@ def promote(
         return None
 
     latest = records[0]
+
+    # PHASE 5 (audit sectie 16.1, fase-opdracht paragraaf 15): de vectorized
+    # engine is uitsluitend toegestaan voor hypothese-screening. Een resultaat
+    # dat daar vandaan komt, draagt NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE, en
+    # de gate WEIGERT hem technisch in plaats van hem te loggen.
+    #
+    # De controle staat hier en niet in de aanroeper, omdat dit de enige plek
+    # is waar een model van stage verandert. Een gate die je kunt overslaan
+    # door een andere entrypoint te kiezen, is geen gate.
+    reject_vectorized_evidence(
+        latest.metrics, context=f"promote({symbol}/{side} -> {target_stage})")
+    reject_vectorized_evidence(
+        latest.extra, context=f"promote({symbol}/{side} -> {target_stage})")
 
     if target_stage == "staging":
         if not gates.can_promote_to_staging(latest.metrics):
