@@ -78,7 +78,7 @@
     "reason": "Geen orderboek- of trade-data in de gecertificeerde store (ontbreekt: orderbook_l2, trades). eta is niet identificeerbaar zonder eigen orders en hun gemeten prijsrespons; de gerapporteerde waarde is een CONSERVATIEVE BOVENGRENS uit de dagrange, geen schatting. Zie docs/DATA_REGISTER.md sectie 6.",
     "status": "IMPACT_UNCALIBRATED"
   },
-  "git_sha": "d26baf9",
+  "git_sha": "766de6f",
   "params": {
     "data_hash": "4c113cea9085af5e",
     "eta": 2.99192245798947,
