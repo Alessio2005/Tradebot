@@ -1,7 +1,7 @@
 # TCA / MARKET IMPACT CALIBRATION REPORT
 
 **Gegenereerd door:** `apps/calibrate_impact.py`
-**git_sha:** `d26baf9`
+**git_sha:** `766de6f`
 **Status:** **`IMPACT_UNCALIBRATED`**
 
 ---
@@ -103,6 +103,36 @@ Kosten in basispunten bij `sigma_d` = 4,0 % (typisch voor dit universum):
 
 Ter vergelijking: de `adv_participation_cap` in `conf/risk/default.yaml` staat op
 **1 %**, en de sovereign laag dwingt die af vóór er een order bestaat.
+
+### 5.1 Hoe informatief is deze bovengrens? Nauwelijks.
+
+Dat moet gezegd worden, want het getal ziet er preciezer uit dan het is.
+
+Voor een Brownse beweging is de verwachte range over een periode
+`sigma * sqrt(8/pi) ~ 1,60 sigma`. De gemeten mediaan over alle instrumenten
+ligt op **1.42**, en de p95 op **2.99** — precies wat een
+random walk oplevert. De spreiding tussen instrumenten is bovendien
+verwaarloosbaar: de p95 per symbool ligt tussen
+2.93 en 3.11, terwijl hun dagvolumes
+ordes van grootte verschillen.
+
+**Deze bovengrens meet dus vrijwel uitsluitend gewone volatiliteit, en vrijwel
+geen liquiditeitsstructuur.** Dat is geen fout in de afleiding maar de directe
+consequentie van het ontbreken van orderboekdata: zonder eigen orders is er
+geen signaal waaruit impact te scheiden valt van beweging.
+
+### 5.2 Waarom hij desondanks bruikbaar is
+
+Omdat hij op dit boek niet bindt. Bij de bruto-exposure die de sovereign laag
+toestaat (~0,11 van de equity, gespreid over
+6 symbolen) is de participatie in de orde van 1e-7 tot
+1e-5, en daar levert zelfs een bovengrens van 2.99 een impact van
+onder de 1 bp op een liquide dag. De dominante kostenpost blijft de taker-fee.
+
+De bovengrens wordt pas bindend bij een aanzienlijk groter boek of een
+aanzienlijk dunnere markt — en dat is precies wanneer je een conservatieve
+aanname wílt hebben. Het exit-rapport draait daarom een
+gevoeligheidsanalyse over `eta` in plaats van één getal te rapporteren.
 
 ---
 
