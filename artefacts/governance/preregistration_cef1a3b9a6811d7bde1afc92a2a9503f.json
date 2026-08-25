@@ -1,0 +1,224 @@
+{
+  "content": {
+    "data_hashes": [
+      [
+        "crypto/ohlcv/AVAXUSDT/1d",
+        "af05b4f95d0e282111641f85904c22f9"
+      ],
+      [
+        "crypto/ohlcv/BTCUSDT/1d",
+        "4f21f2c7ab071ddc19da5eb3f38172f3"
+      ],
+      [
+        "crypto/ohlcv/DOTUSDT/1d",
+        "17be1f4206997f12fd7e1825f123299b"
+      ],
+      [
+        "crypto/ohlcv/ETHUSDT/1d",
+        "d67c9bb18b2c794ba416067556227a5a"
+      ],
+      [
+        "crypto/ohlcv/LINKUSDT/1d",
+        "8d6a82f316253c2626d016bbbad804d4"
+      ],
+      [
+        "crypto/ohlcv/SOLUSDT/1d",
+        "1d64b001993b575f34ef04ce548616c5"
+      ]
+    ],
+    "evaluation_start": "2021-11-15",
+    "granularity": "1d",
+    "hypothesis": "Minstens één lid van de Level 2 GARCH-familie levert op het gecertificeerde crypto-perpetueluniversum een LAGERE out-of-sample QLIKE dan de productie-estimator EWMA met lambda = 0.94, gemeten tegen een daily range-gebaseerde variantieproxy, en dat verschil is significant onder de Diebold-Mariano-toets met de Harvey-Leybourne-Newbold-correctie op alpha = 0.05, per symbool en per horizon.",
+    "null_hypothesis": "De verwachte QLIKE van elk lid van de GARCH-familie is groter dan of gelijk aan die van EWMA(0.94), zodat de vervanging van de productie-estimator geen voorspelverbetering oplevert. Onder deze nulhypothese blijft EWMA(0.94) de productie-estimator, ongeacht of de puntschatting van een GARCH-variant toevallig lager uitvalt. De nulhypothese wordt uitsluitend verworpen op een DM-HLN p-waarde onder 0.05 en NIET op een verschil in puntschattingen.",
+    "parameters": {
+      "adequacy": {
+        "garch": {
+          "max_boundary_solution_ratio": 0.1,
+          "min_convergence_ratio": 0.9,
+          "min_obs_per_fit_window": 250,
+          "persistence_boundary": 0.999
+        },
+        "har_rv": {
+          "intraday_granularity": "5m",
+          "min_bars_per_day": 200,
+          "min_days_with_coverage_pct": 80.0,
+          "min_obs_per_fit_window": 500
+        },
+        "hmm": {
+          "min_obs_per_state_per_fold": 100,
+          "min_state_occupancy_fraction": 0.1
+        },
+        "hrp": {
+          "max_condition_number": 100.0,
+          "min_obs_per_asset": 10
+        },
+        "meta_labeling": {
+          "max_positive_class_ratio": 0.8,
+          "min_effective_events_per_fold": 100,
+          "min_events_per_fold": 200,
+          "min_positive_class_ratio": 0.2
+        },
+        "power": {
+          "alpha": 0.05,
+          "target_power": 0.8,
+          "two_sided": true
+        }
+      },
+      "labeling": {
+        "entry_lag_bars": 1,
+        "horizon_bars": 10,
+        "min_sigma_obs": 60,
+        "profit_target_sigma": 2.0,
+        "stop_loss_sigma": 2.0
+      },
+      "power_analysis": {
+        "alpha": 0.05,
+        "effective_independent_series": 1.2651339524254563,
+        "expected_effect_sd_units": 0.1,
+        "expected_effect_source": "Hansen & Lunde (2005), bovengrens",
+        "loss_differential_ar1_scenarios": [
+          0.0,
+          0.2,
+          0.4
+        ],
+        "measured_mean_pairwise_correlation": 0.7485161612328999,
+        "n_symbols": 6,
+        "oos_bars_per_symbol": 1200,
+        "proxy": "daily range-estimator (geen intraday RV beschikbaar)",
+        "scenarios": {
+          "ar1_0.0": {
+            "assumptions": {
+              "alpha": 0.05,
+              "loss_differential_ar1": 0.0,
+              "serial_design_effect": 1.0,
+              "target_power": 0.8,
+              "two_sided": true
+            },
+            "expected_effect": 0.1,
+            "informative": true,
+            "minimum_detectable_effect": 0.0719026602602604,
+            "n_effective": 1518.1607429105477,
+            "power_deficit": 0.719026602602604,
+            "test": "Diebold-Mariano (HLN)",
+            "unit": "standaarddeviaties van de per-bar verliesverschilreeks"
+          },
+          "ar1_0.2": {
+            "assumptions": {
+              "alpha": 0.05,
+              "loss_differential_ar1": 0.2,
+              "serial_design_effect": 1.4999999999999998,
+              "target_power": 0.8,
+              "two_sided": true
+            },
+            "expected_effect": 0.1,
+            "informative": true,
+            "minimum_detectable_effect": 0.08806241439316574,
+            "n_effective": 1012.1071619403652,
+            "power_deficit": 0.8806241439316573,
+            "test": "Diebold-Mariano (HLN)",
+            "unit": "standaarddeviaties van de per-bar verliesverschilreeks"
+          },
+          "ar1_0.4": {
+            "assumptions": {
+              "alpha": 0.05,
+              "loss_differential_ar1": 0.4,
+              "serial_design_effect": 2.3333333333333335,
+              "target_power": 0.8,
+              "two_sided": true
+            },
+            "expected_effect": 0.1,
+            "informative": false,
+            "minimum_detectable_effect": 0.10983312777044549,
+            "n_effective": 650.6403183902347,
+            "power_deficit": 1.0983312777044547,
+            "test": "Diebold-Mariano (HLN)",
+            "unit": "standaarddeviaties van de per-bar verliesverschilreeks"
+          }
+        },
+        "target_power": 0.8,
+        "two_sided": true
+      },
+      "validation": {
+        "cpcv_is_gate": false,
+        "dsr_alpha": 0.05,
+        "embargo_bars": 5,
+        "label_horizon_bars": 1,
+        "n_splits": 6,
+        "pbo_is_gate": false,
+        "scheme": "purged_walk_forward",
+        "spa_alpha": 0.05,
+        "spa_block_length": 10,
+        "spa_bootstrap_reps": 1000,
+        "test_bars": 100,
+        "train_bars": 500
+      },
+      "volatility": {
+        "annualisation_factor": 365.0,
+        "burn_in_bars": 60,
+        "estimator": "ewma",
+        "ewma_lambda": 0.94,
+        "min_periods": 2
+      }
+    },
+    "period_end": "2026-08-23",
+    "period_start": "2020-03-26",
+    "planned_trials": 48,
+    "primary_metric": "oos_qlike",
+    "stop_criteria": [
+      {
+        "action": "descope",
+        "metric": "engle_arch_p_value",
+        "name": "arch_gate_no_conditional_heteroskedasticity",
+        "operator": ">=",
+        "rationale": "De Engle ARCH-toets is de poortwachter van dit spoor. Is er op een reeks geen aantoonbare conditionele heteroskedasticiteit, dan is een GARCH-structuur op die reeks niet gerechtvaardigd en wordt zij uit de competitie gehaald met een gedocumenteerd oordeel. Dat is de-scopen, geen falsificatie: het model is er niet slechter door gebleken, het is er niet van toepassing.",
+        "threshold": 0.05
+      },
+      {
+        "action": "falsify",
+        "metric": "dm_hln_p_value",
+        "name": "no_significant_qlike_improvement",
+        "operator": ">=",
+        "rationale": "Zonder verwerping van de DM-HLN-nulhypothese op 5 % is superioriteit niet vastgesteld en blijft EWMA(0.94) de productie-estimator. Dit is een compleet en publiceerbaar resultaat, geen aanleiding om horizonnen of verdelingsaannames toe te voegen tot er een significante uitkomst verschijnt. LET OP de interactie met het power-criterium hieronder: is de toets onderpowered gebleken, dan geldt `UNPROVEN` in plaats van `FALSIFIED`, want §6 verbiedt het falsificeren van een model dat simpelweg te weinig data had.",
+        "threshold": 0.05
+      },
+      {
+        "action": "descope",
+        "metric": "measured_power_deficit",
+        "name": "underpowered_test_cannot_falsify",
+        "operator": ">",
+        "rationale": "Blijkt na de run dat het minimaal detecteerbare effect groter is dan het verwachte effect van 0,10 SD — bijvoorbeeld doordat de AR(1) van de verliesverschilreeks boven 0,3 ligt — dan kan deze opzet het effect niet zien en is een niet-significante uitkomst geen bewijs van afwezigheid. Het oordeel is dan `UNPROVEN — insufficient data` met de gemeten power erbij. Dit criterium bestaat om te voorkomen dat een onderpowerde toets als falsificatie wordt gepresenteerd.",
+        "threshold": 1.0
+      },
+      {
+        "action": "descope",
+        "metric": "garch_convergence_ratio",
+        "name": "convergence_too_low_to_compare",
+        "operator": "<",
+        "rationale": "Convergeert minder dan 90 % van de fits van een variant, dan is de QLIKE-reeks van die variant een SELECTIE van de gemakkelijke vensters en niet vergelijkbaar met een estimator die overal een waarde geeft. De variant wordt met zijn convergentieratio gerapporteerd en uit de vergelijking gehaald. Niet-convergentie wordt geregistreerd, nooit weggevangen met een fallback naar EWMA.",
+        "threshold": 0.9
+      },
+      {
+        "action": "promote",
+        "metric": "n_binding_stop_criteria",
+        "name": "promotion_requires_all_gates_clear",
+        "operator": "<=",
+        "rationale": "Promotie van een GARCH-variant tot productie-estimator vereist dat GEEN van de bovenstaande criteria bindt: de ARCH-poort open, DM-HLN significant, de toets aantoonbaar gepowerd en de convergentie boven 90 %. Er bestaat geen afweging waarin twee zwakke uitkomsten samen een sterke vormen.",
+        "threshold": 0.0
+      }
+    ],
+    "title": "H1 — Level 2 GARCH-familie (GARCH, GJR, EGARCH, APARCH met Student-t innovaties) tegen de Level 1 EWMA(0.94) productie-estimator op QLIKE, out-of-sample onder Purged Walk-Forward.",
+    "universe": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "AVAXUSDT",
+      "LINKUSDT",
+      "DOTUSDT"
+    ],
+    "wave": "phase6_h1_garch_vs_ewma"
+  },
+  "frozen_utc": "2026-08-25T17:52:22.254778+00:00",
+  "git_sha": "1b604a8",
+  "ledger_total_at_freeze": 2716,
+  "preregistration_id": "cef1a3b9a6811d7bde1afc92a2a9503f"
+}

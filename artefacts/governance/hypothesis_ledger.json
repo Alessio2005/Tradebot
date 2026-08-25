@@ -161,6 +161,39 @@
         "cost_drag_fraction": null
       },
       "notes": "Baseline-resultaat; preregistration_id=086430701e325429ecc1a4f93d600edb; git_sha=bac4427"
+    },
+    {
+      "wave": 30,
+      "unit": "phase6_h1_garch_vs_ewma",
+      "market": "crypto",
+      "config_hash": "cef1a3b9a6811d7b",
+      "n_trials": 48,
+      "result": "interim",
+      "ts_utc": "2026-08-25T17:52:22.257243+00:00",
+      "metrics": {},
+      "notes": "Pre-registratie bevroren VOOR de eerste fit; de geplande trials tellen mee in M. preregistration_id=cef1a3b9a6811d7bde1afc92a2a9503f"
+    },
+    {
+      "wave": 30,
+      "unit": "phase6_h2_hmm_vs_m0",
+      "market": "crypto",
+      "config_hash": "3d3af28730a6c7f9",
+      "n_trials": 6,
+      "result": "interim",
+      "ts_utc": "2026-08-25T17:52:22.285243+00:00",
+      "metrics": {},
+      "notes": "Pre-registratie bevroren VOOR de eerste fit; de geplande trials tellen mee in M. preregistration_id=3d3af28730a6c7f9da48d13139522a05"
+    },
+    {
+      "wave": 30,
+      "unit": "phase6_h3_meta_labeling",
+      "market": "crypto",
+      "config_hash": "56395fa201376801",
+      "n_trials": 6,
+      "result": "interim",
+      "ts_utc": "2026-08-25T17:52:22.310523+00:00",
+      "metrics": {},
+      "notes": "Pre-registratie bevroren VOOR de eerste fit; de geplande trials tellen mee in M. preregistration_id=56395fa2013768014c0c915edf346770"
     }
   ]
 }
