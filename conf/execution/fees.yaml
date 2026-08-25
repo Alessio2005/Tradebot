@@ -14,6 +14,12 @@ execution:
   assumed_half_spread_bps: 1.0
 
   slippage_model: half_spread
-  impact_eta: 0.142
+
+  # `impact_eta` stond hier op 0.142 en is in Phase 5 VERPLAATST naar
+  # `conf/execution/impact.yaml`. Reden: het was een literatuurwaarde
+  # (Bouchaud-Bonart op BTC-perps) met een schema-default, dus een eta die
+  # stilzwijgend bestond zonder ooit gemeten te zijn - en bovendien werd hij
+  # door geen enkele module gelezen. Fase-opdracht 11 eist dat een ontbrekende
+  # eta een ConfigContractError is; `ImpactConfig` heeft daarom geen defaults.
 
   cost_assumption_is_provisional: true
