@@ -1,0 +1,310 @@
+{
+  "git_sha": "417aaa6",
+  "risk_config_hash": "47821e47fe2cec30",
+  "risk_audit_header": {
+    "config_hash": "47821e47fe2cec30",
+    "constraint_order": [
+      "halted",
+      "daily_loss_governor",
+      "drawdown_breaker",
+      "vol_target",
+      "per_asset_cap",
+      "adv_cap",
+      "concentration_cap",
+      "cluster_cap",
+      "gross_cap",
+      "net_cap"
+    ],
+    "sigma_target": 0.08,
+    "max_leverage": 1.5,
+    "gross_cap": 1.5,
+    "net_cap": 0.6,
+    "max_drawdown_pct": 0.08,
+    "daily_loss_limit": 0.03,
+    "asof_ts": null
+  },
+  "base_book": {
+    "sigma_hat": 0.724,
+    "a_t": 0.6
+  },
+  "scenarios": [
+    {
+      "scenario": "S1_vol_shock",
+      "description": "Realized volatiliteit vertienvoudigt binnen een bar.",
+      "requested_gross": 3.5999999999999996,
+      "permitted_gross": 0.004604051565377531,
+      "gross_reduction": 0.9987210967873952,
+      "halted": false,
+      "bound_kinds": [
+        "vol_target",
+        "cluster_cap"
+      ],
+      "decision": {
+        "permitted_exposure": {
+          "BTCUSDT": 0.0005524861878453037,
+          "ETHUSDT": 0.0005524861878453037,
+          "SOLUSDT": 0.0005524861878453037,
+          "AVAXUSDT": 0.0005524861878453037,
+          "DOTUSDT": 0.0005524861878453037,
+          "LINKUSDT": 0.0018416206261510125
+        },
+        "gross": 0.004604051565377531,
+        "net": 0.004604051565377531,
+        "unconstrained": false,
+        "config_hash": "47821e47fe2cec30",
+        "binding_constraints": [
+          {
+            "kind": "vol_target",
+            "scope": "__book__",
+            "measured": 26.064000000000004,
+            "threshold": 0.08,
+            "exposure_before": 3.5999999999999996,
+            "exposure_after": 0.011049723756906075,
+            "config_key": "risk.sigma_target"
+          },
+          {
+            "kind": "cluster_cap",
+            "scope": "crypto_l1",
+            "measured": 2.0,
+            "threshold": 0.6,
+            "exposure_before": 0.0018416206261510125,
+            "exposure_after": 0.0005524861878453037,
+            "config_key": "risk.max_cluster_concentration"
+          },
+          {
+            "kind": "cluster_cap",
+            "scope": "crypto_l1",
+            "measured": 2.0,
+            "threshold": 0.6,
+            "exposure_before": 0.0018416206261510125,
+            "exposure_after": 0.0005524861878453037,
+            "config_key": "risk.max_cluster_concentration"
+          },
+          {
+            "kind": "cluster_cap",
+            "scope": "crypto_l1",
+            "measured": 2.0,
+            "threshold": 0.6,
+            "exposure_before": 0.0018416206261510125,
+            "exposure_after": 0.0005524861878453037,
+            "config_key": "risk.max_cluster_concentration"
+          },
+          {
+            "kind": "cluster_cap",
+            "scope": "crypto_l1",
+            "measured": 2.0,
+            "threshold": 0.6,
+            "exposure_before": 0.0018416206261510125,
+            "exposure_after": 0.0005524861878453037,
+            "config_key": "risk.max_cluster_concentration"
+          },
+          {
+            "kind": "cluster_cap",
+            "scope": "crypto_l1",
+            "measured": 2.0,
+            "threshold": 0.6,
+            "exposure_before": 0.0018416206261510125,
+            "exposure_after": 0.0005524861878453037,
+            "config_key": "risk.max_cluster_concentration"
+          }
+        ],
+        "risk_state_out": {
+          "equity": 1.0,
+          "high_water_mark": 1.0,
+          "day_start_equity": 1.0,
+          "halted": false,
+          "halt_reason": "",
+          "halted_at": ""
+        }
+      }
+    },
+    {
+      "scenario": "S2_correlation_collapse",
+      "description": "Alle cross-asset correlaties gaan naar 1; het universum is een cluster.",
+      "requested_gross": 3.5999999999999996,
+      "permitted_gross": 0.11049723756906078,
+      "gross_reduction": 0.9693063228974831,
+      "halted": false,
+      "bound_kinds": [
+        "vol_target"
+      ],
+      "decision": {
+        "permitted_exposure": {
+          "BTCUSDT": 0.01841620626151013,
+          "ETHUSDT": 0.01841620626151013,
+          "SOLUSDT": 0.01841620626151013,
+          "AVAXUSDT": 0.01841620626151013,
+          "DOTUSDT": 0.01841620626151013,
+          "LINKUSDT": 0.01841620626151013
+        },
+        "gross": 0.11049723756906078,
+        "net": 0.11049723756906078,
+        "unconstrained": false,
+        "config_hash": "47821e47fe2cec30",
+        "binding_constraints": [
+          {
+            "kind": "vol_target",
+            "scope": "__book__",
+            "measured": 2.6064,
+            "threshold": 0.08,
+            "exposure_before": 3.5999999999999996,
+            "exposure_after": 0.11049723756906077,
+            "config_key": "risk.sigma_target"
+          }
+        ],
+        "risk_state_out": {
+          "equity": 1.0,
+          "high_water_mark": 1.0,
+          "day_start_equity": 1.0,
+          "halted": false,
+          "halt_reason": "",
+          "halted_at": ""
+        }
+      }
+    },
+    {
+      "scenario": "S3_gap_down",
+      "description": "Min 30 procent overnight, zonder tussenliggende bars.",
+      "requested_gross": 3.5999999999999996,
+      "permitted_gross": 0.0,
+      "gross_reduction": 1.0,
+      "halted": true,
+      "bound_kinds": [
+        "daily_loss_governor",
+        "drawdown_breaker"
+      ],
+      "decision": {
+        "permitted_exposure": {
+          "BTCUSDT": 0.0,
+          "ETHUSDT": 0.0,
+          "SOLUSDT": 0.0,
+          "AVAXUSDT": 0.0,
+          "DOTUSDT": 0.0,
+          "LINKUSDT": 0.0
+        },
+        "gross": 0.0,
+        "net": 0.0,
+        "unconstrained": false,
+        "config_hash": "47821e47fe2cec30",
+        "binding_constraints": [
+          {
+            "kind": "daily_loss_governor",
+            "scope": "__book__",
+            "measured": 0.30000000000000004,
+            "threshold": 0.03,
+            "exposure_before": 3.5999999999999996,
+            "exposure_after": 0.0,
+            "config_key": "risk.daily_loss_limit"
+          },
+          {
+            "kind": "drawdown_breaker",
+            "scope": "__book__",
+            "measured": 0.30000000000000004,
+            "threshold": 0.08,
+            "exposure_before": 0.0,
+            "exposure_after": 0.0,
+            "config_key": "risk.max_drawdown_pct"
+          }
+        ],
+        "risk_state_out": {
+          "equity": 0.7,
+          "high_water_mark": 1.0,
+          "day_start_equity": 1.0,
+          "halted": true,
+          "halt_reason": "Drawdown 0.3000 bereikte de harde grens 0.0800 op de High-Water Mark.",
+          "halted_at": "2026-08-25T10:43:41.502817+00:00"
+        }
+      }
+    },
+    {
+      "scenario": "S4_alpha_runaway",
+      "description": "Elke alpha-unit vraagt gelijktijdig maximale exposure a_t = plus/min 1.",
+      "requested_gross": 6.0,
+      "permitted_gross": 0.04604051565377531,
+      "gross_reduction": 0.9923265807243707,
+      "halted": false,
+      "bound_kinds": [
+        "vol_target",
+        "cluster_cap"
+      ],
+      "decision": {
+        "permitted_exposure": {
+          "BTCUSDT": 0.005524861878453037,
+          "ETHUSDT": -0.005524861878453037,
+          "SOLUSDT": 0.005524861878453037,
+          "AVAXUSDT": -0.005524861878453037,
+          "DOTUSDT": 0.005524861878453037,
+          "LINKUSDT": -0.018416206261510127
+        },
+        "gross": 0.04604051565377531,
+        "net": -0.01289134438305709,
+        "unconstrained": false,
+        "config_hash": "47821e47fe2cec30",
+        "binding_constraints": [
+          {
+            "kind": "vol_target",
+            "scope": "__book__",
+            "measured": 4.344,
+            "threshold": 0.08,
+            "exposure_before": 6.0,
+            "exposure_after": 0.11049723756906077,
+            "config_key": "risk.sigma_target"
+          },
+          {
+            "kind": "cluster_cap",
+            "scope": "crypto_l1",
+            "measured": 2.0000000000000004,
+            "threshold": 0.6,
+            "exposure_before": 0.018416206261510127,
+            "exposure_after": 0.005524861878453037,
+            "config_key": "risk.max_cluster_concentration"
+          },
+          {
+            "kind": "cluster_cap",
+            "scope": "crypto_l1",
+            "measured": 2.0000000000000004,
+            "threshold": 0.6,
+            "exposure_before": -0.018416206261510127,
+            "exposure_after": -0.005524861878453037,
+            "config_key": "risk.max_cluster_concentration"
+          },
+          {
+            "kind": "cluster_cap",
+            "scope": "crypto_l1",
+            "measured": 2.0000000000000004,
+            "threshold": 0.6,
+            "exposure_before": 0.018416206261510127,
+            "exposure_after": 0.005524861878453037,
+            "config_key": "risk.max_cluster_concentration"
+          },
+          {
+            "kind": "cluster_cap",
+            "scope": "crypto_l1",
+            "measured": 2.0000000000000004,
+            "threshold": 0.6,
+            "exposure_before": -0.018416206261510127,
+            "exposure_after": -0.005524861878453037,
+            "config_key": "risk.max_cluster_concentration"
+          },
+          {
+            "kind": "cluster_cap",
+            "scope": "crypto_l1",
+            "measured": 2.0000000000000004,
+            "threshold": 0.6,
+            "exposure_before": 0.018416206261510127,
+            "exposure_after": 0.005524861878453037,
+            "config_key": "risk.max_cluster_concentration"
+          }
+        ],
+        "risk_state_out": {
+          "equity": 1.0,
+          "high_water_mark": 1.0,
+          "day_start_equity": 1.0,
+          "halted": false,
+          "halt_reason": "",
+          "halted_at": ""
+        }
+      }
+    }
+  ]
+}
