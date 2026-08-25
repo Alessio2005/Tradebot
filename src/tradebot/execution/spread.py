@@ -29,6 +29,8 @@ from typing import TYPE_CHECKING, cast
 import numpy as np
 import pandas as pd
 
+from ..utils.failfast import DataContractError, require
+
 if TYPE_CHECKING:
     from tradebot.execution.fees import FeeSchedule
 
@@ -242,3 +244,71 @@ def compute_annualised_sharpe(
 _detect_spread              = detect_spread
 _compute_dynamic_spread_arr = compute_dynamic_spread_arr
 _compute_annualised_sharpe  = compute_annualised_sharpe
+
+
+# =============================================================================
+# CORWIN-SCHULTZ HIGH-LOW SPREAD ESTIMATOR (Phase 5)
+# =============================================================================
+def corwin_schultz_spread(
+    high: pd.Series,
+    low: pd.Series,
+) -> pd.Series:
+    """Effectieve relatieve bid-ask spread uit high/low — Corwin & Schultz (2012).
+
+    Phase 5. De gecertificeerde store bevat GEEN bid/ask (docs/DATA_REGISTER.md
+    §6), en `assumed_half_spread_bps` in `conf/execution/fees.yaml` is een
+    aanname die zichzelf voorlopig noemt. Deze estimator is het alternatief dat
+    wél op de data steunt.
+
+    Het idee: de high-low range van één bar bevat zowel de echte
+    prijsvolatiliteit als de spread, maar volatiliteit schaalt met de LENGTE van
+    het venster en de spread niet. Twee opeenvolgende eendaagse ranges versus de
+    tweedaagse range identificeren de twee componenten daarom apart::
+
+        beta  = E[ (ln(H_t/L_t))^2 + (ln(H_{t+1}/L_{t+1}))^2 ]
+        gamma = ( ln( max(H_t,H_{t+1}) / min(L_t,L_{t+1}) ) )^2
+        alpha = (sqrt(2*beta) - sqrt(beta)) / (3 - 2*sqrt(2))
+                - sqrt( gamma / (3 - 2*sqrt(2)) )
+        S     = 2 * (exp(alpha) - 1) / (1 + exp(alpha))
+
+    `S` is de RELATIEVE ROUNDTRIP-spread; de half-spread is `S/2`.
+
+    Negatieve schattingen worden op nul gezet en NIET weggegooid. Corwin &
+    Schultz §II.B laten zien dat een negatieve alpha ontstaat wanneer de echte
+    spread klein is ten opzichte van de ruis in de range; het gemiddelde over
+    een venster is dan zuiverder mét die nullen dan zonder. Ze verwijderen zou
+    de schatting systematisch naar boven trekken.
+
+    Returns
+    -------
+    pd.Series
+        Relatieve roundtrip-spread per bar, op de index van `high`. De eerste
+        bar is NaN: de estimator heeft twee opeenvolgende bars nodig en is
+        daarmee causaal zodra hij op `t` wordt gelezen voor een beslissing over
+        `t+1`.
+    """
+    require(
+        bool(high.index.equals(low.index)),
+        "corwin_schultz_spread: high en low staan niet op dezelfde tijdas.",
+        DataContractError,
+        n_high=len(high), n_low=len(low),
+    )
+    h = high.astype("float64")
+    lo = low.astype("float64")
+    require(
+        bool((h.dropna() > 0).all()) and bool((lo.dropna() > 0).all()),
+        "corwin_schultz_spread: niet-positieve prijzen.",
+        DataContractError,
+    )
+
+    hl = np.log(h / lo) ** 2
+    beta = hl + hl.shift(1)
+
+    h2 = pd.concat([h, h.shift(1)], axis=1).max(axis=1)
+    l2 = pd.concat([lo, lo.shift(1)], axis=1).min(axis=1)
+    gamma = np.log(h2 / l2) ** 2
+
+    k = 3.0 - 2.0 * np.sqrt(2.0)
+    alpha = (np.sqrt(2.0 * beta) - np.sqrt(beta)) / k - np.sqrt(gamma / k)
+    spread = 2.0 * (np.exp(alpha) - 1.0) / (1.0 + np.exp(alpha))
+    return spread.clip(lower=0.0).rename("cs_spread")
