@@ -1,0 +1,110 @@
+# conf/model/adequacy.yaml — L11 Data Adequacy Gate (Phase 6, §3)
+# Gevalideerd tegen schemas/config.py::AdequacyConfig (extra="forbid", frozen).
+#
+# WAAROM DIT BESTAAT
+# ------------------
+# Het universum is 6 gecertificeerde reeksen × 1.743 daily bars. Op die omvang
+# zijn er twee manieren om een verkeerd antwoord te geven die er allebei
+# statistisch correct uitzien:
+#
+#   * een model FALSIFICEREN dat simpelweg te weinig data had;
+#   * een model PROMOVEREN dat op tientallen observaties per toestand is gefit.
+#
+# Elke drempel hieronder is een minimumeis die VOOR de fit wordt gemeten. Haalt
+# een modelklasse haar niet, dan wordt zij niet gefit, krijgt zij het oordeel
+# `UNPROVEN — insufficient data` met de gemeten cijfers erbij, en telt de trial
+# NIET mee in M omdat er geen search heeft plaatsgevonden.
+#
+# De drempels zijn conventies uit de literatuur, geen resultaten van deze data.
+# Zij zijn hier vastgelegd VOORDAT er is gemeten, zodat een drempel niet achteraf
+# kan worden verlaagd om een model door de poort te krijgen.
+adequacy:
+
+  # --- Level 2: GARCH-familie -------------------------------------------- #
+  # Bollerslev/Engle-praktijk: een GARCH(1,1) met Student-t innovaties schat
+  # 5 parameters (omega, alpha, beta, mu, nu); GJR en APARCH schatten er 6-7.
+  # De gangbare vuistregel voor een stabiele QML-fit op financiële dagdata is
+  # enkele honderden observaties; onder ~250 worden alpha en beta slecht
+  # geïdentificeerd en loopt beta naar de rand (IGARCH-degeneratie).
+  garch:
+    # 250 en niet 500. DEFECT IN MIJN EIGEN WERK, gevonden vóór de eerste fit
+    # en hier vastgelegd: de eerste versie van deze drempel stond op 500 en was
+    # OVERGESCHREVEN van `train_bars: 500` uit conf/validation/default.yaml in
+    # plaats van AFGELEID uit de identificatie-eis. Zij faalde daardoor met
+    # precies 5 observaties — de embargolengte — op elk symbool, en dat is geen
+    # databevinding maar een specificatiefout in de poort zelf.
+    #
+    # De afgeleide waarde: QML-identificatie van een GARCH(1,1) met Student-t
+    # innovaties (5 parameters) vereist volgens de simulatieliteratuur enkele
+    # honderden observaties voordat de bias in alpha en beta acceptabel is;
+    # 250 is de gangbare ondergrens. GJR en APARCH schatten er 6-7 en zitten
+    # daar dichter tegenaan.
+    #
+    # Het effectieve fit-venster op deze reeks is 495 bars (500 min de embargo
+    # van 5). De data haalt de afgeleide eis dus met een factor ~2, en de
+    # drempel is niet gekozen om nét te passeren.
+    min_obs_per_fit_window: 250
+    # Aandeel fits dat moet convergeren voordat de resultaten van een model
+    # überhaupt vergelijkbaar zijn. Onder deze ratio is de QLIKE-reeks een
+    # selectie van de gemakkelijke vensters.
+    min_convergence_ratio: 0.90
+    # |alpha + beta| hierboven telt als randoplossing (IGARCH): de
+    # onvoorwaardelijke variantie bestaat dan niet en de forecast is een
+    # random walk in variantie.
+    persistence_boundary: 0.999
+    max_boundary_solution_ratio: 0.10
+
+  # --- Level 3: HAR-RV --------------------------------------------------- #
+  # Corsi (2009) schat HAR op realized variance uit intraday returns. De
+  # standaard is 5-minuutsampling: 288 bars per dag voor een 24-uursmarkt.
+  # Onder een bepaalde dagdekking is de RV-schatting van die dag zo ruizig dat
+  # zij het QLIKE-verschil domineert dat je probeert te meten.
+  har_rv:
+    intraday_granularity: 5m
+    min_bars_per_day: 200          # van de 288 mogelijke 5m-bars (69 %)
+    min_days_with_coverage_pct: 80.0
+    min_obs_per_fit_window: 500
+
+  # --- Level 3 regimes: M2 HMM ------------------------------------------- #
+  # Een k-state Gaussian HMM schat per toestand een mean, een variantie en
+  # k-1 transitiekansen. De verwachte bezetting van de ZELDZAAMSTE toestand
+  # per fold is de bindende grootheid: een toestand die in een fold 30 bars
+  # beslaat, levert een variantieschatting met ~26 % relatieve standaardfout.
+  hmm:
+    min_obs_per_state_per_fold: 100
+    # Onder deze verwachte bezetting is de toestand een uitschieterdetector
+    # in plaats van een regime.
+    min_state_occupancy_fraction: 0.10
+
+  # --- Meta-labeling: CatBoost ------------------------------------------- #
+  # López de Prado's vuistregel voor een secondary model is enkele honderden
+  # events per fold NA purging en embargo. De klassebalans moet daarnaast
+  # binnen een band liggen: bij 95 % één klasse is een AUC boven de drempel
+  # verenigbaar met een model dat vrijwel niets leert.
+  meta_labeling:
+    # NOMINAAL aantal events per fold.
+    min_events_per_fold: 200
+    # EFFECTIEF aantal, na correctie voor labeloverlap (AFML hoofdstuk 4).
+    # Met een event op vrijwel elke bar en een horizon van 10 bars overlapt elk
+    # label met ~10 buren; het nominale aantal overschat de informatie-inhoud
+    # dan met ongeveer die factor. Deze tweede eis is wat de gate ECHT toetst;
+    # zonder haar zou "2.900 events per fold" een geruststelling zijn die de
+    # data niet draagt.
+    min_effective_events_per_fold: 100
+    min_positive_class_ratio: 0.20
+    max_positive_class_ratio: 0.80
+
+  # --- Portfolio: HRP ---------------------------------------------------- #
+  # Een correlatiematrix op N assets uit T observaties is pas stabiel als
+  # T >> N. Bij T/N < 10 is de sample-correlatiematrix slecht geconditioneerd
+  # en is de HRP-boomordening een functie van de ruis.
+  hrp:
+    min_obs_per_asset: 10          # T / N
+    max_condition_number: 100.0
+
+  # --- Power-analyse ------------------------------------------------------ #
+  # Gedeeld door alle drie de pre-registraties (§3, exit-criterium 10).
+  power:
+    alpha: 0.05
+    target_power: 0.80
+    two_sided: true
