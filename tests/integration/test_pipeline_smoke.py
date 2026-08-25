@@ -51,7 +51,8 @@ def test_sequential_bootstrap_no_lookahead(synthetic_ohlcv: pd.DataFrame) -> Non
 @pytest.mark.slow
 def test_monitoring_drift_smoke(synthetic_ohlcv: pd.DataFrame) -> None:
     import numpy as np
-    from tradebot.monitoring import check_feature_drift, psi
+
+    from tradebot.monitoring import check_feature_drift
     # Use log-returns (stationary) not raw price levels (non-stationary).
     # A random-walk price series will always produce high PSI across windows
     # because the level distribution shifts monotonically.

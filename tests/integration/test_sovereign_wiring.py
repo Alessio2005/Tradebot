@@ -109,7 +109,7 @@ class TestNoSecondRiskRegime:
     def test_the_engine_takes_the_participation_cap_from_risk_config(self) -> None:
         cfg = risk_config()
         engine = make_engine(cfg)
-        assert engine._participation_cap == pytest.approx(  # noqa: SLF001
+        assert engine._participation_cap == pytest.approx(
             cfg.adv_participation_cap)
 
     def test_the_venue_only_carries_mechanics(self) -> None:
