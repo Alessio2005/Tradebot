@@ -16,6 +16,7 @@ from ..alpha.base import SignalResult
 from ..execution.market_impact import negative_skew_crisis_multiplier
 from ..portfolio.constraints import PortfolioConstraints
 from ..portfolio.optimizer import OptimisationMethod, optimize
+from ..utils.failfast import ConfigContractError, require
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +57,9 @@ class PortfolioControllerConfig:
 
     def __init__(
         self,
+        constraints: PortfolioConstraints,
         method: OptimisationMethod = "hrp",
         min_history_bars: int = 60,
-        constraints: PortfolioConstraints | None = None,
         returns_window: int = 120,
         signal_tilt_strength: float = 0.30,
     ) -> None:
@@ -75,9 +76,27 @@ class PortfolioControllerConfig:
         #   (min_notional_per_trade=$1 000, min_weight_change=2 %), so the
         #   portfolio-level floor is redundant and actively destructive
         #   under signal-tilt overlays.
-        self.constraints = constraints or PortfolioConstraints(
-            max_weight=0.40, min_weight=0.0
+        #
+        # PHASE 5: de fallback-constructie `PortfolioConstraints(max_weight=0.40,
+        # min_weight=0.0)` is verwijderd. Zij was een LOKALE concentratielimiet
+        # in L13 (wiring audit C5) die toevallig gelijk stond aan
+        # `risk.max_concentration` maar er niet uit kwam - en dus bij elke
+        # wijziging van `conf/risk/` stil kon gaan afwijken.
+        #
+        # De caller levert nu een set uit `from_risk_config()`. Er is bewust
+        # GEEN default meer: fase-opdracht §23 verbiedt de automatische
+        # permissieve modus, en een L13-component die zijn eigen risicodrempel
+        # kiest is precies dat. Phase 7 sluit `live/` volledig aan; tot dan
+        # dwingt deze crash af dat de vraag niet per omissie wordt beantwoord.
+        require(
+            isinstance(constraints, PortfolioConstraints),
+            "PortfolioControllerConfig vereist een expliciete "
+            "PortfolioConstraints uit PortfolioConstraints.from_risk_config(). "
+            "L13 kiest geen risicodrempels (fase-opdracht §4.3, §23).",
+            ConfigContractError,
+            got=type(constraints).__name__,
         )
+        self.constraints = constraints
         self.returns_window = returns_window
         self.signal_tilt_strength = float(signal_tilt_strength)
 

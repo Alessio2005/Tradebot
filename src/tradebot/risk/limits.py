@@ -45,6 +45,7 @@ __all__ = [
     "ADV_CAP_KEY",
     "CLUSTER_CAP_KEY",
     "CONCENTRATION_KEY",
+    "water_filling_limit",
     "GROSS_CAP_KEY",
     "NET_CAP_KEY",
     "PER_ASSET_KEY",
@@ -235,7 +236,7 @@ def effective_relative_cap(n_active: int, cap: float) -> float:
     return float(max(float(cap), 1.0 / float(n_active)))
 
 
-def _water_filling_limit(magnitudes: list[float], cap: float, *, key: str) -> float:
+def water_filling_limit(magnitudes: list[float], cap: float, *, key: str) -> float:
     """Het exacte vaste punt `L` van `|w_i| <= cap * sum_j |w_j|`, gesloten opgelost.
 
     Naief itereren (clip, hertel de gross, clip opnieuw) convergeert LINEAIR met
@@ -299,7 +300,7 @@ def apply_concentration_cap(
     active = [s for s, w in out.items() if abs(w) > _TOL]
     cap = effective_relative_cap(len(active), cap)
 
-    limit = _water_filling_limit(
+    limit = water_filling_limit(
         [abs(w) for w in out.values()], cap, key=CONCENTRATION_KEY
     )
     for symbol, w in list(out.items()):
@@ -375,7 +376,7 @@ def apply_cluster_cap(
     active_clusters = {c for c, g in per_cluster.items() if g > _TOL}
     cap = effective_relative_cap(len(active_clusters), cap)
 
-    limit = _water_filling_limit(
+    limit = water_filling_limit(
         list(per_cluster.values()), cap, key=CLUSTER_CAP_KEY
     )
     measured: dict[str, float] = {}

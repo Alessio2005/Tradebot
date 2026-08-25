@@ -33,12 +33,14 @@ from ..monitoring.metrics import EngineMetrics, start_metrics_server
 from ..oms.audit_log import AuditLog
 from ..oms.paper_oms import PaperOMS
 from ..oms.router import OrderRouter
+from ..portfolio.constraints import PortfolioConstraints
 from ..risk.daily_loss_governor import (
     GovernorAction,
     PropfirmGovernor,
     PropfirmLimits,
     RegimeConfig,
 )
+from ..schemas.config import RiskConfig, load_config
 from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 from .cusum_filter import CUSUMFilter, build_cusum_filters
 from .execution_controller import ExecutionController, ExecutionControllerConfig
@@ -110,7 +112,23 @@ class LiveEngineConfig:
         self.audit_log_path = audit_log_path
         self.cb_config = cb_config or CircuitBreakerConfig()
         self.ec_config = ec_config or ExecutionControllerConfig()
-        self.pc_config = pc_config or PortfolioControllerConfig()
+        # PHASE 5: `PortfolioControllerConfig()` had een impliciete
+        # concentratielimiet (`max_weight=0.40`) die NIET uit `conf/risk/` kwam
+        # (wiring audit C5). De fallback bouwt hem nu uit de soevereine policy,
+        # zodat L13 dezelfde drempel gebruikt als de backtest en meebeweegt
+        # wanneer die drempel verandert.
+        #
+        # Dit is de contractgrens die fase-opdracht paragraaf 4.3 in Phase 5
+        # vastlegt; de volledige `live/`-migratie blijft Phase 7.
+        self.pc_config = pc_config or PortfolioControllerConfig(
+            constraints=PortfolioConstraints.from_risk_config(
+                load_config(
+                    Path(__file__).resolve().parents[3]
+                    / "conf" / "risk" / "default.yaml",
+                    RiskConfig,
+                )
+            )
+        )
         self.sr_config = sr_config or SignalRunnerConfig()
         self.fu_config = fu_config or FeatureUpdaterConfig()
         self.metrics_port = metrics_port

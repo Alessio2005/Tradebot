@@ -137,22 +137,43 @@ class TestMVO:
 # Optimizer (unified API)
 # ============================================================================
 
+def _sovereign_constraints():
+    """Constraints uit de SOEVEREINE policy — de enige toegestane herkomst.
+
+    Sinds Phase 5 kiest L8 geen risicodrempels meer; `max_weight` en
+    `max_leverage` komen uit `conf/risk/default.yaml` via
+    `PortfolioConstraints.from_risk_config()`. Zie
+    `reports/phase5_sovereign_wiring_audit.md` D1/D2.
+    """
+    from pathlib import Path
+
+    from tradebot.portfolio import PortfolioConstraints
+    from tradebot.schemas.config import RiskConfig, load_config
+
+    root = Path(__file__).resolve().parents[2]
+    return PortfolioConstraints.from_risk_config(
+        load_config(root / "conf/risk/default.yaml", RiskConfig))
+
+
 class TestOptimizer:
 
     @pytest.mark.parametrize("method", ["hrp", "erc", "minvar", "mvo"])
     def test_methods(self, returns_df: pd.DataFrame, method: str) -> None:
         from tradebot.portfolio import optimize
 
-        w = optimize(returns_df, method=method)  # type: ignore[arg-type]
+        # PHASE 5: `constraints` is verplicht. De oude default gaf L8 zijn
+        # eigen concentratie- en leveragelimiet (wiring audit D1/D2).
+        w = optimize(returns_df, constraints=_sovereign_constraints(),
+                     method=method)  # type: ignore[arg-type]
         assert w.sum() == pytest.approx(1.0, abs=1e-6)
         assert (w >= 0).all()
 
     def test_constraint_applied(self, returns_df: pd.DataFrame) -> None:
         from tradebot.portfolio import PortfolioConstraints, optimize
 
-        cfg = PortfolioConstraints(max_weight=0.40)
+        cfg = _sovereign_constraints()
         w = optimize(returns_df, method="hrp", constraints=cfg)
-        assert w.max() <= 0.40 + 1e-6
+        assert w.max() <= cfg.max_weight + 1e-6
 
 
 # ============================================================================
@@ -165,7 +186,7 @@ class TestConstraints:
         from tradebot.portfolio import PortfolioConstraints, apply_constraints
 
         raw = pd.Series({"BTCUSDT": 0.9, "ETHUSDT": 0.05, "SOLUSDT": 0.05})
-        cfg = PortfolioConstraints(max_weight=0.5)
+        cfg = PortfolioConstraints(max_weight=0.5, max_leverage=1.0)
         w = apply_constraints(raw, cfg)
         assert w.max() <= 0.5 + 1e-6
         assert w.sum() == pytest.approx(1.0, abs=1e-6)
