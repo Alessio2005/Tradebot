@@ -51,6 +51,18 @@ Vastgelegd vóór de eerste wijziging, op `18d232a`, en opnieuw gemeten op
 | `check_hardcoded_params.py` | 330 literals, exit 0 | **330 literals, exit 0** | ratchet niet verruimd |
 | `audit_fallbacks.py --strict` | 36 bevindingen, 0 blokkerend | **36, 0 blokkerend** | ongewijzigd |
 
+> **Eén waarneming die niet is weggepoetst.** Tijdens de afsluitende metingen
+> rapporteerde één tussenliggende suite-run **7** faalgevallen in plaats van 6,
+> zonder dat de namen zijn vastgelegd. Drie volledige runs erna gaven opnieuw
+> exact dezelfde 6, evenals aparte runs van `tests/property` (2), `tests/killgates`,
+> `tests/integration` en `tests/e2e` (4). De vermoedelijke oorzaak is
+> pre-existent en niet van deze fase: `tests/property/test_hypothesis_kernels.py`
+> draait vier niet-gederandomiseerde Hypothesis-tests met `deadline=5000`, en die
+> run liep gelijktijdig met andere processen. Een `DeadlineExceeded` onder
+> belasting is daar het waarschijnlijke gevolg. Het is **niet gereproduceerd**;
+> wie de suite in CI vastzet, doet er goed aan die tests te derandomiseren
+> (`derandomize=True`) of hun deadline los te laten.
+
 De ratchet is **aangetrokken, niet verruimd**: het budget van 15 voor
 `risk/portfolio.py` is bij de splitsing vervangen door 10 + 5 voor de twee
 nieuwe paden — exact de gemeten aantallen, zodat het totaal op 330 blijft. De
