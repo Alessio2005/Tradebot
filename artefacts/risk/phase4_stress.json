@@ -1,5 +1,5 @@
 {
-  "git_sha": "417aaa6",
+  "git_sha": "0b84e4a",
   "risk_config_hash": "47821e47fe2cec30",
   "risk_audit_header": {
     "config_hash": "47821e47fe2cec30",
@@ -212,7 +212,7 @@
           "day_start_equity": 1.0,
           "halted": true,
           "halt_reason": "Drawdown 0.3000 bereikte de harde grens 0.0800 op de High-Water Mark.",
-          "halted_at": "2026-08-25T10:43:41.502817+00:00"
+          "halted_at": "2026-08-25T10:45:09.283717+00:00"
         }
       }
     },
@@ -306,5 +306,193 @@
         }
       }
     }
-  ]
+  ],
+  "baseline_overlay": {
+    "git_sha": "0b84e4a",
+    "data_hashes": {
+      "crypto/ohlcv/AVAXUSDT/1d": "af05b4f95d0e282111641f85904c22f9",
+      "crypto/ohlcv/BTCUSDT/1d": "4f21f2c7ab071ddc19da5eb3f38172f3",
+      "crypto/ohlcv/DOTUSDT/1d": "17be1f4206997f12fd7e1825f123299b",
+      "crypto/ohlcv/ETHUSDT/1d": "d67c9bb18b2c794ba416067556227a5a",
+      "crypto/ohlcv/LINKUSDT/1d": "8d6a82f316253c2626d016bbbad804d4",
+      "crypto/ohlcv/SOLUSDT/1d": "1d64b001993b575f34ef04ce548616c5"
+    },
+    "cost_model": {
+      "taker_fee_bps": 5.5,
+      "half_spread_bps": 1.0,
+      "per_side_decimal": 0.00065,
+      "is_provisional": true
+    },
+    "gross_target": 1.0,
+    "alpha_unit": "cross_sectional_momentum(lookback_bars=60,min_assets=3,rebalance_every_bars=1,signal_cap=1.0,signal_floor=-1.0,skip_bars=1)",
+    "periods_per_year": 365.0,
+    "risk_config_hash": "47821e47fe2cec30",
+    "risk_audit_header": {
+      "config_hash": "47821e47fe2cec30",
+      "constraint_order": [
+        "halted",
+        "daily_loss_governor",
+        "drawdown_breaker",
+        "vol_target",
+        "per_asset_cap",
+        "adv_cap",
+        "concentration_cap",
+        "cluster_cap",
+        "gross_cap",
+        "net_cap"
+      ],
+      "sigma_target": 0.08,
+      "max_leverage": 1.5,
+      "gross_cap": 1.5,
+      "net_cap": 0.6,
+      "max_drawdown_pct": 0.08,
+      "daily_loss_limit": 0.03,
+      "asof_ts": null
+    },
+    "overlays": {
+      "xs_momentum_risk_parity": {
+        "track": "xs_momentum_risk_parity",
+        "baseline": {
+          "n_bars": 1615,
+          "arithmetic_ann": -0.10136199087459659,
+          "volatility_ann": 0.2098170749518256,
+          "geometric_ann": -0.11613385793535547,
+          "variance_drag_pp": 1.4771867060758879,
+          "total_return": -0.42086659818382677,
+          "max_drawdown": 0.5629305555354236,
+          "sharpe": -0.48309695909100575
+        },
+        "with_risk": {
+          "n_bars": 1615,
+          "arithmetic_ann": -0.001456512810362018,
+          "volatility_ann": 0.013308408827876001,
+          "geometric_ann": -0.0015438061643152645,
+          "variance_drag_pp": 0.00872933539532465,
+          "total_return": -0.006812778813641507,
+          "max_drawdown": 0.030262298761563722,
+          "sharpe": -0.10944304681346906
+        },
+        "n_halted_bars": 0,
+        "halt_reason": "",
+        "binding_counts": {
+          "cluster_cap": 7935,
+          "concentration_cap": 268,
+          "vol_target": 1611
+        },
+        "avg_gross_before": 1.0,
+        "avg_gross_after": 0.039538221695348735,
+        "turnover_before": 0.17925003616544746,
+        "turnover_after": 0.010191768581554713,
+        "drag_reduction_pp": 1.4684573706805633,
+        "geometric_improvement_pp": 11.45900517710402
+      },
+      "xs_momentum_equal_weight": {
+        "track": "xs_momentum_equal_weight",
+        "baseline": {
+          "n_bars": 1615,
+          "arithmetic_ann": -0.047592176820239175,
+          "volatility_ann": 0.26361327190691264,
+          "geometric_ann": -0.07923304668278197,
+          "variance_drag_pp": 3.1640869862542798,
+          "total_return": -0.30597549382839806,
+          "max_drawdown": 0.5076138599777987,
+          "sharpe": -0.18053786319622392
+        },
+        "with_risk": {
+          "n_bars": 1615,
+          "arithmetic_ann": 0.000255871813267734,
+          "volatility_ann": 0.015127172839707792,
+          "geometric_ann": 0.00014158537525199577,
+          "variance_drag_pp": 0.011428643801573822,
+          "total_return": 0.0006266186957846198,
+          "max_drawdown": 0.03130402392838327,
+          "sharpe": 0.016914714730837742
+        },
+        "n_halted_bars": 0,
+        "halt_reason": "",
+        "binding_counts": {
+          "cluster_cap": 7935,
+          "vol_target": 1611
+        },
+        "avg_gross_before": 1.0,
+        "avg_gross_after": 0.04229848892259531,
+        "turnover_before": 0.15753353973168216,
+        "turnover_after": 0.010542316960044838,
+        "drag_reduction_pp": 3.152658342452706,
+        "geometric_improvement_pp": 7.937463205803397
+      },
+      "long_only_equal_weight": {
+        "track": "long_only_equal_weight",
+        "baseline": {
+          "n_bars": 1615,
+          "arithmetic_ann": 0.11321239397041226,
+          "volatility_ann": 0.7245110716552372,
+          "geometric_ann": -0.14087513474563151,
+          "variance_drag_pp": 25.408752871604378,
+          "total_return": -0.4892343746960276,
+          "max_drawdown": 0.8349812901055234,
+          "sharpe": 0.15626040567159893
+        },
+        "with_risk": {
+          "n_bars": 1615,
+          "arithmetic_ann": 0.0061193994998254295,
+          "volatility_ann": 0.03225942848158712,
+          "geometric_ann": 0.005614923006485473,
+          "variance_drag_pp": 0.050447649333995676,
+          "total_return": 0.025084063597921924,
+          "max_drawdown": 0.05060374943518331,
+          "sharpe": 0.18969336370352102
+        },
+        "n_halted_bars": 0,
+        "halt_reason": "",
+        "binding_counts": {
+          "cluster_cap": 8055,
+          "drawdown_breaker": 227,
+          "vol_target": 1611
+        },
+        "avg_gross_before": 1.0,
+        "avg_gross_after": 0.04574119753200431,
+        "turnover_before": 0.0002063983488132095,
+        "turnover_after": 0.0013196411807069141,
+        "drag_reduction_pp": 25.35830522227038,
+        "geometric_improvement_pp": 14.649005775211698
+      },
+      "long_only_risk_parity": {
+        "track": "long_only_risk_parity",
+        "baseline": {
+          "n_bars": 1615,
+          "arithmetic_ann": 0.0877487290615324,
+          "volatility_ann": 0.6785379646476591,
+          "geometric_ann": -0.13474337579940798,
+          "variance_drag_pp": 22.24921048609404,
+          "total_return": -0.4729062659083467,
+          "max_drawdown": 0.8222950047810373,
+          "sharpe": 0.12932029397514586
+        },
+        "with_risk": {
+          "n_bars": 1615,
+          "arithmetic_ann": 0.004825641384038254,
+          "volatility_ann": 0.028755740784087117,
+          "geometric_ann": 0.004422080090382474,
+          "variance_drag_pp": 0.04035612936557796,
+          "total_return": 0.019714876600950726,
+          "max_drawdown": 0.04550418729277006,
+          "sharpe": 0.1678148867828393
+        },
+        "n_halted_bars": 0,
+        "halt_reason": "",
+        "binding_counts": {
+          "cluster_cap": 8055,
+          "drawdown_breaker": 73,
+          "vol_target": 1611
+        },
+        "avg_gross_before": 1.0,
+        "avg_gross_after": 0.041857825742074924,
+        "turnover_before": 0.01710189735562466,
+        "turnover_after": 0.0015316169814540118,
+        "drag_reduction_pp": 22.208854356728462,
+        "geometric_improvement_pp": 13.916545588979046
+      }
+    }
+  }
 }
