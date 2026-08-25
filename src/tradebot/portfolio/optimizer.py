@@ -14,6 +14,7 @@ from typing import Literal
 
 import pandas as pd
 
+from ..utils.failfast import ConfigContractError, require
 from .black_litterman import BLViews, black_litterman_weights
 from .constraints import PortfolioConstraints, apply_constraints
 from .hrp import hrp_weights
@@ -29,8 +30,8 @@ OptimisationMethod = Literal["hrp", "bl", "erc", "mvo", "minvar"]
 
 def optimize(
     returns: pd.DataFrame,
+    constraints: PortfolioConstraints,
     method: OptimisationMethod = "hrp",
-    constraints: PortfolioConstraints | None = None,
     current_weights: pd.Series | None = None,
     views: BLViews | None = None,
     expected_returns: pd.Series | None = None,
@@ -50,7 +51,12 @@ def optimize(
         - ``"mvo"``    : Mean-Variance (requires ``expected_returns``)
         - ``"minvar"`` : Global Minimum Variance
     constraints :
-        Portfolio constraints.  Defaults to long-only, 40% max weight.
+        Portfolio constraints.  VERPLICHT sinds Phase 5: er is geen default
+        meer.  De vorige default (`PortfolioConstraints()` met max_weight=0.40
+        en max_leverage=1.00) was een tweede risicopolicy die stilzwijgend
+        gold voor elke caller die het argument oversloeg, en die bovendien
+        afweek van `conf/risk/gross_cap` (1.50).  Bouw hem met
+        `PortfolioConstraints.from_risk_config(risk_cfg)`.
     current_weights :
         Current portfolio weights for turnover limiting.
     views :
@@ -62,8 +68,14 @@ def optimize(
     -------
     pd.Series of constrained portfolio weights summing to 1.
     """
-    if constraints is None:
-        constraints = PortfolioConstraints()
+    require(
+        isinstance(constraints, PortfolioConstraints),
+        "optimize() vereist een expliciete PortfolioConstraints. De oude "
+        "default gaf L8 zijn eigen concentratie- en leveragelimiet; zie "
+        "reports/phase5_sovereign_wiring_audit.md D1/D2.",
+        ConfigContractError,
+        got=type(constraints).__name__,
+    )
 
     if len(returns) < 5:
         logger.warning("Insufficient returns for optimisation (n=%d) — equal weight.", len(returns))
