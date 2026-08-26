@@ -1,0 +1,47 @@
+# conf/model/regime.yaml — L3 regime-engines (Phase 6, deliverables 14 en 15)
+# Gevalideerd tegen schemas/config.py::RegimeConfig (extra="forbid", frozen).
+#
+# M0 CAUSAL VOL-BUCKETS IS DE BASELINE PRODUCTIE (audit §10.1).
+#
+# Hij heeft NUL latente toestanden en NUL geschatte parameters. Dat maakt hem
+# tot een oneerlijk sterke tegenstander voor het M2 Filtered HMM, en precies
+# daarom is hij de juiste baseline: elk verschil dat het HMM laat zien, moet
+# groot genoeg zijn om de schattingsonzekerheid te overtreffen die M0 per
+# constructie niet heeft.
+#
+# Elke waarde hieronder is een DREMPEL, geen schatting. Zij is vastgelegd
+# VOORDAT er is gemeten en komt niet uit deze data; wie haar wijzigt om een
+# gunstiger uitkomst te krijgen, voert een nieuwe trial uit en verhoogt M.
+regime:
+  m0:
+    # De z-score loopt over de LOG van de causale EWMA-volatiliteit. Log en
+    # niet niveau, omdat de volatiliteitsverdeling sterk rechtsscheef is: op
+    # het niveau zou een enkele crashbar de standaardafwijking domineren en
+    # zou de HOOG-drempel daarna jarenlang onbereikbaar zijn.
+    #
+    # +/- 0,5 sigma en niet +/- 1,0: op 1.743 bars laat +/- 1,0 ongeveer 32 %
+    # van de bars buiten NORMAAL, +/- 0,5 ongeveer 62 %. De bredere band geeft
+    # elk regime genoeg bars om een Sharpe op te meten — zie de
+    # occupancy-eis in conf/model/adequacy.yaml. Deze keuze is een
+    # ARCHITECTUURBESLUIT en staat als zodanig in docs/ARCHITECTURAL_DECISIONS.md.
+    zscore_low:  -0.5
+    zscore_high:  0.5
+
+    # De causale z-score gebruikt uitsluitend het verleden: op bar t het
+    # expanding gemiddelde en de expanding standaardafwijking over bars 0..t.
+    # Vóór deze grens BESTAAT het regime niet en is de uitkomst NaN. Er wordt
+    # niet teruggevallen op NORMAAL — "geen oordeel" is een geldige uitkomst en
+    # "normaal" is een bewering.
+    #
+    # 250 bars ~ acht maanden dagdata: genoeg dat de expanding std niet meer
+    # door een enkele bar wordt bepaald, en het laat 1.493 van de 1.743 bars
+    # over voor de vergelijking.
+    zscore_min_periods: 250
+
+    # De ATR-ratio is de TWEEDE as: niet het NIVEAU van de volatiliteit maar de
+    # RICHTING waarin zij beweegt. 5 bars tegen 20 bars is een week tegen een
+    # maand.
+    atr_fast_window: 5
+    atr_slow_window: 20
+    atr_ratio_low:  0.85
+    atr_ratio_high: 1.15
