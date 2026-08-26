@@ -1,0 +1,1647 @@
+{
+  "git_sha": "f87bac1",
+  "universe": {
+    "n_bars": 1743,
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "AVAXUSDT",
+      "LINKUSDT",
+      "DOTUSDT"
+    ],
+    "period_start": "2021-11-15",
+    "period_end": "2026-08-23",
+    "data_hashes": {
+      "crypto/ohlcv/AVAXUSDT/1d": "af05b4f95d0e282111641f85904c22f9",
+      "crypto/ohlcv/BTCUSDT/1d": "4f21f2c7ab071ddc19da5eb3f38172f3",
+      "crypto/ohlcv/DOTUSDT/1d": "17be1f4206997f12fd7e1825f123299b",
+      "crypto/ohlcv/ETHUSDT/1d": "d67c9bb18b2c794ba416067556227a5a",
+      "crypto/ohlcv/LINKUSDT/1d": "8d6a82f316253c2626d016bbbad804d4",
+      "crypto/ohlcv/SOLUSDT/1d": "1d64b001993b575f34ef04ce548616c5"
+    }
+  },
+  "fracdiff_config": {
+    "d_lo": 0.05,
+    "d_hi": 0.95,
+    "weight_threshold": 0.0001,
+    "adf_p_target": 0.05,
+    "max_iter": 24
+  },
+  "symbols": {
+    "BTCUSDT": {
+      "symbol": "BTCUSDT",
+      "arch_gate_open": true,
+      "arch_gate_verdict": "OPEN \u2014 Engle ARCH verwerpt op alpha = 0.05 (p = 2.15e-12); een GARCH-structuur is op BTCUSDT:log_return gerechtvaardigd.",
+      "fracdiff": {
+        "d": 0.365047925710678,
+        "adf_p_value": 0.04264136740870487,
+        "converged": true,
+        "n_used_obs": 1428,
+        "memory_retained": 0.10255783341512073,
+        "memory_retained_at_d_one": 0.025341155284454492,
+        "ffd_window_bars": 316,
+        "residual_weight_mass": 0.0452400650190399,
+        "n_bars_consumed": 315,
+        "n_obs_after_ffd": 1428,
+        "memory_curve": {
+          "0.05": 0.4397715897382846,
+          "0.10": 0.07321096689464275,
+          "0.20": -0.09233459545270802,
+          "0.30": 0.007384490634633867,
+          "0.50": 0.1693938902037101,
+          "0.70": 0.14407419949503059,
+          "0.90": 0.04399315665741163
+        }
+      },
+      "log_price": {
+        "series": "BTCUSDT:log_price",
+        "stationarity_verdict": "eenheidswortel (ADF verwerpt niet, KPSS verwerpt)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -0.880835546923113,
+            "p_value": 0.7942180196895708,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 0,
+              "n_obs": 1742,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4341094501874854,
+                "5%": -2.8632005876775297,
+                "10%": -2.567654048515701
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 4.762710243082213,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 26,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 34247.59243906408,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1727.3353369649235,
+            "p_value": 0.0,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 67481.46829375549,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 18.229598293800912,
+            "p_value": 4.498442155356229e-289,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1743,
+              "argmax_index": 819
+            }
+          }
+        }
+      },
+      "log_return": {
+        "series": "BTCUSDT:log_return",
+        "stationarity_verdict": "stationair (ADF verwerpt, KPSS verwerpt niet)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -42.676330874999444,
+            "p_value": 0.0,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 0,
+              "n_obs": 1741,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4341116127463858,
+                "5%": -2.863201542300677,
+                "10%": -2.567654556829725
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 0.33368170690352295,
+            "p_value": 0.1,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 4,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 22.40529379305356,
+            "p_value": 0.318929294453529,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 81.47915414158624,
+            "p_value": 2.1537556691329968e-12,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 7.07198152880375,
+              "f_p_value": 1.0666291678132812e-12
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 1.2965675353644637,
+            "p_value": 0.06931671496336594,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1742,
+              "argmax_index": 371
+            }
+          }
+        }
+      },
+      "fracdiff_series": {
+        "series": "BTCUSDT:fracdiff(d=0.3650)",
+        "stationarity_verdict": "eenheidswortel (ADF verwerpt niet, KPSS verwerpt)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -1.8758169777854015,
+            "p_value": 0.34352167119210225,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 23,
+              "n_obs": 1404,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4350161653396736,
+                "5%": -2.863600780613854,
+                "10%": -2.567867151504452
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 1.792423184454641,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 24,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 17263.557792648273,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1232.2808373668086,
+            "p_value": 1.9335982133209064e-256,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 784.2087120209143,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 10.34464644561276,
+            "p_value": 2.24822419863818e-93,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1428,
+              "argmax_index": 840
+            }
+          }
+        }
+      }
+    },
+    "ETHUSDT": {
+      "symbol": "ETHUSDT",
+      "arch_gate_open": true,
+      "arch_gate_verdict": "OPEN \u2014 Engle ARCH verwerpt op alpha = 0.05 (p = 5.47e-13); een GARCH-structuur is op ETHUSDT:log_return gerechtvaardigd.",
+      "fracdiff": {
+        "d": 0.18752817511558537,
+        "adf_p_value": 0.04982974638686728,
+        "converged": true,
+        "n_used_obs": 1237,
+        "memory_retained": -0.23849756963103447,
+        "memory_retained_at_d_one": 0.04121154600440194,
+        "ffd_window_bars": 507,
+        "residual_weight_mass": 0.15630955182320083,
+        "n_bars_consumed": 506,
+        "n_obs_after_ffd": 1237,
+        "memory_curve": {
+          "0.05": -0.11071532939535789,
+          "0.10": -0.19009101951563323,
+          "0.20": -0.2134147179193908,
+          "0.30": -0.23207938834857664,
+          "0.50": -0.1525538324580124,
+          "0.70": -0.04901780415141082,
+          "0.90": -0.04585318637297925
+        }
+      },
+      "log_price": {
+        "series": "ETHUSDT:log_price",
+        "stationarity_verdict": "eenheidswortel (ADF verwerpt niet, KPSS verwerpt)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -2.6035591320225593,
+            "p_value": 0.09226389617221331,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 0,
+              "n_obs": 1742,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4341094501874854,
+                "5%": -2.8632005876775297,
+                "10%": -2.567654048515701
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 1.1619901636138261,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 26,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 30710.088846608283,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1712.539385199742,
+            "p_value": 0.0,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 13281.169558394155,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 10.573233743219902,
+            "p_value": 1.579893790306647e-97,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1743,
+              "argmax_index": 784
+            }
+          }
+        }
+      },
+      "log_return": {
+        "series": "ETHUSDT:log_return",
+        "stationarity_verdict": "stationair (ADF verwerpt, KPSS verwerpt niet)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -42.525958622666785,
+            "p_value": 0.0,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 0,
+              "n_obs": 1741,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4341116127463858,
+                "5%": -2.863201542300677,
+                "10%": -2.567654556829725
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 0.14134550707268925,
+            "p_value": 0.1,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 0,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 10.707219250343243,
+            "p_value": 0.9534646471780168,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 84.58287773320822,
+            "p_value": 5.474110837267433e-13,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 7.355217060291955,
+              "f_p_value": 2.53784819962371e-13
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 0.9593130513661531,
+            "p_value": 0.31618664826112575,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1742,
+              "argmax_index": 215
+            }
+          }
+        }
+      },
+      "fracdiff_series": {
+        "series": "ETHUSDT:fracdiff(d=0.1875)",
+        "stationarity_verdict": "eenheidswortel (ADF verwerpt niet, KPSS verwerpt)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -2.8120327644336776,
+            "p_value": 0.05657542375741427,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 8,
+              "n_obs": 1228,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4356863371792095,
+                "5%": -2.8638964938393667,
+                "10%": -2.568024631481501
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 0.8859419459504885,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 20,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 17832.736295550974,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1157.508723744806,
+            "p_value": 2.439080336012561e-240,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 1732.1998869332167,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 6.971254942467364,
+            "p_value": 1.2274393137431055e-42,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1237,
+              "argmax_index": 209
+            }
+          }
+        }
+      }
+    },
+    "SOLUSDT": {
+      "symbol": "SOLUSDT",
+      "arch_gate_open": true,
+      "arch_gate_verdict": "OPEN \u2014 Engle ARCH verwerpt op alpha = 0.05 (p = 1.59e-50); een GARCH-structuur is op SOLUSDT:log_return gerechtvaardigd.",
+      "fracdiff": {
+        "d": 0.3136506855487824,
+        "adf_p_value": 0.0499999999608005,
+        "converged": true,
+        "n_used_obs": 1372,
+        "memory_retained": -0.3958636730297585,
+        "memory_retained_at_d_one": 0.022915379452255805,
+        "ffd_window_bars": 372,
+        "residual_weight_mass": 0.06292432901011136,
+        "n_bars_consumed": 371,
+        "n_obs_after_ffd": 1372,
+        "memory_curve": {
+          "0.05": -0.04512458980599272,
+          "0.10": -0.4732676838284153,
+          "0.20": -0.551192277733871,
+          "0.30": -0.419067914392256,
+          "0.50": -0.034526121361690275,
+          "0.70": 0.08075253699719952,
+          "0.90": 0.023730054017616384
+        }
+      },
+      "log_price": {
+        "series": "SOLUSDT:log_price",
+        "stationarity_verdict": "eenheidswortel (ADF verwerpt niet, KPSS verwerpt)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -1.5580244209191916,
+            "p_value": 0.5046374912444574,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 1,
+              "n_obs": 1741,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4341116127463858,
+                "5%": -2.863201542300677,
+                "10%": -2.567654556829725
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 2.5058381453452103,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 26,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 33495.19706194019,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1724.5278991286707,
+            "p_value": 0.0,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 38147.5684326303,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 15.497267778080385,
+            "p_value": 4.966992098170793e-209,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1743,
+              "argmax_index": 765
+            }
+          }
+        }
+      },
+      "log_return": {
+        "series": "SOLUSDT:log_return",
+        "stationarity_verdict": "stationair (ADF verwerpt, KPSS verwerpt niet)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -44.13206870632975,
+            "p_value": 0.0,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 0,
+              "n_obs": 1741,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4341116127463858,
+                "5%": -2.863201542300677,
+                "10%": -2.567654556829725
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 0.326405993682779,
+            "p_value": 0.1,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 2,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 22.16057772777597,
+            "p_value": 0.33186122938278967,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 268.83597255130434,
+            "p_value": 1.5938634794898906e-50,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 26.325550280425134,
+              "f_p_value": 3.977845184734512e-55
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 1.3579747944008698,
+            "p_value": 0.05003364692781489,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1742,
+              "argmax_index": 409
+            }
+          }
+        }
+      },
+      "fracdiff_series": {
+        "series": "SOLUSDT:fracdiff(d=0.3137)",
+        "stationarity_verdict": "tegenstrijdig (beide verwerpen) \u2014 meestal lange-geheugengedrag of een structurele breuk binnen het venster",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -2.861592763407958,
+            "p_value": 0.0499999999608005,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 10,
+              "n_obs": 1361,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.435163869552687,
+                "5%": -2.863665960737661,
+                "10%": -2.567901861810129
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 1.1731306393487393,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 21,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 19027.863279034977,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1213.383344291363,
+            "p_value": 2.2719645322980846e-252,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 928.9686750690365,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 8.010990032426951,
+            "p_value": 3.6182474867752095e-56,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1372,
+              "argmax_index": 843
+            }
+          }
+        }
+      }
+    },
+    "AVAXUSDT": {
+      "symbol": "AVAXUSDT",
+      "arch_gate_open": true,
+      "arch_gate_verdict": "OPEN \u2014 Engle ARCH verwerpt op alpha = 0.05 (p = 3.26e-15); een GARCH-structuur is op AVAXUSDT:log_return gerechtvaardigd.",
+      "fracdiff": {
+        "d": 0.255385971069336,
+        "adf_p_value": 0.04999998991216839,
+        "converged": true,
+        "n_used_obs": 1305,
+        "memory_retained": -0.42798270867083515,
+        "memory_retained_at_d_one": 0.027941171457554516,
+        "ffd_window_bars": 439,
+        "residual_weight_mass": 0.09384149216781945,
+        "n_bars_consumed": 438,
+        "n_obs_after_ffd": 1305,
+        "memory_curve": {
+          "0.05": -0.20087170934910456,
+          "0.10": -0.4504178394254669,
+          "0.20": -0.41536881469219394,
+          "0.30": -0.32452661696201873,
+          "0.50": -0.14632342933739842,
+          "0.70": 0.004296579242023503,
+          "0.90": -0.020605627975095926
+        }
+      },
+      "log_price": {
+        "series": "AVAXUSDT:log_price",
+        "stationarity_verdict": "eenheidswortel (ADF verwerpt niet, KPSS verwerpt)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -1.9097118211011408,
+            "p_value": 0.3275062470024296,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 0,
+              "n_obs": 1742,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4341094501874854,
+                "5%": -2.8632005876775297,
+                "10%": -2.567654048515701
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 1.6506662572210278,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 26,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 31287.992818539416,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1720.9382205113363,
+            "p_value": 0.0,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 24486.820531841793,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 8.838605097793218,
+            "p_value": 2.7928242356711805e-68,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1743,
+              "argmax_index": 208
+            }
+          }
+        }
+      },
+      "log_return": {
+        "series": "AVAXUSDT:log_return",
+        "stationarity_verdict": "stationair (ADF verwerpt, KPSS verwerpt niet)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -41.65965583598047,
+            "p_value": 0.0,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 0,
+              "n_obs": 1741,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4341116127463858,
+                "5%": -2.863201542300677,
+                "10%": -2.567654556829725
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 0.12508300357410637,
+            "p_value": 0.1,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 1,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 17.698339847565073,
+            "p_value": 0.6072725177279082,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 96.07059414479968,
+            "p_value": 3.2642063224375137e-15,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 8.412909882331814,
+              "f_p_value": 1.1541331143531557e-15
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 0.7604383180385123,
+            "p_value": 0.6096251048523471,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1742,
+              "argmax_index": 410
+            }
+          }
+        }
+      },
+      "fracdiff_series": {
+        "series": "AVAXUSDT:fracdiff(d=0.2554)",
+        "stationarity_verdict": "tegenstrijdig (beide verwerpen) \u2014 meestal lange-geheugengedrag of een structurele breuk binnen het venster",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -2.932049532430616,
+            "p_value": 0.04174599881065234,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 8,
+              "n_obs": 1296,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.435405786614854,
+                "5%": -2.86377270896149,
+                "10%": -2.567958709443111
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 1.0506154573722395,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 21,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 19028.65744631264,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1202.4400254540353,
+            "p_value": 5.1650288309300204e-250,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 1416.3019592796356,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 8.876579991843247,
+            "p_value": 7.273036603595324e-69,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1305,
+              "argmax_index": 209
+            }
+          }
+        }
+      }
+    },
+    "LINKUSDT": {
+      "symbol": "LINKUSDT",
+      "arch_gate_open": true,
+      "arch_gate_verdict": "OPEN \u2014 Engle ARCH verwerpt op alpha = 0.05 (p = 1.33e-16); een GARCH-structuur is op LINKUSDT:log_return gerechtvaardigd.",
+      "fracdiff": {
+        "d": 0.16677710413932803,
+        "adf_p_value": 0.049999975584901664,
+        "converged": true,
+        "n_used_obs": 1223,
+        "memory_retained": -0.504886909722076,
+        "memory_retained_at_d_one": 0.03596175814253182,
+        "ffd_window_bars": 521,
+        "residual_weight_mass": 0.18491758940646488,
+        "n_bars_consumed": 520,
+        "n_obs_after_ffd": 1223,
+        "memory_curve": {
+          "0.05": -0.11321406170270848,
+          "0.10": -0.4658046583288155,
+          "0.20": -0.48163439778575573,
+          "0.30": -0.2823132183926627,
+          "0.50": -0.09875113562102486,
+          "0.70": -0.027589707327009508,
+          "0.90": -0.017460746461519284
+        }
+      },
+      "log_price": {
+        "series": "LINKUSDT:log_price",
+        "stationarity_verdict": "tegenstrijdig (beide verwerpen) \u2014 meestal lange-geheugengedrag of een structurele breuk binnen het venster",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -2.9128773666530208,
+            "p_value": 0.043870896938418405,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 0,
+              "n_obs": 1742,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4341094501874854,
+                "5%": -2.8632005876775297,
+                "10%": -2.567654048515701
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 1.0606321627783837,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 26,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 30698.906287343845,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1710.0549018975555,
+            "p_value": 0.0,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 11688.790328133795,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 10.857884078836683,
+            "p_value": 7.941629016618431e-103,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1743,
+              "argmax_index": 718
+            }
+          }
+        }
+      },
+      "log_return": {
+        "series": "LINKUSDT:log_return",
+        "stationarity_verdict": "stationair (ADF verwerpt, KPSS verwerpt niet)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -42.53432561220712,
+            "p_value": 0.0,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 0,
+              "n_obs": 1741,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4341116127463858,
+                "5%": -2.863201542300677,
+                "10%": -2.567654556829725
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 0.19417225989431613,
+            "p_value": 0.1,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 9,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 18.24022985065652,
+            "p_value": 0.5715866247829469,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 103.16356265008964,
+            "p_value": 1.3333442503297996e-16,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 9.07342993040062,
+              "f_p_value": 3.90463419043141e-17
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 0.8438551390814798,
+            "p_value": 0.47470167047506173,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1742,
+              "argmax_index": 210
+            }
+          }
+        }
+      },
+      "fracdiff_series": {
+        "series": "LINKUSDT:fracdiff(d=0.1668)",
+        "stationarity_verdict": "tegenstrijdig (beide verwerpen) \u2014 meestal lange-geheugengedrag of een structurele breuk binnen het venster",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -3.0002934355935187,
+            "p_value": 0.03486700616831406,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 11,
+              "n_obs": 1211,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.435761408287299,
+                "5%": -2.863929614852828,
+                "10%": -2.568042270495956
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 0.9105032284242162,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 20,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 17956.20646626294,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1146.328700303339,
+            "p_value": 6.221550024645733e-238,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 1769.5920104240388,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 7.085807667103787,
+            "p_value": 4.901546080221368e-44,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1223,
+              "argmax_index": 723
+            }
+          }
+        }
+      }
+    },
+    "DOTUSDT": {
+      "symbol": "DOTUSDT",
+      "arch_gate_open": true,
+      "arch_gate_verdict": "OPEN \u2014 Engle ARCH verwerpt op alpha = 0.05 (p = 1.72e-06); een GARCH-structuur is op DOTUSDT:log_return gerechtvaardigd.",
+      "fracdiff": {
+        "d": 0.05,
+        "adf_p_value": 0.015382538630644173,
+        "converged": true,
+        "n_used_obs": 1382,
+        "memory_retained": 0.35576389288027577,
+        "memory_retained_at_d_one": 0.01078070822760181,
+        "ffd_window_bars": 362,
+        "residual_weight_mass": 0.565167803204101,
+        "n_bars_consumed": 361,
+        "n_obs_after_ffd": 1382,
+        "memory_curve": {
+          "0.05": 0.35576389288027577,
+          "0.10": 0.18784715882023098,
+          "0.20": 0.14212250053968242,
+          "0.30": 0.1263678761903447,
+          "0.50": 0.10351371331330292,
+          "0.70": 0.1320974660851362,
+          "0.90": 0.04447105884764241
+        }
+      },
+      "log_price": {
+        "series": "DOTUSDT:log_price",
+        "stationarity_verdict": "eenheidswortel (ADF verwerpt niet, KPSS verwerpt)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -1.6633357665919806,
+            "p_value": 0.4500950506874449,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 11,
+              "n_obs": 1731,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.434133375964546,
+                "5%": -2.8632111492477503,
+                "10%": -2.5676596723058402
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 4.357314982170731,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 26,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 31500.246043479474,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1723.3032654500525,
+            "p_value": 0.0,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 32055.098505631977,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 13.709101699273132,
+            "p_value": 1.1451991323059162e-163,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1743,
+              "argmax_index": 1177
+            }
+          }
+        }
+      },
+      "log_return": {
+        "series": "DOTUSDT:log_return",
+        "stationarity_verdict": "stationair (ADF verwerpt, KPSS verwerpt niet)",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -12.170577504101168,
+            "p_value": 1.4239014426052613e-22,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 10,
+              "n_obs": 1731,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.434133375964546,
+                "5%": -2.8632111492477503,
+                "10%": -2.5676596723058402
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 0.16598842700443991,
+            "p_value": 0.1,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 8,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 29.223186900486287,
+            "p_value": 0.08345686484077348,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 49.481616405604896,
+            "p_value": 1.7226044943227344e-06,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 4.212982543453148,
+              "f_p_value": 1.4139140663038152e-06
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 0.8072331697396645,
+            "p_value": 0.532420095961827,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": false,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1742,
+              "argmax_index": 408
+            }
+          }
+        }
+      },
+      "fracdiff_series": {
+        "series": "DOTUSDT:fracdiff(d=0.0500)",
+        "stationarity_verdict": "tegenstrijdig (beide verwerpen) \u2014 meestal lange-geheugengedrag of een structurele breuk binnen het venster",
+        "arch_gate_open": true,
+        "tests": {
+          "adf": {
+            "name": "adf",
+            "statistic": -3.3894830375758422,
+            "p_value": 0.011322661759336237,
+            "null_hypothesis": "de reeks bevat een eenheidswortel (niet-stationair)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "used_lag": 11,
+              "n_obs": 1370,
+              "regression": "c",
+              "critical_values": {
+                "1%": -3.4351321860409674,
+                "5%": -2.863651979448174,
+                "10%": -2.567894416324791
+              }
+            }
+          },
+          "kpss": {
+            "name": "kpss",
+            "statistic": 2.8715215717094513,
+            "p_value": 0.01,
+            "null_hypothesis": "de reeks IS stationair (rond een constante of trend)",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "n_lags": 21,
+              "regression": "c",
+              "p_value_clipped_at_table_edge": true,
+              "critical_values": {
+                "10%": 0.347,
+                "5%": 0.463,
+                "2.5%": 0.574,
+                "1%": 0.739
+              }
+            }
+          },
+          "ljung_box": {
+            "name": "ljung_box",
+            "statistic": 23160.225697571022,
+            "p_value": 0.0,
+            "null_hypothesis": "geen autocorrelatie in de eerste 20 lags",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 20
+            }
+          },
+          "engle_arch": {
+            "name": "engle_arch",
+            "statistic": 1355.7915446164232,
+            "p_value": 4.714661385285178e-283,
+            "null_hypothesis": "geen ARCH-effecten t/m lag 12: de conditionele variantie is constant",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "lags": 12,
+              "f_statistic": 10790.576669409858,
+              "f_p_value": 0.0
+            }
+          },
+          "cusum": {
+            "name": "cusum",
+            "statistic": 11.650593294751362,
+            "p_value": 2.5232302211022986e-118,
+            "null_hypothesis": "het gemiddelde van de reeks is constant over het venster",
+            "rejected": true,
+            "alpha": 0.05,
+            "detail": {
+              "critical_value": 0.948,
+              "n_obs": 1382,
+              "argmax_index": 307
+            }
+          }
+        }
+      }
+    }
+  }
+}
