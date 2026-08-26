@@ -19,12 +19,38 @@ from .buckets import (
     causal_vol_zscore,
     classify_vol_buckets,
 )
+from .markov import (
+    DIAGNOSTICS_ONLY,
+    DiagnosticsToken,
+    FilteredProbabilities,
+    HmmParameters,
+    HmmSpec,
+    MarkovChain,
+    SmoothedProbabilities,
+    filtered_occupancy,
+    fit_hmm,
+    forward_filter,
+    require_filtered,
+    smoothed_probabilities,
+)
 
 __all__ = [
+    "DIAGNOSTICS_ONLY",
     "UNDEFINED_BUCKET",
     "BucketAssignment",
+    "DiagnosticsToken",
+    "FilteredProbabilities",
+    "HmmParameters",
+    "HmmSpec",
+    "MarkovChain",
+    "SmoothedProbabilities",
     "VolBucket",
     "causal_atr",
     "causal_vol_zscore",
     "classify_vol_buckets",
+    "filtered_occupancy",
+    "fit_hmm",
+    "forward_filter",
+    "require_filtered",
+    "smoothed_probabilities",
 ]
