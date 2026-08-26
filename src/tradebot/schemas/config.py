@@ -596,6 +596,60 @@ class FracDiffConfig(StrictModel):
 
 
 # --------------------------------------------------------------------------- #
+# L3 - Regime engines (Phase 6, deliverables 14 en 15)
+# --------------------------------------------------------------------------- #
+class M0BucketConfig(StrictModel):
+    """Drempels van de M0 Causal Vol-Buckets. Zie `conf/model/regime.yaml`.
+
+    Elke waarde hier is een DREMPEL en geen geschatte parameter. Dat is het hele
+    punt van M0: nul latente toestanden, nul schattingen, nul lekrisico. Zij
+    staan in config en niet in code, zodat een wijziging zichtbaar is in de
+    diff en meetelt als een nieuwe trial.
+    """
+
+    #: Onder deze causale z-score van de log-EWMA-vol heet het regime LAAG.
+    zscore_low: float = -0.5
+    #: Boven deze z-score heet het regime HOOG.
+    zscore_high: float = 0.5
+    #: Observaties voordat de causale z-score bestaat. Daarvoor is het regime
+    #: ONGEDEFINIEERD - nooit "normaal bij gebrek aan beter".
+    zscore_min_periods: PositiveInt = 250
+
+    atr_fast_window: PositiveInt = 5
+    atr_slow_window: PositiveInt = 20
+    #: ATR-ratio's die vol-EXPANSIE respectievelijk -CONTRACTIE aanwijzen.
+    atr_ratio_low: Annotated[float, Field(gt=0.0)] = 0.85
+    atr_ratio_high: Annotated[float, Field(gt=0.0)] = 1.15
+
+    @model_validator(mode="after")
+    def _thresholds_are_ordered(self) -> M0BucketConfig:
+        if self.zscore_low >= self.zscore_high:
+            raise ValueError(
+                f"zscore_low ({self.zscore_low}) moet onder zscore_high "
+                f"({self.zscore_high}) liggen; anders is er geen NORMAAL-band "
+                "en classificeert M0 elke bar als extreem."
+            )
+        if self.atr_ratio_low >= self.atr_ratio_high:
+            raise ValueError(
+                f"atr_ratio_low ({self.atr_ratio_low}) moet onder "
+                f"atr_ratio_high ({self.atr_ratio_high}) liggen"
+            )
+        if self.atr_fast_window >= self.atr_slow_window:
+            raise ValueError(
+                f"atr_fast_window ({self.atr_fast_window}) moet korter zijn "
+                f"dan atr_slow_window ({self.atr_slow_window}); anders meet de "
+                "ratio geen verandering in volatiliteit"
+            )
+        return self
+
+
+class RegimeConfig(StrictModel):
+    """Contract voor de L3 regime-engines. Zie `conf/model/regime.yaml`."""
+
+    m0: M0BucketConfig = Field(default_factory=M0BucketConfig)
+
+
+# --------------------------------------------------------------------------- #
 # Root
 # --------------------------------------------------------------------------- #
 class TradebotConfig(StrictModel):
@@ -629,6 +683,7 @@ DOMAIN_SCHEMAS: dict[str, type[StrictModel]] = {
     "adequacy": AdequacyConfig,
     "labeling": LabelingConfig,
     "fracdiff": FracDiffConfig,
+    "regime": RegimeConfig,
 }
 
 
