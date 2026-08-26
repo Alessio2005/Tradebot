@@ -1,0 +1,48 @@
+# conf/model/fracdiff.yaml — L4 fractionele differentiëring (Phase 6, deliverable 8)
+# Gevalideerd tegen schemas/config.py::FracDiffConfig.
+#
+# §8.1: bepaal de MINIMALE d in [0, 1] die stationariteit bereikt (ADF p < 0,05)
+# met MAXIMAAL behoud van geheugen. De twee doelen staan tegenover elkaar —
+# hogere d geeft stationariteit, lagere d geeft geheugen — en de minimale d die
+# de stationariteitseis haalt is per definitie het optimum van die afruil.
+#
+# `d` is GEEN constante in code. Hij wordt per reeks gezocht binnen de
+# onderstaande grenzen en per reeks geregistreerd in
+# `reports/ECONOMETRIC_DIAGNOSTICS.md`.
+fracdiff:
+  # Zoekbereik. 0,0 zou de reeks ongewijzigd laten (maximaal geheugen, geen
+  # stationariteit); 1,0 is de gewone eerste-orde differentie (stationair, geen
+  # geheugen). De interessante d ligt daartussen.
+  d_lo: 0.05
+  d_hi: 0.95
+
+  # Gewichtsdrempel van het fixed-width window (AFML §5.5). Onder deze absolute
+  # gewichtswaarde wordt de staart afgekapt.
+  #
+  # DE AFRUIL, GEMETEN OP DEZE REEKSLENGTE (d ~ 0,45, 1.743 bars):
+  #
+  #   drempel   venster   truncatie-massa   bars over van 1.743
+  #   1e-2         11        0,1216            1.733
+  #   5e-3         17        0,0967            1.727
+  #   1e-3         49        0,0571            1.695
+  #   5e-4         79        0,0455            1.665
+  #   1e-4        238        0,0271            1.506   <-- gekozen
+  #   1e-5      1.163        0,0131              581
+  #
+  # AFML gebruikt 1e-5, maar dat is geschreven voor reeksen van tienduizenden
+  # bars. Op 1.743 bars kost 1e-5 er 1.162 — TWEE DERDE van de steekproef — en
+  # de resterende 581 bars beslaan alleen het laatste jaar van het venster. Elke
+  # toets op die reeks meet dan een ander tijdvak dan de rest van deze fase.
+  #
+  # 1e-4 houdt 86 % van de bars over voor 2,7 % truncatiemassa. Dat is de
+  # afruil die op DEZE reekslengte verdedigbaar is, en zij is gekozen op grond
+  # van de tabel hierboven en niet op grond van een resultaat.
+  weight_threshold: 1.0e-4
+
+  # De ADF-drempel waaronder d wordt geaccepteerd. Gelijk aan de alpha van de
+  # rest van de keten; een andere drempel hier zou betekenen dat "stationair"
+  # in dit bestand iets anders betekent dan in `validation/econometrics.py`.
+  adf_p_target: 0.05
+
+  # Maximaal aantal bisectiestappen in de zoektocht naar de minimale d.
+  max_iter: 24

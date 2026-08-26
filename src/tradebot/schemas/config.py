@@ -38,6 +38,7 @@ __all__ = [
     "DataConfig",
     "ExecutionConfig",
     "FeatureConfig",
+    "FracDiffConfig",
     "ImpactConfig",
     "LabelingConfig",
     "MicrostructureFeatureConfig",
@@ -574,6 +575,27 @@ class LabelingConfig(StrictModel):
 
 
 # --------------------------------------------------------------------------- #
+# L4 - Fractionele differentiering (Phase 6, deliverable 8)
+# --------------------------------------------------------------------------- #
+class FracDiffConfig(StrictModel):
+    """Contract voor fractionele differentiering. Zie `conf/model/fracdiff.yaml`."""
+
+    d_lo: Annotated[float, Field(ge=0.0, lt=1.0)] = 0.05
+    d_hi: Annotated[float, Field(gt=0.0, le=1.0)] = 0.95
+    weight_threshold: Annotated[float, Field(gt=0.0, lt=1.0)] = 1.0e-5
+    adf_p_target: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.05
+    max_iter: PositiveInt = 24
+
+    @model_validator(mode="after")
+    def _range_is_ordered(self) -> FracDiffConfig:
+        if self.d_lo >= self.d_hi:
+            raise ValueError(
+                f"d_lo ({self.d_lo}) moet onder d_hi ({self.d_hi}) liggen"
+            )
+        return self
+
+
+# --------------------------------------------------------------------------- #
 # Root
 # --------------------------------------------------------------------------- #
 class TradebotConfig(StrictModel):
@@ -606,6 +628,7 @@ DOMAIN_SCHEMAS: dict[str, type[StrictModel]] = {
     "validation": ValidationConfig,
     "adequacy": AdequacyConfig,
     "labeling": LabelingConfig,
+    "fracdiff": FracDiffConfig,
 }
 
 
