@@ -255,6 +255,52 @@ class TestNonConvergenceIsRecordedButNeverSubstituted:
         assert record["message"] == "Maximum iterations exceeded"
         assert record["fold_id"] == 3
 
+    def test_a_numerical_failure_is_recorded_as_non_convergence(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """`LinAlgError` uit een singuliere Hessiaan IS een convergentieresultaat."""
+        class _Boom:
+            def fit(self, **_: object) -> None:
+                raise np.linalg.LinAlgError("singular matrix")
+
+        monkeypatch.setattr(
+            garch_mod, "require_dependency",
+            lambda *a, **k: type("M", (), {"arch_model": staticmethod(
+                lambda *a, **k: _Boom())})())
+        fit = fit_garch_window(
+            _returns(1_000), GARCH_FAMILY["garch"], CFG,
+            symbol="TEST", fold_id=0, train_end=800)
+        assert fit.converged is False
+        assert "LinAlgError" in fit.message
+        assert fit.at_boundary is True
+
+    def test_a_bug_in_the_code_propagates_instead_of_being_booked_as_a_result(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """De negatieve controle op de smalle `except`.
+
+        Een `AttributeError` — de vorm die een typefout in mijn eigen code
+        aanneemt — mag NOOIT als "dit venster convergeerde niet" in de
+        convergentieratio belanden. Zou zij dat wel doen, dan zou de conclusie
+        "GARCH convergeert slecht op dit universum" kunnen rusten op een
+        gebroken aanroep in plaats van op een eigenschap van de data.
+
+        Deze test bewaakt dus een BEVINDING en niet een stijlregel: hij wordt
+        rood zodra iemand de `except` weer verbreedt.
+        """
+        class _Typo:
+            def fit(self, **_: object) -> None:
+                raise AttributeError("'NoneType' object has no attribute 'x'")
+
+        monkeypatch.setattr(
+            garch_mod, "require_dependency",
+            lambda *a, **k: type("M", (), {"arch_model": staticmethod(
+                lambda *a, **k: _Typo())})())
+        with pytest.raises(AttributeError):
+            fit_garch_window(
+                _returns(1_000), GARCH_FAMILY["garch"], CFG,
+                symbol="TEST", fold_id=0, train_end=800)
+
 
 # --------------------------------------------------------------------------- #
 # De convergentiesamenvatting voedt het stop-criterium

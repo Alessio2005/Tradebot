@@ -110,6 +110,26 @@ __all__ = [
 #: exact een plek gebeurt en niet als los getal door de code zwerft.
 RETURN_SCALE: float = 100.0
 
+#: De uitzonderingen die een QML-optimizer op DEGENERATE DATA werkelijk opwerpt,
+#: en die dus "deze fit is niet geconvergeerd" betekenen.
+#:
+#: DEFECT IN MIJN EIGEN WERK, gevonden door `test_no_silent_fallbacks.py` en
+#: hier vastgelegd. De eerste versie ving `Exception`. Dat is niet alleen een
+#: schending van de fallback-doctrine; het is inhoudelijk fout. Een
+#: `AttributeError` uit een typefout in mijn eigen code, een `MemoryError`, een
+#: `KeyError` op een verkeerde parameternaam -- ze zouden alle drie zijn
+#: geregistreerd als "het model convergeerde niet op dit venster". Een bug in de
+#: code was dan als DATABEVINDING in de convergentieratio beland, en de
+#: conclusie "GARCH convergeert slecht op dit universum" zou zijn gestoeld op
+#: een gebroken aanroep. Alles buiten deze tuple propageert.
+_NUMERICAL_FIT_FAILURES: tuple[type[Exception], ...] = (
+    np.linalg.LinAlgError,   # singuliere Hessiaan
+    FloatingPointError,
+    ZeroDivisionError,
+    RuntimeError,            # scipy.optimize geeft het op
+    ValueError,              # arch weigert de reeks (bv. nul variantie)
+)
+
 
 class NonConvergenceError(TradebotContractError):
     """Er is een forecast gevraagd aan een fit die niet is geconvergeerd.
@@ -349,7 +369,7 @@ def fit_garch_window(
                 last_obs=train_end, disp="off", show_warning=False,
                 options={"maxiter": 1000},
             )
-        except Exception as exc:  # een mislukte fit is een uitkomst, geen crash
+        except _NUMERICAL_FIT_FAILURES as exc:
             return GarchFit(
                 spec=spec, symbol=symbol, fold_id=fold_id, n_obs=train_end,
                 converged=False, message=f"{type(exc).__name__}: {exc}",
