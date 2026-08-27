@@ -73,6 +73,7 @@ _ALLOWED_ROOT_FILES = frozenset({
     "params.yaml",
     "pyproject.toml",
     "pytest.ini",
+    "requirements-dev.lock",
     "requirements.lock",
     "requirements.txt",
     "setup.cfg",

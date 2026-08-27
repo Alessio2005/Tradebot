@@ -17,15 +17,15 @@ from __future__ import annotations
 from .base import AlphaSignal, SignalResult
 from .carry import FundingCarry
 from .combination import ICWeightedCombiner
-from .factor_alpha import (
-    G4_FACTORSETS,
-    FactorAlphaResult,
-    factor_residual_alpha,
-)
 from .csm_volume_clock import (
     CSMVolumeClockSignal,
     compute_csm_volume_clock_signals,
     rank_normalize_cross_section,
+)
+from .factor_alpha import (
+    G4_FACTORSETS,
+    FactorAlphaResult,
+    factor_residual_alpha,
 )
 from .kalman_ou import KalmanOUMeanReversion
 from .macro_regime import MacroRegimeOverlay, RegimeLabel, RegimeState

@@ -59,7 +59,6 @@ import pandas as pd
 from ..execution.market_impact import negative_skew_crisis_multiplier
 from .covariance import (
     _avg_offdiag,
-    _dual_window_ewma_corr,
     _safe_corr,
     effective_n_assets,
 )
@@ -716,7 +715,7 @@ class PortfolioRiskManager:
         #   return) naar update().  equity wordt in één atomaire update gezet:
         #     equity *= (1 + port_r - bar_costs)
         #   De externe mutatie in portfolio_backtest.py wordt daarna verwijderd.
-    ) -> RiskState:
+    ) -> LegacyRiskState:
         """Voed bar-returns toe + update equity, peak en breaker-state.
 
         Args:
@@ -776,7 +775,7 @@ class PortfolioRiskManager:
 
         # 5. State snapshot
         avg_corr, _ = self._correlation_metrics()
-        return RiskState(
+        return LegacyRiskState(
             timestamp=timestamp,
             equity=self.equity,
             peak_equity=self.peak_equity,

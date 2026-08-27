@@ -10,6 +10,7 @@ Bewijst dat:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 import yaml
@@ -133,7 +134,7 @@ class TestRiskConfigCarriesNoAlphaParameters:
     precies de bypass die audit sectie 14 uitsluit.
     """
 
-    FORBIDDEN = {
+    FORBIDDEN: ClassVar[set[str]] = {
         "min_signal_confidence", "max_funding_cost_bps_day",
         "expected_alpha", "alpha", "edge", "mu", "signal_threshold",
         "confidence", "conviction", "model", "strategy", "sharpe",

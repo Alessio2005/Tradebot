@@ -1,0 +1,60 @@
+# requirements-dev.lock - de TESTKETEN EN DE LINTERS, gepind.
+#
+# Phase 7/8, Stage A-2. Waarom dit bestand bestaat.
+#
+# requirements.lock pint 476 runtime-packages, maar GEEN testketen en GEEN
+# linters. pytest, hypothesis, mypy en ruff stonden uitsluitend in
+# [project.optional-dependencies] met ONDERGRENZEN (pytest>=7.4), en
+# .github/workflows/hygiene.yml installeerde ze met een kale
+#     pip install pytest pytest-cov hypothesis mypy ruff types-PyYAML types-requests
+# zonder een enkele versie.
+#
+# TWEE GEMETEN GEVOLGEN, allebei tijdens de schone-venv-verificatie van deze stage:
+#
+#   1. De verse venv kreeg pytest 9.1.1 terwijl de systeeminterpreter op 9.0.2
+#      stond. Twee machines die allebei requirements.lock volgen, draaien de
+#      suite dus op verschillende testrunners.
+#
+#   2. ERNSTIGER - de lint-gate veranderde van oordeel op een tooling-release:
+#         ruff 0.15.12 ->  7 bevindingen (alle zeven hier gerepareerd)
+#         ruff 0.16.4  -> 78 bevindingen, waarvan 71 PLR0917
+#      Dezelfde broncode, dezelfde workflow, een ander antwoord. Een gate die
+#      van mening verandert zonder dat de code verandert, bewaakt niets.
+#
+# Phase 0 exit-criterium 2 eist een 100% reproduceerbare build. Voor de runtime
+# was dat waar; voor de keten die het BEWIJS produceert niet.
+#
+# ruff is bewust op 0.15.12 gepind en niet op de nieuwste. Dat is geen
+# vooruitschuiven van werk maar het vastzetten van EEN oordeel: de 71 PLR0917-
+# bevindingen onder 0.16.4 staan geregistreerd in docs/DEFERRED_ISSUES.md en
+# worden als expliciet besluit opgepakt, niet als bijvangst van een
+# pip-installatie op een willekeurige dag.
+#
+# GEBRUIK (naast requirements.lock, niet in plaats daarvan):
+#     python -m venv D:/venv/tradebot
+#     D:/venv/tradebot/Scripts/python -m pip install -r requirements.lock
+#     D:/venv/tradebot/Scripts/python -m pip install -r requirements-dev.lock
+#     D:/venv/tradebot/Scripts/python -m pip install -e . --no-deps
+#
+# Gegenereerd uit de referentie-venv op 2026-08-27, Python 3.13.0.
+# Zie docs/RUNBOOK.md voor welke interpreter de referentie is.
+
+ast_serialize==0.8.0
+coverage==7.15.4
+flufl.lock==9.1.0
+hypothesis==6.165.10
+iniconfig==2.3.0
+librt==0.15.0
+mypy==2.3.1
+pluggy==1.6.0
+pytest-asyncio==1.4.0
+pytest-cov==7.1.0
+pytest-randomly==4.1.0
+pytest==9.1.1
+ruamel.yaml==0.19.1
+ruff==0.15.12
+setuptools==84.0.0
+sortedcontainers==2.4.0
+types-PyYAML==6.0.12.20260815
+types-requests==2.33.0.20260712
+zc.lockfile==4.0
