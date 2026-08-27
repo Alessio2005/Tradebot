@@ -47,8 +47,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.lock
+          # De TESTKETEN en de LINTERS zijn gepind, net als de runtime.
+          # Zonder deze regel bepaalt de release-datum van ruff het oordeel
+          # van de lint-gate: 0.15.12 gaf 7 bevindingen, 0.16.4 gaf er 78 op
+          # exact dezelfde broncode. Een gate die van mening verandert zonder
+          # dat de code verandert, bewaakt niets. (Phase 7/8, Stage A-2.)
+          pip install -r requirements-dev.lock
           pip install -e . --no-deps
-          pip install pytest pytest-cov hypothesis mypy ruff types-PyYAML types-requests
 
       - name: Verify dependency contract is closed
         run: |

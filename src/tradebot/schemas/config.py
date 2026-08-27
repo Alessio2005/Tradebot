@@ -19,6 +19,7 @@ Ref: ARCHITECTUUR_AUDIT_2026-08-22.md sectie 20, sectie 26 (AC-5).
 from __future__ import annotations
 
 from functools import lru_cache
+from itertools import pairwise
 from pathlib import Path
 from typing import Annotated, Any, Literal, TypeVar
 
@@ -315,7 +316,7 @@ class RiskConfig(StrictModel):
     @classmethod
     def _tiers_are_monotone(cls, v: tuple[DrawdownTier, ...]) -> tuple[DrawdownTier, ...]:
         """Diepere drawdown mag nooit een RUIMERE multiplier krijgen."""
-        for prev, nxt in zip(v, v[1:]):
+        for prev, nxt in pairwise(v):
             if nxt.drawdown <= prev.drawdown:
                 raise ValueError(
                     "drawdown_breaker_levels moet strikt oplopen in `drawdown`; "
