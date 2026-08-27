@@ -55,7 +55,12 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm as _norm
 
-from ..schemas.config import AdequacyConfig, PowerConfig
+from ..schemas.config import AdequacyConfig, PowerConfig, econometrics_config
+
+#: Drempels uit `conf/validation/econometrics.yaml` (Stage A-3). Geen
+#: ingebouwde terugval: ontbreekt de config, dan crasht de import.
+_ECONO = econometrics_config()
+
 from ..utils.failfast import DataContractError, require
 
 __all__ = [
@@ -738,7 +743,7 @@ def auc_minimum_detectable(
     cfg: PowerConfig,
     *,
     null_auc: float = 0.5,
-    expected_auc: float = 0.58,
+    expected_auc: float = _ECONO.auc_expected,
     assumptions: Mapping[str, Any] | None = None,
 ) -> PowerAnalysis:
     """MDE voor een AUC tegen de nulwaarde 0,5 (Hanley & McNeil 1982).

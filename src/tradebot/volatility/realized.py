@@ -79,7 +79,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ..schemas.config import econometrics_config
 from ..utils.failfast import DataContractError, DependencyMissingError, require
+
+#: Drempels uit `conf/validation/econometrics.yaml` (Stage A-3). Geen
+#: ingebouwde terugval: ontbreekt de config, dan crasht de import.
+_ECONO = econometrics_config()
+
 
 __all__ = [
     "PROXY_EFFICIENCY",
@@ -237,7 +243,7 @@ def rogers_satchell_variance(
 
 def yang_zhang_variance(
     open_: np.ndarray, high: np.ndarray, low: np.ndarray, close: np.ndarray,
-    *, window: int = 20,
+    *, window: int = _ECONO.yang_zhang_window,
 ) -> np.ndarray:
     """Yang-Zhang (2000). **Inherent een VENSTER-estimator, geen per-bar proxy.**
 
@@ -351,7 +357,8 @@ class RangeProxy:
 
 
 def build_range_proxies(
-    ohlc: pd.DataFrame, *, name: str = "", yang_zhang_window: int = 20,
+    ohlc: pd.DataFrame, *, name: str = "",
+    yang_zhang_window: int = _ECONO.yang_zhang_window,
 ) -> dict[str, RangeProxy]:
     """Bouw alle proxies op een OHLC-frame, met het contract vooraf afgedwongen."""
     o = ohlc["open"].to_numpy(dtype=np.float64)

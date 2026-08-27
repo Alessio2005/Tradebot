@@ -63,7 +63,13 @@ from typing import Any, Literal
 import numpy as np
 from scipy import stats as _stats
 
+from ..schemas.config import econometrics_config
 from ..utils.failfast import DataContractError, require
+
+#: Drempels uit `conf/validation/econometrics.yaml` (Stage A-3). Geen
+#: ingebouwde terugval: ontbreekt de config, dan crasht de import.
+_ECONO = econometrics_config()
+
 
 __all__ = [
     "LOSS_FUNCTIONS",
@@ -292,7 +298,8 @@ class MincerZarnowitzResult:
 
 
 def mincer_zarnowitz(
-    rv: np.ndarray, forecast: np.ndarray, *, model: str, min_obs: int = 30,
+    rv: np.ndarray, forecast: np.ndarray, *, model: str,
+    min_obs: int = _ECONO.mincer_zarnowitz_min_obs,
 ) -> MincerZarnowitzResult:
     """Zuiverheidsregressie met HAC-standaardfouten.
 
@@ -422,7 +429,7 @@ def diebold_mariano_hln(
     *,
     horizon: int,
     alternative: Literal["two-sided", "a-better", "b-better"] = "two-sided",
-    min_intersection_ratio: float = 0.80,
+    min_intersection_ratio: float = _ECONO.dm_min_intersection_ratio,
 ) -> DieboldMarianoResult:
     """DM-toets met de kleine-steekproefcorrectie van Harvey-Leybourne-Newbold.
 

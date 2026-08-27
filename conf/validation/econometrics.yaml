@@ -1,0 +1,84 @@
+# conf/validation/econometrics.yaml — L11 diagnostische toetsdrempels
+# Gevalideerd tegen schemas/config.py::EconometricsConfig (extra="forbid", frozen).
+#
+# WAAROM DIT BESTAAT
+# ------------------
+# Tot Phase 7/8 Stage A-3 stonden deze vijftien waarden als numerieke defaults in
+# de signaturen van vijf modules met ratchet-budget 0:
+#
+#     validation/econometrics.py        8 literals
+#     validation/diagnostics_report.py  2
+#     validation/vol_metrics.py         2
+#     volatility/realized.py            2
+#     validation/data_adequacy.py       1
+#
+# `check_hardcoded_params.py --strict` stond daardoor ROOD en
+# `.github/workflows/hygiene.yml` faalde. Zolang dat zo was, was elke uitspraak
+# "de gates zijn groen" onjuist.
+#
+# HET BUDGET IS NIET VERRUIMD. Phase 0-besluit van 2026-08-22: budgetten mogen
+# uitsluitend omlaag. De vijftien waarden zijn VERPLAATST, niet toegestaan.
+#
+# WAT HIER WEL EN NIET IN HOORT
+# -----------------------------
+# Een significantieniveau is geen rekenkundig feit maar een beleidskeuze: het
+# bepaalt hoe vaak een toets ten onrechte verwerpt. Dat is precies het soort
+# keuze dat achteraf kan worden bijgesteld om een model door een poort te
+# krijgen — en dus hoort het in `conf/`, gehasht, en niet in een signatuur.
+#
+# Rekenkundige feiten horen hier NIET. `arch_lags: 12` staat niet in dit bestand
+# omdat 12 een kalenderconstante is die de scanner terecht als BENIGN behandelt,
+# en `null_auc: 0.5` niet omdat de nulwaarde van een AUC een definitie is en geen
+# keuze.
+#
+# GEEN ENKEL GETAL IS GEWIJZIGD. Elke waarde hieronder is identiek aan de default
+# die zij vervangt. Stage A-3 verplaatst; het herkalibreert niet. Een verplaatsing
+# die tegelijk een waarde verandert, is niet te onderscheiden van een stille
+# herkalibratie, en dat is exact wat de ratchet hoort te voorkomen.
+econometrics:
+
+  # --- Significantie ------------------------------------------------------ #
+  # Gedeeld door ADF, KPSS, Ljung-Box, Engle-ARCH en CUSUM. Eén niveau voor alle
+  # vijf, zodat een toets niet stilzwijgend soepeler kan staan dan zijn buur.
+  #
+  # LET OP — dit is het niveau PER TOETS, niet over de familie. `diagnose_series`
+  # draait vijf toetsen op dezelfde reeks; wie de uitkomsten als één oordeel
+  # leest, moet corrigeren voor multipliciteit. Die correctie hoort in de gate
+  # die het oordeel velt (Stage B), niet in deze drempel.
+  alpha: 0.05
+
+  # --- Ljung-Box ---------------------------------------------------------- #
+  # 20 lags op daily data ≈ een maand handelsdagen. De toets eist zelf
+  # min_obs >= max(50, 3 * lags) = 60 observaties bij deze waarde.
+  ljung_box_lags: 20
+
+  # --- Mincer-Zarnowitz --------------------------------------------------- #
+  # Minimaal aantal observaties voor de zuiverheidsregressie met HAC-fouten.
+  # Onder ~30 zijn de HAC-standaardfouten zelf te onbetrouwbaar om een
+  # zuiverheidsuitspraak op te baseren.
+  mincer_zarnowitz_min_obs: 30
+
+  # --- Diebold-Mariano (HLN) ---------------------------------------------- #
+  # Minimale overlap tussen twee verliesreeksen. Onder 0,80 vergelijkt de toets
+  # twee modellen op verschillende steekproeven en meet hij het verschil in
+  # STEEKPROEF in plaats van het verschil in MODEL. Dat is de stille fout die
+  # een DM-uitslag onbruikbaar maakt zonder dat er iets rood wordt.
+  #
+  # Deze drempel bewaakt de toets die volgens audit §18.1 regel 3 de
+  # champion/challenger-promotie beslist. Hij verlagen om een vergelijking
+  # mogelijk te maken, is de promotiebeslissing zelf verzwakken.
+  dm_min_intersection_ratio: 0.80
+
+  # --- Power-analyse ------------------------------------------------------ #
+  # De AUC-drempel uit audit §24 waartegen de minimaal detecteerbare
+  # effectgrootte wordt uitgedrukt. Is de MDE groter dan (auc_expected - 0,5),
+  # dan kan het experiment het verschil tussen "0,58" en ruis niet zien, hoe de
+  # gemeten AUC ook uitvalt.
+  auc_expected: 0.58
+
+  # --- Yang-Zhang --------------------------------------------------------- #
+  # Vensterlengte van de YZ-variantie-estimator. YZ combineert een
+  # overnight-gapvariantie en een open-close-variantie en is daarmee inherent
+  # een VENSTER-estimator: er bestaat geen per-bar YZ, want de variantie van één
+  # observatie is niet gedefinieerd.
+  yang_zhang_window: 20

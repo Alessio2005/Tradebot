@@ -45,7 +45,12 @@ import numpy as np
 import pandas as pd
 
 from ..features.fracdiff import _ffd_weights, frac_diff_ffd, min_frac_diff
-from ..schemas.config import FracDiffConfig
+from ..schemas.config import FracDiffConfig, econometrics_config
+
+#: Drempels uit `conf/validation/econometrics.yaml` (Stage A-3). Geen
+#: ingebouwde terugval: ontbreekt de config, dan crasht de import.
+_ECONO = econometrics_config()
+
 from ..utils.failfast import DataContractError, require
 from .econometrics import SeriesDiagnostics, arch_gate_verdict, diagnose_series
 
@@ -190,8 +195,8 @@ def diagnose_universe(
     cfg: FracDiffConfig,
     *,
     symbols: Sequence[str] | None = None,
-    alpha: float = 0.05,
-    ljung_box_lags: int = 20,
+    alpha: float = _ECONO.alpha,
+    ljung_box_lags: int = _ECONO.ljung_box_lags,
     arch_lags: int = 12,
 ) -> Mapping[str, SymbolDiagnostics]:
     """Draai de volledige keten op elk symbool van het universum."""
