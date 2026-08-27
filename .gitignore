@@ -94,3 +94,14 @@ desktop.ini
 
 # Phase 2 - afgeleide L3 feature store (herbouwbaar uit de PIT-store + conf/)
 data/feature_store/
+
+# --- Phase 7/8 Stage A-1: geen data-artefact in de repository-root ----------
+# `x.jsonl` stond hier git-tracked: 38 regels gap-ledger met timestamps in 1970,
+# geschreven door tests/unit/test_data_validation.py:118. De schrijver is naar
+# `tmp_path` verplaatst; dit patroon is de tweede verdedigingslinie en
+# tests/unit/test_repository_hygiene.py de derde.
+/*.jsonl
+/*.parquet
+/*.csv
+/*.pkl
+/*.npy

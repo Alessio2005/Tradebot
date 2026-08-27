@@ -111,11 +111,12 @@ class TestGaps:
         assert len(recs) == 1
         assert recs[0].n_missing == 3
 
-    def test_reject_policy_raises(self) -> None:
+    def test_reject_policy_raises(self, tmp_path) -> None:
         g = frame().drop(index=[5]).reset_index(drop=True)
         recs = detect_gaps(g, asset_class="crypto", symbol="B", granularity="1d")
         with pytest.raises(DataContractError, match="ontbrekende bar"):
-            enforce_gap_policy(recs, policy="reject", ledger=GapLedger("x.jsonl"))
+            enforce_gap_policy(
+                recs, policy="reject", ledger=GapLedger(tmp_path / "gaps.jsonl"))
 
     def test_gap_is_written_to_the_ledger_even_when_rejected(self, tmp_path) -> None:
         """Er bestaat geen pad waarin een gat verdwijnt zonder spoor."""
