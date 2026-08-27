@@ -1,5 +1,126 @@
 # Runbook — Tradebot live engine
 
+> **STATUS — Phase 7/8, Stage A-2.** Alles ónder §0 beschrijft nog het
+> **Wave-tijdperk** en niet het systeem dat Phase 5 heeft gebouwd: de beslisboom
+> hangt aan `state/circuit_log.jsonl` en `live.mode`, terwijl de soevereine
+> risicolaag met `HaltStore`, `RiskEngine` en `ExecutionContext` er niet in
+> voorkomt. **Die herschrijving is Stage D-4 en is nog niet gedaan.** Deze
+> sectie staat bewust vooraan zodat niemand het verouderde deel voor actueel
+> aanziet.
+
+---
+
+## 0. De referentie-interpreter
+
+Vanaf 2026-08-27 is er precies één interpreter waarop een meting geldig is:
+
+```
+D:/venv/tradebot/Scripts/python.exe      Python 3.13.0
+```
+
+### 0.1 Waarom dit hier staat
+
+De verhuizing van de C-schijf naar de D-schijf liet een omgeving achter waarin
+de import zelf half kapot was. `__editable__.tradebot-0.4.0.pth` wees naar
+`C:\Users\algul\Documents\Tradebot\src` — een map die nog bestond maar leeg was.
+`import tradebot` slaagde als lege namespace-package; `import tradebot.registry`
+faalde met `ModuleNotFoundError`. Elke `python apps/...` steunde daarmee op een
+package die er niet was.
+
+Erger, en pas gevonden door te meten: **de testketen was nooit gepind.**
+`requirements.lock` pint 476 runtime-packages en nul testtools. Twee machines
+die allebei dat bestand volgen, kregen verschillende pytest- en ruff-versies —
+en de lint-gate gaf daardoor een ander oordeel over dezelfde broncode:
+7 bevindingen onder ruff 0.15.12, 78 onder 0.16.4.
+
+### 0.2 De omgeving opbouwen
+
+```bash
+python -m venv D:/venv/tradebot
+D:/venv/tradebot/Scripts/python -m pip install -r requirements.lock
+D:/venv/tradebot/Scripts/python -m pip install -r requirements-dev.lock
+D:/venv/tradebot/Scripts/python -m pip install -e . --no-deps
+```
+
+**Beide lockfiles, altijd.** `requirements.lock` alleen levert een omgeving die
+de code draait maar het bewijs niet reproduceerbaar meet.
+
+### 0.3 Verifiëren dat de omgeving klopt
+
+```bash
+D:/venv/tradebot/Scripts/python -c "import tradebot; print(tradebot.__file__)"
+```
+Moet `D:\Tradebot\src\tradebot\__init__.py` teruggeven — **nooit** een C:-pad.
+
+```bash
+D:/venv/tradebot/Scripts/python -c "from tradebot.registry.lineage import get_git_sha; print(get_git_sha())"
+```
+Moet een resolvable sha teruggeven. Een lege string betekent dat D-9 heropend is
+en dat elk artefact dat vanaf dat moment wordt geschreven **invalide** is.
+
+```bash
+D:/venv/tradebot/Scripts/python -m pytest tests/unit -q -p no:randomly
+```
+`1253 passed, 1 skipped`. De skip vraagt een niet-gecachet broad-perp panel.
+
+### 0.4 De drie ratchets — alle drie moeten groen zijn
+
+```bash
+python scripts/check_hardcoded_params.py --strict
+```
+```bash
+python scripts/audit_fallbacks.py --strict
+```
+```bash
+python -m pytest -q -p no:randomly
+```
+
+De eerste twee geven **exit 0**; de tweede meldt 37 adviezen en 0 blokkerend.
+De suite geeft **exact 4 failures**.
+
+> **Die vier failures horen rood te staan.** Het zijn de pre-geregistreerde
+> killgates op `cm_carry` en `cm_tsmom` — KG-B1 in-sample, tweemaal KG-B2
+> residual alpha, en KG-B3 out-of-sample. Zijn het er meer, minder, of staan er
+> andere namen: dat is een regressie, geen ruis. Noteer de namen, niet alleen
+> het aantal.
+
+### 0.5 Na elke verplaatsing van de werkkopie
+
+Verplaats je de boom ooit weer, doe dan **eerst** dit — vóór je iets meet:
+
+```bash
+find . -name "__pycache__" -type d -not -path "./.git/*" -prune -exec rm -rf {} +
+```
+```bash
+find . -name "*.pyc" -not -path "./.git/*" -delete
+```
+```bash
+python -m pip uninstall -y tradebot && python -m pip install -e . --no-deps
+```
+
+`tests/unit/test_repository_hygiene.py` bewaakt dit: hij faalt zodra een `.pyc`
+in de boom een `co_filename` buiten de repository-root draagt. Na de verhuizing
+deden **351 van 351** dat, en elke traceback citeerde daardoor een pad dat niet
+bestond.
+
+### 0.6 Waar de historie staat
+
+```
+D:/backup/tradebot-<sha>.bundle          geverifieerde volledige historie
+D:/backup/tradebot-CDRIVE-orphan.bundle  de opgeruimde C-schijf-repo
+```
+
+Een bundle is één bestand, bevat de volledige historie en is offline
+verifieerbaar met `git bundle verify <pad>`.
+
+> **OPEN PUNT — no-go 2 staat nog ACTIEF.** Beide bundles staan op **dezelfde
+> fysieke schijf** als de werkkopie. Er is nog geen remote. Zie
+> `reports/phase7_foundation_report.md` §2.3.
+
+---
+
+## Wave-tijdperk (VEROUDERD — vervangen in Stage D-4)
+
 > On-call audience. If pager rings, start here.
 
 ## Decision tree
