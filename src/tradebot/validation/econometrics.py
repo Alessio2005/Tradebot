@@ -61,7 +61,16 @@ from scipy import stats as _stats
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 from statsmodels.tsa.stattools import adfuller, kpss
 
+from ..schemas.config import econometrics_config
 from ..utils.failfast import DataContractError, require
+
+#: De econometrische drempels komen uit `conf/validation/econometrics.yaml`
+#: en niet uit deze module. Zie Stage A-3 van het Phase 7/8-programma: een
+#: significantieniveau is een beleidskeuze, geen rekenkundig feit, en hoort
+#: daarom gehasht in de config te staan. Ontbreekt de config, dan crasht de
+#: import - er is geen ingebouwde terugval.
+_ECONO = econometrics_config()
+
 
 __all__ = [
     "SeriesDiagnostics",
@@ -138,7 +147,7 @@ def _clean(series: np.ndarray, *, name: str, min_obs: int) -> np.ndarray:
     return arr
 
 
-def adf_test(series: np.ndarray, *, alpha: float = 0.05,
+def adf_test(series: np.ndarray, *, alpha: float = _ECONO.alpha,
              regression: Literal["c", "ct", "n"] = "c") -> DiagnosticOutcome:
     """Augmented Dickey-Fuller. Verwerping = GEEN eenheidswortel = stationair."""
     arr = _clean(series, name="ADF", min_obs=50)
@@ -157,7 +166,7 @@ def adf_test(series: np.ndarray, *, alpha: float = 0.05,
     )
 
 
-def kpss_test(series: np.ndarray, *, alpha: float = 0.05,
+def kpss_test(series: np.ndarray, *, alpha: float = _ECONO.alpha,
               regression: Literal["c", "ct"] = "c") -> DiagnosticOutcome:
     """KPSS. Verwerping = de reeks is NIET stationair — omgekeerd aan ADF.
 
@@ -187,8 +196,8 @@ def kpss_test(series: np.ndarray, *, alpha: float = 0.05,
     )
 
 
-def ljung_box_test(series: np.ndarray, *, lags: int = 20,
-                   alpha: float = 0.05) -> DiagnosticOutcome:
+def ljung_box_test(series: np.ndarray, *, lags: int = _ECONO.ljung_box_lags,
+                   alpha: float = _ECONO.alpha) -> DiagnosticOutcome:
     """Ljung-Box op de NIVEAUS. Verwerping = lineaire autocorrelatie aanwezig."""
     arr = _clean(series, name="Ljung-Box", min_obs=max(50, 3 * lags))
     result = acorr_ljungbox(arr, lags=[lags], return_df=True)
@@ -206,7 +215,7 @@ def ljung_box_test(series: np.ndarray, *, lags: int = 20,
 
 
 def engle_arch_test(series: np.ndarray, *, lags: int = 12,
-                    alpha: float = 0.05) -> DiagnosticOutcome:
+                    alpha: float = _ECONO.alpha) -> DiagnosticOutcome:
     """Engle (1982) LM-toets op ARCH-effecten. DE POORTWACHTER van het vol-spoor.
 
     Regressie van het gekwadrateerde residu op zijn eigen lags; de nulhypothese
@@ -231,7 +240,7 @@ def engle_arch_test(series: np.ndarray, *, lags: int = 12,
     )
 
 
-def cusum_test(series: np.ndarray, *, alpha: float = 0.05) -> DiagnosticOutcome:
+def cusum_test(series: np.ndarray, *, alpha: float = _ECONO.alpha) -> DiagnosticOutcome:
     """CUSUM van gestandaardiseerde recursieve residuen (Brown-Durbin-Evans 1975).
 
     Toetst of het GEMIDDELDE van de reeks over het venster constant blijft. De
@@ -325,8 +334,8 @@ def diagnose_series(
     series: np.ndarray,
     *,
     name: str,
-    alpha: float = 0.05,
-    ljung_box_lags: int = 20,
+    alpha: float = _ECONO.alpha,
+    ljung_box_lags: int = _ECONO.ljung_box_lags,
     arch_lags: int = 12,
 ) -> SeriesDiagnostics:
     """Draai alle vijf toetsen op één reeks."""

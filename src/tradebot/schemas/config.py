@@ -18,6 +18,7 @@ Ref: ARCHITECTUUR_AUDIT_2026-08-22.md sectie 20, sectie 26 (AC-5).
 """
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any, Literal, TypeVar
 
@@ -36,6 +37,7 @@ __all__ = [
     "AdequacyConfig",
     "BacktestConfig",
     "DataConfig",
+    "EconometricsConfig",
     "ExecutionConfig",
     "FeatureConfig",
     "FracDiffConfig",
@@ -596,6 +598,53 @@ class FracDiffConfig(StrictModel):
 
 
 # --------------------------------------------------------------------------- #
+# L11 - Econometrische toetsdrempels (Phase 7/8, Stage A-3)
+# --------------------------------------------------------------------------- #
+class EconometricsConfig(StrictModel):
+    """Drempels van de diagnostische toetslaag. Zie `conf/validation/econometrics.yaml`.
+
+    WAAROM DIT BESTAAT
+    ------------------
+    Deze waarden stonden tot Stage A-3 als numerieke defaults in de signatuur van
+    `validation/econometrics.py`, `validation/vol_metrics.py`,
+    `validation/diagnostics_report.py`, `validation/data_adequacy.py` en
+    `volatility/realized.py`. Vijf modules met ratchet-budget 0 hielden daarmee
+    vijftien literals vast en `check_hardcoded_params.py --strict` stond rood.
+
+    Een significantiedrempel is geen rekenkundig feit maar een BELEIDSKEUZE: hij
+    bepaalt hoe vaak een toets ten onrechte verwerpt, en dat is precies het soort
+    keuze dat achteraf kan worden bijgesteld om een model door een poort te
+    krijgen. Daarom staat hij hier, gevalideerd, frozen, en in de `config_hash`.
+
+    De waarden zijn ONGEWIJZIGD overgenomen van de defaults die zij vervangen.
+    Stage A-3 verplaatst; het verandert geen enkel getal.
+    """
+
+    #: Significantieniveau van ADF, KPSS, Ljung-Box, Engle-ARCH en CUSUM.
+    alpha: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.05
+
+    #: Aantal lags voor de Ljung-Box-toets op de niveaus.
+    ljung_box_lags: PositiveInt = 20
+
+    #: Minimaal aantal observaties voor een Mincer-Zarnowitz-regressie met HAC.
+    mincer_zarnowitz_min_obs: PositiveInt = 30
+
+    #: Minimale overlap tussen twee verliesreeksen voordat een DM-toets is
+    #: toegestaan. Onder deze fractie vergelijkt de toets twee modellen op
+    #: verschillende steekproeven en meet hij het verschil in steekproef in
+    #: plaats van het verschil in model.
+    dm_min_intersection_ratio: Annotated[float, Field(gt=0.0, le=1.0)] = 0.80
+
+    #: De AUC-drempel uit audit §24 waartegen de minimaal detecteerbare
+    #: effectgrootte wordt uitgedrukt.
+    auc_expected: Annotated[float, Field(gt=0.5, lt=1.0)] = 0.58
+
+    #: Vensterlengte van de Yang-Zhang-variantie-estimator. YZ is inherent een
+    #: VENSTER-estimator; er bestaat geen per-bar variant.
+    yang_zhang_window: PositiveInt = 20
+
+
+# --------------------------------------------------------------------------- #
 # L3 - Regime engines (Phase 6, deliverables 14 en 15)
 # --------------------------------------------------------------------------- #
 class M0BucketConfig(StrictModel):
@@ -680,6 +729,7 @@ DOMAIN_SCHEMAS: dict[str, type[StrictModel]] = {
     "tca": TcaConfig,
     "backtest": BacktestConfig,
     "validation": ValidationConfig,
+    "econometrics": EconometricsConfig,
     "adequacy": AdequacyConfig,
     "labeling": LabelingConfig,
     "fracdiff": FracDiffConfig,
@@ -739,3 +789,34 @@ def load_config(path: str | Path, model: type[_M]) -> _M:
             payload = only_val
 
     return validate_mapping(model, payload, source=str(p))
+
+
+# --------------------------------------------------------------------------- #
+# Gedeelde, eenmalig geladen drempels (Phase 7/8, Stage A-3)
+# --------------------------------------------------------------------------- #
+#: Repository-root. Zelfde conventie als `features/base.py::_repo_root`.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+ECONOMETRICS_CONFIG_PATH = _REPO_ROOT / "conf" / "validation" / "econometrics.yaml"
+
+
+@lru_cache(maxsize=1)
+def econometrics_config() -> EconometricsConfig:
+    """De gevalideerde econometrische drempels uit `conf/validation/`.
+
+    Deze accessor bestaat zodat `validation/` en `volatility/` dezelfde drempels
+    delen zonder dat de een de ander importeert — een L2-module die uit L11 zou
+    moeten importeren is een laaginversie.
+
+    FAIL-FAST. Ontbreekt het bestand of schendt het zijn contract, dan crasht dit
+    met `ConfigContractError` bij import van de consumerende module. Dat is
+    opzettelijk: audit §23 en de faseregel *"ontbrekende configuratie: halteren"*
+    sluiten uit dat een toets stilzwijgend terugvalt op een ingebouwde drempel.
+    Een drempel die uit code komt in plaats van uit `conf/`, is niet gehasht en
+    dus niet auditbaar.
+
+    De cache is bewust: de config is `frozen`, wordt tijdens een run niet
+    herladen, en een tweede lezing zou alleen maar een tweede kans zijn om een
+    andere waarde te zien dan de eerste lezing gaf.
+    """
+    return load_config(ECONOMETRICS_CONFIG_PATH, EconometricsConfig)
