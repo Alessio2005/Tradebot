@@ -194,6 +194,30 @@
       "ts_utc": "2026-08-25T17:52:22.310523+00:00",
       "metrics": {},
       "notes": "Pre-registratie bevroren VOOR de eerste fit; de geplande trials tellen mee in M. preregistration_id=56395fa2013768014c0c915edf346770"
+    },
+    {
+      "wave": 30,
+      "unit": "phase6_h1_garch_vs_ewma",
+      "market": "crypto",
+      "config_hash": "ae4823e95f6d5844",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "8e6cd02",
+      "data_hash": "81544519f3cffac2",
+      "preregistration_id": "cef1a3b9a6811d7bde1afc92a2a9503f",
+      "ts_utc": "2026-08-29T17:10:26.876453+00:00",
+      "metrics": {
+        "n_promoted": 0,
+        "n_falsified": 0,
+        "n_unproven": 36,
+        "n_descoped": 12,
+        "proxy_scale_min": 1.27,
+        "proxy_scale_max": 2.237,
+        "power_control_failures": 8,
+        "n_control_series": 12
+      },
+      "notes": "H1-oordeel: UNPROVEN. De campagne is volledig gedraaid (48 van 48 gepre-registreerde combinaties gefit), maar de gepre-registreerde range-proxy meet aantoonbaar een andere grootheid dan de modellen voorspellen: mean(proxy)/mean(r^2) = 1,27 tot 2,24 tegen een toegestane afwijking van 15%. QLIKE rangschikt dan op kalibratie tegen een verschoven doel; 36 combinaties dragen daarom `proxy_premise_violated`. 12 zijn gedescopeerd (10 randoplossingen/convergentie, 2 gedegenereerde EGARCH h=5-forecasts tot 5,4e28x). De negatieve controle faalt bovendien op de power-kant bij 8 van 12 reeksen. EWMA(0.94) blijft de productie-estimator. GEEN nieuwe trials: deze 48 zijn bij het bevriezen geboekt, M blijft 2776. Rapport: reports/GARCH_VS_EWMA_COMPETITION.md",
+      "amends": "cef1a3b9a6811d7b"
     }
   ]
 }
