@@ -1,0 +1,28 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "turnover",
+    "symbol"
+  ],
+  "data_hash": "951f99ee33a02d979521fce2a9c55375",
+  "dataset": "ohlcv",
+  "date": "2022-01-01",
+  "event_ts_ns_max": 1672444800000000000,
+  "event_ts_ns_min": 1640995200000000000,
+  "granularity": "1d",
+  "kind": "ohlcv",
+  "launch_ms": 1634256000000,
+  "rows": 365,
+  "series_data_hash": "1d64b001993b575f34ef04ce548616c5",
+  "source": "bybit-v5/ohlcv",
+  "symbol": "SOLUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476159718571000
+}

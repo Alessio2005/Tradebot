@@ -1,0 +1,23 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "open_interest",
+    "symbol"
+  ],
+  "data_hash": "21aa9b82df5736ff9f8af5fddad07dda",
+  "dataset": "open_interest",
+  "date": "2025-01-01",
+  "event_ts_ns_max": 1767139200000000000,
+  "event_ts_ns_min": 1735689600000000000,
+  "granularity": "1d",
+  "kind": "open_interest",
+  "launch_ms": 1616060040000,
+  "rows": 365,
+  "series_data_hash": "1795c58ed7ab641fd80219a26272b313",
+  "source": "bybit-v5/open_interest",
+  "symbol": "DOTUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476251933529000
+}

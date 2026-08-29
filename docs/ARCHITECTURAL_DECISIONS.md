@@ -421,3 +421,85 @@ Het OAuth-token heeft de `workflow`-scope nodig, want de repo bevat zeven
 bestanden onder `.github/workflows/`. GitHub weigert server-side élke push die
 ze aanraakt zonder die scope. Ze weglaten is geen alternatief: die workflows
 ZIJN de gates die Phase 2 en Stage B hebben opgeleverd.
+
+---
+
+## AD-12 — De gecertificeerde PIT-store staat in git, niet onder DVC
+
+**Fase:** 7/8, nagekomen op Stage A-1 (uitgevoerd 2026-08-29)
+**Status:** actief
+**Bewaakt door:** `tests/unit/test_pit_store_integrity.py` (8 tests);
+`research_gates.yml` stap *"Verify the certified PIT store survived the checkout"*
+
+### Besluit
+
+`data/pit_store/` — 228 bestanden, 2,6 MB, de 18 gecertificeerde reeksen uit
+Phase 1 — staat vanaf nu **in git**. `data/pit_store.dvc` blijft bestaan, maar
+in een andere rol: het is geen pointer naar een remote meer, maar een
+**onafhankelijk integriteitsmanifest**.
+
+### Waarom, en wat er werd gemeten
+
+De eerste CI-run in het bestaan van dit project — mogelijk gemaakt doordat
+no-go 2 diezelfde dag werd gesloten (AD-11) — liet `research_gates.yml` stranden
+op:
+
+```
+$ dvc pull
+No remote provided and no default remote set.
+
+$ cat .dvc/config
+[core]
+    no_scm = True
+```
+
+**Er was geen DVC-remote.** Niet onbereikbaar, niet verkeerd geconfigureerd:
+hij bestond niet. De store stond daarmee op precies één fysieke schijf — exact
+het single point of failure dat no-go 2 voor de git-historie aanwees, alleen dan
+voor de data waar elk onderzoeksresultaat naar verwijst.
+
+`docs/runbook.md` §7 beweerde intussen dat de artefacten *"regenerable from
+`dvc pull` against the S3/MinIO remote"* waren. Die remote bestond nergens.
+
+### Waarom git en niet een cloud-remote
+
+De opdrachtgever heeft gekozen. De drie opties lagen voor:
+
+| Optie | Prijs |
+|---|---|
+| **git** (gekozen) | DVC verliest zijn versiebeheerrol voor deze dataset |
+| cloud-remote (S3/GDrive/Azure) | opzet, kosten, en een secret in de repo-settings |
+| tweede fysieke schijf | beschermt tegen schijfverlies, maar laat CI rood |
+
+Doorslaggevend is de **omvang**: 2,6 MB. DVC bestaat om datasets buiten git te
+houden die git onwerkbaar zouden maken; op deze schaal is dat argument er niet,
+en de reproduceerbaarheid is met git onvoorwaardelijk. Een clone geeft nu een
+draaiend platform, zonder credentials en zonder tweede systeem.
+
+**Dit besluit schaalt niet mee.** Groeit de store naar honderden megabytes — met
+1m/5m-bars of L2-snapshots, zie §11.1 van de fase-opdracht — dan moet hij terug
+naar een remote. De grens ligt bij de eerste dataset die git merkbaar traag
+maakt, en dat is een nieuw besluit, geen automatisme.
+
+### De randvoorwaarde die dit oplegt
+
+Zonder `.gitattributes` zou dit besluit de herkomstketen kunnen breken. 114 van
+de 228 bestanden zijn JSON met CRLF-regeleindes. Wie cloont met
+`core.autocrlf=true` — de default van menig Windows-installatie — krijgt ze
+geconverteerd terug, en de DVC-dirhash klopt dan niet meer op een machine waar
+niemand iets heeft gewijzigd.
+
+`.gitattributes` pint daarom `data/pit_store/** -text`. Dat bestand is bewust
+smal gehouden: een `* text=auto` zou de 476 getrackte `.py`-bestanden in één
+commit normaliseren (DI-17), en dat is een besluit voor Stage E.
+
+### Wat de `.dvc` nu doet
+
+`data/pit_store.dvc` legt vast: 228 bestanden, 2.340.376 bytes, dirhash
+`e04fff202fdc77d375a990fa99c43c3d.dir`.
+`tests/unit/test_pit_store_integrity.py` rekent die hash na met een EIGEN
+implementatie — DVC aanroepen om DVC te controleren valt met het gereedschap om
+— en heeft een negatieve controle die precies het CRLF-scenario injecteert.
+
+Zonder die test zou het manifest een achtergebleven artefact zijn dat niets
+bewaakt. Dat is de klasse die deze fase overal elders opruimt.

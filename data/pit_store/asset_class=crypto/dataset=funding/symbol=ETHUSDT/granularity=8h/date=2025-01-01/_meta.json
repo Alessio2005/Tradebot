@@ -1,0 +1,24 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "funding_rate",
+    "funding_interval_hours",
+    "symbol"
+  ],
+  "data_hash": "c6a4ffb623c2528f04096ed70b374e8c",
+  "dataset": "funding",
+  "date": "2025-01-01",
+  "event_ts_ns_max": 1767196800000000000,
+  "event_ts_ns_min": 1735689600000000000,
+  "granularity": "8h",
+  "kind": "funding",
+  "launch_ms": 1615766400000,
+  "rows": 1095,
+  "series_data_hash": "02aef54a332ac99c5f93205d375f8737",
+  "source": "bybit-v5/funding",
+  "symbol": "ETHUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476187381958000
+}

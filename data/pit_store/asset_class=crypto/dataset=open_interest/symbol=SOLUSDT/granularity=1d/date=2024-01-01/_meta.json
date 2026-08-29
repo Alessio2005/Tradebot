@@ -1,0 +1,23 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "open_interest",
+    "symbol"
+  ],
+  "data_hash": "f3fffc7ff4eb57fd16f497699e99f776",
+  "dataset": "open_interest",
+  "date": "2024-01-01",
+  "event_ts_ns_max": 1735603200000000000,
+  "event_ts_ns_min": 1704067200000000000,
+  "granularity": "1d",
+  "kind": "open_interest",
+  "launch_ms": 1634256000000,
+  "rows": 366,
+  "series_data_hash": "9267e0accf0055a1cba7c9db1ab5d4e2",
+  "source": "bybit-v5/open_interest",
+  "symbol": "SOLUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476240815122000
+}

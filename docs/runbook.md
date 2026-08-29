@@ -259,8 +259,23 @@ State volume (`tradebot-live-state` PVC):
 - restore from the latest snapshot before pod restart if the PVC is corrupted.
 
 Artefact volume (`tradebot-artefacts` PVC):
-- regenerable from `dvc pull` against the S3/MinIO remote.
 - worst case: 6 h cold rebuild (see nightly DAG timing in `dvc.yaml`).
+
+> **Gecorrigeerd 2026-08-29 (Phase 7/8).** Hier stond *"regenerable from
+> `dvc pull` against the S3/MinIO remote"*. **Die remote bestaat niet** —
+> `.dvc/config` bevat uitsluitend `no_scm = True`, en `dvc pull` antwoordt
+> `No remote provided and no default remote set`. De claim is nooit waar
+> geweest; hij viel pas op toen de eerste CI-run erop strandde.
+>
+> De gecertificeerde PIT-store staat sinds AD-12 **in git** en komt mee met
+> de checkout. De afgeleide artefacten (`artefacts/features`,
+> `artefacts/models`, `artefacts/tracks`) zijn reproduceerbaar uit
+> `dvc.yaml` op die store.
+>
+> Dit hele runbook is nog het legacy Wave-document en wordt in Stage D
+> herschreven voor het systeem dat Phase 5 heeft gebouwd. Deze correctie
+> staat er los van: een document dat een niet-bestaande remote als
+> herstelpad opgeeft, is een herstelpad dat in een incident faalt.
 
 ## 8. Escalation matrix
 

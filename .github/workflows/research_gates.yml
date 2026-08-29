@@ -62,19 +62,22 @@ jobs:
           pip install -e . --no-deps
 
       # ----------------------------------------------------------------------
-      # De PIT-store komt uit DVC. Zonder data slaat de lookahead-suite over,
-      # en een overgeslagen suite geeft exit 0 zonder één bewijs te leveren.
-      # `run_research_gates` vangt dat met `min_passed`, maar het is beter om
-      # de data hier binnen te halen dan om de gate op zijn ondergrens te laten
-      # falen met een onduidelijke melding.
+      # De PIT-store staat sinds Phase 7/8 IN GIT en komt dus mee met de
+      # checkout. Hier stond `dvc pull`, en dat faalde op de allereerste CI-run
+      # die dit project ooit heeft gehad:
+      #
+      #     No remote provided and no default remote set.
+      #
+      # De store stond daarmee op precies een fysieke schijf - hetzelfde single
+      # point of failure dat no-go 2 voor de git-historie aanwees. Zie AD-12.
+      #
+      # Wat blijft, is de VERIFICATIE: de checkout moet bit-identiek zijn aan
+      # het manifest in data/pit_store.dvc. Een regeleinde-conversie op een
+      # runner met een andere autocrlf-instelling zou de 18 gecertificeerde
+      # data_hashes stilzwijgend ongeldig maken, zonder dat iemand iets wijzigt.
       # ----------------------------------------------------------------------
-      - name: Pull the PIT store
-        run: |
-          dvc pull --quiet || {
-            echo "::error::dvc pull faalde. De lookahead-suite heeft de "\
-                 "gecertificeerde PIT-store nodig; zonder die data meet zij niets."
-            exit 1
-          }
+      - name: Verify the certified PIT store survived the checkout
+        run: pytest tests/unit/test_pit_store_integrity.py -q --no-header
 
       - name: Verify git_sha resolves
         run: |

@@ -1,0 +1,28 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "turnover",
+    "symbol"
+  ],
+  "data_hash": "60ac90c59a377f457e13c778d55e18a9",
+  "dataset": "ohlcv",
+  "date": "2024-01-01",
+  "event_ts_ns_max": 1735603200000000000,
+  "event_ts_ns_min": 1704067200000000000,
+  "granularity": "1d",
+  "kind": "ohlcv",
+  "launch_ms": 1616060040000,
+  "rows": 366,
+  "series_data_hash": "17be1f4206997f12fd7e1825f123299b",
+  "source": "bybit-v5/ohlcv",
+  "symbol": "DOTUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476163133862000
+}

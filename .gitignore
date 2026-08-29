@@ -48,9 +48,14 @@ logs/
 *.pem
 secrets/
 
-# --- Data: DVC-tracked, niet git-tracked ------------------------------------
-# De PIT store en alle ruwe/afgeleide datasets staan onder DVC (Phase 1).
-# Alleen de .dvc-pointerbestanden gaan mee in git.
+# --- Data: afgeleide datasets blijven buiten git ----------------------------
+# Ruwe en afgeleide datasets staan onder DVC (Phase 1).
+#
+# UITZONDERING sinds Phase 7/8: de GECERTIFICEERDE PIT-store staat WEL in
+# git. Hij is 2,6 MB over 228 bestanden en draagt de 18 data_hashes waar
+# elk onderzoeksresultaat naar verwijst. Onder DVC stond hij op een remote
+# die niet bestond, en daarmee op precies een fysieke schijf - hetzelfde
+# single point of failure dat no-go 2 voor git aanwees. Zie AD-12.
 *.parquet
 *.feather
 *.h5
@@ -60,7 +65,12 @@ secrets/
 *.npy
 *.npz
 market_data_parquet/
-data/pit_store/
+
+# De PIT-store is de uitzondering hierboven. De negatie moet NA de
+# *.parquet-regel staan, en de map zelf mag niet uitgesloten zijn: git
+# daalt niet af in een uitgesloten map, dus `!data/pit_store/**` alleen
+# zou niets doen.
+!data/pit_store/**
 
 # --- DAG-artefacten (D-8): mappen bestaan, inhoud is reproduceerbaar --------
 artefacts/features/*

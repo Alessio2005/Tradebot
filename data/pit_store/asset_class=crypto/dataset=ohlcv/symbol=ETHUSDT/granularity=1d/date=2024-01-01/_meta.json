@@ -1,0 +1,28 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "turnover",
+    "symbol"
+  ],
+  "data_hash": "159e1c81bf33cf494e528b8e1b6f0d6c",
+  "dataset": "ohlcv",
+  "date": "2024-01-01",
+  "event_ts_ns_max": 1735603200000000000,
+  "event_ts_ns_min": 1704067200000000000,
+  "granularity": "1d",
+  "kind": "ohlcv",
+  "launch_ms": 1615766400000,
+  "rows": 366,
+  "series_data_hash": "d67c9bb18b2c794ba416067556227a5a",
+  "source": "bybit-v5/ohlcv",
+  "symbol": "ETHUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476158848577000
+}
