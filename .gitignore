@@ -105,3 +105,9 @@ data/feature_store/
 /*.csv
 /*.pkl
 /*.npy
+
+# De uitkomst van een research-gate-run is een RUN-OUTPUT, geen governance-bron.
+# `research_gates.yml` uploadt hem als workflow-artefact; hem committen zou een
+# bestand opleveren dat bij elke lokale run wijzigt en dat het absolute pad van
+# de gebruikte interpreter draagt.
+artefacts/governance/research_gates.json
