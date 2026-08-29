@@ -17,3 +17,18 @@ volatility:
   # Daily bars, crypto handelt 365 dagen per jaar.
   annualisation_factor: 365.0
   min_periods: 2
+
+  # --- Meerstaps GARCH-forecasts (Phase 6, stap 7) ------------------------- #
+  # EGARCH en APARCH hebben GEEN analytische meerstaps-forecast: de recursie
+  # loopt in ln(sigma^2) resp. sigma^delta en de terugtransformatie heeft geen
+  # gesloten vorm. `arch` weigert die berekening, en terecht.
+  #
+  # De h > 1-forecast wordt daarom GESIMULEERD, en dan voor alle vier de
+  # varianten, zodat geen model op dezelfde horizon een andersoortige forecast
+  # krijgt dan zijn concurrent. Op GARCH(1,1) — waar beide bestaan — komt de
+  # gesimuleerde forecast op vier significante cijfers overeen met de
+  # analytische; dat is getoetst in tests/unit/test_garch_family.py.
+  forecast_simulations: 5000
+
+  # Vaste seed: zonder deze is een QLIKE-uitslag op h = 5 niet herhaalbaar.
+  forecast_seed: 20260826
