@@ -1,0 +1,24 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "funding_rate",
+    "funding_interval_hours",
+    "symbol"
+  ],
+  "data_hash": "c037b498c5b5b3c7639dfdbae747b3aa",
+  "dataset": "funding",
+  "date": "2021-01-01",
+  "event_ts_ns_max": 1640966400000000000,
+  "event_ts_ns_min": 1634256000000000000,
+  "granularity": "8h",
+  "kind": "funding",
+  "launch_ms": 1634256000000,
+  "rows": 234,
+  "series_data_hash": "8f2c70dbf68f1fe635c937b2e6b67c36",
+  "source": "bybit-v5/funding",
+  "symbol": "SOLUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476198133281000
+}

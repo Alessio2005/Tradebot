@@ -1,0 +1,28 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "turnover",
+    "symbol"
+  ],
+  "data_hash": "6e030638b10d54bdf4531dd04000cf0f",
+  "dataset": "ohlcv",
+  "date": "2025-01-01",
+  "event_ts_ns_max": 1767139200000000000,
+  "event_ts_ns_min": 1735689600000000000,
+  "granularity": "1d",
+  "kind": "ohlcv",
+  "launch_ms": 1631664000000,
+  "rows": 365,
+  "series_data_hash": "af05b4f95d0e282111641f85904c22f9",
+  "source": "bybit-v5/ohlcv",
+  "symbol": "AVAXUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476160477072000
+}

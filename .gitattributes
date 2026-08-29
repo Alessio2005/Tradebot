@@ -1,0 +1,41 @@
+# .gitattributes — Phase 7/8, Stage A-1 (nagekomen)
+#
+# BEWUST SMAL GEHOUDEN.
+#
+# DI-17 registreert dat deze repository repo-breed inconsistente regeleindes
+# heeft: 203 getrackte `.py` puur CRLF, 270 puur LF, 3 gemengd. Een `* text=auto`
+# hier zou die 476 bestanden in één commit normaliseren en elke `git blame`
+# onbruikbaar maken. Dat is een besluit voor Stage E, niet iets om als bijvangst
+# van een datacommit te doen.
+#
+# Wat hier WEL staat, is de regel die niet kan wachten: de gecertificeerde
+# PIT-store moet byte-exact door git heen komen.
+#
+# WAAROM DAT NIET OPTIONEEL IS
+# ============================
+# `data/pit_store/` bevat 114 parquet- en 114 JSON-bestanden. De 18 `data_hash`-
+# waarden in `artefacts/governance/data_hashes.json` zijn de herkomstanker van
+# elk onderzoeksresultaat in dit platform: audit §26 verklaart elk artefact
+# zonder resolvable data_hash INVALIDE.
+#
+# `core.autocrlf` staat op deze machine op `false`, maar dat is een LOKALE
+# instelling. Wie deze repo cloont met `autocrlf=true` — de default van menig
+# Windows-installatie — krijgt de JSON-bestanden met omgezette regeleindes
+# terug. De DVC-dirhash in `data/pit_store.dvc` breekt dan, en
+# `tests/unit/test_pit_store_integrity.py` wordt rood op een machine waar
+# niemand iets heeft gewijzigd.
+#
+# `-text` schakelt elke conversie uit: wat erin gaat, komt eruit.
+data/pit_store/** -text
+
+# Binaire formaten, ongeacht waar ze staan. Git detecteert dit meestal zelf,
+# maar "meestal" is geen contract voor een bestand waarvan een hash wordt
+# gepubliceerd.
+*.parquet binary
+*.feather binary
+*.h5      binary
+*.hdf5    binary
+*.npy     binary
+*.npz     binary
+*.pkl     binary
+*.pickle  binary

@@ -1,0 +1,24 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "funding_rate",
+    "funding_interval_hours",
+    "symbol"
+  ],
+  "data_hash": "986d6174f66a95d6bcd1293cfcab7fb8",
+  "dataset": "funding",
+  "date": "2023-01-01",
+  "event_ts_ns_max": 1704038400000000000,
+  "event_ts_ns_min": 1672531200000000000,
+  "granularity": "8h",
+  "kind": "funding",
+  "launch_ms": 1584230400000,
+  "rows": 1095,
+  "series_data_hash": "a69aa5fbc2c0e0c3a214c4b672b8f4e8",
+  "source": "bybit-v5/funding",
+  "symbol": "BTCUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476178227976000
+}

@@ -1,0 +1,23 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "open_interest",
+    "symbol"
+  ],
+  "data_hash": "f12e4db55981001ea5ad19b9e23c66cb",
+  "dataset": "open_interest",
+  "date": "2021-01-01",
+  "event_ts_ns_max": 1640908800000000000,
+  "event_ts_ns_min": 1609459200000000000,
+  "granularity": "1d",
+  "kind": "open_interest",
+  "launch_ms": 1584230400000,
+  "rows": 365,
+  "series_data_hash": "4fe481c71f8237e9ba2bbd80f0d84e96",
+  "source": "bybit-v5/open_interest",
+  "symbol": "BTCUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476234667317000
+}

@@ -1,0 +1,24 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "funding_rate",
+    "funding_interval_hours",
+    "symbol"
+  ],
+  "data_hash": "9b07a95687dcbf8b9510755c6553b97a",
+  "dataset": "funding",
+  "date": "2021-01-01",
+  "event_ts_ns_max": 1640966400000000000,
+  "event_ts_ns_min": 1631721600000000000,
+  "granularity": "8h",
+  "kind": "funding",
+  "launch_ms": 1631664000000,
+  "rows": 322,
+  "series_data_hash": "8edfe83d0a02f02a6871a9a95877d054",
+  "source": "bybit-v5/funding",
+  "symbol": "AVAXUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476207288558000
+}

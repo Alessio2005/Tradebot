@@ -1,0 +1,28 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "turnover",
+    "symbol"
+  ],
+  "data_hash": "ff6b2e7b6a6e4dc357a428ccc6429a73",
+  "dataset": "ohlcv",
+  "date": "2025-01-01",
+  "event_ts_ns_max": 1767139200000000000,
+  "event_ts_ns_min": 1735689600000000000,
+  "granularity": "1d",
+  "kind": "ohlcv",
+  "launch_ms": 1514764800000,
+  "rows": 365,
+  "series_data_hash": "8d6a82f316253c2626d016bbbad804d4",
+  "source": "bybit-v5/ohlcv",
+  "symbol": "LINKUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476161962641000
+}

@@ -1,0 +1,23 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "open_interest",
+    "symbol"
+  ],
+  "data_hash": "c3006753c48ad45e9c8f750fe1a28cae",
+  "dataset": "open_interest",
+  "date": "2022-01-01",
+  "event_ts_ns_max": 1672444800000000000,
+  "event_ts_ns_min": 1640995200000000000,
+  "granularity": "1d",
+  "kind": "open_interest",
+  "launch_ms": 1514764800000,
+  "rows": 365,
+  "series_data_hash": "9024d7e536d7ced7e8e23a4dc97eb952",
+  "source": "bybit-v5/open_interest",
+  "symbol": "LINKUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476248473507000
+}

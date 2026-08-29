@@ -1,0 +1,24 @@
+{
+  "asset_class": "crypto",
+  "columns": [
+    "event_ts_ns",
+    "asof_ts_ns",
+    "funding_rate",
+    "funding_interval_hours",
+    "symbol"
+  ],
+  "data_hash": "d4eaa9268622ea9ea5e44692e9f3c697",
+  "dataset": "funding",
+  "date": "2024-01-01",
+  "event_ts_ns_max": 1735660800000000000,
+  "event_ts_ns_min": 1704067200000000000,
+  "granularity": "8h",
+  "kind": "funding",
+  "launch_ms": 1514764800000,
+  "rows": 1098,
+  "series_data_hash": "ce6cfcd63ddd681178ebb611b87fd621",
+  "source": "bybit-v5/funding",
+  "symbol": "LINKUSDT",
+  "venue": "bybit",
+  "written_at_ns": 1787476217940752000
+}
