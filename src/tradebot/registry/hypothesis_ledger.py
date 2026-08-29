@@ -29,6 +29,7 @@ __all__ = [
     "LedgerEntry",
     "HypothesisLedger",
     "DEFAULT_LEDGER_PATH",
+    "PROVENANCE_FIELDS",
 ]
 
 DEFAULT_LEDGER_PATH = Path("artefacts/governance/hypothesis_ledger.json")
@@ -39,10 +40,30 @@ _VALID_MARKETS = frozenset(
 )
 
 
+#: De vier herkomstvelden die audit §26 op elke ledger-entry eist.
+#:
+#: PHASE 7/8 STAGE B-8. Zij bestonden hiervoor niet als veld. De herkomst werd
+#: als vrije tekst in `notes` gepropt:
+#:
+#:     notes="Baseline-resultaat; preregistration_id=56395fa2...; git_sha=42555d2"
+#:
+#: Dat is geen contract maar een gewoonte. Er was geen manier om een entry
+#: ZONDER herkomst te weigeren, en dus geen manier om te weten of een entry uit
+#: een reproduceerbare run kwam. De ledger telt `M` voor elke DSR in dit
+#: platform; een entry die niet herleidbaar is tot code, data en configuratie,
+#: maakt die telling een bewering.
+PROVENANCE_FIELDS = ("git_sha", "config_hash", "data_hash", "preregistration_id")
+
+
 @dataclass(frozen=True)
 class LedgerEntry:
     """One immutable ledger row. ``n_trials`` is the number of distinct
-    configs this entry accounts for (>= 1)."""
+    configs this entry accounts for (>= 1).
+
+    Elk van de vier velden in `PROVENANCE_FIELDS` is VERPLICHT en niet-leeg. Er
+    is geen default en geen `unknown`-waarde: een entry die niet te reproduceren
+    is, hoort niet in een teller te belanden die promotiebesluiten draagt.
+    """
 
     wave: int
     unit: str
@@ -50,6 +71,9 @@ class LedgerEntry:
     config_hash: str
     n_trials: int
     result: str
+    git_sha: str = ""
+    data_hash: str = ""
+    preregistration_id: str = ""
     ts_utc: str = ""
     metrics: dict[str, Any] = field(default_factory=dict)
     notes: str = ""
@@ -65,6 +89,21 @@ class LedgerEntry:
             raise ValueError(
                 f"market {self.market!r} not in {sorted(_VALID_MARKETS)}"
             )
+        # De velden hebben een lege default zodat de FOUTMELDING alle vier de
+        # ontbrekende velden in één keer noemt. Een TypeError op het eerste
+        # ontbrekende keyword zou de aanroeper vier keer laten raden.
+        missing = [
+            name for name in PROVENANCE_FIELDS
+            if not str(getattr(self, name)).strip()
+        ]
+        if missing:
+            raise ValueError(
+                f"LedgerEntry({self.unit!r}) mist verplichte herkomstvelden: "
+                f"{missing}. Audit §26: een ledger-entry zonder resolvable "
+                f"herkomst is INVALIDE — hij telt mee in M, en dus in elke DSR, "
+                f"zonder dat iemand kan nagaan waarop hij is gebaseerd. Vul ze "
+                f"met de werkelijke waarden; er is geen 'unknown'."
+            )
         if not self.ts_utc:
             object.__setattr__(self, "ts_utc", now_utc().isoformat())
 
@@ -75,12 +114,20 @@ class LedgerEntry:
         unit: str,
         market: str,
         config: dict[str, Any],
+        git_sha: str,
+        data_hash: str,
+        preregistration_id: str,
         n_trials: int = 1,
         result: str = "interim",
         metrics: dict[str, Any] | None = None,
         notes: str = "",
     ) -> LedgerEntry:
-        """Build an entry, deriving ``config_hash`` deterministically."""
+        """Build an entry, deriving ``config_hash`` deterministically.
+
+        `git_sha`, `data_hash` en `preregistration_id` zijn VERPLICHT en staan
+        vóór de argumenten met een default: wie deze constructor gebruikt, kan
+        de herkomst niet vergeten mee te geven.
+        """
         return cls(
             wave=wave,
             unit=unit,
@@ -88,6 +135,9 @@ class LedgerEntry:
             config_hash=hash_config(config),
             n_trials=n_trials,
             result=result,
+            git_sha=git_sha,
+            data_hash=data_hash,
+            preregistration_id=preregistration_id,
             metrics=metrics or {},
             notes=notes,
         )
