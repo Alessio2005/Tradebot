@@ -129,7 +129,23 @@ class TestNoSilentDefaults:
         params = inspect.signature(PortfolioControllerConfig).parameters
         assert params["constraints"].default is inspect.Parameter.empty
         with pytest.raises(ConfigContractError):
-            PortfolioControllerConfig(constraints=None)  # type: ignore[arg-type]
+            PortfolioControllerConfig(
+                constraints=None, method="erc")  # type: ignore[arg-type]
+
+    def test_the_live_controller_requires_an_explicit_method(self) -> None:
+        """PHASE 7/8 STAGE C-1, dezelfde klasse als de constraints hierboven.
+
+        `method` stond op `"hrp"`: een research-only allocator (audit 13.1,
+        fase-6 no-go 15) als STANDAARD van de live-controller. Wie het argument
+        oversloeg, kreeg hem - en dat is precies wat de no-go beschrijft, alleen
+        ernstiger dan "toegankelijk".
+        """
+        from tradebot.live.portfolio_controller import PortfolioControllerConfig
+
+        params = inspect.signature(PortfolioControllerConfig).parameters
+        assert params["method"].default is inspect.Parameter.empty, (
+            "`method` heeft weer een default; een research-only allocator kan "
+            "dan opnieuw stilzwijgend het live-pad in")
 
 
 # =========================================================================== #

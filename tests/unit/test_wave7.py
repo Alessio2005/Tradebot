@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
@@ -36,34 +35,39 @@ def prices_df(returns_df: pd.DataFrame) -> pd.DataFrame:
 # HRP
 # ============================================================================
 
+from tradebot.portfolio import HRPOptimizer, HrpResearchGate, hrp_weights
+
+#: PHASE 7/8 STAGE C-1: HRP is RESEARCH ONLY en eist een expliciet token
+#: (fase-6 deliverable 23). Dat de gate ook echt CRASHT zonder token, wordt
+#: bewezen in `tests/unit/test_hrp_research_gate.py`; hier wordt alleen het
+#: algoritme zelf nog getoetst.
+_RESEARCH_GATE = HrpResearchGate(
+    reason="wave-7 regressietests op het HRP-algoritme zelf, niet als "
+           "portefeuille-allocatie",
+    preregistration_id="legacy-wave7-regression",
+)
+
+
 class TestHRP:
 
     def test_weights_sum_to_one(self, returns_df: pd.DataFrame) -> None:
-        from tradebot.portfolio import hrp_weights
-
-        w = hrp_weights(returns_df)
+        w = hrp_weights(returns_df, research_gate=_RESEARCH_GATE).weights
         assert w.sum() == pytest.approx(1.0, abs=1e-9)
 
     def test_weights_positive(self, returns_df: pd.DataFrame) -> None:
-        from tradebot.portfolio import hrp_weights
-
-        w = hrp_weights(returns_df)
+        w = hrp_weights(returns_df, research_gate=_RESEARCH_GATE).weights
         assert (w >= 0).all()
 
     def test_single_asset(self) -> None:
-        from tradebot.portfolio import hrp_weights
-
         df = pd.DataFrame({"BTC": np.random.default_rng(0).normal(0, 0.01, 50)})
-        w = hrp_weights(df)
+        w = hrp_weights(df, research_gate=_RESEARCH_GATE).weights
         assert w["BTC"] == pytest.approx(1.0)
 
     def test_hrp_optimizer(self, returns_df: pd.DataFrame) -> None:
-        from tradebot.portfolio import HRPOptimizer
-
-        opt = HRPOptimizer()
-        w = opt.optimize(returns_df)
+        opt = HRPOptimizer(research_gate=_RESEARCH_GATE)
+        alloc = opt.optimize(returns_df)
         assert opt.weights is not None
-        assert w.sum() == pytest.approx(1.0, abs=1e-9)
+        assert alloc.weights.sum() == pytest.approx(1.0, abs=1e-9)
 
 
 # ============================================================================
@@ -164,15 +168,17 @@ class TestOptimizer:
         # PHASE 5: `constraints` is verplicht. De oude default gaf L8 zijn
         # eigen concentratie- en leveragelimiet (wiring audit D1/D2).
         w = optimize(returns_df, constraints=_sovereign_constraints(),
-                     method=method)  # type: ignore[arg-type]
+                     method=method,  # type: ignore[arg-type]
+                     hrp_research_gate=_RESEARCH_GATE)
         assert w.sum() == pytest.approx(1.0, abs=1e-6)
         assert (w >= 0).all()
 
     def test_constraint_applied(self, returns_df: pd.DataFrame) -> None:
-        from tradebot.portfolio import PortfolioConstraints, optimize
+        from tradebot.portfolio import optimize
 
         cfg = _sovereign_constraints()
-        w = optimize(returns_df, method="hrp", constraints=cfg)
+        w = optimize(returns_df, method="hrp", constraints=cfg,
+                     hrp_research_gate=_RESEARCH_GATE)
         assert w.max() <= cfg.max_weight + 1e-6
 
 

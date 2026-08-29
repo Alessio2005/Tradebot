@@ -9,7 +9,7 @@ from .equal_weight import (
     normalise_to_gross,
     sized_by_equal_weight,
 )
-from .hrp import HRPOptimizer, hrp_weights
+from .hrp import HrpAllocation, HRPOptimizer, HrpResearchGate, hrp_weights
 from .markowitz import min_variance_weights, mvo_weights
 from .optimizer import OptimisationMethod, optimize
 from .rebalance import RebalanceConfig, RebalanceDecision, should_rebalance
@@ -24,6 +24,8 @@ __all__ = [
     # HRP
     "hrp_weights",
     "HRPOptimizer",
+    "HrpAllocation",
+    "HrpResearchGate",
     # Black-Litterman
     "BLViews",
     "black_litterman_weights",

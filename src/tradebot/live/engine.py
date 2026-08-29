@@ -120,7 +120,13 @@ class LiveEngineConfig:
         #
         # Dit is de contractgrens die fase-opdracht paragraaf 4.3 in Phase 5
         # vastlegt; de volledige `live/`-migratie blijft Phase 7.
+        # PHASE 7/8 STAGE C-1: `method` had geen expliciete waarde en viel dus
+        # terug op de oude default "hrp" - een research-only allocator in het
+        # live-pad (fase-6 no-go 15). De fallback kiest nu ERC, de toegelaten
+        # risk-parity-allocator die bij een mislukte solve terugvalt op inverse
+        # volatility.
         self.pc_config = pc_config or PortfolioControllerConfig(
+            method="erc",
             constraints=PortfolioConstraints.from_risk_config(
                 load_config(
                     Path(__file__).resolve().parents[3]

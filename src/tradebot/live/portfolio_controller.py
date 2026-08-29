@@ -3,7 +3,21 @@
 
 Takes the combined signal map (symbol → SignalResult) and a returns
 DataFrame and emits target portfolio weights using the configured
-optimisation method (HRP by default).
+optimisation method.
+
+PHASE 7/8 STAGE C-1 — `method` had hier `"hrp"` als DEFAULT, en deze docstring
+zei dat ook met zoveel woorden. HRP is Research Track (audit §13.1) en per
+fase-6 no-go 15 technisch geblokkeerd voor productie tot turnover-gecorrigeerde
+OOS-superioriteit boven Inverse Volatility is aangetoond.
+
+Die no-go luidde "HRP is productie-toegankelijk zonder bewijs". De meting wees
+uit dat het erger was: HRP was de STANDAARD-allocator van de live-controller,
+en van `portfolio/optimizer.py::optimize`. Wie beide argumenten oversloeg, kreeg
+een research-only allocator in het live-pad.
+
+`method` heeft daarom geen default meer - dezelfde behandeling die `constraints`
+in Phase 5 kreeg, en om dezelfde reden: een default die stilzwijgend beleid
+vaststelt, is geen default maar een ongeschreven besluit.
 """
 from __future__ import annotations
 
@@ -58,7 +72,7 @@ class PortfolioControllerConfig:
     def __init__(
         self,
         constraints: PortfolioConstraints,
-        method: OptimisationMethod = "hrp",
+        method: OptimisationMethod,
         min_history_bars: int = 60,
         returns_window: int = 120,
         signal_tilt_strength: float = 0.30,
@@ -213,6 +227,10 @@ class PortfolioController:
                     {sym: r.signal * 0.01 for sym, r in active_signals.items()}
                 ).reindex(self._symbols).fillna(0.0)
 
+            # Geen `hrp_research_gate` meegegeven: `optimize()` CRAST daardoor
+            # wanneer iemand `method="hrp"` op dit live-pad configureert. Dat is
+            # opzet - het live-pad is precies de plek waar een research-only
+            # allocator niet mag komen.
             weights = optimize(
                 returns_df,
                 method=self._cfg.method,
