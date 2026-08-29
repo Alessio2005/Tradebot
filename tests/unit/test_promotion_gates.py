@@ -347,12 +347,19 @@ class TestPromotionGate:
 class TestTheGateCanActuallyRefuse:
     """De negatieve controles. Een poort die nooit weigert, is geen poort."""
 
-    def test_no_preregistration_blocks_promotion(
+    def test_no_preregistration_crashes(
         self, cfg: ValidationConfig, frozen_m: TrialCount
     ) -> None:
-        r = run_promotion_gates(**_gate_kwargs(cfg, frozen_m, preregistration_id=""))
-        assert r.passed is False
-        assert "preregistration" in r.failed_gates
+        """Phase 2 exit-criterium 6: een gate-run zonder pre-registratie-ID
+        CRASHT, hij weigert niet.
+
+        Weigeren zou betekenen dat DSR en SPA alsnog draaien en hun p-waarden in
+        het artefact belanden — p-waarden over een hypothese die pas na de meting
+        is geformuleerd. Dat is precies het getal dat later wordt geciteerd.
+        """
+        with pytest.raises(DataContractError, match="zonder preregistration_id"):
+            run_promotion_gates(**_gate_kwargs(cfg, frozen_m,
+                                               preregistration_id=""))
 
     def test_failed_lookahead_blocks_promotion(
         self, cfg: ValidationConfig, frozen_m: TrialCount
