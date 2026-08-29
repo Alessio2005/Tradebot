@@ -17,7 +17,7 @@ import pandas as pd
 from ..utils.failfast import ConfigContractError, require
 from .black_litterman import BLViews, black_litterman_weights
 from .constraints import PortfolioConstraints, apply_constraints
-from .hrp import hrp_weights
+from .hrp import HrpResearchGate, hrp_weights
 from .markowitz import min_variance_weights, mvo_weights
 from .risk_parity import erc_weights
 
@@ -31,10 +31,11 @@ OptimisationMethod = Literal["hrp", "bl", "erc", "mvo", "minvar"]
 def optimize(
     returns: pd.DataFrame,
     constraints: PortfolioConstraints,
-    method: OptimisationMethod = "hrp",
+    method: OptimisationMethod,
     current_weights: pd.Series | None = None,
     views: BLViews | None = None,
     expected_returns: pd.Series | None = None,
+    hrp_research_gate: HrpResearchGate | None = None,
 ) -> pd.Series:
     """Compute portfolio weights using the requested method.
 
@@ -45,7 +46,8 @@ def optimize(
         Minimum 5 rows; recommend 60+ for reliable estimation.
     method :
         Optimisation method.  One of:
-        - ``"hrp"``    : Hierarchical Risk Parity (default)
+        - ``"hrp"``    : Hierarchical Risk Parity — **RESEARCH ONLY**,
+                         vereist `hrp_research_gate` (zie hieronder)
         - ``"bl"``     : Black-Litterman (requires ``views``)
         - ``"erc"``    : Equal Risk Contribution
         - ``"mvo"``    : Mean-Variance (requires ``expected_returns``)
@@ -57,6 +59,13 @@ def optimize(
         gold voor elke caller die het argument oversloeg, en die bovendien
         afweek van `conf/risk/gross_cap` (1.50).  Bouw hem met
         `PortfolioConstraints.from_risk_config(risk_cfg)`.
+    hrp_research_gate :
+        VERPLICHT wanneer `method='hrp'`. Er is geen default.
+        `method` zelf heeft sinds Phase 7/8 evenmin een default: hij
+        stond op `"hrp"`, waardoor elke aanroeper die het argument
+        oversloeg een research-only allocator kreeg. Dat is exact het
+        patroon dat Phase 5 bij `constraints` heeft opgeruimd.
+
     current_weights :
         Current portfolio weights for turnover limiting.
     views :
@@ -84,7 +93,25 @@ def optimize(
         return apply_constraints(raw, constraints, current_weights)
 
     if method == "hrp":
-        raw = hrp_weights(returns)
+        # PHASE 7/8 STAGE C-1. Fase-6 no-go 15 luidde "HRP is
+        # productie-toegankelijk zonder bewijs". Dat was een understatement:
+        # HRP was de DEFAULT-methode van deze functie, dus `optimize(returns,
+        # constraints)` zonder verdere argumenten leverde HRP-gewichten.
+        #
+        # `method` heeft daarom geen default meer, en dit pad eist het token.
+        require(
+            hrp_research_gate is not None,
+            "optimize(method='hrp') zonder hrp_research_gate. HRP is Research "
+            "Track (audit §13.1) en technisch geblokkeerd voor productie tot "
+            "turnover-gecorrigeerde OOS-superioriteit boven Inverse Volatility "
+            "is aangetoond én de boomordening stabiel is (fase-6 no-go 11). "
+            "Kies een toegelaten methode, of geef een HrpResearchGate mee met "
+            "de reden waarom dit onderzoek is.",
+            ConfigContractError,
+            method=method,
+        )
+        raw = hrp_weights(
+            returns, research_gate=hrp_research_gate).weights
     elif method == "bl":
         raw = black_litterman_weights(returns, views=views)
     elif method == "erc":

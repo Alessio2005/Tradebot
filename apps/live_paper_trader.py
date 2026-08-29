@@ -306,12 +306,19 @@ def _build_engine_shadow():
         min_notional_per_trade=1_000.0,
         min_weight_change=0.02,
     )
-    # CHIEF-3 (2026-05-28) — Signal-conditional posterior tilt on HRP.
-    #   signal_tilt_strength=0.30 → 30 % of the final weight is driven by
-    #   signal·confidence-edge; 70 % stays pure HRP risk-parity.  Without
-    #   this, HRP ignored expected_returns and every asset got equal $.
+    # CHIEF-3 (2026-05-28) - Signal-conditional posterior tilt.
+    #   signal_tilt_strength=0.30 -> 30 % of the final weight is driven by
+    #   signal-confidence edge; 70 % stays pure risk-parity. Without this the
+    #   allocator ignored expected_returns and every asset got equal $.
+    #
+    # PHASE 7/8 STAGE C-1 - allocator gewijzigd van "hrp" naar "erc". HRP is
+    # Research Track (audit paragraaf 13.1) en technisch geblokkeerd voor
+    # productie (fase-6 no-go 15); dit is het LIVE paper-trading-pad. ERC valt
+    # bij een mislukte solve terug op inverse volatility, de baseline waartegen
+    # HRP zich nog moet bewijzen. De tilt-overlay werkt ongewijzigd: hij zit in
+    # PortfolioController, niet in de allocator.
     pc_cfg = PortfolioControllerConfig(
-        method="hrp",
+        method="erc",
         min_history_bars=60,
         signal_tilt_strength=0.30,
     )

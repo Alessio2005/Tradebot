@@ -325,8 +325,21 @@ def _run_replay(
     logger.info("SignalRunner: %d signals wired", len(all_sigs))
 
     # Build portfolio + execution
+    # PHASE 7/8 STAGE C-1 - allocator gewijzigd van "hrp" naar "erc".
+    #
+    # HRP is Research Track (audit paragraaf 13.1) en per fase-6 no-go 15
+    # technisch geblokkeerd voor productie tot turnover-gecorrigeerde
+    # OOS-superioriteit boven Inverse Volatility is aangetoond. Deze runner is
+    # het paper-trading-pad, en dat is precies de plek waar een research-only
+    # allocator niet hoort: fase 7/8 D-6 eist dat vooraf wordt vastgelegd wat er
+    # in de 60-daagse periode DRAAIT.
+    #
+    # ERC (Equal Risk Contribution) is de toegelaten risk-parity-allocator in
+    # dit pakket en valt bij een mislukte solve terug op inverse volatility -
+    # exact de baseline waartegen HRP zich nog moet bewijzen. Dit is dus geen
+    # willekeurige vervanger maar de referentie zelf.
     pc = PortfolioController(
-        PortfolioControllerConfig(method="hrp", min_history_bars=30),
+        PortfolioControllerConfig(method="erc", min_history_bars=30),
         symbols=symbols,
     )
     ec = ExecutionController(ExecutionControllerConfig(max_weight_change=0.25))

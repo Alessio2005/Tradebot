@@ -154,7 +154,20 @@ REBALANCE_BARS = 500    # rebalanceer HRP elke 500 bars (~52 dagen)
 
 def compute_hrp_weights_walkforward(tracks: list) -> dict[str, np.ndarray]:
     """Causale walk-forward HRP met price-returns (SK-HRP-RETURNS fix)."""
-    from tradebot.portfolio.hrp import hrp_weights
+    from tradebot.portfolio.hrp import HrpResearchGate, hrp_weights
+    from tradebot.utils.failfast import DataContractError
+
+    # ---------------------------------------------------------------------------
+    # PHASE 7/8 STAGE C-1: HRP is RESEARCH ONLY en technisch geblokkeerd voor
+    # productie (fase-6 deliverable 23, no-go 15). `hrp_weights` eist daarom een
+    # expliciet token. Dit is een researchscript, dus dat token hoort hier thuis --
+    # met een reden die opschrijft waarvoor.
+    # ---------------------------------------------------------------------------
+    _HRP_GATE = HrpResearchGate(
+        reason=("legacy researchscript: HRP-herweging over walk-forward vensters, "
+                "als invoer voor de vergelijking met Inverse Volatility"),
+        preregistration_id="legacy-miscellaneous-hrp-backtest",
+    )
 
     n_assets = len(tracks)
     if n_assets == 0:
@@ -185,9 +198,13 @@ def compute_hrp_weights_walkforward(tracks: list) -> dict[str, np.ndarray]:
 
         if len(historical) >= 5:
             try:
-                w_series = hrp_weights(historical)
-                current_weights = w_series.to_dict()
-            except Exception as exc:
+                alloc = hrp_weights(historical, research_gate=_HRP_GATE)
+                current_weights = alloc.weights.to_dict()
+            except DataContractError:
+                # Zie run_hrp_backtest.py: een ontbrekende research-gate is een
+                # contractschending, geen numeriek incident.
+                raise
+            except (ValueError, np.linalg.LinAlgError) as exc:
                 logger.warning("HRP mislukt bij bar %d: %s", bar_start, exc)
 
         bar_end = min(bar_start + REBALANCE_BARS, n_bars)

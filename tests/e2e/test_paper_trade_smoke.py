@@ -70,6 +70,9 @@ def test_paper_trade_24h_no_crash(tmp_path: Path) -> None:
     _risk = load_config(
         _Path(__file__).resolve().parents[2] / "conf/risk/default.yaml", RiskConfig)
     pc_cfg = PortfolioControllerConfig(
+        # STAGE C-1: expliciet, want `method` heeft geen default meer. HRP is
+        # research-gated (fase-6 no-go 15).
+        method="erc",
         constraints=PortfolioConstraints.from_risk_config(_risk),
         min_history_bars=5,
     )
