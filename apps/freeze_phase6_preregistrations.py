@@ -33,6 +33,7 @@ from tradebot.schemas.config import (
     VolatilityConfig,
     load_config,
 )
+from tradebot.utils.hashing import hash_config
 
 SPECS = {
     "H1": "conf/research/preregistration_h1_garch_vs_ewma.yaml",
@@ -93,9 +94,13 @@ def main(argv: list[str] | None = None) -> int:
                 wave=args.wave, unit=prereg.wave, market=args.market,
                 config_hash=prereg.preregistration_id[:16],
                 n_trials=prereg.planned_trials, result="interim",
+                # STAGE B-8: herkomst als veld, niet als tekst in `notes`.
+                git_sha=git_sha,
+                data_hash=hash_config(
+                    {"data_hashes": [register.hashes[s] for s in raw["data_series"]]}),
+                preregistration_id=prereg.preregistration_id,
                 notes=("Pre-registratie bevroren VOOR de eerste fit; de geplande "
-                       "trials tellen mee in M. preregistration_id="
-                       f"{prereg.preregistration_id}")))
+                       "trials tellen mee in M.")))
         print(f"{name}  id={prereg.preregistration_id}  "
               f"trials={prereg.planned_trials}  M {total} -> "
               f"{ledger.total_n_hypotheses()}  {path.relative_to(ROOT)}")

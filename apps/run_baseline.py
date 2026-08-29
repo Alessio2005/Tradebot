@@ -27,6 +27,7 @@ from tradebot.registry.preregistration import (
     freeze_metadata,
     require_preregistration,
 )
+from tradebot.utils.hashing import hash_config
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -62,8 +63,13 @@ def main(argv: list[str] | None = None) -> int:
             result="accepted" if gate.promoted else "falsified",
             metrics={k: (None if v is None else v)
                      for k, v in json_safe(payload["measured"]).items()},
-            notes=(f"Baseline-resultaat; preregistration_id="
-                   f"{prereg.preregistration_id}; git_sha={payload['git_sha']}"),
+            # STAGE B-8: herkomst als veld. Dit was de meest sprekende regel van
+            # de oude situatie — git_sha en preregistration_id werden hier in
+            # een f-string geplakt, waar geen enkele controle bij kon.
+            git_sha=str(payload["git_sha"]),
+            data_hash=hash_config({"data_hashes": payload["data_hashes"]}),
+            preregistration_id=prereg.preregistration_id,
+            notes="Baseline-resultaat.",
         ))
 
     print(json.dumps(json_safe({

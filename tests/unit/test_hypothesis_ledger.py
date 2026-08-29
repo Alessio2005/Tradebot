@@ -21,8 +21,12 @@ def ledger_path(tmp_path: Path) -> Path:
 
 
 def _entry(unit: str = "u1", cfg: dict | None = None, n: int = 1) -> LedgerEntry:
+    # Phase 7/8 Stage B-8: de vier herkomstvelden zijn verplicht. Zie
+    # tests/unit/test_ledger_provenance.py voor het contract zelf.
     return LedgerEntry.from_config(
-        wave=20, unit=unit, market="crypto", config=cfg or {"a": 1}, n_trials=n
+        wave=20, unit=unit, market="crypto", config=cfg or {"a": 1},
+        git_sha="deadbeef", data_hash="d4ta", preregistration_id="prereg-abc",
+        n_trials=n,
     )
 
 
@@ -40,12 +44,15 @@ def test_total_is_seed_plus_appends(ledger_path: Path) -> None:
 
 
 def test_entry_validation() -> None:
+    prov = dict(git_sha="deadbeef", data_hash="d4ta",
+                preregistration_id="prereg-abc")
     with pytest.raises(ValueError):
         _entry(n=0)
     with pytest.raises(ValueError):
-        LedgerEntry.from_config(20, "u", "bad_market", {"a": 1})
+        LedgerEntry.from_config(20, "u", "bad_market", {"a": 1}, **prov)
     with pytest.raises(ValueError):
-        LedgerEntry.from_config(20, "u", "crypto", {"a": 1}, result="maybe")
+        LedgerEntry.from_config(20, "u", "crypto", {"a": 1}, result="maybe",
+                                **prov)
 
 
 def test_staging_roundtrip_and_duplicate_rejection(

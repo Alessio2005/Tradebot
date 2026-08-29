@@ -61,7 +61,8 @@ def ledger(tmp_path: Path) -> HypothesisLedger:
     led = HypothesisLedger(path)
     led.append(LedgerEntry(
         wave=1, unit="seed_unit", market="crypto", config_hash="seed",
-        n_trials=7, result="archived"))
+        n_trials=7, result="archived",
+        git_sha="deadbeef", data_hash="d4ta", preregistration_id="prereg-seed"))
     return led
 
 
@@ -114,7 +115,9 @@ class TestMDoesNotMove:
         before = ledger.total_n_hypotheses()
         ledger.append(LedgerEntry(
             wave=2, unit="a_real_unit", market="crypto", config_hash="x",
-            n_trials=3, result="falsified"))
+            n_trials=3, result="falsified",
+            git_sha="deadbeef", data_hash="d4ta",
+            preregistration_id="prereg-real"))
         assert ledger.total_n_hypotheses() == before + 3
 
 

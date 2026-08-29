@@ -29,6 +29,7 @@ from tradebot.schemas.config import (
     VolatilityConfig,
     load_config,
 )
+from tradebot.utils.hashing import hash_config
 
 
 def resolve_parameters() -> dict[str, object]:
@@ -85,8 +86,13 @@ def main(argv: list[str] | None = None) -> int:
             config_hash=prereg.preregistration_id[:16],
             n_trials=prereg.planned_trials,
             result="interim",
+            # STAGE B-8: de herkomst stond hiervoor als vrije tekst in `notes`.
+            # Zij is nu een veld, en een ontbrekend veld crasht.
+            git_sha=current_git_sha(),
+            data_hash=hash_config({"data_hashes": list(data_hashes)}),
+            preregistration_id=prereg.preregistration_id,
             notes=("Pre-registratie bevroren VOOR de eerste run; de geplande "
-                   f"trials tellen mee in M. preregistration_id={prereg.preregistration_id}"),
+                   "trials tellen mee in M."),
         ))
 
     print(f"preregistration_id : {prereg.preregistration_id}")
