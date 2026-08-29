@@ -503,3 +503,105 @@ implementatie — DVC aanroepen om DVC te controleren valt met het gereedschap o
 
 Zonder die test zou het manifest een achtergebleven artefact zijn dat niets
 bewaakt. Dat is de klasse die deze fase overal elders opruimt.
+---
+
+## AD-13 — Een proxy die een andere grootheid meet, mag geen model promoveren
+
+**Fase:** 6 (H1, stap 7) · besloten tijdens Phase 7/8 Stage C-3
+**Status:** actief
+**Bewaakt door:** `tests/unit/test_vol_competition.py::TestProxyScaleRatio` en
+`::TestTheProxyPremiseCanOnlyWithholdAPromotion`
+
+### Besluit
+
+`validation/vol_competition.py::judge_challenger` draagt een stop-criterium dat
+NIET in de bevroren H1-pre-registratie stond: `proxy_premise_violated`. Het meet
+`mean(proxy) / mean(r²)` op de gescoorde bars en zet elk oordeel om in
+`UNPROVEN` zodra die verhouding meer dan `adequacy.proxy.max_scale_deviation`
+van 1 afwijkt.
+
+### Waarom, en waarom dit geen post-hoc criterium is
+
+QLIKE heeft zijn minimum op `forecast = E[proxy]`. Draagt de proxy een
+multiplicatieve factor ten opzichte van de grootheid die de modellen
+voorspellen — de variantie van de close-to-close return — dan verschuift dat
+minimum mee, en rangschikt de competitie op kalibratie tegen een verschoven doel
+in plaats van op voorspelkwaliteit.
+
+Dat is geen theoretische zorg. De eerste H1-run (2026-08-29) mat
+`mean(rogers_satchell) / mean(r²)` tussen **1,27 en 2,24**, terwijl EWMA(0.94)
+op **1,01** zit en de GARCH-varianten op 1,13 tot 1,70. Op die meetlat
+promoveerden 13 van de 48 combinaties — en dezelfde vergelijkingen tegen de
+gekwadrateerde return, de enige per-bar proxy die per constructie zuiver is voor
+de voorspelde grootheid, gaven p = 0,35 tot 0,75. De promotie zat in het
+niveauverschil, niet in de dynamiek.
+
+Een criterium toevoegen ná het zien van de uitkomst is normaal gesproken precies
+de manoeuvre die pre-registratie uitsluit. Twee dingen maken dit toelaatbaar, en
+zij gelden allebei:
+
+1. **Het toetst een premisse die de pre-registratie zelf uitspreekt.** Die
+   rechtvaardigt de range-estimator letterlijk met *"zolang de proxy
+   conditioneel zuiver is (Patton 2011) … onder een driftloze GBM binnen de
+   dag"*. Die premisse is meetbaar, en is gemeten.
+2. **Het kan de conclusie alleen voorzichtiger maken.** `PROMOTED` en
+   `FALSIFIED` worden allebei `UNPROVEN`; er bestaat geen invoer waarbij dit
+   criterium iets promoveert.
+
+### Het afgewezen alternatief
+
+De primaire proxy achteraf verruilen voor de gekwadrateerde return — dan zou de
+uitkomst netjes negatief zijn geweest. Dat is een meetlatwissel na het zien van
+de uitslag, en die is niet te onderscheiden van dezelfde wissel met een
+omgekeerd motief. De gepre-registreerde meetlat blijft dus staan, mét haar
+uitslag, en het oordeel erboven zegt dat zij niet geldig is.
+
+### Wat dit blokkeert
+
+H1 is hiermee niet beslist maar geblokkeerd, op dezelfde ontbrekende data als
+HAR-RV: een geldige QLIKE-competitie vraagt intraday realized variance. De
+gekwadrateerde return is zuiver maar te ruisig — de negatieve controle laat zien
+dat de toets daarmee zelfs een forecast met vernietigde timing niet altijd
+onderscheidt. Zie DI-18.
+
+---
+
+## AD-14 — Een oordeel is geen nieuwe zoektocht: de amendement-entry
+
+**Fase:** 6 (H1-oordeel) · besloten tijdens Phase 7/8 Stage C-3
+**Status:** actief
+**Bewaakt door:** `tests/unit/test_ledger_amendment.py` (6 tests)
+
+### Besluit
+
+`registry/hypothesis_ledger.py::LedgerEntry` kent een veld `amends`. Een entry
+die het OORDEEL over eerder geboekte trials herziet, draagt `amends` (de
+`config_hash` van de geamendeerde entry) en `n_trials = 0`. `append()` weigert
+een amendement dat naar een onbekende entry wijst, en `n_trials = 0` blijft
+verboden zónder `amends`.
+
+### Waarom
+
+De 48 trials van H1 zijn geboekt toen de pre-registratie werd BEVROREN — precies
+goed: wie een parameterruimte vastlegt, heeft die kansen genomen, en `M` hoort
+niet pas te groeien als de uitkomst bevalt. Maar de ledger is append-only en
+`total_n_hypotheses()` telt `seed_total + Σ n_trials`. Het oordeel boeken als
+een tweede entry met dezelfde 48 trials zou `M` van 2.776 naar 2.824 brengen
+voor onderzoek dat één keer is gedaan.
+
+Beide fouten zijn even erg en wijzen tegengesteld: **ondertellen** maakt elke
+DSR erna te gunstig, **dubbeltellen** maakt hem te streng, en beide getallen
+zijn even onwaar.
+
+`FALSIFICATION_REGISTER.md` liep in Wave 28 tegen exact dezelfde muur en koos
+toen voor "geen ledger-entry, wel een registerregel". Dat werkte daar, maar het
+liet een gat: de ledger kent dan oordelen niet die het register wel kent. Met
+`amends` hoeft die keuze niet meer te worden gemaakt.
+
+### Het afgewezen alternatief
+
+Een bestaande entry muteren (`result: interim` → `archived`). Dat maakt de
+ledger niet meer append-only, en dan is de vraag "wat wist men wanneer" niet
+meer uit het bestand te beantwoorden — precies de eigenschap waarvoor hij
+append-only is.
+

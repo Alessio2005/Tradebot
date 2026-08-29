@@ -134,3 +134,54 @@ exit-criterium 7 eist de status *"in het register"*, en dit register is
 eveneens append-only - het is de juiste plaats.
 
 `M` blijft daarom **2776**.
+---
+
+## H1 — GARCH-familie tegen EWMA(0.94): **geen falsificatie**
+
+*Toegevoegd 2026-08-29, Phase 6 stap 7 / Phase 7/8 Stage C-3. Bewijs:
+`reports/GARCH_VS_EWMA_COMPETITION.md`, artefact
+`artefacts/governance/phase6_h1_competition.json`, ledger-amendement
+`ae4823e95f6d5844` (`amends: cef1a3b9a6811d7b`).*
+
+Deze regel staat hier omdat een LEGE plek in dit register even misleidend is als
+een verkeerde regel. H1 is volledig gedraaid — 48 van 48 gepre-registreerde
+combinaties gefit — en het oordeel luidt **`UNPROVEN`**, niet `FALSIFIED`.
+
+| | |
+|---|---|
+| Gepromoveerd | 0 |
+| Gefalsifieerd | **0** |
+| `UNPROVEN` (proxy-premisse geschonden) | 36 |
+| `DESCOPED` (convergentie/randoplossing, gedegenereerde forecast) | 12 |
+
+**Waarom geen falsificatie.** De gepre-registreerde range-proxy meet aantoonbaar
+een andere grootheid dan de modellen voorspellen: `mean(proxy)/mean(r²)` = 1,27
+tot 2,24 tegen een toegestane afwijking van 15 %. QLIKE rangschikt op zo'n
+meetlat naar kalibratie tegen een verschoven doel. Op een ongeldige meetlat is
+een negatieve uitkomst even betekenisloos als een positieve. Daarbovenop faalt
+de negatieve controle op de power-kant bij 8 van de 12
+reeks/horizon-combinaties: daar onderscheidt DM-HLN zelfs een forecast waarvan
+de timing volledig is vernietigd niet van het origineel.
+
+**Wat dit betekent voor hertesten.** H1 mag opnieuw worden getoetst zodra er
+intraday realized variance is (DI-18) — dat is een gewijzigde premisse en geen
+herhaling van hetzelfde. Zo'n hertest vereist een NIEUWE pre-registratie en telt
+opnieuw mee in `M`. Wat NIET mag: dezelfde competitie herhalen op een andere
+range-proxy tot er een significante uitkomst verschijnt.
+
+**EWMA(0.94) blijft de productie-estimator**, en dat is hier een niet-verworpen
+nulhypothese en geen bewezen superioriteit.
+
+### Naschrift bij "Waarom hier geen ledger-entry tegenover staat"
+
+Die paragraaf hierboven constateerde terecht dat een governance-handeling niet
+in de ledger kon zonder `M` op te blazen, omdat `n_trials >= 1` werd
+afgedwongen. Dat gat is met AD-14 gesloten: een entry met `amends` en
+`n_trials = 0` herziet een oordeel zonder de telling te raken. De 24
+geherclassificeerde entries van Wave 28 blijven zoals zij zijn — die worden niet
+alsnog geamendeerd, want dat zou een besluit uit die wave herschrijven — maar
+elk NIEUW oordeel over eerder geboekt onderzoek hoort vanaf nu in de ledger,
+zoals dat van H1 hierboven.
+
+`M` blijft **2776**.
+
