@@ -252,18 +252,46 @@ def run_promotion_gates(
         DataContractError,
     )
 
+    # -- 1. Pre-registratie: CRASHEN, niet weigeren -------------------------- #
+    #
+    # De eerste versie van deze module registreerde een ontbrekende
+    # pre-registratie als een gefaalde poort en legde hem als `"GEEN"` in het
+    # GateResult vast. De redenering was dat een geregistreerde WEIGERING een
+    # waardevoller artefact is dan een crash.
+    #
+    # Die redenering is fout, om twee redenen die elkaar versterken:
+    #
+    # 1. De run ging DOOR. DSR en SPA werden gedraaid en hun p-waarden kwamen in
+    #    het artefact terecht — p-waarden over een hypothese die pas na de
+    #    meting is geformuleerd. Precies het getal dat iemand later citeert. Dat
+    #    is dezelfde fout die deze module bij ontoereikende data wél vermijdt.
+    # 2. Het was intern inconsistent. `GateResult.__post_init__` weigert een leeg
+    #    `git_sha`, `config_hash` of `data_hash`; het vierde herkomstveld werd met
+    #    de string `"GEEN"` om die controle heen geleid.
+    #
+    # Zonder pre-registratie is er geen meting om een oordeel over te vellen. Het
+    # spoor dat een onGEREGISTREERD model is aangeboden, hoort in de CI-log en in
+    # de ledger, niet in een GateResult dat suggereert dat er iets is gemeten.
+    #
+    # Phase 2 exit-criterium 6: *"Een gate-run zonder pre-registratie-ID crasht
+    # aantoonbaar."*
+    require(
+        bool(str(preregistration_id).strip()),
+        f"run_promotion_gates({model_id}) zonder preregistration_id. De "
+        f"hypothese lag dan niet vast vóór de meting, en elke p-waarde hierna "
+        f"toetst een hypothese die uit de data is afgelezen. Bevries eerst een "
+        f"pre-registratie met apps/freeze_preregistration.py; die legt ook de "
+        f"M vast waarmee de DSR moet rekenen.",
+        DataContractError,
+        model_id=model_id,
+    )
+
     gates: dict[str, bool] = {}
     reasons: dict[str, str] = {}
 
-    # -- 1. Pre-registratie ------------------------------------------------- #
-    has_prereg = bool(str(preregistration_id).strip())
-    gates["preregistration"] = has_prereg
+    gates["preregistration"] = True
     reasons["preregistration"] = (
-        f"bevroren pre-registratie {preregistration_id}" if has_prereg
-        else "GEEN pre-registratie — de hypothese lag niet vast vóór de meting, "
-             "dus elke p-waarde hierna toetst een hypothese die uit de data is "
-             "afgelezen"
-    )
+        f"bevroren pre-registratie {preregistration_id}")
 
     # -- 2. Data-adequaatheid ----------------------------------------------- #
     gates["data_adequacy"] = bool(data_is_adequate)
@@ -296,7 +324,7 @@ def run_promotion_gates(
             git_sha=git_sha,
             config_hash=config_hash,
             data_hash=data_hash,
-            preregistration_id=preregistration_id or "GEEN",
+            preregistration_id=preregistration_id,
         )
 
     # -- 4. DSR -------------------------------------------------------------- #
@@ -333,11 +361,5 @@ def run_promotion_gates(
         git_sha=git_sha,
         config_hash=config_hash,
         data_hash=data_hash,
-        # Een ONTBREKENDE pre-registratie wordt als `"GEEN"` vastgelegd en niet
-        # als lege string. Het verschil is wezenlijk: `__post_init__` weigert een
-        # leeg herkomstveld, en dan zou een model zonder pre-registratie een
-        # CRASH opleveren in plaats van een geregistreerde WEIGERING. De weigering
-        # is het waardevolle artefact - een crash laat geen spoor na dat dit model
-        # ooit is aangeboden.
-        preregistration_id=preregistration_id or "GEEN",
+        preregistration_id=preregistration_id,
     )
