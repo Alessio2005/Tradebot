@@ -31,9 +31,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--market", required=True)
     ap.add_argument("--config", required=True, help="JSON dict of the config")
     ap.add_argument("--n-trials", type=int, default=1)
+    # Verplicht, en niet met een lege default: `LedgerEntry` weigert een entry
+    # zonder herkomst (audit §26), en een CLI die die velden niet doorgeeft,
+    # crasht op precies het contract dat hem beschermt.
+    ap.add_argument("--git-sha", required=True)
+    ap.add_argument("--data-hash", required=True)
+    ap.add_argument("--preregistration-id", required=True)
     ap.add_argument("--result", default="interim")
     ap.add_argument("--metrics", default="{}", help="JSON dict of metrics")
     ap.add_argument("--notes", default="")
+    # Een amendement herziet het OORDEEL over trials die al zijn geteld; het
+    # draagt daarom n_trials=0. Zie `LedgerEntry.amends`.
+    ap.add_argument("--amends", default="",
+                    help="config_hash van de entry die wordt geamendeerd")
     ap.add_argument("--staging", default="", help="write to staging file instead")
 
     mp = sub.add_parser("merge", help="serially merge a staging file")
@@ -56,10 +66,14 @@ def main(argv: list[str] | None = None) -> int:
         unit=args.unit,
         market=args.market,
         config=json.loads(args.config),
+        git_sha=args.git_sha,
+        data_hash=args.data_hash,
+        preregistration_id=args.preregistration_id,
         n_trials=args.n_trials,
         result=args.result,
         metrics=json.loads(args.metrics),
         notes=args.notes,
+        amends=args.amends,
     )
     if args.staging:
         HypothesisLedger.append_to_staging(args.staging, entry)
