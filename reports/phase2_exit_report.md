@@ -502,11 +502,12 @@ overslaan, hij duurt zo lang"*.
 | `research_gates.yml` blokkeert aantoonbaar een merge met een lekkend model | **JA** — §2.1, vier injecties |
 | `test_gate_cannot_be_bypassed.py` is aantoonbaar rood geweest | **JA** — §2.1, derde injectie |
 
-**No-go 2 blijft actief:** de git-historie staat nog steeds op één fysieke
-schijf. De remote is een handeling van de opdrachtgever
-(`reports/phase7_foundation_report.md` §2.3) en heeft geen technische
-afhankelijkheid met Stage C, maar hij blijft in elk rapport vermeld tot hij
-bestaat.
+**No-go 2 is gesloten** — op 2026-08-29, ná het schrijven van dit rapport.
+De volledige historie (94 commits, `73a01a4` t/m `5d15d7f`) staat op de private
+remote `Alessio2005/Tradebot`; `isPrivate: true` is ná de push geverifieerd, en
+`git rev-list --count origin/main` = 94. Zie
+`reports/phase7_foundation_report.md` §11 voor de meting, inclusief de
+secret-scan over alle 1078 blobs in de historie die eraan voorafging.
 
 ---
 

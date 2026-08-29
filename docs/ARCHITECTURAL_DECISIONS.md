@@ -377,3 +377,47 @@ verkleint en (b) een kosten- of mechanicavraag beantwoordt in plaats van een
 risicovraag. Elke andere constraint verhuist of verdwijnt.
 `reports/phase5_sovereign_wiring_audit.md` §3.5 past deze regel toe op alle
 negentien gevonden constraints.
+
+---
+
+## AD-11 — De git-historie krijgt een private GitHub-remote
+
+**Fase:** 7/8, Stage A-1 (uitgevoerd 2026-08-29)
+**Status:** actief
+**Bewaakt door:** `git ls-remote origin`; `gh repo view --json isPrivate`
+
+### Besluit
+
+De volledige historie staat op een **private** GitHub-repository,
+`Alessio2005/Tradebot`, als `origin`. Dit is een besluit van de opdrachtgever;
+de keuze tussen een hosted remote, een tweede fysieke schijf of beide lag bij
+hem en is expliciet op de hosted variant gevallen.
+
+### Waarom dit geen hygiënepunt was
+
+`reports/phase7_foundation_report.md` §2.3 mat het probleem: 94 commits, het
+falsificatieregister, de hypothese-ledger met `M = 2776` en de bevroren
+pre-registraties stonden op **één fysieke schijf zonder kopie**. De twee
+geverifieerde bundles in `D:/backup/` staan op diezelfde schijf en tellen dus
+niet.
+
+Dit platform verklaart elk MRM-rapport, elke ledger-entry en elk
+feature-artefact zonder resolvable `git_sha` INVALIDE (audit §26). De hele
+bewijsketen hing daarmee aan één schijf. Dat is geen opruimwerk maar een single
+point of failure onder de volledige governancelaag, en het goedkoopste risico in
+het hele Phase 7/8-document om weg te nemen.
+
+### Wat het besluit NIET is
+
+* **Geen back-up van de data.** `data/pit_store.dvc` verwijst naar een
+  DVC-remote die hier los van staat; §11.4 van de fase-opdracht noemt *"waar
+  staat de DVC-remote?"* als openstaand punt. Dat blijft open.
+* **Geen publicatie.** De repo is privé en dat is na de push geverifieerd, niet
+  aangenomen. Een controle vóór de push zou niets zeggen over de staat erna.
+
+### De randvoorwaarde die dit besluit oplegt
+
+Het OAuth-token heeft de `workflow`-scope nodig, want de repo bevat zeven
+bestanden onder `.github/workflows/`. GitHub weigert server-side élke push die
+ze aanraakt zonder die scope. Ze weglaten is geen alternatief: die workflows
+ZIJN de gates die Phase 2 en Stage B hebben opgeleverd.

@@ -18,7 +18,7 @@ en kan niet door mij worden gehaald.
 
 | # | Criterium | Status |
 |---|---|---|
-| A1 | Historie buiten deze machine | **NIET GEHAALD** — zie §2.3. Vereist een handeling van de opdrachtgever. |
+| A1 | Historie buiten deze machine | **GEHAALD op 2026-08-29** — zie §2.3.1. Bij afsluiting van Stage A nog open; §2.3 blijft staan als verslag daarvan. |
 | A2 | C-schijf-repo opgeruimd ná bewijs van nul unieke commits | **GEHAALD** — met een restant van drie lege mappen, §2.2 |
 | A3 | `x.jsonl` weg; schrijver naar `tmp_path`; bewakende test | **GEHAALD** |
 | A4 | `pip install -e .` werkt; `tradebot.__file__` wijst naar `D:\Tradebot\src` | **GEHAALD** |
@@ -492,7 +492,9 @@ hem afwachten zou de fase blokkeren zonder enig risico weg te nemen. Het risico
 dat hij adresseert — verlies van de schijf — is intussen **wel** verkleind door
 twee geverifieerde bundles, alleen niet weggenomen.
 
-**No-go 2 blijft in elk volgend rapport vermeld tot de remote bestaat.**
+**No-go 2 is gesloten op 2026-08-29** — zie §2.3.1. De zin hierboven stond
+hier bij afsluiting van Stage A en is bewust niet verwijderd: hij verslaat de
+staat van dat moment.
 
 ---
 
@@ -509,3 +511,91 @@ twee geverifieerde bundles, alleen niet weggenomen.
 
 *Stage A afgerond op `459bbe9`, 2026-08-27. Eén exit-criterium open, met een
 benoemde eigenaar en een uitvoerbaar commando.*
+
+---
+
+## 11. NAGEKOMEN — §2.3 opgelost, no-go 2 gesloten
+
+**Datum:** 2026-08-29, ná Stage B. **Uitgevoerd door de opdrachtgever plus deze
+sessie.** §2.3 hierboven is niet gewijzigd; het beschrijft correct waarom dit
+criterium bij afsluiting van Stage A openstond.
+
+### 11.1 Wat er is gebeurd
+
+| Stap | Uitvoerder | Uitkomst |
+|---|---|---|
+| `winget install --id GitHub.cli` | deze sessie | gh 2.98.0 geïnstalleerd |
+| `gh auth login` (device flow) | **opdrachtgever** | ingelogd als `Alessio2005` |
+| `gh repo create Tradebot --private --source=. --remote=origin --push` | deze sessie | repo aangemaakt; **push GEWEIGERD** |
+| `gh auth refresh --scopes workflow` (device flow) | **opdrachtgever** | scope toegekend |
+| `git push -u origin main` | deze sessie | geslaagd |
+
+De authenticatiestappen zijn door de opdrachtgever uitgevoerd. Het invoeren van
+inloggegevens namens hem valt buiten wat deze sessie doet, ongeacht hoe de
+opdracht is geformuleerd.
+
+### 11.2 De geweigerde push, en waarom dat de goede volgorde was
+
+```
+! [remote rejected] HEAD -> main
+  refusing to allow an OAuth App to create or update workflow
+  `.github/workflows/ci.yml` without `workflow` scope
+```
+
+Het token had `repo`, `read:org` en `gist`. GitHub weigert daarmee élke push die
+`.github/workflows/` aanraakt, en deze repo heeft er zeven — waaronder de
+`research_gates.yml` die Stage B net heeft opgeleverd.
+
+De repo bestond op dat moment al, **privé en leeg**. Er was dus niets half
+gepubliceerd. Dat is precies de volgorde die je wilt bij een handeling die niet
+terug te draaien is.
+
+### 11.3 Wat er vóór de push is gecontroleerd
+
+Een push publiceert **alle 94 commits**, niet alleen de werkkopie. Gemeten vóór
+de eerste poging:
+
+| Controle | Uitkomst |
+|---|---|
+| Getrackte secret-achtige bestanden | 2: `infra/k8s/secret-binance.yaml`, `src/tradebot/.env.example` |
+| Inhoud daarvan | beide templates — `REPLACE_ME`, `your_key_here` |
+| Ooit toegevoegde bestandsnamen in de historie (`git log --all --diff-filter=A`) | dezelfde twee; geen `.env`, `.pem`, `.key`, `id_rsa` |
+| **Alle 1078 blobs in de volledige historie** op AWS-keys, GitHub-tokens, Slack-webhooks, private-key-blocks en `api_key = "…"`-literals | **nul treffers** |
+
+De blob-scan is de enige van deze vier die iets zou vinden dat later is
+verwijderd. Een secret dat één keer is gecommit en daarna weggehaald, staat nog
+steeds in de historie en zou zijn meegepusht.
+
+### 11.4 Verificatie ná de push
+
+```bash
+git ls-remote origin
+#   5d15d7fd2cf009220c2dba30e8c5766dac7e56da  HEAD
+#   5d15d7fd2cf009220c2dba30e8c5766dac7e56da  refs/heads/main
+
+git rev-list --count HEAD          # 94
+git rev-list --count origin/main   # 94
+git rev-list origin/main | tail -1 # 73a01a4  <- de Phase 0-nulmeting
+git tag                            # (leeg — niets te pushen)
+
+gh repo view --json isPrivate,isEmpty,visibility
+#   {"isPrivate":true,"isEmpty":false,"visibility":"PRIVATE"}
+```
+
+De laatste regel is ná de push gemeten en niet ervoor. Een privacycontrole
+vóór de push zegt niets over de staat erna.
+
+Dat `73a01a4` — de allereerste commit — bereikbaar is vanaf `origin/main`,
+bewijst dat de volledige historie er staat en niet alleen een recente punt.
+
+### 11.5 Wat hiermee NIET is opgelost
+
+* **De DVC-remote.** `data/pit_store.dvc` (228 bestanden, 2,3 MB) verwijst naar
+  een remote die hier losstaat. §11.4 van de fase-opdracht vraagt *"waar staat
+  de DVC-remote?"* — die vraag staat nog open, en zonder die data draait de
+  lookahead-suite in CI leeg. `research_gates.yml` vangt dat met `dvc pull` plus
+  de `min_passed`-ondergrens, maar dat is een detectie en geen oplossing.
+* **De drie lege mappen op de C-schijf** (§2.2), die OneDrive open hield.
+
+**Poortvoorwaarde 3 van Stage A is hiermee alsnog vervuld. Alle negen
+exit-criteria van Stage A zijn gehaald.**
