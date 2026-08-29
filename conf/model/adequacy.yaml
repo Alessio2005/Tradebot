@@ -54,6 +54,22 @@ adequacy:
     persistence_boundary: 0.999
     max_boundary_solution_ratio: 0.10
 
+    # Een variantieforecast boven dit veelvoud van de gemiddelde gekwadrateerde
+    # return is geen forecast meer maar een numeriek artefact. GEMETEN op
+    # 2026-08-29: de gesimuleerde 5-staps EGARCH-forecast liep op BTCUSDT op tot
+    # 4,5e25 maal die referentie en op ETHUSDT tot 3,6e17. De EGARCH-recursie
+    # loopt in ln(sigma^2); de verwachting van exp van een zwaarstaartige random
+    # walk hoeft niet te bestaan, en dan schat de simulatie een moment dat er
+    # niet is.
+    #
+    # QLIKE verbergt dat bijna — hij groeit logaritmisch in een overschatting,
+    # dus een handvol geëxplodeerde bars verschuift het gemiddelde nauwelijks.
+    # Precies daarom staat hier een grens: het getal ziet er anders bruikbaar uit.
+    #
+    # 100 is tienmaal in volatiliteit en dus ruim. De gemeten uitschieters liggen
+    # er vijftien ordes boven; de conclusie hangt niet aan dit getal.
+    max_forecast_level_ratio: 100.0
+
   # --- Level 3: HAR-RV --------------------------------------------------- #
   # Corsi (2009) schat HAR op realized variance uit intraday returns. De
   # standaard is 5-minuutsampling: 288 bars per dag voor een 24-uursmarkt.
@@ -108,3 +124,20 @@ adequacy:
     alpha: 0.05
     target_power: 0.80
     two_sided: true
+
+  # --- De variantieproxy van de QLIKE-competitie (stap 7) ------------------ #
+  # QLIKE heeft zijn minimum op `forecast = E[proxy]`. Zit er een
+  # multiplicatieve factor in de proxy ten opzichte van de grootheid die de
+  # modellen voorspellen — de variantie van de close-to-close return — dan
+  # verschuift dat minimum mee en wint het model waarvan het NIVEAU bij die
+  # factor past. De rangorde meet dan kalibratie tegen een verschoven doel in
+  # plaats van voorspelkwaliteit.
+  #
+  # De referentie is de gekwadrateerde return: die is ruisig, maar per
+  # constructie zuiver voor precies de voorspelde grootheid.
+  #
+  # 0,15 is ruim. De H1-run van 2026-08-29 mat 1,19 tot 2,24 — geen enkele
+  # redelijke tolerantie laat dat door, dus de conclusie hangt niet aan de
+  # exacte waarde hier.
+  proxy:
+    max_scale_deviation: 0.15

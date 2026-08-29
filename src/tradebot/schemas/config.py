@@ -144,6 +144,20 @@ class VolatilityConfig(StrictModel):
 
     min_periods: PositiveInt = 2
 
+    # --- Meerstaps GARCH-forecasts (Phase 6, stap 7) ----------------------- #
+    # Voor EGARCH en APARCH BESTAAT er geen analytische meerstaps-forecast; de
+    # recursie loopt in ln(sigma^2) respectievelijk sigma^delta en de
+    # terugtransformatie heeft geen gesloten vorm. `arch` weigert daar terecht.
+    # De meerstaps-forecast wordt daarom gesimuleerd, voor ELKE variant, zodat
+    # geen enkel model op h > 1 een andersoortige forecast krijgt dan zijn
+    # concurrent. Op h = 1 blijft de analytische forecast staan: daar bestaat
+    # het exacte antwoord en hoort er geen Monte-Carlo-ruis in.
+    forecast_simulations: PositiveInt = 5000
+
+    # Zonder vaste seed is elke QLIKE-uitslag op h > 1 onherhaalbaar, en een
+    # niet-reproduceerbaar getal is geen bewijs.
+    forecast_seed: PositiveInt = 20260826
+
 
 # --------------------------------------------------------------------------- #
 # L3 - Feature Store & Causal Pipeline
@@ -490,6 +504,26 @@ class GarchAdequacyConfig(StrictModel):
     persistence_boundary: Annotated[float, Field(gt=0.0, le=1.0)] = 0.999
     max_boundary_solution_ratio: Annotated[float, Field(ge=0.0, le=1.0)] = 0.10
 
+    #: Een variantieforecast boven dit veelvoud van de gemiddelde gekwadrateerde
+    #: return is geen forecast meer maar een numeriek artefact. GEMETEN op
+    #: 2026-08-29: de gesimuleerde 5-staps EGARCH-forecast liep op BTCUSDT op
+    #: tot 4,5e25 maal die referentie. De EGARCH-recursie loopt in ln(sigma^2)
+    #: en de verwachting van exp van een zwaarstaartige random walk hoeft niet
+    #: te bestaan; de simulatie schat dan een moment dat er niet is.
+    max_forecast_level_ratio: Annotated[float, Field(gt=1.0)] = 100.0
+
+    #: Een variantieforecast die dit veelvoud van de gemiddelde gekwadrateerde
+    #: return overschrijdt, is geen forecast meer. GEMETEN op 2026-08-29: de
+    #: gesimuleerde 5-staps EGARCH-forecast liep op BTCUSDT op tot 4,5e25 maal
+    #: die referentie. De EGARCH-recursie loopt in ln(sigma^2) en de verwachting
+    #: van exp van een zwaarstaartige random walk hoeft niet te bestaan; de
+    #: simulatie schat dan een moment dat er niet is.
+    #:
+    #: 100 (tienmaal in volatiliteit) is ruim; de gemeten uitschieters liggen er
+    #: vijftien ordes van grootte boven, dus de conclusie hangt niet aan deze
+    #: waarde.
+    max_forecast_level_ratio: Annotated[float, Field(gt=1.0)] = 100.0
+
 
 class HarRvAdequacyConfig(StrictModel):
     """Minimumeisen voor Level-3 HAR-RV op realized variance."""
@@ -541,6 +575,24 @@ class PowerConfig(StrictModel):
     two_sided: bool = True
 
 
+class ProxyAdequacyConfig(StrictModel):
+    """Contract voor de variantieproxy van de QLIKE-competitie (Phase 6 stap 7).
+
+    QLIKE heeft zijn minimum op `forecast = E[proxy]`. Draagt de proxy een
+    multiplicatieve factor ten opzichte van de grootheid die de modellen
+    voorspellen -- de variantie van de close-to-close return -- dan verschuift
+    dat minimum mee, en wint het model waarvan het NIVEAU bij die factor past in
+    plaats van het model dat de dynamiek het beste voorspelt.
+    """
+
+    #: Hoeveel de gemiddelde proxy van de gemiddelde gekwadrateerde return mag
+    #: afwijken voordat zij niet meer als zuivere proxy geldt. De
+    #: gekwadrateerde return is de referentie omdat hij per constructie zuiver
+    #: is voor precies de grootheid die de modellen voorspellen:
+    #: `E[r_t^2 | F_{t-1}] = sigma_t^2`. Ruisig, maar zuiver.
+    max_scale_deviation: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.15
+
+
 class AdequacyConfig(StrictModel):
     """Contract voor de Data Adequacy Gate (L11). Zie `conf/model/adequacy.yaml`.
 
@@ -556,6 +608,7 @@ class AdequacyConfig(StrictModel):
     meta_labeling: MetaLabelingAdequacyConfig = Field(
         default_factory=MetaLabelingAdequacyConfig)
     hrp: HrpAdequacyConfig = Field(default_factory=HrpAdequacyConfig)
+    proxy: ProxyAdequacyConfig = Field(default_factory=ProxyAdequacyConfig)
     power: PowerConfig = Field(default_factory=PowerConfig)
 
 
@@ -821,3 +874,35 @@ def econometrics_config() -> EconometricsConfig:
     andere waarde te zien dan de eerste lezing gaf.
     """
     return load_config(ECONOMETRICS_CONFIG_PATH, EconometricsConfig)
+
+
+ADEQUACY_CONFIG_PATH = _REPO_ROOT / "conf" / "model" / "adequacy.yaml"
+
+
+@lru_cache(maxsize=1)
+def adequacy_config() -> AdequacyConfig:
+    """De gevalideerde drempels van de Data Adequacy Gate uit `conf/model/`.
+
+    Zelfde constructie en dezelfde reden als :func:`econometrics_config`: de
+    QLIKE-competitie (`validation/vol_competition.py`) velt haar oordeel tegen
+    de convergentie-, randoplossings- en power-drempels van Phase 6, en die
+    horen uit `conf/` te komen zodat ze gehasht en auditbaar zijn. Een drempel
+    die in een handtekening staat, kan achteraf worden bijgesteld om een model
+    door de poort te krijgen.
+    """
+    return load_config(ADEQUACY_CONFIG_PATH, AdequacyConfig)
+
+
+VOLATILITY_CONFIG_PATH = _REPO_ROOT / "conf" / "model" / "volatility.yaml"
+
+
+@lru_cache(maxsize=1)
+def volatility_config() -> VolatilityConfig:
+    """De L2-baselineparameters uit `conf/model/volatility.yaml`.
+
+    Zelfde constructie en dezelfde reden als :func:`econometrics_config`. De
+    QLIKE-competitie zet EWMA(0.94) in als titelverdediger; die lambda en die
+    burn-in horen uit `conf/` te komen, want zij zijn onderdeel van het
+    baselinecontract en niet van de competitie die hen toetst.
+    """
+    return load_config(VOLATILITY_CONFIG_PATH, VolatilityConfig)

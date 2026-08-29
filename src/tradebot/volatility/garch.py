@@ -84,7 +84,7 @@ import numpy as np
 import pandas as pd
 
 from ..cv.walk_forward import WalkForwardCV
-from ..schemas.config import AdequacyConfig
+from ..schemas.config import AdequacyConfig, volatility_config
 from ..utils.failfast import (
     DataContractError,
     TradebotContractError,
@@ -109,6 +109,11 @@ __all__ = [
 #: staat hier als constante zodat de terugvertaling (`/ RETURN_SCALE**2`) op
 #: exact een plek gebeurt en niet als los getal door de code zwerft.
 RETURN_SCALE: float = 100.0
+
+#: De simulatieparameters van de meerstaps-forecast. Uit `conf/`, niet uit een
+#: handtekening: het aantal simulaties en de seed bepalen samen of een
+#: h > 1-uitslag herhaalbaar is, en dat is een reproduceerbaarheidscontract.
+_VOL = volatility_config()
 
 #: De uitzonderingen die een QML-optimizer op DEGENERATE DATA werkelijk opwerpt,
 #: en die dus "deze fit is niet geconvergeerd" betekenen.
@@ -283,10 +288,65 @@ class GarchFit:
             spec=self.spec.label, symbol=self.symbol, fold_id=self.fold_id,
             optimizer_message=self.message,
         )
-        forecast = self.result.forecast(
-            horizon=horizon, start=start, reindex=False, method="analytic")
+        if horizon == 1:
+            forecast = self.result.forecast(
+                horizon=1, start=start, reindex=False, method="analytic")
+        else:
+            # GEEN ANALYTISCHE MEERSTAPS VOOR EGARCH EN APARCH. Dat is geen
+            # tekortkoming van `arch` maar wiskunde: hun recursie loopt in
+            # ln(sigma^2) respectievelijk sigma^delta, en de verwachting van de
+            # teruggetransformeerde reeks heeft geen gesloten vorm. `arch`
+            # weigert daar met "Analytic forecasts not available for horizon >
+            # 1" -- een crash die deze campagne halverwege heeft geraakt en die
+            # de juiste uitkomst was voor een fout in de opzet.
+            #
+            # De forecast wordt daarom gesimuleerd, en dan voor ELKE variant.
+            # Zou alleen EGARCH en APARCH worden gesimuleerd, dan krijgen twee
+            # van de vier uitdagers op dezelfde horizon een andersoortige
+            # forecast dan de andere twee -- een verschil dat niets met het
+            # model te maken heeft. Op GARCH(1,1), waar beide bestaan, komen de
+            # twee methoden op vier significante cijfers overeen; dat is
+            # gemeten in `tests/unit/test_garch_family.py`.
+            #
+            # De seed komt uit `conf/model/volatility.yaml`: zonder vaste seed
+            # is een QLIKE-uitslag op h > 1 onherhaalbaar, en een
+            # niet-reproduceerbaar getal is geen bewijs.
+            #
+            # De seed gaat via een EIGEN, GESEEDE innovatiegenerator en niet via
+            # `random_state`: dat argument werkt in `arch` uitsluitend voor
+            # `method="bootstrap"` en wordt bij `method="simulation"`
+            # STILZWIJGEND genegeerd. Twee opeenvolgende aanroepen gaven daardoor
+            # verschillende getallen -- gevonden door
+            # `test_the_simulation_is_reproducible`. De generator trekt uit
+            # dezelfde gestandaardiseerde Student-t met de GEFITTE nu, zodat
+            # alleen de herhaalbaarheid verandert en niet de verdeling.
+            forecast = self.result.forecast(
+                horizon=horizon, start=start, reindex=False,
+                method="simulation", simulations=_VOL.forecast_simulations,
+                rng=self._seeded_innovations(),
+            )
         variance: pd.DataFrame = forecast.variance
         return variance / (RETURN_SCALE ** 2)
+
+    def _seeded_innovations(self) -> Any:
+        """Een geseede trekker uit de GEFITTE innovatieverdeling.
+
+        Hij wordt uit het gefitte model zelf afgeleid -- klasse én parameters --
+        en niet hier opnieuw opgeschreven. Zou de verdeling hier worden
+        overgetypt, dan kan zij stil uiteen gaan lopen met de verdeling waarop
+        de likelihood is gemaximaliseerd, en simuleert de forecast uit een
+        andere staart dan het model heeft geschat.
+
+        `arch` wordt bewust NIET op moduleniveau geimporteerd: de afhankelijkheid
+        loopt via `require_dependency` in `fit_garch_window`, zodat een machine
+        zonder `arch` een leesbare melding krijgt in plaats van een ImportError
+        bij het laden van dit bestand.
+        """
+        distribution = self.result.model.distribution
+        parameters = [
+            float(self.params[name]) for name in distribution.parameter_names()
+        ]
+        return type(distribution)(seed=_VOL.forecast_seed).simulate(parameters)
 
     def as_record(self) -> dict[str, Any]:
         return {

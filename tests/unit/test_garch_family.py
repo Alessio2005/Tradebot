@@ -391,6 +391,23 @@ class _StubForecast:
         self.variance = variance
 
 
+class _StubDistribution:
+    """Genoeg van een `arch`-verdeling om de geseede generator te bouwen."""
+
+    def __init__(self, seed: int | None = None) -> None:
+        self.seed = seed
+
+    def parameter_names(self) -> list[str]:
+        return ["nu"]
+
+    def simulate(self, parameters: list[float]) -> object:
+        return np.random.default_rng(self.seed).standard_normal
+
+
+class _StubModel:
+    distribution: ClassVar[_StubDistribution] = _StubDistribution()
+
+
 class _StubResult:
     """Codeert de OORSPRONGSBAR in de forecastwaarde zelf.
 
@@ -402,13 +419,21 @@ class _StubResult:
     lookahead-controle moet kunnen zeggen.
     """
 
+    model: ClassVar[_StubModel] = _StubModel()
+
     def __init__(self, n_obs: int) -> None:
         self.n_obs = n_obs
 
     def forecast(self, *, horizon: int, start: int, reindex: bool,
-                 method: str) -> _StubForecast:
+                 method: str, simulations: int | None = None,
+                 rng: object | None = None) -> _StubForecast:
         assert reindex is False
-        assert method == "analytic"
+        # De methodekeuze hoort bij de verschuiving getoetst te worden en niet
+        # los ervan: op h = 1 bestaat het exacte antwoord en hoort er geen
+        # Monte-Carlo-ruis in; op h > 1 bestaat het voor EGARCH en APARCH niet.
+        assert method == ("analytic" if horizon == 1 else "simulation")
+        assert (simulations is None) == (horizon == 1)
+        assert (rng is None) == (horizon == 1)
         origins = np.arange(start, self.n_obs, dtype=np.float64)
         block = np.repeat(
             (origins * RETURN_SCALE**2)[:, None], horizon, axis=1)
@@ -422,7 +447,8 @@ def stub_fits(monkeypatch: pytest.MonkeyPatch) -> None:
     def _fake_fit(returns, spec, cfg, *, symbol, fold_id, train_end):
         return GarchFit(
             spec=spec, symbol=symbol, fold_id=fold_id, n_obs=train_end,
-            converged=True, message="stub", params={}, persistence=0.95,
+            converged=True, message="stub", params={"nu": 8.0},
+            persistence=0.95,
             at_boundary=False, loglikelihood=-1.0,
             result=_StubResult(int(returns.size)),
         )
@@ -555,3 +581,98 @@ class TestNonConvergedFoldLeavesItsBarsEmpty:
         assert len(fits) > 0
         assert summarise_convergence(fits).convergence_ratio == 0.0
         assert summarise_convergence(fits).comparable(CFG) is False
+
+
+# --------------------------------------------------------------------------- #
+# Meerstaps forecasts — h = 5 uit de pre-registratie
+# --------------------------------------------------------------------------- #
+def _garch_series(n: int = 600, seed: int = SEED) -> pd.Series:
+    """Een reeks met een echte GARCH-structuur, zodat de fits convergeren."""
+    rng = np.random.default_rng(seed)
+    omega, alpha, beta = 2e-6, 0.09, 0.88
+    var = np.empty(n)
+    eps = np.empty(n)
+    var[0] = omega / (1.0 - alpha - beta)
+    for t in range(n):
+        if t:
+            var[t] = omega + alpha * eps[t - 1] ** 2 + beta * var[t - 1]
+        eps[t] = rng.normal(0.0, math.sqrt(var[t]))
+    return pd.Series(eps)
+
+
+@pytest.mark.slow
+class TestMultiStepForecasts:
+    """De pre-registratie vraagt h = 1 én h = 5, voor alle vier de varianten.
+
+    DEFECT IN MIJN EIGEN WERK, gevonden bij de eerste echte campagne. De eerste
+    versie vroeg `method="analytic"` voor elke horizon, en dat werkt niet:
+    `arch` weigert een analytische meerstaps-forecast voor EGARCH en APARCH met
+    *"Analytic forecasts not available for horizon > 1"*. Dat is geen
+    implementatiegat maar wiskunde — de recursie van EGARCH loopt in
+    ``ln σ²`` en de verwachting van de teruggetransformeerde reeks heeft geen
+    gesloten vorm.
+
+    De campagne crashte daardoor halverwege, wat de juiste uitkomst is voor een
+    fout in de opzet. Wat NIET mocht gebeuren: die twee varianten stilzwijgend
+    op h = 1 laten staan, of hun h = 5 met een EWMA-achtige benadering vullen.
+    Beide zouden een gat in de pre-registratie opvullen met een aanname.
+    """
+
+    TRAIN_END: ClassVar[int] = 500
+
+    def _fit_for(self, key: str) -> GarchFit:
+        return fit_garch_window(
+            _garch_series(), GARCH_FAMILY[key], CFG, symbol="TEST", fold_id=0,
+            train_end=self.TRAIN_END)
+
+    @pytest.mark.parametrize("key", sorted(GARCH_FAMILY))
+    def test_every_variant_delivers_a_five_step_forecast(self, key: str) -> None:
+        variance = self._fit_for(key).forecast_variance(
+            horizon=5, start=self.TRAIN_END)
+        assert variance.shape[1] == 5
+        column = variance.to_numpy(dtype=float)[:, 4]
+        finite = column[np.isfinite(column)]
+        assert finite.size > 0
+        assert (finite > 0.0).all(), "een niet-positieve variantieforecast"
+
+    def test_the_simulated_five_step_matches_the_analytic_one_where_both_exist(
+        self,
+    ) -> None:
+        """De controle op de methodewissel zelf.
+
+        Voor GARCH(1,1) BESTAAT de analytische meerstaps-forecast wel. Als de
+        gesimuleerde variant daar hetzelfde getal geeft, dan meet zij dezelfde
+        grootheid en is het gebruik ervan voor EGARCH en APARCH een
+        rekenmethode — geen andere definitie van 'forecast'.
+        """
+        fit = self._fit_for("garch")
+        simulated = fit.forecast_variance(
+            horizon=5, start=self.TRAIN_END).to_numpy(dtype=float)[:, 4]
+        analytic = fit.result.forecast(
+            horizon=5, start=self.TRAIN_END, reindex=False, method="analytic",
+        ).variance.to_numpy(dtype=float)[:, 4] / (RETURN_SCALE ** 2)
+        np.testing.assert_allclose(simulated, analytic, rtol=0.02)
+
+    def test_the_one_step_forecast_stays_analytic(self) -> None:
+        """Op h = 1 bestaat het exacte antwoord; daar hoort geen ruis in.
+
+        Zou ook h = 1 worden gesimuleerd, dan zou de titelverdediger op de
+        primaire horizon een exacte forecast krijgen en de uitdager een
+        gesimuleerde — een verschil dat niets met het model te maken heeft.
+        """
+        fit = self._fit_for("garch")
+        simulated_free = fit.forecast_variance(
+            horizon=1, start=self.TRAIN_END).to_numpy(dtype=float)[:, 0]
+        analytic = fit.result.forecast(
+            horizon=1, start=self.TRAIN_END, reindex=False, method="analytic",
+        ).variance.to_numpy(dtype=float)[:, 0] / (RETURN_SCALE ** 2)
+        np.testing.assert_allclose(simulated_free, analytic, rtol=0.0, atol=0.0)
+
+    def test_the_simulation_is_reproducible(self) -> None:
+        """Zonder vaste seed is elke QLIKE-uitslag op h = 5 onherhaalbaar."""
+        fit = self._fit_for("egarch")
+        first = fit.forecast_variance(horizon=5, start=self.TRAIN_END)
+        second = fit.forecast_variance(horizon=5, start=self.TRAIN_END)
+        np.testing.assert_allclose(
+            first.to_numpy(dtype=float), second.to_numpy(dtype=float),
+            rtol=0.0, atol=0.0)
