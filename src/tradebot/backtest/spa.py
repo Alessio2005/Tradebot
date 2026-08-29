@@ -90,29 +90,72 @@ def spa_test(
     # where d_bar_k+ = max(d_bar_k, 0) — only consider strategies that beat benchmark
     T_spa = math.sqrt(T) * float(np.max(np.maximum(d_bar, 0.0)))
 
-    # Stationary bootstrap to get null distribution
-    bootstrap_stats: list[float] = []
+    # Stationary bootstrap to get the null distribution.
+    #
+    # HANSEN'S THREE p-VALUES -- CORRECTED IN PHASE 7/8 STAGE B-2.
+    # ---------------------------------------------------------------------
+    # Hansen (2005) section 3.2 defines three p-values that differ ONLY in the
+    # recentering function g applied to the bootstrap means:
+    #
+    #     lower       g_l(d_bar) = max(d_bar, 0)
+    #     consistent  g_c(d_bar) = d_bar * 1{d_bar >= -A_k}
+    #     upper       g_u(d_bar) = d_bar
+    #
+    # They are ordered p_lower <= p_consistent <= p_upper. The lower variant
+    # treats every model that loses to the benchmark as infinitely bad, so it
+    # contributes nothing to the bootstrap maximum -- that makes it the most
+    # LIBERAL of the three.
+    #
+    # DEFECT FOUND AND FIXED HERE: this function recentered with
+    # `np.maximum(d_bar, 0.0)` -- Hansen's LOWER variant -- and returned it
+    # under the key `p_value_consistent`. Every SPA verdict in this platform
+    # was therefore computed with the most permissive of the three estimators
+    # while the reports named the recommended one. The docstring additionally
+    # promised `p_value_lower` and `p_value_upper` keys that were never
+    # returned, so no caller could have noticed by reading the output.
+    #
+    # All three are now computed from the SAME bootstrap draws.
+    bootstrap_means = np.empty((n_bootstrap, S), dtype=np.float64)
     rng = np.random.default_rng(seed=42)
-    for _ in range(n_bootstrap):
+    for b in range(n_bootstrap):
         indices = _stationary_bootstrap_indices(T, block_size, rng)
-        d_boot = loss_diffs[indices, :]
-        d_boot_bar = d_boot.mean(axis=0)
-        # Center the bootstrap statistic
-        d_centered = d_boot_bar - np.maximum(d_bar, 0.0)
-        bootstrap_stats.append(float(math.sqrt(T) * np.max(np.maximum(d_centered, 0.0))))
+        bootstrap_means[b, :] = loss_diffs[indices, :].mean(axis=0)
 
-    boot_arr = np.array(bootstrap_stats)
-    p_value_consistent = float(np.mean(boot_arr >= T_spa))
+    # Long-run variance of sqrt(T)*d_bar_k, estimated from the same bootstrap.
+    omega_sq = T * bootstrap_means.var(axis=0, ddof=1)          # (S,)
+
+    # Hansen's threshold for the consistent variant. The sqrt(2 log log T) rate
+    # is what makes the estimator consistent: it shrinks slowly enough to keep
+    # near-benchmark models in the comparison set, and fast enough to drop the
+    # ones that are genuinely hopeless.
+    log_log_t = math.log(math.log(T)) if T > math.e else 1.0
+    a_k = np.sqrt(np.maximum(omega_sq, 0.0) / T * 2.0 * max(log_log_t, 0.0))
+
+    g_lower = np.maximum(d_bar, 0.0)
+    g_consistent = np.where(d_bar >= -a_k, d_bar, 0.0)
+    g_upper = d_bar
+
+    def _p_value(g: np.ndarray) -> float:
+        centered = bootstrap_means - g.reshape(1, -1)            # (B, S)
+        stats_b = math.sqrt(T) * np.max(np.maximum(centered, 0.0), axis=1)
+        return float(np.mean(stats_b >= T_spa))
+
+    p_value_lower = _p_value(g_lower)
+    p_value_consistent = _p_value(g_consistent)
+    p_value_upper = _p_value(g_upper)
 
     best_idx = int(np.argmax(d_bar))
     reject = p_value_consistent < significance
 
     logger.info(
-        "SPA test: T_spa=%.4f p_value=%.4f reject_null=%s best_strategy=%d",
-        T_spa, p_value_consistent, reject, best_idx,
+        "SPA test: T_spa=%.4f p_lower=%.4f p_consistent=%.4f p_upper=%.4f "
+        "reject_null=%s best_strategy=%d",
+        T_spa, p_value_lower, p_value_consistent, p_value_upper, reject, best_idx,
     )
     return {
+        "p_value_lower": p_value_lower,
         "p_value_consistent": p_value_consistent,
+        "p_value_upper": p_value_upper,
         "T_spa": T_spa,
         "best_strategy_idx": best_idx,
         "reject_null": reject,
