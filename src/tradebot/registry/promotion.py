@@ -1,25 +1,46 @@
 # src/tradebot/registry/promotion.py
-"""Model lifecycle promotion — research → staging → production.
+"""Deployment-stages — research → staging → production.
 
-Gate rules (blueprint §8.5):
-  research  → staging : oos_logloss < 0.69 AND sharpe > 0.0
-  staging   → prod    : sharpe >= 0.5 AND max_dd <= 0.25 AND n_obs >= 200
+TWEE ASSEN, EN HET GAT ERTUSSEN (Phase 7/8 Stage B-4)
+=====================================================
+Dit bestand modelleert waar een model DRAAIT. `registry/lifecycle.py` modelleert
+hoeveel BEWIJS ervoor bestaat (`REGISTERED -> TESTED -> CANDIDATE -> PAPER ->
+CHAMPION`). Die twee assen liepen tot Stage B niet gelijk, en in dat gat kon een
+model productie in glippen op niets meer dan:
 
-All promotions are recorded in the catalog as a new ModelRecord entry
-with an updated ``stage`` field (append-only, immutable history).
+    staging -> prod : sharpe >= 0.5 AND max_dd <= 0.25 AND n_obs >= 200
+
+Geen DSR, geen SPA, geen lookahead-suite, geen pre-registratie, geen `M`. Drie
+in-sample-getallen die elk overgefit kunnen zijn, en precies de vrijheidsgraad
+die de hele L11-laag hoort weg te nemen. Dat is fase-no-go 5 (*"een promotieclaim
+zonder de Stage B-gates"*) via een tweede deur.
+
+**`prod` vereist vanaf Stage B een geslaagd `GateResult`.** De drempels hieronder
+blijven bestaan als SCREENING voor `staging` — een goedkope voorfilter die
+hopeloze kandidaten tegenhoudt — maar zij zijn geen promotiebewijs en kunnen dat
+ook niet worden. Zie `validation/gates.py`.
+
+Alle promoties worden append-only in de catalog vastgelegd als een nieuwe
+`ModelRecord` met een bijgewerkt `stage`-veld.
 """
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from ..backtest.vectorized import reject_vectorized_evidence
+from ..utils.failfast import DataContractError, require
 from .catalog import ModelCatalog, ModelRecord
+
+if TYPE_CHECKING:                      # pragma: no cover - typing only
+    from ..validation.gates import GateResult
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["RESEARCH_TO_STAGING", "STAGING_TO_PROD", "PromotionGates", "promote"]
 
-# Default gate thresholds
+# Screening-drempels voor research -> staging. GEEN promotiebewijs: zie de
+# moduledocstring. Zij zijn in-sample-grootheden zonder correctie voor `M`.
 RESEARCH_TO_STAGING: dict[str, float] = {
     "oos_logloss_max": 0.69,
     "sharpe_min": 0.0,
@@ -70,6 +91,8 @@ def promote(
     side: str,
     target_stage: str,
     gates: PromotionGates | None = None,
+    *,
+    gate_result: GateResult | None = None,
 ) -> ModelRecord | None:
     """Promote the latest model for (symbol, side) to target_stage if gates pass.
 
@@ -79,11 +102,23 @@ def promote(
     symbol : asset symbol.
     side : "LONG" or "SHORT".
     target_stage : "staging" or "prod".
-    gates : promotion gate rules (None = use defaults).
+    gates : screening thresholds for research -> staging (None = defaults).
+    gate_result
+        VERPLICHT voor `target_stage="prod"`. Het `GateResult` uit
+        `validation.gates.run_promotion_gates`. Ontbreekt hij, dan CRASHT deze
+        functie; hij weigert niet stil en logt geen waarschuwing. Een productie-
+        promotie zonder de vijf poorten is geen zwak besluit maar een besluit
+        dat niet genomen had mogen kunnen worden.
 
     Returns
     -------
     New ModelRecord with updated stage, or None if gates fail.
+
+    Raises
+    ------
+    DataContractError
+        Bij `prod` zonder `gate_result`, of met een `gate_result` dat niet is
+        geslaagd.
     """
     gates = gates or PromotionGates()
     records = catalog.query(symbol=symbol, side=side, latest=True)
@@ -115,6 +150,29 @@ def promote(
             return None
 
     elif target_stage == "prod":
+        # STAGE B-4: de L11-poort staat VÓÓR de legacy-drempels, niet ernaast.
+        # Zou hij erna staan, dan bepaalt `sharpe >= 0.5` nog steeds wie er
+        # überhaupt aan de statistische toets toekomt.
+        require(
+            gate_result is not None,
+            f"promote({symbol}/{side} -> prod) zonder GateResult. Productie "
+            f"vereist de vijf poorten uit validation/gates.py: pre-registratie, "
+            f"data-adequaatheid, lookahead-suite, DSR en SPA. De drempels in "
+            f"STAGING_TO_PROD zijn in-sample-screening zonder correctie voor M "
+            f"en tellen niet als bewijs (fase-no-go 5).",
+            DataContractError,
+            symbol=symbol, side=side,
+        )
+        assert gate_result is not None
+        require(
+            gate_result.passed,
+            f"promote({symbol}/{side} -> prod) met een GateResult dat niet is "
+            f"geslaagd: verdict={gate_result.verdict}, gefaalde poorten="
+            f"{list(gate_result.failed_gates)}. Er is geen deelscore en geen "
+            f"override.",
+            DataContractError,
+            symbol=symbol, side=side, verdict=gate_result.verdict,
+        )
         if latest.stage != "staging":
             logger.warning(
                 "Cannot promote directly to prod from stage=%s (must pass staging first).",

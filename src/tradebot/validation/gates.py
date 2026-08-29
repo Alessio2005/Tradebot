@@ -135,6 +135,31 @@ class GateResult:
             f"poort is geen geslaagde poort.",
             DataContractError,
         )
+        require(
+            self.verdict in (GateVerdict.PROMOTED, GateVerdict.FALSIFIED,
+                             GateVerdict.UNPROVEN),
+            f"Onbekend oordeel {self.verdict!r}. Toegestaan: PROMOTED, "
+            f"FALSIFIED, UNPROVEN.",
+            DataContractError,
+        )
+        # DE INTERNE CONSISTENTIE VAN HET OORDEEL ZELF.
+        #
+        # `run_promotion_gates` kan dit niet schenden, maar `GateResult` is een
+        # gewone dataclass die iedereen kan construeren. Zonder deze controle is
+        # een met de hand gemaakt object met verdict=PROMOTED en vier van de vijf
+        # poorten op True niet te onderscheiden van een echt oordeel - en het
+        # passeert dan `promote(..., "prod")`. De poort omzeilen zou dan geen
+        # aanval vereisen maar een typefout.
+        if self.verdict == GateVerdict.PROMOTED:
+            failed = [n for n in PROMOTION_GATE_NAMES if not self.gates[n]]
+            require(
+                not failed,
+                f"GateResult draagt verdict=PROMOTED terwijl {failed} niet is "
+                f"geslaagd. Er is geen deelscore: vier van de vijf is een "
+                f"weigering.",
+                DataContractError,
+                model_id=self.model_id,
+            )
 
     @property
     def passed(self) -> bool:
