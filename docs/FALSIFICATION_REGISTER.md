@@ -75,3 +75,62 @@ het signaal.** N_eff = 1,54 op vier producten: WTI, HO en RBOB zijn vrijwel
 hetzelfde risico (dezelfde raffinagecomplex-drijver) en NG is de enige echte
 tweede bet. Grinold's IR ≈ IC·√breadth geeft met breadth ≈ 1,5 geen boek,
 hoe goed de carry-schatter ook is. Dat is F10 opnieuw, nu in energie.
+
+---
+
+## INVALIDATIE - historische resultaten zonder gecertificeerde data-provenance
+
+> **Toegevoegd 2026-08-29, Phase 2 exit-criterium 7** (uitgevoerd als Stage B
+> van `Prompts-fases/fase_7_8_consolidatie_productie.md`). Dit register is
+> append-only: geen enkele regel hierboven is gewijzigd, verwijderd of
+> afgezwakt. Deze sectie voegt een STATUS toe, hij vervangt geen oordeel.
+
+### Wat er is geherclassificeerd
+
+| Groep | Aantal | Nieuwe status |
+|---|---|---|
+| Gefalsificeerde units `F1` t/m `F20` hierboven | **20** | `INVALID - no certified data provenance` |
+| "Geaccepteerde" crypto-units uit Wave 20: **ML-XS**, **LOWVOL**, **REVERSAL-k10**, **CARRY** | **4** | `INVALID - no certified data provenance` |
+| **Totaal geherclassificeerd** | **24** | |
+
+De vier geaccepteerde units staan in de ledger onder
+`w20_rebaseline_plus_4_crypto_units` (`result: accepted`, `n_trials: 5`), zelf
+een RECONSTRUCTIE uit `docs/WAVE_LOG.md` regel 143 nadat het canonieke
+ledgerbestand verloren ging.
+
+### Waarom, en wat de status wel en niet betekent
+
+Elk van deze 24 oordelen is geveld op data van voor Phase 1. Er is voor geen van
+die runs een gecertificeerde `data_hash` uit de PIT-store, en dus is er geen
+manier om vast te stellen op welke reeks het oordeel is gebaseerd, of om het te
+reproduceren.
+
+`INVALID` betekent hier **precies een ding: het bewijs is niet herleidbaar.**
+
+* Het is **geen** herroeping. F1 t/m F20 blijven staan als falsificaties, en de
+  mandaatregel dat hertesten zonder gewijzigde premisse een schending is, blijft
+  onverkort gelden. Een gefalsificeerde hypothese wordt niet aantrekkelijker
+  doordat het bewijs niet reproduceerbaar is.
+* Het is **geen** promotie. De vier `accepted` units zijn hiermee juist strenger
+  behandeld: zij verliezen hun status als bewijs.
+* Het is **niet** `UNPROVEN - insufficient data`. Dat oordeel is voor een model
+  dat de Data Adequacy Gate niet haalt (audit paragraaf 6, fase-no-go 13). Hier
+  was de data er wel; de **herkomst** ontbreekt.
+
+**Heropening vereist in alle 24 gevallen dezelfde weg:** een nieuwe
+pre-registratie, gecertificeerde Phase 1-data met een `data_hash`, en de vijf
+poorten uit `validation/gates.py`. Zo'n hertest telt opnieuw mee in `M`.
+
+### Waarom hier geen ledger-entry tegenover staat
+
+`registry/hypothesis_ledger.py` telt `M`, en `M` is de noemer van elke DSR in
+dit platform. Een entry vereist `n_trials >= 1`, dus een invalidatie-entry zou
+`M` met minstens 1 verhogen zonder dat er een configuratie is geprobeerd.
+
+Deze herclassificatie is een GOVERNANCE-handeling, geen search. `M` ophogen voor
+administratie maakt het getal minder eerlijk, niet strenger, en het zou een
+precedent zetten waarin papierwerk een statistische noemer opblaast. Phase 2
+exit-criterium 7 eist de status *"in het register"*, en dit register is
+eveneens append-only - het is de juiste plaats.
+
+`M` blijft daarom **2776**.

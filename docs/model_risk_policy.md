@@ -1,4 +1,25 @@
-# Model Risk Management (MRM) policy — Tradebot v1.0
+# Model Risk Management (MRM) policy — Tradebot v1.1
+
+> **Geverifieerd tegen de codebase op 2026-08-29** (Phase 7/8, Stage B-7).
+> Elk bestand, elke klasse en elke workflow die hieronder wordt genoemd, is op
+> die datum gemeten en bestaat.
+>
+> **Wat er is gecorrigeerd, en waarom dat ertoe doet.** Tot deze revisie noemde
+> §6 zes lookahead-tests als harde CI-gate:
+> `test_macro_lag.py`, `test_cusum_causal.py`, `test_featurestore_fence.py`,
+> `test_triple_barrier_embargo.py`, `test_regime_causal.py` en
+> `test_oms_audit_completeness.py`. **Geen van de zes heeft ooit bestaan**, en
+> er was geen CI-workflow die de suite blokkerend draaide.
+>
+> Dat is D-1, en het is de gevaarlijkste vorm die een beleidsdocument kan
+> aannemen: waar op papier, onwaar in de machine. Iedereen handelt dan alsof de
+> controle bestaat. `reports/phase3_exit_report.md` §0 en §5 meldden het al;
+> drie fasen lang heeft niemand het opgepakt.
+>
+> **D-1 is gesloten op 2026-08-29.** De zes poorten bestaan nu als benoemde
+> bestanden, `.github/workflows/research_gates.yml` draait ze blokkerend, en
+> `tests/killgates/test_gate_cannot_be_bypassed.py` bewijst dat de poort een
+> lekkend model weigert. Zie `reports/phase2_exit_report.md`.
 
 Compliance framework that gates every model from research → live.
 
@@ -23,8 +44,24 @@ research ──► staging ──► production
 | Tier        | Allowed activity              | Gate to next tier                       |
 |-------------|-------------------------------|-----------------------------------------|
 | research    | unrestricted notebook work    | training-time green CI                  |
-| staging     | shadow trading via PaperOMS   | ≥ 14 days shadow + DM-test PROMOTE      |
+| staging     | shadow trading via PaperOMS   | een GESLAAGD `GateResult` (§6.3)        |
 | production  | live order placement          | MRM report signed; circuit breaker armed|
+
+> **Deze drie tiers zeggen waar een model DRAAIT, niet hoeveel bewijs ervoor
+> bestaat.** Die tweede as staat in `registry/lifecycle.py`. Tot Stage B liepen
+> ze niet gelijk, en in dat gat kon een model productie in glippen op
+> `sharpe >= 0.5 AND max_dd <= 0.25 AND n_obs >= 200` — drie in-sample-getallen,
+> zonder DSR, SPA, lookahead-suite, pre-registratie of `M`.
+>
+> `registry/promotion.py::promote(..., "prod")` **crasht** sindsdien zonder een
+> geslaagd `GateResult`. De drempels in `STAGING_TO_PROD` blijven bestaan als
+> goedkope screening voor `staging`, maar zijn geen promotiebewijs.
+>
+> De regel *"≥ 14 dagen shadow"* die hier stond, is vervangen: audit §18.1
+> regel 3 eist **minimaal 60 dagen** OOS paper-trading plus Diebold-Mariano
+> p < 0,05. Die poort staat afgedwongen in
+> `registry/lifecycle.py` (`PAPER → CHAMPION`), met negatieve controles op 59
+> dagen en op p = 0,06.
 
 The `live.mode=live` flag in `conf/env/prod.yaml` is locked off until
 the MRM report exists and `approved_by` is populated.
@@ -75,19 +112,75 @@ A model whose backtested drawdown in any historical scenario exceeds
 **1.5 × the live circuit-breaker drawdown threshold** (default 12 %) is
 refused promotion.
 
-## 6. Lookahead guards (hard CI gate)
+## 6. Lookahead guards (hard CI gate) — de zes D-1-poorten
 
-The `tests/lookahead/` suite must remain green for the candidate model. A
-single failing test in any of:
+De `tests/lookahead/`-suite moet groen zijn voor het kandidaatmodel. Eén
+falende test in een van deze zes blokkeert promotie:
 
-- `test_macro_lag.py`
-- `test_cusum_causal.py`
-- `test_featurestore_fence.py`
-- `test_triple_barrier_embargo.py`
-- `test_regime_causal.py`
-- `test_oms_audit_completeness.py`
+| # | Bestand | Wat het meet |
+|---|---|---|
+| 1 | `tests/lookahead/test_truncation_invariance.py` | Kap de input af op drie punten; elke waarde op of vóór het snijpunt moet **bit-identiek** blijven. |
+| 2 | `tests/lookahead/test_temporal_shift_invariance.py` | Verschuif de volledige reeks in de kalender; de waarden moeten positie-voor-positie gelijk blijven. Vangt kalibraties die op een absolute datum steunen. |
+| 3 | `tests/lookahead/test_future_column_poisoning.py` | Injecteer vier kolommen met zuivere toekomstinformatie; geen feature mag buiten zijn `InputSpec` lezen. |
+| 4 | `tests/lookahead/test_scaler_fit_causality.py` | Een scaler of PCA mag uitsluitend op train-indices worden gefit; corrupte data buiten de train-fold mag de train-rijen niet verplaatsen. |
+| 5 | `tests/lookahead/test_label_horizon_purge.py` | Geen train-event waarvan het label het testvenster in loopt; purge én embargo, met de GEMETEN horizon uit `BarrierLabels.exit_idx`. |
+| 6 | `tests/lookahead/test_determinism_reproducibility.py` | Zelfde invoer → bit-identieke uitvoer, ook in een ander proces, een andere `PYTHONHASHSEED` en een andere importvolgorde. |
 
-blocks promotion. Re-run after fixing the offending feature.
+Gedeelde machinerie en de bewust lekkende referentiemodellen staan in
+`tests/lookahead/d1_harness.py`. **Elke poort draagt een `TestTheGateCanGoRed`**
+die op zo'n referentiemodel rood wordt; een poort die nooit rood is geweest,
+bewijst niets over de features die hij groen verklaart.
+
+### 6.1 De gate draait blokkerend
+
+`.github/workflows/research_gates.yml` draait vier poorten via
+`validation/gate_runner.py`, dezelfde functie die `apps/run_gates.py` lokaal
+gebruikt:
+
+| Poort | Inhoud |
+|---|---|
+| `banned_methods` | `scripts/check_banned_methods.py --strict` — AST-scan op `KFold`, `ShuffleSplit`, `shuffle=True`, `TimeSeriesSplit` en `GridSearchCV`. Nul treffers, allowlist leeg. |
+| `lookahead_suite` | de zes poorten hierboven plus de bestaande causaliteitsdekking |
+| `promotion_gates` | `validation/gates.py`, `registry/lifecycle.py`, Hansen's SPA-kern |
+| `gate_killgate` | `tests/killgates/test_gate_cannot_be_bypassed.py` |
+
+Er staat geen `continue-on-error` in die workflow, en dat is opzet.
+
+### 6.2 Waarom de suite blokkerend moet zijn en niet adviserend
+
+`tests/killgates/test_gate_cannot_be_bypassed.py` meet wat elk onderdeel
+bijdraagt bij een model met `close.shift(-1)`:
+
+```
+perfecte vooruitblik   Sharpe/bar 1,3555   DSR 1,000000   -> DSR SLAAGT
+eerlijke ruis          Sharpe/bar 0,0394   DSR 0,005080   -> DSR FAALT
+```
+
+De DSR en SPA corrigeren voor het AANTAL geprobeerde varianten, niet voor een
+lek. **Een lek maakt een model niet verdacht — het maakt hem goed.** De
+lookahead-suite is daarom de enige poort die zo'n model tegenhoudt, en de
+killgate legt vast dat het gate-oordeel omslaat naar `PROMOTED` zodra
+`lookahead_suite_passed=True` wordt doorgegeven.
+
+Draait de suite adviserend, dan houdt hij niets tegen.
+
+### 6.3 De promotiepoort zelf
+
+`validation/gates.py::run_promotion_gates` geeft één onveranderlijk
+`GateResult` met vijf poorten: pre-registratie, data-adequaatheid,
+lookahead-suite, DSR en SPA. Er is **geen gewogen totaalscore**, geen `force=`,
+geen `override=` en geen `warn_only=`. Vier van de vijf is een weigering.
+
+Faalt de Data Adequacy Gate, dan luidt het oordeel
+`UNPROVEN — insufficient data` en **nooit** `FALSIFIED`; DSR en SPA worden dan
+niet gedraaid, omdat een p-waarde op ontoereikende data een getal is dat later
+wordt geciteerd.
+
+`registry/lifecycle.py` bewaakt de bewijsketen
+`REGISTERED → TESTED → CANDIDATE → PAPER → CHAMPION`: eenrichtingsverkeer
+behalve naar `FALSIFIED`, met per overgang een bewijslast die als code is
+vastgelegd. `registry/promotion.py::promote(..., "prod")` weigert zonder
+geslaagd `GateResult`.
 
 ## 7. Periodic re-attestation
 
