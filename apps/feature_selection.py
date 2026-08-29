@@ -18,8 +18,9 @@ This reduces overfitting from irrelevant features and speeds up training.
 Algorithm:
   1. Load OOS probs + feature matrix from artefacts (requires Stage 3 to
      have run at least once to produce baseline OOS probs).
-  2. SFI: for each feature, compute OOS AUC using TimeSeriesSplit + CatBoost.
-     Remove features with AUC < ``min_auc_sfi`` (default 0.52).
+  2. SFI: for each feature, compute OOS AUC using PURGED time-series splits
+     (``selection.sfi._purged_timeseries_splits``) + CatBoost. Remove features
+     with AUC < ``min_auc_sfi`` (default 0.52).
   3. Causal MDA: block-shuffle each remaining feature (preserving temporal
      autocorrelation) and measure AUC degradation.  Remove features with
      t-stat of degradation < ``min_tstat_mda`` (default 2.0).
@@ -58,8 +59,10 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from tradebot.schemas.config import ValidationConfig, load_config
 from tradebot.selection.sfi import rank_features_by_sfi
 from tradebot.selection.mda import filter_by_mda, causal_mda
+from tradebot.validation.walk_forward import purged_walk_forward
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +87,6 @@ def _compute_cfi(
     """
     try:
         from catboost import CatBoostClassifier
-        from sklearn.model_selection import TimeSeriesSplit
         from scipy.cluster.hierarchy import fcluster, linkage
         from scipy.stats import spearmanr
         import scipy.spatial.distance as ssd
@@ -116,10 +118,24 @@ def _compute_cfi(
         return _raw_feature_importance(X, y, feature_names, seed)
 
     # ── Step 2: CatBoost importance per fold ─────────────────────────────────
-    tscv = TimeSeriesSplit(n_splits=5)
+    # PHASE 7/8 STAGE B-5: dit gebruikte `TimeSeriesSplit(n_splits=5)`.
+    #
+    # `TimeSeriesSplit` respecteert de tijdsvolgorde en ziet er daarom correct
+    # uit, maar hij kent geen purge en geen embargo: het label van de laatste H
+    # trainbars loopt het testvenster in. Voor feature-SELECTIE is dat niet
+    # onschuldig — de gekozen featureset stroomt door naar modellen die wél
+    # worden gepromoveerd, en een lek stroomapwaarts is niet te repareren met
+    # een strengere gate stroomafwaarts.
+    #
+    # De embargo en de labelhorizon komen nu uit `conf/validation/default.yaml`
+    # en niet uit deze aanroepcode; twee runs met een andere embargo zijn anders
+    # niet vergelijkbaar zonder de aanroep ernaast te leggen.
+    validation_cfg = load_config(
+        _ROOT / "conf" / "validation" / "default.yaml", ValidationConfig)
     importances_list: List[np.ndarray] = []
 
-    for tr_idx, val_idx in tscv.split(X):
+    for fold in purged_walk_forward(len(X), validation_cfg):
+        tr_idx = fold.train_idx
         if len(np.unique(y[tr_idx])) < 2:
             continue
         try:
