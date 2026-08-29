@@ -1,196 +1,59 @@
-"""Phase 2, deliverable 6 - TRUNCATIE-INVARIANTIE van elke L3-feature.
+"""Feature-causaliteit — burn-in, DI-2 en de multi-granulaire join.
 
-Dit is exit criterium 1 van Phase 2.
+Wat dit bestand NIET meer bevat: de truncatie-invariantie zelf. Die is in Phase
+7/8 Stage B-2 verplaatst naar `test_truncation_invariance.py`, waar zij als
+benoemde D-1-poort 1 staat, samen met haar negatieve controle. Verplaatst, niet
+gekopieerd — twee bestanden die allebei beweren te definiëren wat causaal is,
+groeien uit elkaar, en dan bewaakt de strengste niets meer dan de soepelste
+toelaat.
 
-De toets (stap 5) is onbarmhartig simpel. Bereken de feature-matrix over het
-volledige venster `T`. Kap daarna de INPUT af op drie punten `t1, t2, t3`, en
-bereken opnieuw. Voor elke `tau <= t_i` moet de waarde BIT-IDENTIEK zijn. Wijkt
-er ook maar een bit af, dan gebruikt de feature informatie uit `t+1..T` en is hij
-gefalsificeerd - ongeacht hoe plausibel zijn formule oogt.
+Wat hier blijft, meet iets anders dan invariantie onder truncatie:
 
-De tests draaien op de 18 gecertificeerde reeksen uit Phase 1 (6 symbolen x
-ohlcv/funding/open_interest). Ontbreekt de PIT-store, dan wordt overgeslagen met
-een expliciete reden - nooit stilzwijgend als geslaagd gerapporteerd.
+* **burn-in** — een feature mag zijn opstartfase niet opvullen, en zijn
+  gedeclareerde `burn_in_period` moet exact kloppen. Een te lage declaratie
+  laat een waarde door die op minder historie steunt dan beloofd.
+* **DI-2** — het `fillna(reeks.std())`-idioom, naast zijn causale vervanger, met
+  een statische AST-controle op `risk/hmm_regime.py`.
+* **de join over granulariteiten** — 8h funding en 1d open interest op een 1d
+  bar-raster, backward-only.
 
-NEGATIEVE CONTROLE
-------------------
-`TestTheTestCanGoRed` bevat twee bewust lekkende features. Zij MOETEN falen op
-precies deze toets. Een invariantietest die nooit rood is geweest, bewijst niets
-over de features die hij groen verklaart; hij bewijst alleen dat hij niets meet.
-`TestDI2IsClosed` doet hetzelfde voor het concrete DI-2-idioom.
+De gedeelde machinerie (gecertificeerd frame, snijpunten, `assert_bit_identical`)
+staat in `d1_harness.py` en wordt hier geïmporteerd.
+
+Ref: `fase_2_research_falsification.md` exit criteria 1 en 4; audit §17.1.
 """
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 from typing import ClassVar
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from tradebot.data.pit_store import PitStore
-from tradebot.features.base import BaseFeature, CertifiedFrame, DataRegister, InputSpec
+from tradebot.features.base import BaseFeature, DataRegister, InputSpec
 from tradebot.features.microstructure import build_certified_micro_frame
-from tradebot.features.registry import build_default_registry, current_git_sha
+from tradebot.features.registry import build_default_registry
 from tradebot.features.volatility import causal_expanding_std, log_returns
-from tradebot.schemas.config import DataConfig, FeatureConfig, load_config
 from tradebot.utils.failfast import CausalityViolationError
 
-ROOT = Path(__file__).resolve().parents[2]
-DATA_CFG = load_config(ROOT / "conf" / "data" / "default.yaml", DataConfig)
-FEAT_CFG = load_config(ROOT / "conf" / "features" / "default.yaml", FeatureConfig)
-STORE = PitStore(ROOT / DATA_CFG.pit_store_root)
-
-SYMBOLS = list(DATA_CFG.symbols)
-GRANULARITY = "1d"
-FUNDING_GRANULARITY = "8h"
-
-#: Vaste seed: een gefaalde invariantietest moet exact reproduceerbaar zijn.
-TRUNCATION_SEED = 20260823
-#: Drie snijpunten, zoals stap 5 voorschrijft.
-N_CUTS = 3
+from .d1_harness import (
+    FEAT_CFG,
+    FUNDING_GRANULARITY,
+    GRANULARITY,
+    ROOT,
+    STORE,
+    SYMBOLS,
+    assert_bit_identical,
+    certified_frame,
+    cut_points,
+    requires_store,
+)
 
 pytestmark = pytest.mark.lookahead
 
-
-def _have(dataset: str, symbol: str, granularity: str) -> bool:
-    return bool(STORE.partitions("crypto", dataset, symbol, granularity))
-
-
-requires_store = pytest.mark.skipif(
-    not (
-        _have("ohlcv", "BTCUSDT", GRANULARITY)
-        and _have("funding", "BTCUSDT", FUNDING_GRANULARITY)
-        and _have("open_interest", "BTCUSDT", GRANULARITY)
-    ),
-    reason=(
-        "PIT-store is leeg. Draai eerst de Phase 1-ingestion "
-        "(apps/ingest_crypto.py) en scripts/build_data_register.py."
-    ),
-)
-
-_FRAME_CACHE: dict[str, CertifiedFrame] = {}
-
-
-def certified_frame(symbol: str) -> CertifiedFrame:
-    """Gecertificeerd inputframe (ohlcv + funding + open interest) per symbool."""
-    if symbol not in _FRAME_CACHE:
-        _FRAME_CACHE[symbol] = build_certified_micro_frame(
-            STORE,
-            DataRegister(ROOT / "artefacts" / "governance" / "data_hashes.json"),
-            symbol=symbol,
-            granularity=GRANULARITY,
-            funding_granularity=FUNDING_GRANULARITY,
-            open_interest_granularity=GRANULARITY,
-            funding_tolerance=pd.Timedelta(hours=FEAT_CFG.funding_tolerance_hours),
-            open_interest_tolerance=pd.Timedelta(
-                hours=FEAT_CFG.open_interest_tolerance_hours
-            ),
-            asset_class="crypto",
-        )
-    return _FRAME_CACHE[symbol]
-
-
-def cut_points(source: CertifiedFrame) -> list[pd.Timestamp]:
-    """Drie snijpunten uit de tweede helft van de reeks, deterministisch geloot.
-
-    De eerste helft wordt gemeden zodat elke feature zijn burn-in ruim voorbij
-    is; een snijpunt binnen de burn-in zou twee NaN-blokken vergelijken en de
-    toets betekenisloos maken.
-    """
-    idx = source.frame.index
-    rng = np.random.default_rng(TRUNCATION_SEED)
-    lo, hi = len(idx) // 2, len(idx) - 1
-    positions = sorted(rng.choice(np.arange(lo, hi), size=N_CUTS, replace=False))
-    return [idx[int(p)] for p in positions]
-
-
-def assert_bit_identical(
-    truncated: pd.DataFrame, full: pd.DataFrame, *, what: str, cut: pd.Timestamp
-) -> None:
-    """Elke waarde op of vóór `cut` moet bit-identiek zijn, NaN's inbegrepen."""
-    expected = full.loc[full.index <= truncated.index[-1]]
-    assert len(truncated) == len(expected), (
-        f"{what}: rijaantal wijkt af na truncatie op {cut} "
-        f"({len(truncated)} vs {len(expected)})"
-    )
-    assert truncated.index.equals(expected.index), f"{what}: index wijkt af na {cut}"
-    for col in expected.columns:
-        a = truncated[col].to_numpy(dtype="float64")
-        b = expected[col].to_numpy(dtype="float64")
-        same_nan = np.isnan(a) == np.isnan(b)
-        assert same_nan.all(), (
-            f"{what}/{col}: NaN-patroon verschuift na truncatie op {cut}; "
-            f"{int((~same_nan).sum())} rij(en) afwijkend"
-        )
-        finite = ~np.isnan(a)
-        diff = np.abs(a[finite] - b[finite])
-        n_bad = int((diff != 0.0).sum())
-        assert n_bad == 0, (
-            f"{what}/{col}: {n_bad} waarde(n) veranderen door data NA {cut}. "
-            f"max |diff| = {float(diff.max()) if diff.size else 0.0:.17g}. "
-            f"Dit is een lookahead-lek; de feature is gefalsificeerd."
-        )
-
-
-# --------------------------------------------------------------------------- #
-# Exit criterium 1 - elke geregistreerde feature
-# --------------------------------------------------------------------------- #
 REGISTRY = build_default_registry(FEAT_CFG)
 FEATURE_IDS = [f.feature_id for f in REGISTRY.features]
-
-
-@requires_store
-class TestTruncationInvariancePerFeature:
-    """Elke feature afzonderlijk, op elk gecertificeerd symbool."""
-
-    @pytest.mark.parametrize("symbol", SYMBOLS)
-    @pytest.mark.parametrize(
-        "feature", REGISTRY.features, ids=[f.feature_id for f in REGISTRY.features]
-    )
-    def test_feature_is_truncation_invariant(
-        self, feature: BaseFeature, symbol: str
-    ) -> None:
-        source = certified_frame(symbol)
-        full = feature.transform(source).values
-        for cut in cut_points(source):
-            truncated = feature.transform(source.truncate(cut)).values
-            assert_bit_identical(
-                truncated, full, what=f"{symbol}/{feature.feature_id}", cut=cut
-            )
-
-
-@requires_store
-class TestTruncationInvarianceOfTheMatrix:
-    """De volledige matrix in een keer: ook de compositie mag niet lekken."""
-
-    @pytest.mark.parametrize("symbol", SYMBOLS)
-    def test_matrix_is_truncation_invariant(self, symbol: str) -> None:
-        source = certified_frame(symbol)
-        pipeline = REGISTRY.pipeline()
-        full = pipeline.transform(source).values
-        assert len(full) > FEAT_CFG.microstructure.funding_zscore_min_periods
-        for cut in cut_points(source):
-            truncated = pipeline.transform(source.truncate(cut)).values
-            assert_bit_identical(truncated, full, what=f"{symbol}/matrix", cut=cut)
-
-    @pytest.mark.parametrize("symbol", SYMBOLS)
-    def test_matrix_hash_is_stable_under_truncation(self, symbol: str) -> None:
-        """De feature_hash beschrijft de DEFINITIE, niet het gerealiseerde venster.
-
-        Truncatie van de input verandert de matrix-inhoud maar niet de identiteit
-        van de features; anders zou elke walk-forward fold een ander artefact
-        opleveren en zou de registry onbruikbaar zijn als sleutel.
-        """
-        source = certified_frame(symbol)
-        sha = current_git_sha()
-        full_hash = REGISTRY.matrix_hash(data_hashes=source.data_hashes, git_sha=sha)
-        for cut in cut_points(source):
-            cut_hash = REGISTRY.matrix_hash(
-                data_hashes=source.truncate(cut).data_hashes, git_sha=sha
-            )
-            assert cut_hash == full_hash
 
 
 @requires_store
@@ -239,97 +102,6 @@ class TestBurnInIsNeverFilled:
         )
 
 
-# --------------------------------------------------------------------------- #
-# Negatieve controle - de toets moet aantoonbaar rood kunnen worden
-# --------------------------------------------------------------------------- #
-class _FutureLeakingFeature(BaseFeature):
-    """Bewust lek: gebruikt de close van de VOLGENDE bar (`shift(-1)`)."""
-
-    name: ClassVar[str] = "deliberately_leaking_next_bar"
-    input_spec: ClassVar[InputSpec] = InputSpec(datasets=("ohlcv",), columns=("close",))
-
-    def __init__(self) -> None:
-        super().__init__(params={})
-
-    @property
-    def burn_in_period(self) -> int:
-        return 1
-
-    @property
-    def output_columns(self) -> tuple[str, ...]:
-        return ("leak_next_close_ratio",)
-
-    def _compute(self, frame: pd.DataFrame) -> pd.DataFrame:
-        close = frame["close"].astype("float64")
-        # `ffill` dekt uitsluitend de LAATSTE rij, die na shift(-1) geen
-        # opvolger meer heeft. Zonder die dekking crasht het NaN-contract van
-        # BaseFeature al vóór de invariantietoets, en dan bewijst deze
-        # negatieve controle niets over de toets zelf.
-        out = ((close.shift(-1) / close) - 1.0).ffill()
-        out.iloc[0] = np.nan
-        return pd.DataFrame(
-            {self.output_columns[0]: out.to_numpy(dtype="float64")}, index=frame.index
-        )
-
-
-class _SampleWideScalingFeature(BaseFeature):
-    """Bewust lek: normaliseert met het gemiddelde over de VOLLEDIGE sample.
-
-    Dit is de subtiele variant, en in de praktijk de gevaarlijkste: er staat
-    nergens een `shift(-1)`, elke rij oogt causaal, en toch verandert elke
-    waarde zodra er data achteraan wordt geplakt.
-    """
-
-    name: ClassVar[str] = "deliberately_leaking_sample_scaler"
-    input_spec: ClassVar[InputSpec] = InputSpec(datasets=("ohlcv",), columns=("close",))
-
-    def __init__(self) -> None:
-        super().__init__(params={})
-
-    @property
-    def burn_in_period(self) -> int:
-        return 1
-
-    @property
-    def output_columns(self) -> tuple[str, ...]:
-        return ("leak_sample_scaled_return",)
-
-    def _compute(self, frame: pd.DataFrame) -> pd.DataFrame:
-        r = log_returns(frame["close"])
-        out = r / r.std()
-        return pd.DataFrame(
-            {self.output_columns[0]: out.to_numpy(dtype="float64")}, index=frame.index
-        )
-
-
-@requires_store
-class TestTheTestCanGoRed:
-    """Bewijs door falen: een lekkende feature MOET deze toets rood maken."""
-
-    @pytest.mark.parametrize(
-        "leaker",
-        [_FutureLeakingFeature(), _SampleWideScalingFeature()],
-        ids=["shift_minus_one", "sample_wide_scaler"],
-    )
-    def test_leaking_feature_fails_truncation_invariance(
-        self, leaker: BaseFeature
-    ) -> None:
-        source = certified_frame("BTCUSDT")
-        full = leaker.transform(source).values
-        failures = 0
-        for cut in cut_points(source):
-            truncated = leaker.transform(source.truncate(cut)).values
-            with pytest.raises(AssertionError):
-                assert_bit_identical(
-                    truncated, full, what=f"leak/{leaker.name}", cut=cut
-                )
-            failures += 1
-        assert failures == N_CUTS, (
-            "De invariantietoets ving het lek niet op elk snijpunt. Een toets "
-            "die een bekend lek doorlaat, bewijst niets over de features die hij "
-            "groen verklaart."
-        )
-
 
 @requires_store
 class TestBurnInGuardCanGoRed:
@@ -364,6 +136,7 @@ class TestBurnInGuardCanGoRed:
 
         with pytest.raises(CausalityViolationError, match="burn-in"):
             _FilledBurnIn().transform(certified_frame("BTCUSDT"))
+
 
 
 # --------------------------------------------------------------------------- #
@@ -446,6 +219,7 @@ class TestDI2IsClosed:
         assert "causal_expanding_std" in path.read_text(encoding="utf-8"), (
             "risk/hmm_regime.py gebruikt de causale vervanger niet."
         )
+
 
 
 # --------------------------------------------------------------------------- #
