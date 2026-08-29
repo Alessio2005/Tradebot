@@ -1,0 +1,117 @@
+name: research-gates
+
+# Phase 2, deliverable 12 — gebouwd in Phase 7/8 Stage B-5.
+#
+# DIT IS DE POORT DIE D-1 SLUIT.
+#
+# `docs/model_risk_policy.md` beweerde sinds Phase 2 dat promotie wordt
+# geblokkeerd door een lookahead-suite. Er was geen CI-gate die dat afdwong; de
+# bewering was waar op papier en onwaar in de machine. Deze workflow maakt hem
+# waar.
+#
+# WAAROM BLOKKEREND EN NIET ADVISEREND
+# ------------------------------------
+# `tests/killgates/test_gate_cannot_be_bypassed.py` meet het, en het antwoord is
+# ongemakkelijk: een model met `close.shift(-1)` haalt de DSR met DSR = 1,000000
+# bij M = 2776, en het haalt SPA. De statistiek vindt een lek niet — een lek
+# maakt een model niet verdacht, het maakt hem goed.
+#
+# De lookahead-suite is de ENIGE poort die zo'n model tegenhoudt. Draait hij
+# adviserend, dan houdt hij niets tegen.
+#
+# `continue-on-error` komt in dit bestand niet voor, en dat is opzet.
+#
+# Ref: ARCHITECTUUR_AUDIT_2026-08-22.md §17.1, §18.1, §26;
+#      fase_2_research_falsification.md; fase_7_8_consolidatie_productie.md §4.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: research-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  research-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Een shallow clone maakt `get_git_sha()` onbetrouwbaar, en een
+          # GateResult zonder resolvable git_sha is per audit §26 INVALIDE.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install from lockfile
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+          pip install -r requirements-dev.lock
+          pip install -e . --no-deps
+
+      # ----------------------------------------------------------------------
+      # De PIT-store komt uit DVC. Zonder data slaat de lookahead-suite over,
+      # en een overgeslagen suite geeft exit 0 zonder één bewijs te leveren.
+      # `run_research_gates` vangt dat met `min_passed`, maar het is beter om
+      # de data hier binnen te halen dan om de gate op zijn ondergrens te laten
+      # falen met een onduidelijke melding.
+      # ----------------------------------------------------------------------
+      - name: Pull the PIT store
+        run: |
+          dvc pull --quiet || {
+            echo "::error::dvc pull faalde. De lookahead-suite heeft de "\
+                 "gecertificeerde PIT-store nodig; zonder die data meet zij niets."
+            exit 1
+          }
+
+      - name: Verify git_sha resolves
+        run: |
+          python - <<'PY'
+          import subprocess, sys
+          from tradebot.registry.lineage import get_git_sha
+          sha = get_git_sha()
+          if not sha:
+              sys.exit("get_git_sha() gaf een lege string; elk GateResult is dan invalide")
+          subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"], check=True)
+          print(f"OK: git_sha={sha}")
+          PY
+
+      # ----------------------------------------------------------------------
+      # DE VIER POORTEN.
+      #
+      # Via dezelfde functie als `apps/run_gates.py`. Een lokale gate-run die
+      # iets anders meet dan CI, geeft een groen licht dat niets voorspelt.
+      # ----------------------------------------------------------------------
+      - name: Run the research gates (blocking)
+        run: python apps/run_gates.py --out artefacts/governance/research_gates.json
+
+      - name: Upload the gate verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-gates-verdict
+          path: artefacts/governance/research_gates.json
+          if-no-files-found: warn
+
+      # ----------------------------------------------------------------------
+      # De negatieve controle op de GATE-RUNNER zelf.
+      #
+      # Zonder deze stap zou een kapotte runner — een verkeerd pad, een lege
+      # spec-lijst, een uitzondering die als 'geslaagd' wordt gelezen — een
+      # groene workflow opleveren zonder één poort te draaien. Dat is exact de
+      # klasse fout die deze fase in Stage A al in de lint-gate vond.
+      # ----------------------------------------------------------------------
+      - name: Prove the runner can go red
+        run: pytest tests/unit/test_gate_runner.py -q --no-header
