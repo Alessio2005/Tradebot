@@ -29,8 +29,9 @@ hulpbibliotheek (DSR, block bootstrap, MTM) en geen backtester, zoals
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from .accounting import AccountingError, Fill, Ledger, LedgerSnapshot, Position
-from .engine import BacktestResult, EventDrivenEngine, build_slices, exposures_from_frame
 from .evaluation import (
     ASSET_GAP_MULTIPLES,
     CollisionResolution,
@@ -55,6 +56,59 @@ from .vectorized import (
     reject_vectorized_evidence,
     run_vectorized,
 )
+
+if TYPE_CHECKING:                       # pragma: no cover - typing only
+    from .engine import (
+        BacktestResult,
+        EventDrivenEngine,
+        build_slices,
+        exposures_from_frame,
+    )
+
+#: De vier namen uit `.engine` die LUI worden geladen. Zie `__getattr__`.
+_LAZY_ENGINE_NAMES = frozenset({
+    "BacktestResult", "EventDrivenEngine", "build_slices", "exposures_from_frame",
+})
+
+
+def __getattr__(name: str) -> Any:
+    """Laad `.engine` pas bij eerste gebruik (PEP 562).
+
+    WAAROM DIT GEEN STIJLKEUZE IS — gevonden in Phase 7/8 Stage B-2.
+    ---------------------------------------------------------------
+    Er stond een importcyclus in het soevereine executiepad, en hij sloeg alleen
+    toe bij een bepaalde importvolgorde:
+
+        tradebot.execution.order_router
+          -> from ..backtest.accounting import Fill        (L9 importeert L10)
+          -> initialiseert het PAKKET tradebot.backtest
+          -> backtest/__init__.py: from .engine import ...
+          -> engine.py: from ..execution.order_router import ExecutionReport
+          -> order_router staat pas op regel 56 en heeft ExecutionReport nog niet
+          -> ImportError
+
+    `import tradebot.backtest` werkte; `import tradebot.execution.order_router`
+    als EERSTE tradebot-import crashte. De volledige testsuite liep daardoor
+    groen — daar importeert altijd wel iets `tradebot.backtest` eerder — en
+    `pytest tests/lookahead` crashte bij collectie. Precies de deelverzameling
+    die `research_gates.yml` moet draaien.
+
+    Het pakket-`__init__` was de enige eager schakel in de cyclus, en dus de
+    goedkoopste plek om hem te breken. De publieke API verandert niet:
+    `from tradebot.backtest import EventDrivenEngine` blijft werken, alleen
+    later.
+
+    De onderliggende laagfout blijft staan en is als DI-18 geregistreerd: L9
+    (`execution/`) hoort niet uit L10 (`backtest/`) te importeren. `Fill` is een
+    executie-primitief dat in de verkeerde laag woont. Dat verplaatsen raakt
+    ~40 aanroepen en is een refactor, geen bijvangst van deze fase.
+    """
+    if name in _LAZY_ENGINE_NAMES:
+        from . import engine
+
+        return getattr(engine, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     # de authoritative engine
