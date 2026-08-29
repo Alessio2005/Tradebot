@@ -23,6 +23,20 @@ loslaat -- anders sluipt de smoothed-variant er tijdens exploratie in en is elk
 daarna gemeten resultaat besmet."* Bij het schrijven van dit bestand is er nog
 geen HMM gefit. Dat is opzet.
 
+WAT STAGE C-1 HIERAAN HEEFT TOEGEVOEGD
+=======================================
+Sectie 5 is nieuw en toetst niet het contract maar zijn consument in de
+sizinglaag: `risk/hmm_regime.py`. Die module stond tot Stage C-1 als
+GEREGISTREERDE overtreding in `REGISTERED_VIOLATIONS` hieronder -- hij gebruikte
+`GaussianHMM.predict` (Viterbi) en `predict_proba` (smoothed). Die lijst is nu
+leeg, en sectie 5 meet wat dat heeft opgeleverd: over 70 expanderende vensters
+wijzigde het Viterbi-oordeel op de NIEUWSTE bar in 12 gevallen zodra er latere
+bars bij kwamen, en het filtered oordeel in nul. Precies die nieuwste bar is de
+waarde waarmee `portfolio/legacy_sizing.py` een LONG-positie halveert.
+
+Daar wordt dus wel degelijk een HMM gefit. Dat spreekt de alinea hierboven niet
+tegen: de blokkade stond er eerst, het model kwam erna.
+
 DE OMVANG VAN WAT HIER WORDT TEGENGEHOUDEN
 ===========================================
 Niet theoretisch. Gemeten met identieke parameters op dezelfde 600 bars is
@@ -37,7 +51,9 @@ import ast
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
+from hmmlearn.hmm import GaussianHMM
 
 from tradebot.regime.markov import (
     DIAGNOSTICS_ONLY,
@@ -50,6 +66,7 @@ from tradebot.regime.markov import (
     require_filtered,
     smoothed_probabilities,
 )
+from tradebot.risk.hmm_regime import HMMRegimeDetector, Regime
 from tradebot.utils.failfast import CausalityViolationError
 
 SEED = 20260826
@@ -80,19 +97,22 @@ FORBIDDEN_ON_HMM = ("predict_proba", "score_samples", "predict")
 
 #: Modules die de smoothed route noemen en dat (nog) mogen, met de reden.
 #:
-#: `risk/hmm_regime.py` is een BEKENDE, GEREGISTREERDE overtreding: hij gebruikt
-#: `GaussianHMM.predict` (Viterbi) en `predict_proba`. Phase 0 heeft dat
-#: gedocumenteerd als DI-1 en bewust niet gerepareerd, omdat die fase geen
-#: modelgedrag wijzigde. Audit §24 eist REDESIGN naar het M2-contract; dat is
-#: deliverable 16 van deze fase.
+#: STAGE C-1: DEZE LIJST IS LEEG, EN DAT IS HET RESULTAAT.
 #:
-#: Deze lijst is geen ontsnapping maar een TRIPWIRE: de test hieronder eist dat
-#: hij exact deze ene entry bevat. Een tweede overtreding -- of het stilzwijgend
-#: toevoegen van een module aan deze lijst -- maakt hem rood.
+#: Hier stond precies een entry -- `risk/hmm_regime.py`, die `GaussianHMM.predict`
+#: (Viterbi) en `predict_proba` (smoothed) gebruikte. Phase 0 heeft dat als DI-1
+#: geregistreerd en bewust niet gerepareerd, omdat die fase geen modelgedrag
+#: wijzigde; audit §24 eiste REDESIGN naar het M2-contract. Die redesign staat er
+#: nu: `hmmlearn` doet nog uitsluitend de EM-schatting, en alle inferentie loopt
+#: door `regime.markov.forward_filter`. Sectie 5 hieronder meet dat het verschil
+#: echt is en dat het weggehaalde pad dezelfde toets NIET doorstaat.
+#:
+#: De lijst blijft een TRIPWIRE, en staat leeg scherper dan gevuld: elke entry is
+#: een pad waarlangs `P(S_t | F_T)` een positie kan bereiken. Een nieuwe regel
+#: hier is een besluit dat in `docs/ARCHITECTURAL_DECISIONS.md` hoort, niet een
+#: dat in een testbestand ontstaat.
 #: Paden staan met forward slashes, ongeacht platform -- zie `_scan_surface`.
-REGISTERED_VIOLATIONS = {
-    "risk/hmm_regime.py": "deliverable 16 (§24 REDESIGN); Phase 0 DI-1",
-}
+REGISTERED_VIOLATIONS: dict[str, str] = {}
 
 
 def _spec_and_params() -> HmmParameters:
@@ -173,23 +193,27 @@ class TestNoBacktestPathMentionsSmoothed:
             "route zonder registratie:\n"
             + "\n".join(f"  {p} -> {h}" for p, h in unregistered.items()))
 
-    def test_the_register_holds_exactly_the_one_known_violation(self) -> None:
-        """De tripwire.
+    def test_the_register_is_empty_now_that_di1_is_closed(self) -> None:
+        """De tripwire, en hij is precies gesprongen zoals bedoeld.
 
-        `risk/hmm_regime.py` gebruikt Viterbi en `predict_proba` en staat als
-        DI-1 geregistreerd; audit §24 eist REDESIGN naar het M2-contract en dat
-        is deliverable 16 van deze fase. Zolang die er niet is, staat hij hier —
-        zichtbaar, met reden, en niet als stilzwijgende uitzondering.
+        Deze test eiste tot Stage C-1 EXACT een entry: `risk/hmm_regime.py`, met
+        DI-1 als geregistreerde reden. Hij is rood geworden op het moment dat die
+        module naar het filtered contract werd herschreven — de vorige versie
+        schreef dat er letterlijk bij: *"Hij wordt ook rood wanneer deliverable
+        16 klaar is — dan moet de entry eruit, en dat is precies de bedoeling."*
 
-        Deze test wordt rood zodra er een TWEEDE overtreding bijkomt, en ook
-        zodra iemand deze lijst uitbreidt om een nieuwe module door te laten.
-        Hij wordt ook rood wanneer deliverable 16 klaar is — dan moet de entry
-        eruit, en dat is precies de bedoeling.
+        Vanaf hier eist hij dat het backtest-oppervlak de smoothed route NERGENS
+        meer noemt. Hij wordt rood zodra er een overtreding bijkomt, en net zo
+        goed zodra iemand er een probeert te legaliseren door de lijst te vullen.
         """
+        assert REGISTERED_VIOLATIONS == {}, (
+            "De lijst met toegestane overtredingen is niet leeg. Elke entry is "
+            "een pad waarlangs P(S_t | F_T) een positie kan bereiken; DI-1 is "
+            "gesloten en er hoort geen opvolger te ontstaan.")
         found = set(_scan_surface())
-        assert found == set(REGISTERED_VIOLATIONS), (
-            f"verwacht precies de geregistreerde overtredingen "
-            f"{sorted(REGISTERED_VIOLATIONS)}, kreeg {sorted(found)}")
+        assert found == set(), (
+            f"het backtest-oppervlak noemt de smoothed route weer: "
+            f"{sorted(found)}")
 
     def test_the_scan_actually_scanned_something(self) -> None:
         """Negatieve controle op de scan zelf.
@@ -387,3 +411,214 @@ class TestForwardFilterIsTruncationInvariant:
 class TestSmoothedProbabilitiesType:
     def test_it_is_not_a_filtered_instance(self) -> None:
         assert not issubclass(SmoothedProbabilities, FilteredProbabilities)
+
+
+# --------------------------------------------------------------------------- #
+# 5. De regime-detector van de sizinglaag loopt door dezelfde poort
+#    STAGE C-1 -- DI-1
+# --------------------------------------------------------------------------- #
+#: Bars voor de fit. Op een korter venster degenereert de EM-schatting op deze
+#: reeks (gemeten op 600 bars: een niet-positief-definiete covariantie, waarop
+#: `hmmlearn` in zijn eigen Cholesky crasht). De detector eist er minimaal 50;
+#: dat is een ondergrens voor identificeerbaarheid, geen garantie.
+_HMM_BARS = 800
+
+#: Kans dat het regime blijft staan. Lager en de toestand wisselt zo vaak dat er
+#: niets te schatten valt; veel hoger en er valt niets te beslissen. 0,97 geeft
+#: een reeks waarin de toestanden ECHT overlappen, en dat is de enige situatie
+#: waarin filtered en smoothed uit elkaar lopen -- zie de moduledocstring van
+#: `regime/markov.py`.
+_HMM_PERSISTENCE = 0.97
+
+#: Eigen seed: `SEED` hierboven hoort bij de tweetoestandsreeks van sectie 2-4.
+_HMM_SEED = 20260829
+
+#: De vensters van de sweep hieronder: expanderend, zoals een backtest ze ziet.
+_HMM_CUTS = range(100, _HMM_BARS, 10)
+
+
+def _regime_returns(n: int = _HMM_BARS) -> pd.Series:
+    """Drie toestanden met elk een eigen drift en een eigen volatiliteit.
+
+    Bear/Flat/Bull zoals `hmm_regime.Regime` ze kent, met parameters in de orde
+    van dagelijkse cryptoreturns. De reeks is niet bedoeld als realistische
+    markt maar als data waarop de EM-schatting drie onderscheidbare toestanden
+    vindt en de posterior toch onzeker genoeg blijft om het verschil tussen
+    filtered en Viterbi zichtbaar te maken.
+    """
+    rng = np.random.default_rng(_HMM_SEED)
+    state = np.zeros(n, dtype=int)
+    for t in range(1, n):
+        state[t] = (
+            state[t - 1] if rng.random() < _HMM_PERSISTENCE
+            else int(rng.integers(0, 3))
+        )
+    mu = np.array([-0.008, 0.0, 0.008])[state]
+    sigma = np.array([0.030, 0.012, 0.018])[state]
+    return pd.Series(
+        rng.normal(mu, sigma),
+        index=pd.date_range("2020-01-01", periods=n, freq="D"),
+    )
+
+
+@pytest.fixture(scope="module")
+def fitted_detector() -> HMMRegimeDetector:
+    """Een fit voor de hele module; de EM-stap kost ongeveer een halve seconde."""
+    return HMMRegimeDetector().fit(_regime_returns())
+
+
+def _viterbi_twin(detector: HMMRegimeDetector) -> GaussianHMM:
+    """Herbouwt het pad dat Stage C-1 heeft VERWIJDERD, uit dezelfde parameters.
+
+    Dit is de enige plek in de repository waar `GaussianHMM.predict` nog wordt
+    aangeroepen, en hij staat hier met een reden: zonder hem bewijst
+    `test_labels_do_not_change_when_later_bars_arrive` alleen dat er iets
+    draait. Pas wanneer diezelfde toets op de weggehaalde route ROOD wordt, meet
+    zij het lek in plaats van de aanwezigheid van code.
+
+    Het grijpt bewust in de privetoestand van de detector. Dat is het punt:
+    beide routes draaien op EXACT dezelfde bevroren parameters, zodat het
+    gemeten verschil de inferentie is en niet de fit.
+    """
+    params = detector._params
+    assert params is not None
+    twin = GaussianHMM(n_components=3, covariance_type="full")
+    twin.startprob_ = params.start_prob
+    twin.transmat_ = params.trans_mat
+    twin.means_ = params.means
+    twin.covars_ = params.covars
+    return twin
+
+
+class TestTheDetectorHasNoViterbiSurfaceLeft:
+    def test_the_method_that_returned_viterbi_no_longer_exists(self) -> None:
+        """`predict` is niet hernoemd maar weg -- ook als naam.
+
+        De naam was de helft van het probleem: `detector.predict(...)` las als
+        "voorspel", en de aanroep eronder was `GaussianHMM.predict`. Bleef de
+        naam bestaan als alias, dan blijft elke oude aanroep werken en zegt geen
+        enkele diff dat het contract is gewijzigd.
+        """
+        assert not hasattr(HMMRegimeDetector, "predict")
+        assert not hasattr(HMMRegimeDetector, "predict_proba")
+        assert hasattr(HMMRegimeDetector, "filtered_regimes")
+
+    def test_no_hmmlearn_model_survives_the_fit(
+        self, fitted_detector: HMMRegimeDetector,
+    ) -> None:
+        """Wat niet wordt vastgehouden, kan later niet worden aangeroepen.
+
+        Zolang het `GaussianHMM`-object op de detector blijft staan, is
+        `self._model.predict(X)` een regel verderop -- en dat is precies de
+        route die hier is gesloten.
+        """
+        assert not hasattr(fitted_detector, "_model")
+        assert isinstance(fitted_detector._params, HmmParameters)
+
+    def test_the_probabilities_pass_the_gate_of_this_file(
+        self, fitted_detector: HMMRegimeDetector,
+    ) -> None:
+        labels, filtered = fitted_detector.filtered_regimes(_regime_returns())
+        assert require_filtered(filtered, context="hmm regime detector") is filtered
+        assert isinstance(filtered, FilteredProbabilities)
+        assert filtered.values.shape == (len(labels), 3)
+
+    def test_current_regime_is_the_argmax_of_the_last_filtered_row(
+        self, fitted_detector: HMMRegimeDetector,
+    ) -> None:
+        """De waarde die `portfolio/legacy_sizing.py` opvraagt, en niets anders.
+
+        Dit legt vast WELKE regel het regime bepaalt: de marginale argmax op de
+        laatste bar. Onder Viterbi was dat de laatste stap van een pad dat over
+        de hele reeks was geoptimaliseerd, en die twee vallen niet samen.
+        """
+        returns = _regime_returns()
+        labels, filtered = fitted_detector.filtered_regimes(returns)
+        state = int(np.argmax(filtered.values[-1]))
+        expected = Regime(fitted_detector._state_map[state])
+        assert fitted_detector.current_regime(returns) == expected
+        assert Regime(int(labels[-1])) == expected
+
+
+class TestTheDetectorIsTruncationInvariant:
+    @pytest.mark.parametrize("cut", [200, 400, _HMM_BARS - 1])
+    def test_labels_do_not_change_when_later_bars_arrive(
+        self, fitted_detector: HMMRegimeDetector, cut: int,
+    ) -> None:
+        """Dezelfde toets als sectie 4, nu op de detector zelf.
+
+        Bit-exact, niet bij benadering: het forward-algoritme rekent op de
+        prefix letterlijk dezelfde recursie uit, dus elke afwijking -- ook in de
+        laatste decimaal -- betekent dat er informatie van later is meegekomen.
+        """
+        returns = _regime_returns()
+        labels_full, filtered_full = fitted_detector.filtered_regimes(returns)
+        labels_short, filtered_short = fitted_detector.filtered_regimes(
+            returns.iloc[: cut + 1])
+        n = len(labels_short)
+        np.testing.assert_array_equal(labels_full[:n], labels_short)
+        np.testing.assert_allclose(
+            filtered_full.values[:n], filtered_short.values, rtol=0.0, atol=0.0)
+
+    def test_the_viterbi_path_it_replaced_fails_that_same_test(
+        self, fitted_detector: HMMRegimeDetector,
+    ) -> None:
+        """NEGATIEVE CONTROLE -- en dit is de kern van dit blok.
+
+        Dezelfde bevroren parameters, dezelfde bars, de andere inferentie.
+        Gemeten over 70 expanderende vensters (bar 100 t/m 790, stap 10):
+
+            Viterbi:  het oordeel op de NIEUWSTE bar wijzigt in 12 van de 70
+                      vensters zodra er latere bars bij komen;
+            filtered: in 0 van de 70.
+
+        Die nieuwste bar is niet zomaar een bar. Het is de enige waarde die
+        `portfolio/legacy_sizing.py` opvraagt, via `current_regime`, om een
+        LONG-positie wel of niet te halveren. Onder de oude route hing die
+        halvering dus in ongeveer een op de zes vensters af van koersen die op
+        dat moment nog niet bestonden.
+        """
+        returns = _regime_returns()
+        twin = _viterbi_twin(fitted_detector)
+        features = fitted_detector._features(returns)
+        viterbi_full = twin.predict(features)
+
+        viterbi_changes = sum(
+            int(twin.predict(features[:cut])[-1] != viterbi_full[cut - 1])
+            for cut in _HMM_CUTS
+        )
+        assert viterbi_changes > 0, (
+            "Het Viterbi-pad kwam ONGESCHONDEN door de truncatietest. Dan meet "
+            "die toets niets, en zegt haar groene uitkomst op het filtered pad "
+            "hierboven evenmin iets.")
+
+        labels_full, _ = fitted_detector.filtered_regimes(returns)
+        filtered_changes = sum(
+            int(fitted_detector.filtered_regimes(returns.iloc[:cut])[0][-1]
+                != labels_full[cut - 2])
+            for cut in _HMM_CUTS
+        )
+        assert filtered_changes == 0, (
+            f"Het filtered pad veranderde zijn oordeel op de nieuwste bar in "
+            f"{filtered_changes} van de {len(_HMM_CUTS)} vensters. Dan is het "
+            "niet causaal en is DI-1 niet gesloten.")
+
+    def test_the_two_routes_disagree_on_a_material_share_of_the_bars(
+        self, fitted_detector: HMMRegimeDetector,
+    ) -> None:
+        """Het verschil is een ander oordeel, geen andere berekening.
+
+        Viterbi maximaliseert de kans op de GEZAMENLIJKE reeks; de filtered
+        argmax maximaliseert de kans per bar. Gemeten op deze 799 bars lopen ze
+        op 124 ervan uiteen -- ruim een op de zeven. Was dat aandeel
+        verwaarloosbaar, dan zou het herontwerp cosmetisch zijn en zou de
+        registratie van DI-1 als lookaheadlek niet kloppen.
+        """
+        returns = _regime_returns()
+        _, filtered = fitted_detector.filtered_regimes(returns)
+        twin = _viterbi_twin(fitted_detector)
+        viterbi = twin.predict(fitted_detector._features(returns))
+        share = float(np.mean(viterbi != filtered.most_likely_state))
+        assert share > 0.05, (
+            f"filtered en Viterbi verschillen op slechts {share:.1%} van de "
+            "bars; controleer of deze reeks wel overlappende toestanden heeft.")

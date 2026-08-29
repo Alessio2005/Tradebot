@@ -24,10 +24,26 @@ EMA-crossover, terwijl elk rapport en elke ledger-entry hem als HMM
 registreerde. De EMA-tak is volledig gesloopt; er bestaat geen niet-HMM-pad
 meer. Ontbreekt hmmlearn, dan crasht de import met DependencyMissingError.
 
-Deze fase herontwerpt het model NIET naar M2 Filtered HMM - dat is expliciet
-Phase 6 (audit sectie 24: REDESIGN). Zie docs/DEFERRED_ISSUES.md voor de twee
-causaliteitskwesties die daarbij horen (Viterbi-smoothing en de
-full-sample std in de vol-feature).
+PHASE 7/8 STAGE C-1 - DI-1 GESLOTEN
+-----------------------------------
+`predict()` gebruikte `GaussianHMM.predict`, en dat is het VITERBI-pad: de
+meest waarschijnlijke toestandsREEKS over het hele venster. Elke rij daarvan is
+bepaald met kennis van bars die na die rij komen. Datzelfde gold voor
+`predict_proba`, dat de smoothed posterior `P(S_t | F_T)` geeft. Audit sectie
+10.2 staat in een backtest uitsluitend `P(S_t | F_t)` toe.
+
+De inferentie loopt nu door `regime.markov.forward_filter`, het causale
+forward-algoritme met schaling dat Phase 6 voor het M2-contract heeft gebouwd.
+`hmmlearn` doet nog uitsluitend de EM-schatting van de parameters; het doet geen
+enkele inferentie meer. Die scheiding is precies wat `regime/markov.py::fit_hmm`
+ook aanhoudt, en om dezelfde reden.
+
+Het verschil is niet cosmetisch. Viterbi optimaliseert het GEZAMENLIJKE pad, dus
+zelfs de laatste bar van een venster kan een andere toestand krijgen dan de
+argmax van de filtered posterior op diezelfde bar - de enige waarde die
+`legacy_sizing.py` gebruikt.
+
+De EMA-crossover-fallback is en blijft gesloopt (no-go 5).
 """
 from __future__ import annotations
 
@@ -39,6 +55,12 @@ import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 
 from ..features.volatility import causal_expanding_std
+from ..regime.markov import (
+    FilteredProbabilities,
+    HmmParameters,
+    HmmSpec,
+    forward_filter,
+)
 from ..utils.failfast import DataContractError, require
 
 logger = logging.getLogger(__name__)
@@ -77,7 +99,10 @@ class HMMRegimeDetector:
     """
 
     def __init__(self, n_iter: int = 100, random_state: int = 42) -> None:
-        self._model: GaussianHMM | None = None
+        # Sinds Stage C-1 wordt het hmmlearn-model NIET vastgehouden: het doet
+        # alleen de EM-stap. Wat blijft, zijn de bevroren parameters, en die
+        # zijn het enige dat het causale filter nodig heeft.
+        self._params: HmmParameters | None = None
         self._state_map: dict[int, int] = {}
         self._fitted = False
         self._n_iter = n_iter
@@ -149,7 +174,22 @@ class HMMRegimeDetector:
             int(order[1]): int(Regime.FLAT),
             int(order[2]): int(Regime.BULL),
         }
-        self._model = model
+        # De parameters worden BEVROREN in het M2-contract uit regime/markov.py.
+        # Het hmmlearn-model zelf wordt losgelaten: zou het blijven hangen, dan
+        # is `model.predict(...)` een aanroep verderop, en dat is precies de
+        # Viterbi-route die dit herontwerp sluit.
+        self._params = HmmParameters(
+            spec=HmmSpec(n_states=3, covariance_type="full"),
+            symbol="portfolio",
+            fold_id=0,
+            start_prob=np.asarray(model.startprob_, dtype=np.float64),
+            trans_mat=np.asarray(model.transmat_, dtype=np.float64),
+            means=np.asarray(model.means_, dtype=np.float64),
+            covars=np.asarray(model.covars_, dtype=np.float64),
+            converged=bool(model.monitor_.converged),
+            n_train_obs=int(len(X)),
+            loglikelihood=float(model.score(X)),
+        )
         self._fitted = True
         logger.info(
             "HMM getraind op %d obs. State-map: %s",
@@ -158,19 +198,43 @@ class HMMRegimeDetector:
         )
         return self
 
-    def predict(self, returns: pd.Series) -> tuple[np.ndarray, np.ndarray]:
-        """Geef (labels, state-probabilities). Crasht wanneer het HMM niet bruikbaar is.
+    def filtered_regimes(
+        self, returns: pd.Series
+    ) -> tuple[np.ndarray, FilteredProbabilities]:
+        """Geef (labels, FILTERED probabilities). Crasht op een ongefit model.
 
-        DEFERRED (Phase 6, DI-1): `GaussianHMM.predict` levert het Viterbi-pad,
-        dat de VOLLEDIGE reeks gebruikt - inclusief observaties na t. Dat is
-        smoothed, niet filtered, en schendt de regel uit audit sectie 10.2.
-        Phase 0 wijzigt geen modelgedrag; dit wordt in Phase 6 vervangen door
-        filtered forward-probabilities.
+        HEET BEWUST NIET `predict`. Die naam was hier de directe aanleiding voor
+        DI-1: `detector.predict(...)` las als "voorspel", terwijl de aanroep
+        eronder `GaussianHMM.predict` was - Viterbi, en dus smoothed. Een naam
+        die je moet uitleggen om te weten wat hij doet, is de verkeerde naam.
+
+        `filtered_regimes` zegt in de aanroep zelf welk contract geldt.
+
+        STAGE C-1 - DI-1 GESLOTEN. Hier stond:
+
+            raw = self._model.predict(X)        # Viterbi over het HELE venster
+            probs = self._model.predict_proba(X)  # smoothed P(S_t | F_T)
+
+        Beide gebruiken observaties NA `t` om de toestand op `t` te bepalen. De
+        inferentie loopt nu door `regime.markov.forward_filter`, dat per bar
+        uitsluitend `[0, t]` gebruikt.
+
+        `labels` is de argmax van de filtered posterior, niet het Viterbi-pad.
+        Dat is een ANDER getal en niet slechts een andere berekening: Viterbi
+        optimaliseert de gezamenlijke reeks, waardoor ook de laatste bar kan
+        afwijken van de marginale argmax op diezelfde bar.
+
+        Returns
+        -------
+        tuple
+            `labels` (n,) met `Regime`-waarden, en de `FilteredProbabilities`
+            zelf - een type dat per constructie geen smoothed variant kan zijn.
         """
         require(
-            self._fitted and self._model is not None,
-            "predict() aangeroepen op een ongefitte detector. Roep eerst fit() "
-            "aan. Eerder viel dit pad stilzwijgend terug op een EMA-crossover.",
+            self._fitted and self._params is not None,
+            "filtered_regimes() aangeroepen op een ongefitte detector. Roep "
+            "eerst fit() aan. Eerder viel dit pad stilzwijgend terug op een "
+            "EMA-crossover.",
             DataContractError,
         )
         X = self._features(returns)
@@ -183,15 +247,24 @@ class HMMRegimeDetector:
             n_input=len(returns),
         )
 
-        assert self._model is not None  # door require() gegarandeerd
-        raw = self._model.predict(X)
-        labels = np.array([self._state_map[int(s)] for s in raw])
-        probs = self._model.predict_proba(X)
-        return labels, probs
+        assert self._params is not None  # door require() gegarandeerd
+        filtered = forward_filter(X, self._params)
+        labels = np.array(
+            [self._state_map[int(s)] for s in filtered.most_likely_state],
+            dtype=np.int64,
+        )
+        return labels, filtered
 
     def get_long_cap(self, regime: int) -> float:
         return _LONG_CAP_BEAR if Regime(regime) == Regime.BEAR else 1.0
 
     def current_regime(self, recent_returns: pd.Series) -> Regime:
-        labels, _ = self.predict(recent_returns)
+        """Het regime op de LAATSTE bar, uit de filtered posterior.
+
+        Dit is de enige waarde die `portfolio/legacy_sizing.py` gebruikt, en
+        precies de waarde die onder Viterbi kon afwijken: dat pad wordt
+        gezamenlijk geoptimaliseerd, dus ook de laatste bar hangt af van de
+        volledige reeks.
+        """
+        labels, _ = self.filtered_regimes(recent_returns)
         return Regime(int(labels[-1]))
