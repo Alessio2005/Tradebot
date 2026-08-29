@@ -77,9 +77,32 @@ class LedgerEntry:
     ts_utc: str = ""
     metrics: dict[str, Any] = field(default_factory=dict)
     notes: str = ""
+    #: De `config_hash` van de entry die deze entry AMENDEERT. Een amendement
+    #: verandert het OORDEEL over onderzoek dat al is geteld, en telt daarom
+    #: zelf nul trials.
+    #:
+    #: Waarom dit veld bestaat, gemeten op 2026-08-29: de 48 trials van H1 zijn
+    #: bij het BEVRIEZEN van de pre-registratie al in `M` geboekt — terecht,
+    #: want wie een parameterruimte vastlegt, heeft die kansen genomen. Het
+    #: oordeel daarna nogmaals als 48 trials boeken zou `M` van 2.776 naar
+    #: 2.824 brengen voor onderzoek dat één keer is gedaan. Ondertellen maakt
+    #: elke DSR erna te gunstig; dubbeltellen maakt hem te streng. Beide zijn
+    #: onwaar, en een append-only ledger heeft dus een manier nodig om een
+    #: oordeel te herzien zonder de telling te raken.
+    amends: str = ""
 
     def __post_init__(self) -> None:
-        if self.n_trials < 1:
+        if self.amends:
+            if self.n_trials != 0:
+                raise ValueError(
+                    f"Een amendement op {self.amends!r} draagt "
+                    f"n_trials={self.n_trials}. Een amendement herziet een "
+                    "OORDEEL over trials die al zijn geteld; trials meebrengen "
+                    "maakt er een nieuwe zoektocht van met een etiket dat het "
+                    "tegenovergestelde zegt. Zet n_trials=0, of boek een "
+                    "gewone entry."
+                )
+        elif self.n_trials < 1:
             raise ValueError(f"n_trials must be >= 1, got {self.n_trials}")
         if self.result not in _VALID_RESULTS:
             raise ValueError(
@@ -121,6 +144,7 @@ class LedgerEntry:
         result: str = "interim",
         metrics: dict[str, Any] | None = None,
         notes: str = "",
+        amends: str = "",
     ) -> LedgerEntry:
         """Build an entry, deriving ``config_hash`` deterministically.
 
@@ -140,6 +164,7 @@ class LedgerEntry:
             preregistration_id=preregistration_id,
             metrics=metrics or {},
             notes=notes,
+            amends=amends,
         )
 
 
@@ -174,8 +199,22 @@ class HypothesisLedger:
     # -- writes (append-only) ----------------------------------------------
 
     def append(self, entry: LedgerEntry) -> int:
-        """Atomically append one entry; returns the new cumulative total."""
+        """Atomically append one entry; returns the new cumulative total.
+
+        Een amendement (`entry.amends`) moet naar een BESTAANDE entry wijzen.
+        Wijst het naar niets, dan hangt het oordeel aan niets en is niet na te
+        gaan wát er is herzien.
+        """
         doc = self.load()
+        if entry.amends:
+            known = {e["config_hash"] for e in doc["entries"]}
+            if entry.amends not in known:
+                raise ValueError(
+                    f"Amendement wijst naar config_hash {entry.amends!r}, en "
+                    f"die staat niet in deze ledger. Een oordeel over "
+                    f"onderzoek dat hier niet is geboekt, hoort hier ook niet "
+                    f"thuis."
+                )
         doc["entries"].append(asdict(entry))
         self._write_atomic(doc)
         return int(doc["seed_total"]) + sum(

@@ -200,3 +200,75 @@ class TestTheGapIsAClosedSet:
         doc = json.loads((ROOT / DEFAULT_LEDGER_PATH).read_text(encoding="utf-8"))
         assert doc["seed_total"] == 2363
         assert "WAVE_LOG" in doc.get("seed_note", "")
+
+
+class TestTheAppendAppCarriesProvenance:
+    """`apps/ledger_append.py` kon zijn eigen ledger niet meer schrijven.
+
+    DEFECT, gevonden bij het boeken van de H1-wave. Commit `f693362` maakte
+    `git_sha`, `data_hash` en `preregistration_id` verplicht op elke
+    `LedgerEntry` — terecht: een entry zonder herkomst telt mee in `M`, en dus
+    in elke DSR erna, zonder dat iemand kan nagaan waarop hij berust. De CLI
+    is toen niet meegegaan en gaf die drie velden niet door, waardoor `append`
+    crashte op precies het contract dat hem beschermt.
+
+    Dit is de test die dat vastlegt. Hij draait de CLI met een tijdelijke
+    ledger, zodat er niets naar het echte governance-artefact wordt geschreven
+    (no-go 15).
+    """
+
+    def _argv(self, ledger: str, **overrides: str) -> list[str]:
+        base = {
+            "--wave": "6",
+            "--unit": "test_unit",
+            "--market": "crypto",
+            "--config": '{"a": 1}',
+            "--n-trials": "3",
+            "--result": "archived",
+            "--git-sha": "abc1234",
+            "--data-hash": "deadbeef",
+            "--preregistration-id": "cef1a3b9",
+            "--notes": "test",
+        }
+        base.update(overrides)
+        argv = ["--ledger", ledger, "append"]
+        for key, value in base.items():
+            argv += [key, value]
+        return argv
+
+    def test_it_writes_an_entry_with_all_four_provenance_fields(
+        self, tmp_path: Path,
+    ) -> None:
+        from apps.ledger_append import main
+
+        ledger = tmp_path / "ledger.json"
+        ledger.write_text(
+            json.dumps({"seed_total": 100, "entries": []}), encoding="utf-8")
+
+        assert main(self._argv(str(ledger))) == 0
+
+        payload = json.loads(ledger.read_text(encoding="utf-8"))
+        assert payload["seed_total"] == 100
+        entry = payload["entries"][-1]
+        assert entry["git_sha"] == "abc1234"
+        assert entry["data_hash"] == "deadbeef"
+        assert entry["preregistration_id"] == "cef1a3b9"
+        assert entry["config_hash"]
+        assert entry["n_trials"] == 3
+
+    def test_a_missing_provenance_flag_is_refused_by_the_cli(
+        self, tmp_path: Path,
+    ) -> None:
+        """Niet met een lege string doorlaten: dan staat er een entry in de
+        ledger waarvan de herkomst formeel aanwezig maar feitelijk leeg is."""
+        from apps.ledger_append import main
+
+        ledger = tmp_path / "ledger.json"
+        ledger.write_text(
+            json.dumps({"seed_total": 0, "entries": []}), encoding="utf-8")
+        argv = self._argv(str(ledger))
+        index = argv.index("--git-sha")
+        del argv[index : index + 2]
+        with pytest.raises(SystemExit):
+            main(argv)
+        assert json.loads(ledger.read_text(encoding="utf-8"))["entries"] == []
