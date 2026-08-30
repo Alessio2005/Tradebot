@@ -151,10 +151,145 @@ stages:
   #   vergelijking: reports/phase5_engine_diff.md
   #   opvolger    : src/tradebot/backtest/engine.py (EventDrivenEngine)
   #
-  # De opvolger heeft nog GEEN DVC-stage. Hij draait op de gecertificeerde
-  # PIT-store en niet op `artefacts/oos_probs/`, en de baseline-keten die hem
-  # aanroept loopt via `apps/run_baseline.py`. Een eigen stage volgt zodra de
-  # ML-track (Stage 2-3) een pre-registratie heeft die op deze engine is
-  # geschreven; dat is Phase 6-werk en staat als zodanig in
-  # `reports/phase5_exit_report.md`.
+  # De opvolger had toen nog GEEN DVC-stage. Die staat er nu, hieronder, als
+  # `phase5_revaluation` en de Phase 6-stages die erop volgen (Phase 6 stap 10,
+  # deliverable 5; exit-criterium 17).
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # STAGE 5: DE AUTHORITATIVE ENGINE — Phase 6 stap 10, deliverable 5
+  #
+  # WAAROM DEZE STAGE ER MOET ZIJN
+  # Exit-criterium 17 eist dat elke Phase 6-run reproduceerbaar is uit
+  # `data_hash` + `config_hash` + git-sha. Twee van die drie zaten al in elk
+  # artefact; wat ontbrak is het DERDE: een manier om de run OPNIEUW TE DRAAIEN
+  # en te zien dat er hetzelfde uitkomt. Een hash die je niet kunt narekenen,
+  # bewijst alleen dat er iets is gebeurd.
+  #
+  # De stages hieronder hangen aan elkaar via hun artefacten, in de volgorde
+  # waarin zij ook feitelijk zijn gedraaid:
+  #
+  #   phase5_revaluation ─┐
+  #   phase6_adequacy ────┼─→ phase6_h1_competition   (QLIKE, stap 7)
+  #   phase6_econometrics ┘   phase6_h2_regime        (M0 vs. HMM, stap 11)
+  #
+  # De gecertificeerde PIT-store staat in git en niet onder DVC (AD-12); hij is
+  # daarom een gewone `deps`-boom en geen stage-output.
+  # ────────────────────────────────────────────────────────────────────────────
+  phase5_revaluation:
+    cmd: python apps/run_phase5_baseline.py
+    deps:
+      - apps/run_phase5_baseline.py
+      - src/tradebot/backtest/phase5_baseline.py
+      - src/tradebot/backtest/engine.py
+      - src/tradebot/backtest/accounting.py
+      - src/tradebot/backtest/baseline_runner.py
+      - src/tradebot/execution/order_router.py
+      - src/tradebot/execution/impact_model.py
+      - src/tradebot/risk/engine.py
+      - src/tradebot/alpha/momentum.py
+      - src/tradebot/volatility/ewma.py
+      - data/pit_store
+      - artefacts/governance/data_hashes.json
+      - conf/risk/default.yaml
+      - conf/execution/fees.yaml
+      - conf/execution/impact.yaml
+      - conf/model/alpha.yaml
+      - conf/model/volatility.yaml
+      - conf/backtest/default.yaml
+      - conf/data/default.yaml
+    outs:
+      - artefacts/baseline/phase5_revaluation.json:
+          cache: false
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # STAGE 6: DE POORTEN DIE VOOR ELKE FIT STAAN
+  # Draait VOOR elk model. Blijkt hier al dat een modelklasse onhaalbaar is,
+  # dan is dat de goedkoopste bevinding van de fase.
+  # ────────────────────────────────────────────────────────────────────────────
+  phase6_adequacy:
+    cmd: python apps/run_data_adequacy.py
+    deps:
+      - apps/run_data_adequacy.py
+      - src/tradebot/validation/data_adequacy.py
+      - src/tradebot/validation/adequacy_report.py
+      - src/tradebot/data/phase6_universe.py
+      - data/pit_store
+      - artefacts/governance/data_hashes.json
+      - conf/model/adequacy.yaml
+      - conf/validation/default.yaml
+    outs:
+      - artefacts/governance/phase6_data_adequacy.json:
+          cache: false
+
+  phase6_econometrics:
+    cmd: python apps/run_econometric_diagnostics.py
+    deps:
+      - apps/run_econometric_diagnostics.py
+      - src/tradebot/validation/econometrics.py
+      - src/tradebot/validation/diagnostics_report.py
+      - src/tradebot/features/fracdiff.py
+      - src/tradebot/data/phase6_universe.py
+      - data/pit_store
+      - artefacts/governance/data_hashes.json
+      - conf/validation/econometrics.yaml
+      - conf/model/fracdiff.yaml
+    outs:
+      - artefacts/governance/phase6_econometrics.json:
+          cache: false
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # STAGE 7: DE CAMPAGNES. Elk oordeel dat in de ledger belandt, komt hieruit.
+  # ────────────────────────────────────────────────────────────────────────────
+  phase6_h1_competition:
+    cmd: python apps/run_vol_competition.py
+    deps:
+      - apps/run_vol_competition.py
+      - src/tradebot/validation/vol_campaign.py
+      - src/tradebot/validation/vol_competition.py
+      - src/tradebot/validation/vol_metrics.py
+      - src/tradebot/volatility/garch.py
+      - src/tradebot/volatility/realized.py
+      - src/tradebot/reporting/phase6_vol_competition.py
+      - src/tradebot/data/phase6_universe.py
+      - artefacts/governance/phase6_data_adequacy.json
+      - artefacts/governance/phase6_econometrics.json
+      - artefacts/governance/preregistration_cef1a3b9a6811d7bde1afc92a2a9503f.json
+      - data/pit_store
+      - conf/model/volatility.yaml
+      - conf/model/adequacy.yaml
+      - conf/validation/default.yaml
+    outs:
+      - artefacts/governance/phase6_h1_competition.json:
+          cache: false
+      - reports/GARCH_VS_EWMA_COMPETITION.md:
+          cache: false
+
+  phase6_h2_regime_benchmark:
+    cmd: python apps/run_regime_benchmark.py
+    deps:
+      - apps/run_regime_benchmark.py
+      - src/tradebot/validation/regime_benchmark.py
+      - src/tradebot/validation/sharpe_difference.py
+      - src/tradebot/regime/buckets.py
+      - src/tradebot/regime/markov.py
+      - src/tradebot/regime/student_t.py
+      - src/tradebot/regime/conditioning.py
+      - src/tradebot/backtest/regime_overlay.py
+      - src/tradebot/backtest/phase5_baseline.py
+      - src/tradebot/reporting/phase6_regime_benchmark.py
+      - src/tradebot/data/phase6_universe.py
+      - artefacts/governance/phase6_data_adequacy.json
+      - artefacts/governance/preregistration_3d3af28730a6c7f9da48d13139522a05.json
+      - data/pit_store
+      - conf/model/regime.yaml
+      - conf/model/adequacy.yaml
+      - conf/risk/default.yaml
+      - conf/execution/fees.yaml
+      - conf/execution/impact.yaml
+      - conf/validation/default.yaml
+    outs:
+      - artefacts/governance/phase6_h2_regime_benchmark.json:
+          cache: false
+      - reports/M0_VS_HMM_BENCHMARK.md:
+          cache: false
 
