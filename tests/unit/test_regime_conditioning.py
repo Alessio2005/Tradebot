@@ -208,6 +208,21 @@ class TestConditioners:
             assert 0 <= result.n_transitions[symbol] < int(result.mask.sum())
             assert result.mean_duration_bars[symbol] > 0.0
 
+    @pytest.mark.parametrize("spec", CONDITIONER_SPECS, ids=lambda s: s.label)
+    def test_every_scored_bar_carries_a_factor_of_one_somewhere(
+        self, spec
+    ) -> None:
+        """De factor is een VORM: per bar deelt hij door zijn maximum. Zonder
+        die normalisatie kan een bar waarop het filter overal `P(hoog) ~ 1`
+        zegt een boek van 1e-6 van de equity opleveren, en dan is een RELATIEVE
+        risicolimiet numeriek niet meer te verifiëren (DI-19)."""
+        returns, _ = _panel()
+        result = build_conditioner(
+            spec, returns=returns, buckets=_buckets().iloc[1:], cv=CV,
+            adequacy=ADEQUACY, m2_cfg=M2)
+        peak = result.values[result.mask].max(axis=1).to_numpy()
+        assert np.all((peak == 1.0) | (peak == 0.0))
+
     def test_a_bucket_panel_off_the_return_axis_crashes(self) -> None:
         returns, _ = _panel()
         spec = CONDITIONER_SPECS[0]

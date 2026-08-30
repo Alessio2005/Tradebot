@@ -68,7 +68,8 @@ from .limits import (
 )
 from .vol_targeting import apply_volatility_target
 
-__all__ = ["KNOWN_CONSTRAINTS", "RiskEngine", "risk_config_hash"]
+__all__ = ["DUST_TOLERANCE", "KNOWN_CONSTRAINTS", "RiskEngine",
+           "risk_config_hash"]
 
 #: Elke limiet die de engine kan uitvoeren. `constraint_order` in
 #: `conf/risk/default.yaml` MOET precies deze verzameling noemen: een naam die
@@ -89,7 +90,18 @@ KNOWN_CONSTRAINTS: frozenset[str] = frozenset(
     }
 )
 
-_TOL = 1e-12
+#: Onder deze absolute exposure BESTAAT de positie niet. Op een boek van
+#: EUR 100.000 is 1e-12 gelijk aan EUR 1e-7, ruim onder de `min_notional` van de
+#: venue -- er kan geen order uit ontstaan.
+#:
+#: De constante is PUBLIEK omdat elke alpha- en conditioneringslaag hem hoort te
+#: kennen: `decide()` zet exposures hieronder op nul NA de limietketen, en een
+#: relatieve limiet die op een boek MET stof is opgelost, klopt daarna niet meer
+#: op het boek ZONDER stof. Zie DI-19; wie stof aanlevert, levert een boek aan
+#: waarvan de concentratie na afloop een andere is dan de opgeloste.
+DUST_TOLERANCE = 1e-12
+
+_TOL = DUST_TOLERANCE
 
 _Step = Callable[
     [dict[str, float], MarketState, RiskState],
@@ -240,8 +252,28 @@ class RiskEngine:
             exposures, bound, state = steps[name](exposures, market_state, state)
             trail.extend(bound)
 
+        # DE VOLGORDE VAN DEZE TWEE REGELS IS EEN CONTRACT, GEEN STIJL.
+        #
+        # De verificatie loopt over wat de KETEN heeft opgelost; de snap komt
+        # daarna. Andersom was het, en dat brak de relatieve limieten op een
+        # boek met stof: de concentratielimiet lost een vast punt op waarin ELKE
+        # exposure meetelt in de gross, en zet daarna een exposure onder
+        # `DUST_TOLERANCE` op nul -- waarmee de gross krimpt en het aandeel van
+        # de grootste post stijgt. Gemeten op 2025-10-11 (H2, `hmm2-diag-gaussian`):
+        # een exposure van 8,3e-13 verdween uit een gross van 9,1e-7, en de
+        # concentratie sprong van 0,400000000 naar 0,400000088 -- door de
+        # tolerantie van 1e-9 heen. De engine crashte daar terecht op; alleen
+        # wees hij de verkeerde oorzaak aan (de clusterlimiet).
+        #
+        # WAT DE SNAP DAARNA NOG KAN DOEN, EXACT BEGRENSD. Hij zet uitsluitend
+        # posities op nul die kleiner zijn dan `DUST_TOLERANCE`. Gross, per-asset
+        # en concentratie kunnen daardoor alleen DALEN. De netto exposure kan
+        # stijgen -- door een tegengestelde stofpost weg te halen -- met ten
+        # hoogste `n_symbolen * DUST_TOLERANCE`, oftewel 6e-12 op dit universum,
+        # ruim binnen de tolerantie van 1e-9 waarmee de netto-cap wordt
+        # geverifieerd. De verificatie blijft dus geldig voor wat er UITGAAT.
+        self._verify(original, exposures, market_state)
         permitted = {s: (0.0 if abs(w) <= _TOL else w) for s, w in exposures.items()}
-        self._verify(original, permitted, market_state)
         unconstrained = len(trail) == 0
         if unconstrained:
             # Deliverable 4: nooit `a_t` ongewijzigd doorgeven zonder expliciete

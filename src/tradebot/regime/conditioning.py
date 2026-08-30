@@ -37,6 +37,36 @@ engine en niet hier, precies zoals in `buckets.py` beargumenteerd -- wie hem
 hier zou inbouwen, verschuift ook de diagnostiek en maakt de regime-occupancy
 onvergelijkbaar tussen de armen.
 
+DE FACTOR IS EEN VORM, GEEN SCHAAL
+===================================
+Per bar wordt de factor gedeeld door zijn grootste waarde. Dat is dezelfde
+normalisatie die `exposures_from_weights` op de basisgewichten toepast, en om
+dezelfde reden: de absolute schaal hoort bij L7, de VERHOUDING hoort bij het
+model. Zonder die normalisatie meet H2 iets dat de architectuur toch niet
+doorlaat -- de soevereine laag herschaalt het boek naar zijn vol-target, dus een
+uniforme factor verdwijnt er weer uit (zie `backtest/regime_overlay.py`).
+
+Zij is bovendien nodig om een BOEK te krijgen dat de risicocontract kan
+beoordelen. Gemeten op 2025-10-11, `hmm2-diag-gaussian`: het filter gaf vijf van
+de zes symbolen `P(hoog) = 1 - 1e-5` tot `1 - 1e-13`, waarna de geconditioneerde
+exposures 1e-5 tot 1e-13 werden en de bruto exposure 9,1e-7 van de equity. Op zo
+een boek is een RELATIEVE limiet numeriek fragiel: een latere stap zette een
+exposure van 2e-13 op nul, de gross daalde 2,2e-7 relatief mee, en de gemeten
+concentratie sprong van 0,400000000 naar 0,400000088 -- door een absolute
+tolerantie van 1e-9 heen. De soevereine laag crashte daar terecht op; zij is
+geen plek waar iets stilzwijgend wordt afgerond. Dat gedrag staat als DI-19
+geregistreerd en is NIET in deze fase gerepareerd: de risicolaag wijzigen om een
+Phase 6-experiment te laten lopen, is precies de verkeerde volgorde.
+
+Wat de normalisatie NIET doet, en dat hoort een lezer te weten: staan alle
+symbolen tegelijk in het onrustigste regime, dan zijn alle factoren gelijk, deelt
+de normalisatie ze naar 1, en is het boek het ONGECONDITIONEERDE boek. Dat lijkt
+verkeerd -- "alles onrustig" zou "ga plat" moeten betekenen -- maar de vol-target
+zou een uniforme reductie toch hebben teruggeschaald. De normalisatie maakt
+zichtbaar wat er anders onzichtbaar gebeurt. Bij M0 gebeurt dat overigens niet:
+zijn factor is 0 of 1, en staat alles op HOOG dan is het maximum 0 en blijft het
+boek exact plat.
+
 BUITEN HET OOS-MASKER IS DE FACTOR EXACT 1, IN ELKE ARM
 ========================================================
 De walk-forward levert twaalf testvensters; alleen daar is een fit
@@ -254,6 +284,18 @@ def _high_state(params: HmmParameters) -> int:
     return int(np.argmax(_state_variance(params)))
 
 
+def _normalise_shape(values: pd.DataFrame) -> pd.DataFrame:
+    """Deel elke bar door zijn grootste factor. Vorm blijft, schaal gaat weg.
+
+    Identiek aan `backtest/phase5_baseline.py::exposures_from_weights`, dat
+    hetzelfde doet met de allocatorgewichten. Een bar waarop elke factor nul is,
+    blijft nul: dat is een plat boek en geen deling door nul.
+    """
+    peak = values.max(axis=1)
+    scaled = values.div(peak.where(peak > 0.0), axis=0)
+    return scaled.fillna(0.0)
+
+
 def _durations(states: np.ndarray) -> float:
     """Gemiddelde regimeduur in bars over een gescoorde reeks."""
     if states.size == 0:
@@ -399,6 +441,7 @@ def build_conditioner(
                 high_probability.columns.get_loc(symbol)] = probability
             states.iloc[fold.test_idx, states.columns.get_loc(symbol)] = argmax
 
+    values = _normalise_shape(values)
     scored_states = {
         symbol: states[symbol].to_numpy()[mask] for symbol in returns.columns}
     return ConditionerResult(
