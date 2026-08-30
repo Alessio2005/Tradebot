@@ -284,6 +284,35 @@ _AUTHORITATIVE_PATH = (
 )
 
 
+#: De Phase 6-pakketten. Zij liggen niet op het executiepad maar zij BEPALEN
+#: wat er aan de risicolaag wordt aangeboden: een volatiliteitsschatter, een
+#: regimemodel, een label of een getraind model dat zijn eigen `sigma_target` of
+#: `max_leverage` zou meebrengen, voert een tweede risicoregime in via de
+#: voordeur in plaats van via de achterdeur.
+#:
+#: `portfolio/hrp.py` staat er apart bij omdat de rest van `portfolio/` legacy
+#: is (DI-10) en bewust ongewijzigd is verhuisd; HRP is research-gated en wordt
+#: in Phase 6 wél beoordeeld.
+_PHASE6_PACKAGES = ("volatility", "regime", "labeling", "train")
+_PHASE6_EXTRA = ("portfolio/hrp.py",)
+
+#: Het minimum aantal modules dat de uitbreiding moet dekken. Een glob die per
+#: ongeluk leeg raakt — door een hernoemd pakket of een verplaatste map — maakt
+#: een audit stilzwijgend groen, en dat is erger dan geen audit.
+_PHASE6_MIN_MODULES = 25
+
+
+def _phase6_modules() -> list[Path]:
+    modules = [
+        path
+        for package in _PHASE6_PACKAGES
+        for path in sorted((SRC / package).glob("*.py"))
+        if path.name != "__init__.py"
+    ]
+    modules.extend(SRC / relpath for relpath in _PHASE6_EXTRA)
+    return modules
+
+
 def _assigned_names(path: Path) -> set[str]:
     """Namen die in deze module een waarde krijgen toegewezen."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -325,6 +354,56 @@ def test_the_static_audit_actually_detects_a_violation(tmp_path: Path) -> None:
     bad.write_text("max_leverage = 2.0\ngross_cap = 4.0\n", encoding="utf-8")
     assert _assigned_names(bad) & _LOCAL_LIMIT_NAMES == {"max_leverage",
                                                         "gross_cap"}
+
+
+@pytest.mark.parametrize(
+    "module", _phase6_modules(), ids=lambda p: str(p.name))
+def test_no_phase6_module_defines_its_own_limit(module: Path) -> None:
+    """Exit-criterium 18: de audit dekt ook `volatility/`, `regime/`,
+    `labeling/`, `train/` en `portfolio/hrp.py`.
+
+    Deze modules liggen NIET op het executiepad, en dat is precies waarom zij
+    hier horen. Zij bepalen wat er aan de soevereine laag wordt aangeboden. Een
+    regimemodel dat zijn eigen `max_leverage` meebrengt of een vol-schatter met
+    een ingebouwde `sigma_target`, omzeilt de laag niet — hij VOEDT hem met een
+    tweede risicoregime, en dat is minstens zo moeilijk terug te vinden.
+    """
+    offenders = _assigned_names(module) & _LOCAL_LIMIT_NAMES
+    assert not offenders, (
+        f"{module.relative_to(SRC)} definieert risicolimieten die uit de "
+        f"soevereine policy horen te komen: {sorted(offenders)}"
+    )
+
+
+def test_the_phase6_extension_detects_a_violation(tmp_path: Path) -> None:
+    """De uitbreiding is echt en niet decoratief.
+
+    Een audit die niet aantoonbaar rood kan worden, bewijst niets — §0.10 van de
+    fase-opdracht. Hier staat een module die een regimemodel zou kunnen zijn en
+    die stilletjes een eigen vol-target en hefboom meebrengt.
+    """
+    offender = tmp_path / "regime_with_its_own_policy.py"
+    offender.write_text(
+        """SIGMA = 0.10
+def size(exposure, *, sigma_target=0.25, max_leverage=3.0):
+    return exposure * min(max_leverage, sigma_target / SIGMA)
+""",
+        encoding="utf-8")
+    assert _assigned_names(offender) & _LOCAL_LIMIT_NAMES == {
+        "sigma_target", "max_leverage"}
+
+
+def test_the_phase6_module_list_covers_the_packages() -> None:
+    """Een lege of gekrompen lijst maakt de uitbreiding stilzwijgend groen."""
+    modules = _phase6_modules()
+    assert len(modules) >= _PHASE6_MIN_MODULES, (
+        f"de Phase 6-audit dekt nog maar {len(modules)} modules; een pakket is "
+        f"hernoemd of verplaatst"
+    )
+    for module in modules:
+        assert module.is_file(), f"{module} bestaat niet meer"
+    covered = {module.parent.name for module in modules}
+    assert set(_PHASE6_PACKAGES) <= covered
 
 
 def test_the_authoritative_path_list_is_not_empty_and_exists() -> None:
