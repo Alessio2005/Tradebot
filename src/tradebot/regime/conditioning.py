@@ -182,8 +182,16 @@ class ConditionerResult:
     #: dan een telling van wisselingen.
     mean_absolute_change: Mapping[str, float]
     #: Stop-criterium 1: de zeldzaamste FILTERED toestandsbezetting per fold,
-    #: gemeten op het trainvenster waarop de parameters zijn geschat.
+    #: gemeten op het trainvenster waarop de parameters zijn geschat. Dit is het
+    #: MINIMUM over alle (symbool, fold)-fits: een model dat op een deel van het
+    #: venster ongeldig is, is niet bruikbaar op het venster.
     rarest_state_obs_per_fold: float
+    #: De MEDIAAN van diezelfde grootheid, plus hoeveel fits onder de poort
+    #: zakken. Zonder deze twee is niet te zien of de poort op een uitschieter
+    #: bindt of op het hele universum -- en dat verschil bepaalt of het oordeel
+    #: "dit model kan hier niet" of "deze fold kon niet" is.
+    rarest_state_obs_median: float
+    n_fits_below_gate: int
     n_train_obs_per_fold: int
     #: Convergentie over alle (symbool, fold)-fits van deze trial.
     convergence_ratio: float
@@ -197,6 +205,9 @@ class ConditionerResult:
             "mean_duration_bars": dict(self.mean_duration_bars),
             "mean_absolute_change": dict(self.mean_absolute_change),
             "rarest_state_obs_per_fold": self.rarest_state_obs_per_fold,
+            "rarest_state_obs_median": self.rarest_state_obs_median,
+            "n_fits_below_gate": self.n_fits_below_gate,
+            "n_fits": len(self.fits),
             "n_train_obs_per_fold": self.n_train_obs_per_fold,
             "convergence_ratio": self.convergence_ratio,
             "mean_multiplier": float(
@@ -372,6 +383,7 @@ def build_conditioner(
     m2_cfg: M2HmmConfig,
 ) -> ConditionerResult:
     """De exposure-factor van één trial over het volledige venster."""
+    gate = float(adequacy.hmm.min_obs_per_state_per_fold)
     require(
         bool(returns.index.equals(buckets.index)),
         "Returns en M0-buckets staan niet op dezelfde tijdas. Een stilzwijgende "
@@ -396,7 +408,7 @@ def build_conditioner(
     states = pd.DataFrame(
         np.nan, index=returns.index, columns=returns.columns, dtype="float64")
     fits: list[Mapping[str, Any]] = []
-    rarest = np.inf
+    occupancies: list[float] = []
     converged = 0
 
     for symbol in returns.columns:
@@ -408,7 +420,7 @@ def build_conditioner(
                     observations, spec, fold, symbol=symbol,
                     adequacy=adequacy, m2_cfg=m2_cfg,
                     n_obs_per_fold=n_obs_per_fold)
-                rarest = min(rarest, fold_rarest)
+                occupancies.append(fold_rarest)
                 converged += int(params.converged)
                 variance = _state_variance(params)
                 fits.append({"symbol": symbol, **params.as_record(),
@@ -429,7 +441,7 @@ def build_conditioner(
                     observed[:fold.train_end][
                         np.isfinite(observed[:fold.train_end])
                     ].astype(np.int64), minlength=spec.n_states)
-                rarest = min(rarest, float(counts.min()))
+                occupancies.append(float(counts.min()))
                 converged += 1
                 fits.append({"symbol": symbol, "fold_id": fold.fold_id,
                              **dict(chain.as_record()),
@@ -456,7 +468,9 @@ def build_conditioner(
             s: float(np.abs(np.diff(
                 values[s].to_numpy()[mask])).mean()) if mask.sum() > 1 else 0.0
             for s in returns.columns},
-        rarest_state_obs_per_fold=float(rarest),
+        rarest_state_obs_per_fold=float(np.min(occupancies)),
+        rarest_state_obs_median=float(np.median(occupancies)),
+        n_fits_below_gate=int(np.count_nonzero(np.asarray(occupancies) < gate)),
         n_train_obs_per_fold=n_train,
         convergence_ratio=converged / len(fits) if fits else 0.0,
         fits=tuple(fits),

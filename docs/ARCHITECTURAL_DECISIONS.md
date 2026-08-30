@@ -605,3 +605,154 @@ ledger niet meer append-only, en dan is de vraag "wat wist men wanneer" niet
 meer uit het bestand te beantwoorden — precies de eigenschap waarvoor hij
 append-only is.
 
+
+---
+
+## AD-15 — De regime-overlay is één afbeelding zonder vrije parameter
+
+**Fase:** 6 (H2, stap 11) · besloten tijdens Phase 7/8 Stage C-3
+**Status:** actief
+**Bewaakt door:** `tests/unit/test_regime_conditioning.py`
+
+### Besluit
+
+Elke conditioneerder — M0, M1 en M2 — wordt op precies dezelfde manier op het
+primaire signaal gelegd:
+
+    a_geconditioneerd[t] = a_basis[t] * (1 - p_hoog[t])
+
+M0 levert `p_hoog` als indicator `1{bucket = HOOG}`, M1 als eenstapsvoorspelling
+`P(S_t = HOOG | S_{t-1})`, M2 als filtered posterior
+`P(S_t = onrustigste toestand | F_t)`. Er is geen multiplier per bucket, geen
+drempel op de kans en geen schaling.
+
+De factor wordt daarna per bar gedeeld door zijn grootste waarde — dezelfde
+normalisatie die `exposures_from_weights` op de allocatorgewichten toepast.
+
+### Waarom
+
+Elke vrije parameter in die afbeelding zou een trial zijn die niet in
+pre-registratie `3d3af28730a6c7f9da48d13139522a05` staat, en zij zou de winnaar
+kunnen bepalen zonder dat een van de regimemodellen iets had gedaan. Wat de
+modellen mogen doen is uitsluitend `p_hoog` schatten; de rest is bedrading.
+
+De normalisatie hoort erbij om twee redenen. De architecturale: de soevereine
+laag herschaalt het boek toch naar zijn vol-target, dus de absolute schaal van
+de factor is niet waarneembaar (zie AD-16) — hem laten staan zou suggereren dat
+er iets wordt gemeten dat er niet is. De numerieke: zonder normalisatie kan een
+bar waarop het filter voor elk symbool `P(hoog) ≈ 1` zegt, een boek van 1e-6 van
+de equity opleveren, en daarop is een RELATIEVE risicolimiet niet betrouwbaar te
+verifiëren (DI-19).
+
+### Het afgewezen alternatief
+
+Een geoptimaliseerde multiplier per regime (bijvoorbeeld 1,0 / 0,7 / 0,3 voor
+LAAG / NORMAAL / HOOG). Dat is drie extra vrije parameters per model, dus zes
+extra trials boven de zes geboekte, en het maakt van H2 een sizing-experiment
+in plaats van een regime-experiment.
+
+---
+
+## AD-16 — Een regime-overlay kan dit boek niet de-grossen, alleen tilten
+
+**Fase:** 6 (H2, stap 11) · besloten tijdens Phase 7/8 Stage C-3
+**Status:** actief
+**Bewaakt door:**
+`tests/unit/test_regime_overlay.py::TestArmsDifferInOneThingOnly`
+
+### Besluit
+
+Elk H2-resultaat wordt gerapporteerd als CROSS-SECTIONELE TILT en niet als
+risicoreductie, en het rapport zegt dat expliciet.
+
+### Waarom — dit is een meting, geen interpretatie
+
+De soevereine laag schaalt het hele boek met
+`w_t = min(max_leverage, σ_target / σ_boek)`. Vermenigvuldig elke exposure met
+dezelfde `c`, dan deelt `w_t` er weer door. Gemeten op synthetische data: elke
+exposure halveren verplaatste de gemiddelde bruto notional van 8.300 naar 8.283
+en de turnover met 0,06 %. Gemeten op de echte H2-run: de M0-arm draagt 0,976×
+de bruto notional van de ongeconditioneerde arm en 1,140× de turnover.
+
+Wat wél doorkomt is de asymmetrie TUSSEN symbolen — elk symbool heeft zijn eigen
+regime — en dat is een herverdeling van het risicobudget: haal het weg bij wat nu
+onrustig is en geef het aan de rest. Dat is een zinnig experiment, maar het is
+een ander experiment dan "verlaag de risico's in een slecht regime", en een
+rapport dat het tweede suggereert terwijl het eerste is gemeten, is onjuist.
+
+### Wat dit uitsluit
+
+De vraag of een regime-overlay het RISICO kan verlagen, is op dit boek niet te
+beantwoorden zolang L7 soeverein naar een vol-target herschaalt. Dat is geen
+tekortkoming van de overlay maar een eigenschap van de architectuur, en zij
+staat als beperking in `reports/M0_VS_HMM_BENCHMARK.md` §10.
+
+---
+
+## AD-17 — Het startpunt van elke EM is deterministisch, niet geseed
+
+**Fase:** 6 (H2, deliverable 15) · besloten tijdens Phase 7/8 Stage C-3
+**Status:** actief
+**Bewaakt door:**
+`tests/unit/test_hmm_fit_contract.py::TestReproducibility`
+
+### Besluit
+
+`regime/markov.py::deterministic_start` vervangt de k-means-initialisatie van
+`hmmlearn`: een quantielsplit op `|y − mediaan|`, uniforme start- en
+overgangskansen, puur numpy. `GaussianHMM` draait met `init_params=""`, zodat
+alleen zijn EM-recursie overblijft. De Student-t EM start van de UITKOMST van
+die Gaussische fit.
+
+### Waarom
+
+`sklearn.cluster.KMeans` parallelliseert over OpenMP-threads en de
+reductievolgorde ligt niet vast. **Gemeten op 900 bars van twee overlappende
+toestanden, hmmlearn 0.3.3, zestig identieke fits met `random_state=20260830`:
+twee verschillende uitkomsten.** Niet in de laatste decimaal van een
+rapportgetal, maar in de parameters waarop het hele H2-oordeel rust. Een
+niet-reproduceerbaar getal is geen bewijs.
+
+De split loopt over de absolute afwijking van de mediaan en niet over de return
+zelf, omdat k-means op een 1-D returnreeks splitst op NIVEAU — de negatieve
+returns in de ene toestand, de positieve in de andere. Dat is een TEKENsplit, en
+een vol-regimemodel gaat over SCHAAL.
+
+De gedeelde start is wat de vergelijking tussen `gaussian` en `student_t` eerlijk
+maakt: beide EM's zijn lokaal, dus zonder gedeeld startpunt zou een deel van het
+verschil het startpunt zijn in plaats van de emissieverdeling.
+
+---
+
+## AD-18 — Het oordeel over de bezetting gaat over het minimum, niet de mediaan
+
+**Fase:** 6 (H2, stap 11) · besloten tijdens Phase 7/8 Stage C-3
+**Status:** actief
+**Bewaakt door:** `tests/unit/test_regime_benchmark.py::TestOccupancyIsAbsorbing`
+
+### Besluit
+
+Stop-criterium 1 van de H2-pre-registratie (`rarest_state_obs_per_fold < 100`)
+wordt toegepast op het MINIMUM over alle (symbool, fold)-fits van een
+conditioneerder. De mediaan en het aantal fits onder de poort worden ernaast
+gerapporteerd.
+
+### Waarom
+
+Een walk-forward-evaluatie is alleen zinnig wanneer elke fold erin geldig is.
+Een netto Sharpe over 1.200 OOS-bars waarvan een deel voortkomt uit een model
+dat op die fold niet gefit had mogen worden, is geen schoon getal — en een
+mediaan die de poort haalt, verbergt precies dat.
+
+Het verschil is niet theoretisch. Gemeten in de H2-run: `hmm2-diag-student_t`
+heeft een mediaan van 377,3 (ruim boven de eis van 100) en een minimum van 27,97,
+met 2 van de 72 fits onder de poort. Op de mediaan zou hij zijn beoordeeld, op
+het minimum wordt hij gedescopeerd. De strenge lezing kan per constructie geen
+promotie fabriceren, de milde wel.
+
+### Wat er daarom NAAST staat
+
+De mediaan en `n_fits_below_gate` staan in het rapport en in het artefact, zodat
+een lezer ziet of het oordeel "dit model kan hier niet" luidt of "deze folds
+konden niet". Voor `m1-k2` is dat 66 van 72 fits — het eerste. Voor
+`hmm2-diag-student_t` 2 van 72 — het tweede.

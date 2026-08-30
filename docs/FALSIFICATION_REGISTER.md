@@ -185,3 +185,62 @@ zoals dat van H1 hierboven.
 
 `M` blijft **2776**.
 
+
+---
+
+## H2 — de Markov-familie tegen M0 Causal Vol-Buckets: **geen falsificatie**
+
+*Toegevoegd 2026-08-30, Phase 6 stap 11 / Phase 7/8 Stage C-3. Bewijs:
+`reports/M0_VS_HMM_BENCHMARK.md`, artefact
+`artefacts/governance/phase6_h2_regime_benchmark.json`, ledger-amendement
+`5e5e07579587cddd` (`amends: 3d3af28730a6c7f9`).*
+
+Alle zes gepre-registreerde conditioneerders zijn **gedescopeerd**, en géén
+enkele is gefalsificeerd.
+
+| | |
+|---|---|
+| Gepromoveerd | 0 |
+| Gefalsifieerd | **0** |
+| `UNPROVEN` | 0 |
+| `DESCOPED` (bezetting onder de adequaatheidspoort) | 6 |
+
+**Waarom geen falsificatie.** Stop-criterium 1 van pre-registratie
+`3d3af28730a6c7f9da48d13139522a05` bindt op alle zes: de gemeten FILTERED
+bezetting van de zeldzaamste toestand loopt van **5,0 tot 28,0 observaties per
+fold** tegen een eis van 100. Op zo'n bezetting schat het model een gemiddelde,
+een schaal en k−1 overgangskansen op enkele tientallen punten. No-go 8 van de
+fase verbiedt een falsificatie-oordeel over een model dat de Data Adequacy Gate
+niet haalt, en dat is hier precies de situatie: er is te weinig data, niet te
+weinig model.
+
+De a-priori poort in `conf/model/adequacy.yaml` gebruikt de UNIFORME aanname
+(1/k per toestand) en noemt zichzelf daarbij optimistisch — 247,5 observaties
+bij k = 2 op 495 trainbars. De gemeten bezetting is een orde lager. Dat verschil
+is de kern van de bevinding: **de poort die vóór de fase groen stond, staat na
+de meting rood, en de meting wint.**
+
+**Twee nevenbevindingen die niet van de poort afhangen.**
+
+1. **M0 verbetert de baseline zelf niet.** Netto OOS Sharpe −0,2501 tegen
+   −0,0955 voor de ongeconditioneerde arm, over dezelfde 1.200 OOS-bars. De
+   productie-baseline blijft M0 omdat de pre-registratie hem als baseline
+   aanwijst, maar de vergelijking staat op een overlay die op deze data niets
+   toevoegt.
+2. **Een regime-overlay kan dit boek per constructie niet de-grossen.** De
+   soevereine laag schaalt met `w_t = min(max_leverage, σ_target / σ_boek)`;
+   een uniforme factor deelt daar weer uit. Gemeten: bruto notional 0,976× en
+   turnover 1,140× die van de ongeconditioneerde arm. Wat H2 heeft gemeten is
+   een cross-sectionele TILT, geen risicoreductie.
+
+**Wat dit betekent voor hertesten.** H2 mag opnieuw worden getoetst zodra er
+meer bars per fold zijn — een langer venster of een groter universum (DI-15) —
+of onder een expliciet andere toestandsdefinitie. Beide zijn een gewijzigde
+premisse en vereisen een NIEUWE pre-registratie met een eigen bijdrage aan `M`.
+Wat NIET mag: `k` verlagen of `min_obs_per_state_per_fold` verruimen tot de
+poort opengaat.
+
+**M0 Causal Vol-Buckets blijft de productie-baseline**, en dat is hier een
+niet-verworpen nulhypothese en geen bewezen superioriteit.
+
+`M` blijft **2776**.
