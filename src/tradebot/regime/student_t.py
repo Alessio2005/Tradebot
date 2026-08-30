@@ -172,6 +172,12 @@ class StudentTFit:
     #: `True` zodra een toestand tegen `dof_min` of `dof_max` aan ligt. Dat is
     #: een bevinding die wordt gerapporteerd, geen waarde die wordt weggerond.
     dof_at_bound: bool
+    #: `True` wanneer de EM is gestopt omdat een toestand instortte. De
+    #: teruggegeven parameters zijn dan die van de LAATSTE geldige iteratie en
+    #: `converged` is `False`. Zelfde contract als `fit_garch_window`: een
+    #: numerieke mislukking is een RESULTAAT dat wordt geteld, geen fout die
+    #: de campagne afbreekt en geen waarde die stilzwijgend wordt gerepareerd.
+    degenerate: bool
     loglikelihood_history: tuple[float, ...]
 
     def as_record(self) -> dict[str, Any]:
@@ -185,6 +191,7 @@ class StudentTFit:
                 self.loglikelihood - self.gaussian_loglikelihood),
             "dof": self.dof.tolist(),
             "dof_at_bound": self.dof_at_bound,
+            "degenerate": self.degenerate,
         }
 
 
@@ -307,13 +314,20 @@ def fit_student_t_hmm(
 
     history: list[float] = []
     converged = False
+    degenerate = False
     used = 0
+    # De laatste parameters waarvan de E-stap GEZOND was: elke toestand droeg
+    # daar nog minstens een observatie aan verantwoordelijkheid. Stort er later
+    # een in, dan is dit het punt waarnaar wordt teruggerold -- de ingestorte
+    # parameters zelf teruggeven zou een filter opleveren die op een schaal van
+    # 1e-128 rekent en getallen produceert die niets meer meten.
+    last_healthy = (start_prob.copy(), trans_mat.copy(), means.copy(),
+                    covars.copy(), dof.copy())
     for iteration in range(1, cfg.n_iter + 1):
         used = iteration
         log_b = student_t_log_density(
             observations, means, covars, dof, cfg.covariance_type)
         gamma, xi_sum, loglik = _forward_backward(log_b, start_prob, trans_mat)
-        history.append(loglik)
 
         # De verwachte schaal per bar en per toestand. Een uitschieter krijgt
         # hier een klein gewicht -- dat IS het staartgedrag.
@@ -327,29 +341,61 @@ def fit_student_t_hmm(
                     "ij,ij->i", delta, np.linalg.solve(covars[i], delta.T).T)
             u[:, i] = (dof[i] + d) / (dof[i] + quad)
 
-        start_prob = gamma[0] / gamma[0].sum()
+        # EEN TOESTAND DIE INSTORT IS EEN UITKOMST, GEEN FOUT
+        # ----------------------------------------------------
+        # De t-mengselverdeling heeft een bekende ontaarding: krijgt een
+        # toestand nog maar een handvol punten die dicht op zijn gemiddelde
+        # liggen, dan gaat `u` omhoog, de schaal naar nul en de likelihood naar
+        # oneindig. Dat is geen optimum maar een singulariteit, en zij treedt op
+        # wanneer `k` groter is dan het aantal regimes dat de data draagt.
+        #
+        # De EM stopt daar en geeft de parameters van de LAATSTE GELDIGE
+        # iteratie terug, met `converged = False` en `degenerate = True`. Dat is
+        # hetzelfde contract als `fit_garch_window`: de mislukking wordt geteld
+        # in de convergentieratio en de campagne descopeert erop. De grens is
+        # geen drempel maar het DOMEIN -- minder dan een observatie aan
+        # verantwoordelijkheid, of een schaal die niet strikt positief is,
+        # betekent dat de M-stap niet gedefinieerd is.
+        responsibility = gamma.sum(axis=0)
+        if float(responsibility.min()) < 1.0:
+            degenerate = True
+            break
+        last_healthy = (start_prob.copy(), trans_mat.copy(), means.copy(),
+                        covars.copy(), dof.copy())
+        history.append(loglik)
+
+        new_start = gamma[0] / gamma[0].sum()
         denom = gamma[:-1].sum(axis=0)
-        require(
-            bool(np.all(denom > 0.0)),
-            "Een toestand met kansmassa nul over het hele trainvenster. De "
-            "overgangskansen eruit zijn niet gedefinieerd; dat is een "
-            "gedegenereerde fit.",
-            DataContractError, occupancy=denom.tolist(),
-        )
-        trans_mat = xi_sum / denom[:, None]
-        trans_mat /= trans_mat.sum(axis=1, keepdims=True)
+        if float(denom.min()) <= 0.0:
+            degenerate = True
+            break
+        new_trans = xi_sum / denom[:, None]
+        new_trans /= new_trans.sum(axis=1, keepdims=True)
 
         weight = gamma * u
-        means = (weight.T @ observations) / weight.sum(axis=0)[:, None]
+        new_means = (weight.T @ observations) / weight.sum(axis=0)[:, None]
+        new_covars = np.empty_like(covars)
+        new_dof = np.empty_like(dof)
         for i in range(n_states):
-            delta = observations - means[i]
+            delta = observations - new_means[i]
             total = float(gamma[:, i].sum())
             if cfg.covariance_type == "diag":
-                covars[i] = (weight[:, i] @ (delta**2)) / total
+                new_covars[i] = (weight[:, i] @ (delta**2)) / total
             else:
-                covars[i] = (delta * weight[:, i][:, None]).T @ delta / total
-            dof[i] = _solve_dof(
+                new_covars[i] = (delta * weight[:, i][:, None]).T @ delta / total
+            new_dof[i] = _solve_dof(
                 gamma[:, i], np.log(u[:, i]), u[:, i], d, float(dof[i]), cfg)
+        scale_diagonal = (new_covars if cfg.covariance_type == "diag"
+                          else np.diagonal(new_covars, axis1=1, axis2=2))
+        if not (np.all(np.isfinite(new_covars)) and np.all(scale_diagonal > 0.0)):
+            degenerate = True
+            break
+        total_scale = scale_diagonal.sum(axis=1)
+        if float(total_scale.min() / total_scale.max()) < cfg.min_scale_ratio:
+            degenerate = True
+            break
+        start_prob, trans_mat = new_start, new_trans
+        means, covars, dof = new_means, new_covars, new_dof
 
         if len(history) >= 2:
             delta_ll = history[-1] - history[-2]
@@ -357,6 +403,8 @@ def fit_student_t_hmm(
                 converged = True
                 break
 
+    if degenerate:
+        start_prob, trans_mat, means, covars, dof = last_healthy
     final_log_b = student_t_log_density(
         observations, means, covars, dof, cfg.covariance_type)
     _, _, final_loglik = _forward_backward(final_log_b, start_prob, trans_mat)
@@ -368,6 +416,6 @@ def fit_student_t_hmm(
         means=means, covars=covars, dof=dof, converged=converged,
         n_iter_used=used, loglikelihood=final_loglik,
         gaussian_loglikelihood=float(gaussian_loglikelihood),
-        dof_at_bound=at_bound,
+        dof_at_bound=at_bound, degenerate=degenerate,
         loglikelihood_history=tuple(history),
     )

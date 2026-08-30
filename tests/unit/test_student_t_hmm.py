@@ -201,6 +201,31 @@ class TestEm:
         with pytest.raises(DataContractError):
             _fit(rng.normal(0.0, 0.01, 8)[:, None], 3)
 
+    def test_a_collapsing_state_is_recorded_and_not_raised(self) -> None:
+        """De t-mengselverdeling heeft een singulariteit: bij een `k` groter
+        dan het aantal regimes dat de data draagt, gaat een schaal naar nul en
+        de likelihood naar oneindig. Dat is geen optimum. De EM stopt daar,
+        houdt de laatste geldige parameters aan en meldt het -- zelfde contract
+        als `fit_garch_window`, waar een numerieke mislukking een geteld
+        resultaat is en geen afgebroken campagne."""
+        rng = np.random.default_rng(19)
+        # Zes IDENTIEKE uitschieters: een toestand kan daar exact op landen en
+        # heeft dan spreiding nul. De likelihood loopt weg, de fit niet.
+        observations = rng.normal(0.0, 0.01, 300)
+        observations[100:106] = 0.0731
+        fit = _fit(observations[:, None], 3)
+        assert fit.degenerate is True
+        assert fit.converged is False
+        assert fit.as_record()["degenerate"] is True
+        # En wat eruit komt is BRUIKBAAR: de teruggerolde parameters halen
+        # nog een filter, zodat de campagne kan descopen in plaats van te
+        # crashen op een schaal van 1e-128.
+        scales = np.asarray(fit.covars).ravel()
+        assert float(scales.min() / scales.max()) >= CFG.min_scale_ratio
+
+    def test_a_healthy_fit_is_not_flagged_degenerate(self) -> None:
+        assert _fit(_two_regime_series(), 2).degenerate is False
+
     def test_reports_whether_it_converged(self) -> None:
         fit = _fit(_two_regime_series(), 2,
                    M2HmmConfig(n_iter=2, em_tolerance=1e-12))

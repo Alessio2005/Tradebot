@@ -773,6 +773,12 @@ class M2HmmConfig(StrictModel):
     #: Bovengrens. Erboven is de t numeriek niet meer van een normale te
     #: onderscheiden; de fit rapporteert dat hij de grens raakte.
     dof_max: Annotated[float, Field(gt=2.0)] = 200.0
+    #: Ondergrens op `min(schaal) / max(schaal)` over de toestanden
+    #: (Hathaway 1985). De t-mengselverdeling heeft een singulariteit waarin
+    #: een toestand op een handvol punten instort, zijn schaal naar nul gaat en
+    #: de likelihood naar oneindig. Dat is geen optimum. Zakt de verhouding
+    #: hieronder, dan stopt de EM en meldt hij `degenerate`.
+    min_scale_ratio: Annotated[float, Field(gt=0.0, lt=1.0)] = 1e-4
     #: Seed van de gedeelde initialisatie (k-means in de Gaussische EM), zodat
     #: de Gaussische en de Student-t variant vanaf HETZELFDE punt starten en het
     #: verschil tussen beide de verdeling is en niet het startpunt.
