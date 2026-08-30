@@ -262,6 +262,9 @@ class H2CampaignResult:
 
     plain: ArmResult
     m0: ArmResult
+    #: Netto OOS Sharpe van de M0-arm bij elke aangenomen half-spread. De
+    #: baseline van elke delta in `TrialOutcome.spread_sweep`.
+    m0_spread_sweep: Mapping[float, float]
     m0_conditioner_transitions: Mapping[str, int]
     trials: tuple[TrialOutcome, ...]
     controls: SharpeTestControls
@@ -286,6 +289,7 @@ class H2CampaignResult:
             "by_status": self.by_status(),
             "plain": self.plain.as_record(),
             "m0": self.m0.as_record(),
+            "m0_spread_sweep": {str(k): v for k, v in self.m0_spread_sweep.items()},
             "m0_conditioner_transitions": dict(self.m0_conditioner_transitions),
             "m0_vs_unconditioned": self.m0_vs_plain.as_record(),
             "overlay_is_a_tilt": dict(self.overlay_is_a_tilt),
@@ -294,35 +298,39 @@ class H2CampaignResult:
         }
 
 
-def _spread_sweep(
-    label: str, exposures: pd.DataFrame, baseline_exposures: pd.DataFrame,
-    inputs: CampaignInputs, mask: np.ndarray,
-) -> tuple[dict[float, float], float | None]:
-    """Sharpe-delta tegen M0 bij elke aangenomen half-spread.
-
-    Beide armen worden bij ELKE spread opnieuw gedraaid. De verleiding is om de
-    baseline één keer te draaien en te hergebruiken, maar de spread raakt beide
-    armen en niet even hard: de arm die meer handelt, betaalt meer. Wie dat
-    negeert, meet de spread-gevoeligheid van één arm en noemt het een delta.
-    """
-    sweep: dict[float, float] = {}
-    for bps in inputs.spread_sweep_bps:
-        challenger = run_overlay_arm(
+def _sharpe_by_spread(
+    label: str, exposures: pd.DataFrame, inputs: CampaignInputs,
+    mask: np.ndarray,
+) -> dict[float, float]:
+    """Netto OOS Sharpe van één arm bij elke aangenomen half-spread."""
+    return {
+        float(bps): run_overlay_arm(
             f"{label}@{bps}", exposures, inputs.panels, mask=mask,
             risk_cfg=inputs.risk_cfg, impact=inputs.impact, venue=inputs.venue,
             half_spread_bps=bps, spread_source=inputs.spread_source,
             initial_equity=inputs.initial_equity,
-            bars_per_year=inputs.bars_per_year)
-        baseline = run_overlay_arm(
-            f"{M0_LABEL}@{bps}", baseline_exposures, inputs.panels, mask=mask,
-            risk_cfg=inputs.risk_cfg, impact=inputs.impact, venue=inputs.venue,
-            half_spread_bps=bps, spread_source=inputs.spread_source,
-            initial_equity=inputs.initial_equity,
-            bars_per_year=inputs.bars_per_year)
-        sweep[float(bps)] = (challenger.net_sharpe_oos
-                             - baseline.net_sharpe_oos)
-    base = sweep[float(inputs.base_half_spread_bps)]
-    if base <= 0.0:
+            bars_per_year=inputs.bars_per_year).net_sharpe_oos
+        for bps in inputs.spread_sweep_bps
+    }
+
+
+def _spread_delta(
+    challenger: Mapping[float, float], baseline: Mapping[float, float],
+    base_bps: float,
+) -> tuple[dict[float, float], float | None]:
+    """Sharpe-delta per spread, en waar een gemeten winst verdwijnt.
+
+    BEIDE armen draaien bij ELKE spread; de baseline-sweep wordt één keer
+    berekend en hergebruikt. De verleiding is om alleen de uitdager opnieuw te
+    draaien, maar de spread raakt beide armen en niet even hard: de arm die meer
+    handelt, betaalt meer. Wie dat negeert, meet de spread-gevoeligheid van één
+    arm en noemt het een delta.
+
+    Is er bij de basis-spread geen winst, dan is er niets dat kan verdwijnen en
+    is het antwoord `None` -- niet-van-toepassing, niet-geschonden.
+    """
+    sweep = {bps: challenger[bps] - baseline[bps] for bps in challenger}
+    if sweep[float(base_bps)] <= 0.0:
         return sweep, None
     vanish = [bps for bps in sorted(sweep) if sweep[bps] <= 0.0]
     return sweep, (float(vanish[0]) if vanish else None)
@@ -388,6 +396,11 @@ def run_regime_campaign(inputs: CampaignInputs) -> H2CampaignResult:
             np.diff(inputs.buckets[symbol].to_numpy()[bar_mask]) != 0.0))
         for symbol in inputs.buckets.columns}
 
+    # De M0-sweep hangt niet van de uitdager af en wordt één keer gedraaid; hem
+    # per trial herhalen is dertig identieke engine-runs.
+    m0_sweep = _sharpe_by_spread(
+        M0_LABEL, inputs.base_exposures * m0_values, inputs, mask)
+
     trials: list[TrialOutcome] = []
     controls: SharpeTestControls | None = None
     for spec in CONDITIONER_SPECS:
@@ -410,9 +423,10 @@ def run_regime_campaign(inputs: CampaignInputs) -> H2CampaignResult:
                 target_power=inputs.target_power,
                 n_replicates=inputs.n_control_replicates,
                 mean_block_length=inputs.block_length, seed=inputs.seed)
-        sweep, vanish = _spread_sweep(
-            spec.label, inputs.base_exposures * values, m0_values, inputs,
-            mask)
+        sweep, vanish = _spread_delta(
+            _sharpe_by_spread(
+                spec.label, inputs.base_exposures * values, inputs, mask),
+            m0_sweep, inputs.base_half_spread_bps)
         delta = challenger.net_sharpe_oos - m0.net_sharpe_oos
         ratio = (challenger.turnover_notional_oos / m0.turnover_notional_oos
                  if m0.turnover_notional_oos else float("inf"))
@@ -437,7 +451,8 @@ def run_regime_campaign(inputs: CampaignInputs) -> H2CampaignResult:
         DataContractError,
     )
     return H2CampaignResult(
-        plain=plain, m0=m0, m0_conditioner_transitions=m0_transitions,
+        plain=plain, m0=m0, m0_spread_sweep=m0_sweep,
+        m0_conditioner_transitions=m0_transitions,
         trials=tuple(trials), controls=controls,
         m0_vs_plain=jobson_korkie_memmel(
             m0.oos_returns, plain.oos_returns,

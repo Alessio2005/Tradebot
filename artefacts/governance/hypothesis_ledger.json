@@ -218,6 +218,36 @@
       },
       "notes": "H1-oordeel: UNPROVEN. De campagne is volledig gedraaid (48 van 48 gepre-registreerde combinaties gefit), maar de gepre-registreerde range-proxy meet aantoonbaar een andere grootheid dan de modellen voorspellen: mean(proxy)/mean(r^2) = 1,27 tot 2,24 tegen een toegestane afwijking van 15%. QLIKE rangschikt dan op kalibratie tegen een verschoven doel; 36 combinaties dragen daarom `proxy_premise_violated`. 12 zijn gedescopeerd (10 randoplossingen/convergentie, 2 gedegenereerde EGARCH h=5-forecasts tot 5,4e28x). De negatieve controle faalt bovendien op de power-kant bij 8 van 12 reeksen. EWMA(0.94) blijft de productie-estimator. GEEN nieuwe trials: deze 48 zijn bij het bevriezen geboekt, M blijft 2776. Rapport: reports/GARCH_VS_EWMA_COMPETITION.md",
       "amends": "cef1a3b9a6811d7b"
+    },
+    {
+      "wave": 30,
+      "unit": "phase6_h2_hmm_vs_m0",
+      "market": "crypto",
+      "config_hash": "beb6a14e4f362658",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "648ea74",
+      "data_hash": "a0209b7258746feb",
+      "preregistration_id": "3d3af28730a6c7f9da48d13139522a05",
+      "ts_utc": "2026-08-30T18:25:50.466724+00:00",
+      "metrics": {
+        "n_promoted": 0,
+        "n_falsified": 0,
+        "n_unproven": 0,
+        "n_descoped": 6,
+        "m0_net_sharpe_oos": -0.250061,
+        "unconditioned_net_sharpe_oos": -0.095451,
+        "m0_minus_unconditioned": -0.15461,
+        "gross_notional_ratio_vs_unconditioned": 0.9763,
+        "turnover_ratio_vs_unconditioned": 1.1404,
+        "rarest_state_obs_min": 5.0,
+        "rarest_state_obs_max": 27.97,
+        "required_obs_per_state_per_fold": 100,
+        "power_at_expected_effect": 0.106,
+        "size_rejection_rate": 0.048
+      },
+      "notes": "H2-oordeel: UNPROVEN - insufficient data. Alle zes gepre-registreerde conditioneerders zijn gedescopeerd op stop-criterium 1: de FILTERED bezetting van de zeldzaamste toestand loopt van 5,0 tot 28,0 observaties per fold tegen een eis van 100. De a-priori poort gebruikte de uniforme aanname (247,5 bij k=2) en noemde zich daarbij optimistisch; de meting is een orde lager. M0 Causal Vol-Buckets blijft productie-baseline, maar verbetert de ongeconditioneerde baseline zelf niet (-0,2501 tegen -0,0955). De soevereine vol-target herschaalt elke uniforme overlay weg, dus wat is gemeten is een cross-sectionele tilt en geen risicoreductie (bruto notional 0,976x, turnover 1,140x). De negatieve controles: size 0,048 bij alpha 0,05, power bij het verwachte effect van 0,08 slechts 0,106 - deze opzet kon dat effect niet zien, zoals de pre-registratie vooraf vaststelde. GEEN nieuwe trials: de zes zijn bij het bevriezen geboekt, M blijft 2776. Rapport: reports/M0_VS_HMM_BENCHMARK.md",
+      "amends": "3d3af28730a6c7f9"
     }
   ]
 }
