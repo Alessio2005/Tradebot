@@ -69,7 +69,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from ..schemas.config import AdequacyConfig
+from ..schemas.config import AdequacyConfig, M2HmmConfig, regime_config
 from ..utils.failfast import (
     CausalityViolationError,
     DataContractError,
@@ -77,6 +77,7 @@ from ..utils.failfast import (
     require_dependency,
 )
 from ..validation.data_adequacy import assess_hmm, require_adequacy
+from .student_t import fit_student_t_hmm, student_t_log_density
 
 __all__ = [
     "DIAGNOSTICS_ONLY",
@@ -86,6 +87,7 @@ __all__ = [
     "HmmSpec",
     "MarkovChain",
     "SmoothedProbabilities",
+    "deterministic_start",
     "filtered_occupancy",
     "fit_hmm",
     "forward_filter",
@@ -141,15 +143,6 @@ class HmmSpec:
             "Een HMM met minder dan twee toestanden is geen regimemodel.",
             DataContractError, n_states=self.n_states,
         )
-        require(
-            self.distribution == "gaussian",
-            "Student-t emissies vereisen een eigen EM-stap; hmmlearn levert "
-            "die niet en een Gaussische fit met een Student-t filter is een "
-            "ANDER model dan beide. Er wordt niet stilzwijgend teruggevallen "
-            "op Gaussisch: die variant is een aparte trial en hoort in een "
-            "eigen pre-registratie, met een eigen bijdrage aan M.",
-            DataContractError, distribution=self.distribution,
-        )
 
     @property
     def label(self) -> str:
@@ -170,9 +163,20 @@ class HmmParameters:
     converged: bool
     n_train_obs: int
     loglikelihood: float
+    #: Vrijheidsgraden per toestand. `None` voor Gaussische emissies -- daar
+    #: BESTAAT de parameter niet, en `None` is iets anders dan oneindig.
+    dof: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         k = self.spec.n_states
+        require(
+            (self.dof is None) == (self.spec.distribution == "gaussian"),
+            "De vrijheidsgraden en de emissieverdeling spreken elkaar tegen. "
+            "Een Gaussische fit met een t-filter (of andersom) is een DERDE "
+            "model dat in geen enkele pre-registratie staat.",
+            DataContractError, distribution=self.spec.distribution,
+            has_dof=self.dof is not None,
+        )
         require(
             self.trans_mat.shape == (k, k),
             "Transitiematrix met de verkeerde vorm.",
@@ -217,6 +221,7 @@ class HmmParameters:
             "loglikelihood": self.loglikelihood,
             "stationary_distribution": self.stationary_distribution.tolist(),
             "persistence": np.diag(self.trans_mat).tolist(),
+            "dof": None if self.dof is None else self.dof.tolist(),
         }
 
 
@@ -338,6 +343,29 @@ def _gaussian_log_density(
     return out
 
 
+def _log_density(
+    observations: np.ndarray, params: HmmParameters,
+) -> np.ndarray:
+    """``log p(y_t | S_t = i)`` onder de emissieverdeling van DEZE fit.
+
+    De dispatch staat hier en niet bij de aanroepers, zodat de filter en de
+    diagnostiek per constructie dezelfde dichtheid zien. Een filter die een
+    andere verdeling gebruikt dan waarop is gefit, is een derde model.
+    """
+    if params.spec.distribution == "student_t":
+        require(
+            params.dof is not None,
+            "Een Student-t fit zonder vrijheidsgraden. Er wordt niet "
+            "teruggevallen op een Gaussische dichtheid.",
+            DataContractError, symbol=params.symbol,
+        )
+        return student_t_log_density(
+            observations, params.means, params.covars, params.dof,
+            params.spec.covariance_type)
+    return _gaussian_log_density(
+        observations, params.means, params.covars, params.spec.covariance_type)
+
+
 def forward_filter(
     observations: np.ndarray, params: HmmParameters,
 ) -> FilteredProbabilities:
@@ -360,8 +388,7 @@ def forward_filter(
     )
     n = observations.shape[0]
     k = params.spec.n_states
-    log_b = _gaussian_log_density(
-        observations, params.means, params.covars, params.spec.covariance_type)
+    log_b = _log_density(observations, params)
     # Stabiliseren per bar: een constante per rij valt weg in de normalisatie.
     b = np.exp(log_b - log_b.max(axis=1, keepdims=True))
 
@@ -407,8 +434,7 @@ def smoothed_probabilities(
         observations = observations[:, None]
     n = observations.shape[0]
     k = params.spec.n_states
-    log_b = _gaussian_log_density(
-        observations, params.means, params.covars, params.spec.covariance_type)
+    log_b = _log_density(observations, params)
     b = np.exp(log_b - log_b.max(axis=1, keepdims=True))
 
     alpha = np.empty((n, k))
@@ -445,6 +471,110 @@ def filtered_occupancy(filtered: FilteredProbabilities) -> np.ndarray:
 # =========================================================================== #
 # Fit
 # =========================================================================== #
+def deterministic_start(
+    train: np.ndarray, n_states: int, covariance_type: str,
+) -> dict[str, np.ndarray]:
+    """Het startpunt van elke EM in deze fase. Geen k-means, geen seed.
+
+    WAAROM NIET DE STANDAARD VAN `hmmlearn`
+    ----------------------------------------
+    `GaussianHMM` initialiseert de emissies met `sklearn.cluster.KMeans`. Die
+    parallelliseert over OpenMP-threads en de reductievolgorde ligt niet vast,
+    dus de uitkomst hangt af van de scheduler en NIET alleen van `random_state`.
+    Gemeten op deze data, hmmlearn 0.3.3, zestig identieke fits met dezelfde
+    seed: **twee verschillende uitkomsten**. Dat is klein in getal en fataal in
+    aard -- een H2-oordeel dat je niet kunt herhalen, is geen bewijs.
+
+    Deze initialisatie is puur numpy en dus bitidentiek. Zij vervangt de
+    k-means-stap; de EM erna is `hmmlearn`s eigen, deterministische recursie.
+
+    WAAROM |y - mediaan| EN NIET y ZELF
+    ------------------------------------
+    K-means op een 1-D returnreeks splitst op NIVEAU: de meest negatieve returns
+    in de ene toestand, de meest positieve in de andere. Dat is een TEKENsplit,
+    en een vol-regimemodel gaat over SCHAAL. De quantielsplit loopt daarom over
+    de absolute afwijking van de mediaan, zodat toestand 0 de kalme bars krijgt
+    en toestand k-1 de onrustige. De EM mag daarna alle kanten op; dit bepaalt
+    alleen waar zij begint.
+
+    Start- en overgangskansen zijn UNIFORM. Dat is dezelfde keuze die `hmmlearn`
+    maakt en zij beweert niets over persistentie -- die moet uit de data komen.
+    """
+    train = np.asarray(train, dtype=np.float64)
+    if train.ndim == 1:
+        train = train[:, None]
+    n, d = train.shape
+    require(
+        n >= n_states,
+        "Minder observaties dan toestanden; er valt niets te initialiseren.",
+        DataContractError, n_obs=n, n_states=n_states,
+    )
+    deviation = np.abs(train - np.median(train, axis=0)).sum(axis=1)
+    order = np.argsort(deviation, kind="stable")
+    groups = np.array_split(order, n_states)
+    means = np.empty((n_states, d))
+    covars = np.empty((n_states, d))
+    for i, group in enumerate(groups):
+        block = train[group]
+        means[i] = block.mean(axis=0)
+        covars[i] = block.var(axis=0, ddof=0)
+    require(
+        bool(np.all(covars > 0.0)),
+        "Een startgroep zonder spreiding. De emissiedichtheid is daar niet "
+        "gedefinieerd; dat is een databevinding en geen numeriek detail.",
+        DataContractError, variances=covars.tolist(),
+    )
+    if covariance_type == "full":
+        full = np.zeros((n_states, d, d))
+        for i in range(n_states):
+            full[i] = np.diag(covars[i])
+        covars_out: np.ndarray = full
+    else:
+        covars_out = covars
+    return {
+        "start_prob": np.full(n_states, 1.0 / n_states),
+        "trans_mat": np.full((n_states, n_states), 1.0 / n_states),
+        "means": means,
+        "covars": covars_out,
+    }
+
+
+def _fit_gaussian(
+    train: np.ndarray, spec: HmmSpec, *, seed: int, n_iter: int,
+) -> tuple[dict[str, np.ndarray], bool, float]:
+    """De Gaussische EM van `hmmlearn`, vanaf de deterministische start.
+
+    `init_params=""` schakelt de k-means-initialisatie uit; alles wat overblijft
+    is de EM-recursie zelf, en die is puur numpy. `seed` gaat nog steeds mee
+    zodat `hmmlearn` niet op een globale RNG terugvalt, maar hij heeft geen
+    invloed meer op de uitkomst -- `test_fit_is_bit_reproducible` meet dat.
+    """
+    hmm_mod = require_dependency(
+        "hmmlearn.hmm",
+        needed_for="het M2 Filtered HMM (H2)",
+        install_hint="pip install hmmlearn",
+    )
+    start = deterministic_start(train, spec.n_states, spec.covariance_type)
+    model = hmm_mod.GaussianHMM(
+        n_components=spec.n_states, covariance_type=spec.covariance_type,
+        n_iter=n_iter, random_state=seed, init_params="", params="stmc",
+    )
+    model.startprob_ = start["start_prob"]
+    model.transmat_ = start["trans_mat"]
+    model.means_ = start["means"]
+    model.covars_ = start["covars"]
+    model.fit(train)
+    covars = (model.covars_ if spec.covariance_type == "full"
+              else model.covars_.reshape(spec.n_states, -1))
+    fitted = {
+        "start_prob": np.asarray(model.startprob_, dtype=np.float64),
+        "trans_mat": np.asarray(model.transmat_, dtype=np.float64),
+        "means": np.asarray(model.means_, dtype=np.float64),
+        "covars": np.asarray(covars, dtype=np.float64).copy(),
+    }
+    return fitted, bool(model.monitor_.converged), float(model.score(train))
+
+
 def fit_hmm(
     observations: np.ndarray,
     spec: HmmSpec,
@@ -455,6 +585,7 @@ def fit_hmm(
     train_end: int,
     n_obs_per_fold: Sequence[int],
     seed: int,
+    m2_cfg: M2HmmConfig | None = None,
 ) -> HmmParameters:
     """Schat op ``observations[:train_end]``. Nooit op de volledige reeks.
 
@@ -463,11 +594,6 @@ def fit_hmm(
     daarmee onbruikbaar voor een backtest -- zie de moduledocstring voor de
     meting.
     """
-    hmm_mod = require_dependency(
-        "hmmlearn.hmm",
-        needed_for="het M2 Filtered HMM (H2)",
-        install_hint="pip install hmmlearn",
-    )
     observations = np.asarray(observations, dtype=np.float64)
     if observations.ndim == 1:
         observations = observations[:, None]
@@ -478,6 +604,7 @@ def fit_hmm(
         DataContractError, symbol=symbol, train_end=train_end,
         n_total=int(observations.shape[0]),
     )
+    m2_cfg = m2_cfg if m2_cfg is not None else regime_config().m2
     train = observations[:train_end]
     require(
         bool(np.all(np.isfinite(train))),
@@ -488,22 +615,29 @@ def fit_hmm(
     # kleinste fold; onder de uniforme aanname, die optimistisch is.
     require_adequacy(assess_hmm(n_obs_per_fold, spec.n_states, cfg))
 
-    model = hmm_mod.GaussianHMM(
-        n_components=spec.n_states, covariance_type=spec.covariance_type,
-        n_iter=spec.n_iter, random_state=seed,
-    )
-    model.fit(train)
+    gaussian, converged, gaussian_loglik = _fit_gaussian(
+        train, spec, seed=seed, n_iter=spec.n_iter)
+    if spec.distribution == "gaussian":
+        return HmmParameters(
+            spec=spec, symbol=symbol, fold_id=fold_id,
+            start_prob=gaussian["start_prob"], trans_mat=gaussian["trans_mat"],
+            means=gaussian["means"], covars=gaussian["covars"],
+            converged=converged, n_train_obs=int(train_end),
+            loglikelihood=gaussian_loglik,
+        )
+
+    # De Student-t EM start van de Gaussische UITKOMST op dezelfde bars, zodat
+    # het verschil tussen de twee varianten de emissieverdeling is en niet het
+    # startpunt. Er wordt niets teruggevallen: faalt deze EM, dan crasht hij.
+    fit = fit_student_t_hmm(
+        train, start=gaussian, gaussian_loglikelihood=gaussian_loglik,
+        cfg=m2_cfg)
     return HmmParameters(
         spec=spec, symbol=symbol, fold_id=fold_id,
-        start_prob=np.asarray(model.startprob_, dtype=np.float64),
-        trans_mat=np.asarray(model.transmat_, dtype=np.float64),
-        means=np.asarray(model.means_, dtype=np.float64),
-        covars=np.asarray(model.covars_ if spec.covariance_type == "full"
-                          else model.covars_.reshape(spec.n_states, -1),
-                          dtype=np.float64),
-        converged=bool(model.monitor_.converged),
-        n_train_obs=int(train_end),
-        loglikelihood=float(model.score(train)),
+        start_prob=fit.start_prob, trans_mat=fit.trans_mat, means=fit.means,
+        covars=fit.covars, converged=fit.converged,
+        n_train_obs=int(train_end), loglikelihood=fit.loglikelihood,
+        dof=fit.dof,
     )
 
 

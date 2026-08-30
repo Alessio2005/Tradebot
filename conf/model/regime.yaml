@@ -45,3 +45,48 @@ regime:
     atr_slow_window: 20
     atr_ratio_low:  0.85
     atr_ratio_high: 1.15
+
+  # M1 MARKOV CHAIN EN M2 HMM — DIT IS EEN ZOEKRUIMTE, GEEN DREMPEL
+  # ==================================================================
+  # Alles onder `m0` hierboven is een drempel: vooraf vastgelegd, nul geschatte
+  # parameters, nul trials. Alles hieronder bepaalt HOEVEEL er wordt gezocht, en
+  # dus hoeveel trials er in `M` horen.
+  #
+  #   M1 Markov Chain    k = 2 en k = 3   ->  2 trials
+  #   M2 HMM gaussian    k = 2 en k = 3   ->  2 trials
+  #   M2 HMM student_t   k = 2 en k = 3   ->  2 trials
+  #                                       ==  6 trials
+  #
+  # Dat is exact het `planned_trials` van de bevroren pre-registratie
+  # 3d3af28730a6c7f9da48d13139522a05, en die zes zijn bij het bevriezen al in de
+  # ledger geboekt. Wie `n_states_grid` uitbreidt, voert een grotere search uit
+  # dan is geboekt en maakt elke DSR daarna te gunstig; dat vraagt een NIEUWE
+  # pre-registratie en niet het oprekken van deze.
+  m2:
+    n_states_grid: [2, 3]
+
+    # Univariate emissies (één log-return per symbool), dus `diag` en `full`
+    # vallen samen. `diag` staat er omdat hij dan ook op een multivariate
+    # uitbreiding het goedkoopste contract is.
+    covariance_type: diag
+
+    # Niet-convergentie is een RESULTAAT dat wordt geregistreerd, geen probleem
+    # dat wordt weggevangen. Deze grens bepaalt wanneer dat resultaat valt.
+    n_iter: 200
+    em_tolerance: 1.0e-6
+
+    # STUDENT-T VRIJHEIDSGRADEN. `dof_init` is het startpunt van de EM, niet de
+    # uitkomst: nu wordt per toestand geschat, net zoals `arch` dat voor de
+    # GARCH-familie doet. De grenzen zijn er omdat beide uiteinden betekenisloos
+    # zijn: onder 2 bestaat de variantie van een t-verdeling niet, en boven 200
+    # is zij numeriek niet meer van een normale te onderscheiden. Raakt de fit
+    # een grens, dan staat dat in het fitrapport en wordt het niet weggerond.
+    dof_init: 8.0
+    dof_min:  2.1
+    dof_max:  200.0
+
+    # De Gaussische EM (hmmlearn) initialiseert met k-means en heeft dus een
+    # seed nodig. De Student-t EM start van de UITKOMST van die Gaussische fit,
+    # zodat het verschil tussen beide varianten de emissieverdeling is en niet
+    # het startpunt. Eén seed volstaat daarom voor allebei.
+    seed: 20260830

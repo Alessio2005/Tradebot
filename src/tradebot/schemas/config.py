@@ -746,10 +746,73 @@ class M0BucketConfig(StrictModel):
         return self
 
 
+class M2HmmConfig(StrictModel):
+    """De M1/M2-parameterruimte. Zie `conf/model/regime.yaml`.
+
+    Anders dan bij M0 zijn dit GEEN drempels maar de omvang van een ZOEKRUIMTE.
+    Elk element van `n_states_grid` maal elke variant is een trial en telt mee
+    in `M`; de pre-registratie `3d3af28730a6c7f9da48d13139522a05` boekte er zes.
+    Wie deze lijst uitbreidt, doet een nieuwe pre-registratie -- het uitbreiden
+    van een bevroren ruimte maakt elke DSR erna te gunstig.
+    """
+
+    #: Het aantal latente toestanden dat wordt geprobeerd. Zes trials = drie
+    #: varianten (M1, M2-gaussian, M2-student_t) maal deze twee waarden.
+    n_states_grid: tuple[PositiveInt, ...] = (2, 3)
+    covariance_type: Literal["diag", "full"] = "diag"
+    #: Maximaal aantal EM-iteraties. Niet-convergentie is een RESULTAAT dat
+    #: wordt geregistreerd, geen probleem dat wordt weggevangen.
+    n_iter: PositiveInt = 200
+    #: Relatieve tolerantie op de log-likelihood waaronder de EM stopt.
+    em_tolerance: Annotated[float, Field(gt=0.0)] = 1e-6
+    #: Startwaarde van de vrijheidsgraden in de Student-t EM.
+    dof_init: Annotated[float, Field(gt=2.0)] = 8.0
+    #: Ondergrens. Onder 2 bestaat de variantie van een t-verdeling niet, en een
+    #: emissie zonder tweede moment maakt de toestandsvergelijking betekenisloos.
+    dof_min: Annotated[float, Field(gt=2.0)] = 2.1
+    #: Bovengrens. Erboven is de t numeriek niet meer van een normale te
+    #: onderscheiden; de fit rapporteert dat hij de grens raakte.
+    dof_max: Annotated[float, Field(gt=2.0)] = 200.0
+    #: Seed van de gedeelde initialisatie (k-means in de Gaussische EM), zodat
+    #: de Gaussische en de Student-t variant vanaf HETZELFDE punt starten en het
+    #: verschil tussen beide de verdeling is en niet het startpunt.
+    seed: Annotated[int, Field(ge=0)] = 20260830
+
+    @model_validator(mode="after")
+    def _grid_is_sane(self) -> M2HmmConfig:
+        if not self.n_states_grid:
+            raise ValueError(
+                "n_states_grid is leeg; dan is er geen M2-variant om te toetsen"
+            )
+        if min(self.n_states_grid) < 2:
+            raise ValueError(
+                f"n_states_grid bevat {min(self.n_states_grid)}; een HMM met "
+                "minder dan twee toestanden is geen regimemodel"
+            )
+        if len(set(self.n_states_grid)) != len(self.n_states_grid):
+            raise ValueError(
+                f"n_states_grid bevat dubbelen ({self.n_states_grid}); een "
+                "trial die twee keer in de ruimte staat, telt twee keer in M "
+                "zonder twee keer iets te meten"
+            )
+        if self.dof_min >= self.dof_max:
+            raise ValueError(
+                f"dof_min ({self.dof_min}) moet onder dof_max "
+                f"({self.dof_max}) liggen"
+            )
+        if not self.dof_min <= self.dof_init <= self.dof_max:
+            raise ValueError(
+                f"dof_init ({self.dof_init}) ligt buiten "
+                f"[{self.dof_min}, {self.dof_max}]"
+            )
+        return self
+
+
 class RegimeConfig(StrictModel):
     """Contract voor de L3 regime-engines. Zie `conf/model/regime.yaml`."""
 
     m0: M0BucketConfig = Field(default_factory=M0BucketConfig)
+    m2: M2HmmConfig = Field(default_factory=M2HmmConfig)
 
 
 # --------------------------------------------------------------------------- #
@@ -906,3 +969,20 @@ def volatility_config() -> VolatilityConfig:
     baselinecontract en niet van de competitie die hen toetst.
     """
     return load_config(VOLATILITY_CONFIG_PATH, VolatilityConfig)
+
+
+REGIME_CONFIG_PATH = _REPO_ROOT / "conf" / "model" / "regime.yaml"
+
+
+@lru_cache(maxsize=1)
+def regime_config() -> RegimeConfig:
+    """De L3-regimeparameters uit `conf/model/regime.yaml`.
+
+    Zelfde constructie en dezelfde reden als :func:`econometrics_config`. Voor
+    M0 gaat het om DREMPELS, voor M1/M2 om de omvang van de ZOEKRUIMTE -- en dat
+    tweede is precies waarom het uit `conf/` moet komen: het aantal toestanden
+    dat wordt geprobeerd bepaalt hoeveel trials er in `M` horen, en een
+    zoekruimte die in code staat is achteraf uit te breiden zonder dat een diff
+    het laat zien.
+    """
+    return load_config(REGIME_CONFIG_PATH, RegimeConfig)
