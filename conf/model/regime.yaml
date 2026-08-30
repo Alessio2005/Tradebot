@@ -90,3 +90,18 @@ regime:
     # zodat het verschil tussen beide varianten de emissieverdeling is en niet
     # het startpunt. Eén seed volstaat daarom voor allebei.
     seed: 20260830
+
+    # DE SINGULARITEIT VAN EEN t-MENGSEL, EN WAAROM ZIJ EEN GRENS NODIG HEEFT.
+    # Krijgt een toestand nog maar een handvol punten die dicht op zijn
+    # gemiddelde liggen, dan gaat zijn schaal naar nul en de likelihood naar
+    # oneindig (Hathaway 1985). Dat is geen optimum maar een singulariteit, en
+    # zij treedt op zodra `k` groter is dan het aantal regimes dat de data
+    # draagt. De EM stopt daar, rolt terug naar de laatste geldige iteratie en
+    # meldt `degenerate` -- hetzelfde contract als `fit_garch_window`.
+    #
+    # 1e-4 op de VERHOUDING van de schalen, niet op een schaal zelf. Op deze
+    # data lopen de dagelijkse volatiliteiten van ongeveer 0,5 % tot 10 %, dus
+    # een echte verhouding tussen twee regimes is hooguit (0,10/0,005)^2 = 400,
+    # oftewel 2,5e-3. De grens ligt daar een orde onder en kan dus geen ECHT
+    # regimeverschil afkappen; zij vangt alleen de instorting.
+    min_scale_ratio: 1.0e-4
