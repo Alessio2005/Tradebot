@@ -84,6 +84,22 @@ Zolang dit staat, kan de dagelijkse bit-identieke pariteitstest van
 exit-criterium D7 niet slagen, en meet elk verschil dat hij zou vinden de
 configuratie in plaats van het gedrag.
 
+**Herzien 2026-09-02, en het is fundamenteler dan hierboven.** De twee ketens
+draaien niet op dezelfde bars en handelen niet hetzelfde boek:
+
+* live draait op **5-secondebars** (`FeedConfig.bar_seconds = 5`), de Phase
+  5-keten op **dagbars**. Een dag telt 17.280 5s-bars; de bijbehorende
+  annualisatiefactor is 6.307.200 tegen de 365 in `conf/model/volatility.yaml`,
+  een factor **131,5 op sigma**. `vol_target` deelt door precies dat getal.
+* live handelt **vijf** namen (geen BTCUSDT), de policy is voor **zes**
+  geschreven.
+
+D7 is daarmee niet zwak toetsbaar maar **niet gedefinieerd**: er is geen paar
+observaties waarover "bit-identiek" iets betekent. En het keert de volgorde om —
+`RiskEngine` aansluiten vóór deze twee besluiten levert een limietstelsel dat
+er aangesloten uitziet en verkeerd rekent. Zie `reports/phase7_divergence_map.md`
+§6.3 t/m §6.5.
+
 ### 3.3 Het universum bestaat uit overlevers
 
 DI-15: de publieke Bybit-API levert uitsluitend nog-verhandelde instrumenten
@@ -135,10 +151,15 @@ lossen.
 
 ## 6. De volgende drie stappen
 
+0. **Besluit over de barresolutie en het universum** (§3.2, herziening
+   2026-09-02). Dagbars of intraday? Vijf namen of zes? Dit zijn besluiten van
+   de eigenaar van het risicoregime en geen implementatiekeuzes. Stap 1 en 3
+   hangen erachter; alleen stap 2 kan zonder.
 1. **Sluit §3.2.** Sluit `live/` aan op `execution/order_router.py`,
-   `risk/engine.py` en de Phase 2-featureregistry. Dit gaat vóór alles wat met
-   pariteit of de klok te maken heeft, want een pariteitstest op twee
-   verschillende ketens meet de configuratie.
+   `risk/engine.py` en de Phase 2-featureregistry — met één vol-estimator in de
+   eenheid van besluit 0. Dit gaat vóór alles wat met pariteit of de klok te
+   maken heeft, want een pariteitstest op twee verschillende ketens meet de
+   configuratie.
 2. **Maak Phase 6 stap 14 af** (HRP tegen Inverse Volatility, turnover-
    gecorrigeerd, onder de research-gate). Dat is de laatste openstaande
    deliverable van Stage C.

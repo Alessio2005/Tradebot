@@ -190,12 +190,16 @@ live-keten rood, maar pas na een etmaal.
 
 ---
 
-## 6. Twee bevindingen die niet in de D-1-opdracht staan
+## 6. Vijf bevindingen die niet in de D-1-opdracht staan
 
 De opdracht wijst `oms/router.py` versus `execution/order_router.py` aan als het
-scherpste verschil. Deze meting vindt er twee die daar niet in staan en die
+scherpste verschil. Deze meting vindt er vijf die daar niet in staan en die
 zwaarder wegen voor exit-criterium **D7** (dagelijkse bit-identieke pariteit),
 omdat zij niet een controle omzeilen maar **de getallen zelf veranderen**.
+
+§6.1 en §6.2 zijn van 2026-09-01. §6.3 t/m §6.5 zijn van 2026-09-02, gemeten bij
+de voorbereiding van D1, en zij veranderen de VOLGORDE van de fase: de wiring
+die D-1 vraagt, kan niet als eerste stap.
 
 ### 6.1 De live-keten prijst impact met een andere eta
 
@@ -250,6 +254,86 @@ van de PIT-regel uit §10: *"De live feature-berekening gebruikt exact dezelfde
 causale code als de backtest."* De docstring die het tegendeel beweert valt
 bovendien onder no-go 20.
 
+### 6.3 De twee ketens draaien op verschillende bars — D7 is niet zwak maar ONGEDEFINIEERD
+
+*Gemeten 2026-09-02, bij de voorbereiding van D1.*
+
+| | live-keten | Phase 5-keten |
+|---|---|---|
+| Barresolutie | **5 seconden** (`live/feed.py::FeedConfig.bar_seconds = 5`; `interval="5s"`) | **dagbars** (1.743 bars, 2021-11-15 t/m 2026-08-23, gecertificeerde PIT-store) |
+| Annualisatie van sigma | — | `conf/model/volatility.yaml::annualisation_factor = 365.0`, oftewel dagbars |
+
+Een dag telt **17.280** bars van 5 seconden. De annualisatiefactor die bij die
+resolutie hoort is 365 × 17.280 = **6.307.200**, niet 365 — een verhouding van
+17.280×, en dus een factor **131,5** op sigma zelf.
+
+Dat is geen detail, want `vol_target` staat in `constraint_order`
+(`conf/risk/default.yaml`) en deelt door precies dat getal. Een `sigma_hat` die
+op 5s-bars is geschat en door een op dagbars gekalibreerde vol-targeting gaat,
+onderschat de geannualiseerde volatiliteit met ruwweg twee ordes van grootte —
+en vol-targeting die door een te kleine sigma deelt, maakt posities **groter**.
+
+**Wat dit met D7 doet.** D7 vraagt om *dagelijkse bit-identieke pariteit*. Het
+exit-rapport §2.2 noemde D7 "niet toetsbaar" omdat een pariteitstest op
+verschillende eta's en featurestacks de configuratie zou meten. Die formulering
+is te mild. Tussen een keten op 5-secondebars en een keten op dagbars bestaat
+geen correspondentie waarover "identiek" een betekenis heeft: er is geen paar
+observaties om te vergelijken. D7 is niet zwak toetsbaar maar **niet
+gedefinieerd**, en dat moet eerst worden opgelost met een besluit over de
+resolutie — niet met een test.
+
+### 6.4 De twee ketens handelen niet in hetzelfde universum
+
+*Gemeten 2026-09-02.*
+
+```
+apps/live_paper_trader.py:44
+    _SYMBOLS = ["ETHUSDT", "SOLUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT"]   # 5
+
+conf/risk/default.yaml::clusters
+    BTCUSDT, ETHUSDT, SOLUSDT, AVAXUSDT, DOTUSDT, LINKUSDT                 # 6
+```
+
+De live-keten handelt **vijf** namen; de soevereine policy is geschreven voor
+**zes**. Het verschil is BTCUSDT — de grootste en meest liquide naam van het
+universum, en de naam waarop elke spreidingslimiet het minst bindt.
+
+`gross_cap`, `concentration_cap` en `cluster_cap` zijn grenzen over een BOEK.
+Dezelfde grenswaarden op een boek van vijf namen binden anders dan op een boek
+van zes: valt de grootste, minst gecorreleerde naam weg, dan stijgt de
+concentratie van wat overblijft. De policy is dus niet alleen niet aangesloten
+op de live-keten — hij is ook niet voor dat boek gekalibreerd.
+
+### 6.5 Wat §6.3 en §6.4 betekenen voor de volgorde van D1
+
+De D-1-opdracht luidt: sluit `live/` aan op `execution/order_router.py` en
+`risk/engine.py`. `RiskEngine.decide` draait `constraint_order`, en daar staat
+`vol_target` in. Die stap heeft een `sigma_hat` nodig **in de eenheid waarin de
+policy is gekalibreerd**.
+
+Dat kan vandaag niet. De live-keten heeft geen EWMA-sigma; zij heeft een
+range-proxy (`live/engine.py:413`, `(high - low) / close`) op 5-secondebars —
+en H1 heeft juist van die proxy vastgesteld dat hij aantoonbaar een andere
+grootheid meet dan de modellen voorspellen (`mean(proxy)/mean(r²)` = 1,27–2,24,
+`reports/GARCH_VS_EWMA_COMPETITION.md`).
+
+**Daarom gaat de wiring niet eerst.** Zou je `RiskEngine` nu in de live-lus
+hangen, dan neemt de soevereine laag een besluit over invoer waarvoor zij nooit
+is gekalibreerd: een verkeerd geschaalde sigma, over een boek van vijf in plaats
+van zes. Het resultaat is een limietstelsel dat er **aangesloten uitziet** en
+verkeerde getallen produceert — en dat is gevaarlijker dan de huidige bypass,
+want de bypass is zichtbaar en dit niet. Het zou bovendien exact het defect zijn
+dat het exit-rapport §4.9 beschrijft: een poort die groen staat op de vorm.
+
+De volgorde die hieruit volgt, en die vóór de bestaande volgorde in §9 komt:
+
+1. **Besluit over de resolutie.** Draait de live-keten op dagbars, of wordt de
+   policy op een intraday-resolutie gekalibreerd? Dit is een besluit voor de
+   eigenaar van het risicoregime, geen implementatiekeuze.
+2. **Universum gelijktrekken** — vijf namen of zes, in beide ketens dezelfde.
+3. **Eén vol-estimator**, in de eenheid van het besluit uit stap 1.
+4. **Dan pas** de wiring naar `risk/engine.py` en `execution/order_router.py`.
+
 ---
 
 ## 7. Afwijkingen van de meting van 2026-08-27
@@ -301,14 +385,20 @@ achteraf wordt bijgewerkt tot zij gunstig oogt.
 
 | Criterium | Bij de meting | Nu | Bewijs |
 |---|---|---|---|
-| **D1** — `live/` gebruikt de Phase 5-componenten, nul tweede implementaties | rood | **nog rood** | §2 componenten 1, 4, 5 en 6 staan; de wiring naar `execution/order_router.py` en de featurestack zijn niet aangeraakt |
+| **D1** — `live/` gebruikt de Phase 5-componenten, nul tweede implementaties | rood | **nog rood, en geblokkeerd** | §2 componenten 1, 4, 5 en 6 staan. **Nieuw (2026-09-02):** de wiring kan niet als eerste — §6.3 t/m §6.5 |
 | **D2** — C1 t/m C6 gesloten; geen limiet defaultet naar oneindig | rood | **groen** | `tests/unit/test_live_limits_are_sovereign.py` (12) |
 | **D3** — DI-7 gesloten | rood | **groen** | `tests/unit/test_background_tasks_are_held.py` (4); DI-7 staat als gesloten in het register |
 | **D4** — `AlertSeverity` kent `HALT`; een `HALT` schakelt uit zonder te vragen | rood | **groen** | `tests/unit/test_alert_halt_severity.py` (11) |
 | **D5** — drempels uit `conf/monitoring/`, gehasht vóór de klok | rood | **groen** | `conf/monitoring/default.yaml`, `apps/freeze_monitoring.py`, `tests/unit/test_monitoring_thresholds_are_frozen.py` (6) |
 | **D6** — de vier `test_chaos.py`-skips | rood | **nog rood** | ongewijzigd; zij vragen de live-engine-integratie uit D1 |
-| **D7** — dagelijkse bit-identieke pariteit | niet toetsbaar | **nog niet toetsbaar** | §6.1 en §6.2 staan onaangeroerd; een pariteitstest zou de configuratie meten |
+| **D7** — dagelijkse bit-identieke pariteit | niet toetsbaar | **niet gedefinieerd** | §6.1 en §6.2 staan onaangeroerd. **Sterker (§6.3):** 5-secondebars tegen dagbars — er is geen paar observaties om identiek over te zijn |
 | **D9** — `HALTED` overleeft een procesherstart | rood na 24 uur | **groen** | `tests/unit/test_live_halt_is_irreversible.py` (10), inclusief de 25-uurs-regressie |
+
+> **Herzien 2026-09-02.** De volgorde hieronder is nog steeds juist, maar niet
+> meer volledig: §6.3 t/m §6.5 zetten er drie stappen vóór. De barresolutie en
+> het universum moeten gelijk zijn voordat de wiring naar `risk/engine.py`
+> zinvol is, anders neemt de soevereine laag een besluit over invoer waarvoor
+> zij niet is gekalibreerd.
 
 **De volgorde die hieruit volgt.** §6.1 en §6.2 gaan vóór D7, want een
 pariteitstest op twee verschillende featurestacks en twee verschillende

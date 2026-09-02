@@ -141,6 +141,32 @@ Een factor ~30 op eta en twee volledig gescheiden featurestacks. Een
 pariteitstest hierop meet de configuratie, niet het gedrag. **Deze twee gaan
 vóór D7**, en D1 gaat vóór D6.
 
+> **Herzien 2026-09-02 — en dit is erger dan hierboven staat.** Bij de
+> voorbereiding van D1 kwamen er nog twee verschillen boven, geen van beide in
+> de D-1-opdracht (`reports/phase7_divergence_map.md` §6.3 en §6.4):
+>
+> * **De resolutie.** De live-keten draait op **5-secondebars**
+>   (`FeedConfig.bar_seconds = 5`); de Phase 5-keten op **dagbars**. Een dag
+>   telt 17.280 bars van 5 seconden, dus de annualisatiefactor die erbij hoort
+>   is 6.307.200 en niet de 365 uit `conf/model/volatility.yaml` — een factor
+>   **131,5 op sigma zelf**. `vol_target` staat in `constraint_order` en deelt
+>   door dat getal.
+> * **Het universum.** Live handelt **vijf** namen, de policy is geschreven voor
+>   **zes**; het verschil is BTCUSDT.
+>
+> Daarmee is de formulering "D7 is niet toetsbaar" te mild. Tussen een keten op
+> 5-secondebars en een keten op dagbars is er geen paar observaties waarover
+> "bit-identiek" iets betekent: **D7 is niet gedefinieerd**, en dat vraagt een
+> besluit over de resolutie en niet een test.
+>
+> En het keert de volgorde om. `RiskEngine.decide` draait `vol_target` en heeft
+> een `sigma_hat` nodig in de eenheid waarvoor de policy is gekalibreerd. Die
+> bestaat live niet — er is alleen een range-proxy op 5s-bars, precies de proxy
+> waarvan H1 heeft vastgesteld dat hij een andere grootheid meet. De soevereine
+> laag nu aansluiten zou een limietstelsel opleveren dat er **aangesloten
+> uitziet** en verkeerde getallen produceert. Dat is gevaarlijker dan de huidige
+> bypass, want de bypass is zichtbaar. Zie §6.5 van de divergence map.
+
 ---
 
 ## 3. Stage E — oplevering
@@ -475,11 +501,21 @@ argument voor de regel, niet een uitzondering erop.
 
 ## 8. De drie volgende stappen
 
-1. **Sluit de twee ketens** (§2.2). Alles wat met pariteit of de klok te maken
+> **Herzien 2026-09-02.** Stap 1 hieronder is niet de eerste stap gebleken. Er
+> gaan twee besluiten aan vooraf; zie §2.2 en `phase7_divergence_map.md` §6.5.
+
+0. **Besluit over de barresolutie en het universum.** Draait de live-keten op
+   dagbars, of wordt de policy op een intraday-resolutie gekalibreerd? En:
+   vijf namen of zes? Dit zijn besluiten van de eigenaar van het risicoregime,
+   geen implementatiekeuzes, en al het onderstaande hangt erachter. Zolang zij
+   openstaan, kan `RiskEngine` niet zinvol op de live-lus worden aangesloten.
+1. **Sluit de twee ketens** (§2.2) — in deze volgorde: één vol-estimator in de
+   eenheid van besluit 0, dan de wiring naar `risk/engine.py` en
+   `execution/order_router.py`. Alles wat met pariteit of de klok te maken
    heeft, hangt hierachter.
 2. **Maak Phase 6 stap 14 af** — HRP tegen Inverse Volatility, turnover-
    gecorrigeerd, onder de research-gate. De laatste openstaande deliverable van
-   Stage C.
+   Stage C. **Dit is de enige van de vier die vandaag zonder besluit 0 kan.**
 3. **Herschrijf het runbook en laat een tweede persoon het uitvoeren** (D-4,
    D12). Pas daarna heeft het starten van de 60-daagse klok zin.
 
