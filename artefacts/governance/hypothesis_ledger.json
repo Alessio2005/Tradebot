@@ -248,6 +248,47 @@
       },
       "notes": "H2-oordeel: UNPROVEN - insufficient data. Alle zes gepre-registreerde conditioneerders zijn gedescopeerd op stop-criterium 1: de FILTERED bezetting van de zeldzaamste toestand loopt van 5,0 tot 28,0 observaties per fold tegen een eis van 100. De a-priori poort gebruikte de uniforme aanname (247,5 bij k=2) en noemde zich daarbij optimistisch; de meting is een orde lager. M0 Causal Vol-Buckets blijft productie-baseline, maar verbetert de ongeconditioneerde baseline zelf niet (-0,2501 tegen -0,0955). De soevereine vol-target herschaalt elke uniforme overlay weg, dus wat is gemeten is een cross-sectionele tilt en geen risicoreductie (bruto notional 0,976x, turnover 1,140x). De negatieve controles: size 0,048 bij alpha 0,05, power bij het verwachte effect van 0,08 slechts 0,106 - deze opzet kon dat effect niet zien, zoals de pre-registratie vooraf vaststelde. GEEN nieuwe trials: de zes zijn bij het bevriezen geboekt, M blijft 2776. Rapport: reports/M0_VS_HMM_BENCHMARK.md",
       "amends": "3d3af28730a6c7f9"
+    },
+    {
+      "wave": 30,
+      "unit": "phase6_h3_meta_labeling",
+      "market": "crypto",
+      "config_hash": "b08585c4394488eb",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "df96805",
+      "data_hash": "a0209b7258746feb",
+      "preregistration_id": "56395fa2013768014c0c915edf346770",
+      "ts_utc": "2026-09-01T13:41:21.674291+00:00",
+      "metrics": {
+        "n_promoted": 0,
+        "n_falsified": 0,
+        "n_unproven": 0,
+        "n_descoped": 0,
+        "n_archived": 6,
+        "oos_auc_min": 0.476828,
+        "oos_auc_max": 0.484249,
+        "oos_auc_lower_bound_conservative_max": 0.41134,
+        "auc_threshold": 0.58,
+        "shuffled_label_auc": 0.510003,
+        "leak_threshold": 0.55,
+        "min_effective_events_per_fold": 442.6744,
+        "events_threshold": 100.0,
+        "min_effective_test_events_per_fold": 85.8859,
+        "uniqueness_ratio": 0.159134,
+        "n_events": 10330,
+        "positive_ratio": 0.495934,
+        "unfiltered_net_sharpe_oos": -0.099753,
+        "net_sharpe_delta_min": -0.532781,
+        "net_sharpe_delta_max": 0.044908,
+        "precision_at_operating_point_max": 0.484681,
+        "base_rate": 0.496119,
+        "minimum_detectable_effect_conservative": 0.102851,
+        "required_auc_excess": 0.08,
+        "effective_n_conservative": 241.5913
+      },
+      "notes": "H3-oordeel: ARCHIVED. Alle zes gepre-registreerde specs zijn gemeten en geen enkele haalt de drempel. De negatieve controle is SCHOON (0.5100 tegen een grens van 0.55), dus de run is geldig; de adequaatheidspoort bindt NIET (442.7 effectieve gepurgede trainevents per fold tegen een eis van 100), dus dit is geen `UNPROVEN - insufficient data` zoals H1 en H2. Er is genoeg data, er is gefit, en er is gemeten. De OOS-AUC's lopen van 0.4768 tot 0.4842 - alle zes ONDER 0,50 - en de hoogste conservatieve ondergrens is 0.4113, ver onder 0.58. Stop-criterium 3 bindt op alle zes en zijn gepre-registreerde actie is `archive`, niet `falsify`: het overschot dat de drempel vraagt (0.08) is KLEINER dan de MDE op de conservatieve steekproefgrootte (0.1029 op 241.6 effectieve waarnemingen), en een toets die haar effect niet kan detecteren, kan het ook niet verwerpen. Economisch: 5 van de 6 verslechteren de netto Sharpe (min -0.5328); catboost-d6-lr0.03 verbetert hem met +0.0449 op een AUC van 0.4795 en wordt dus op de AUC gearchiveerd en niet op de engine. De precision op het werkpunt (max 0.4847) ligt bij alle zes onder de basisrate 0.4961. CatBoost blijft ARCHIVED (audit §24); directionele CatBoost blijft technisch geblokkeerd. GEEN nieuwe trials: M blijft 2776. preregistration_id=56395fa2013768014c0c915edf346770",
+      "amends": "56395fa201376801"
     }
   ]
 }

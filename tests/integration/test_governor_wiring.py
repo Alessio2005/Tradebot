@@ -29,7 +29,7 @@ def _engine(tmp_path, *, limits=None, regime=None) -> LiveEngine:
         mode="paper",
         audit_log_path=str(tmp_path / "audit.jsonl"),
         cb_config=CircuitBreakerConfig(cb_log_path=tmp_path / "cb.log"),
-        sr_config=SignalRunnerConfig(min_confidence=0.0),
+        sr_config=SignalRunnerConfig(),
         propfirm_limits=limits,
         regime=regime,
     )

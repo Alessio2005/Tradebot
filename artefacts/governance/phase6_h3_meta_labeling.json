@@ -1,0 +1,2271 @@
+{
+  "git_sha": "df96805",
+  "preregistration_id": "56395fa2013768014c0c915edf346770",
+  "preregistration_frozen_utc": "2026-08-25T17:52:22.307814+00:00",
+  "ledger_total_at_freeze": 2770,
+  "preregistration": {
+    "content": {
+      "data_hashes": [
+        [
+          "crypto/ohlcv/AVAXUSDT/1d",
+          "af05b4f95d0e282111641f85904c22f9"
+        ],
+        [
+          "crypto/ohlcv/BTCUSDT/1d",
+          "4f21f2c7ab071ddc19da5eb3f38172f3"
+        ],
+        [
+          "crypto/ohlcv/DOTUSDT/1d",
+          "17be1f4206997f12fd7e1825f123299b"
+        ],
+        [
+          "crypto/ohlcv/ETHUSDT/1d",
+          "d67c9bb18b2c794ba416067556227a5a"
+        ],
+        [
+          "crypto/ohlcv/LINKUSDT/1d",
+          "8d6a82f316253c2626d016bbbad804d4"
+        ],
+        [
+          "crypto/ohlcv/SOLUSDT/1d",
+          "1d64b001993b575f34ef04ce548616c5"
+        ]
+      ],
+      "evaluation_start": "2021-11-15",
+      "granularity": "1d",
+      "hypothesis": "Een CatBoost-classifier die uitsluitend de SUCCESKANS van het primaire cross-sectionele momentumsignaal voorspelt \u2014 richting gegeven, label uit triple-barrier met barri\u00e8res op de causale EWMA-volatiliteit en de shift(2)-conventie \u2014 bereikt een out-of-sample AUC boven 0.58 onder Purged Walk-Forward met embargo, met een betrouwbaarheidsinterval waarvan de ondergrens op de conservatieve effectieve steekproefgrootte boven 0.58 ligt.",
+      "null_hypothesis": "De out-of-sample AUC van het secondary model is niet te onderscheiden van 0.50, dat wil zeggen: het model draagt geen informatie over de succeskans van het primaire signaal. Onder deze nulhypothese blijft CatBoost ARCHIVED zoals \u00a724 vastlegt. Een AUC tussen 0.50 en 0.58, of een AUC boven 0.58 waarvan het conservatieve betrouwbaarheidsinterval de drempel omvat, is NIET voldoende voor promotie.",
+      "parameters": {
+        "adequacy": {
+          "garch": {
+            "max_boundary_solution_ratio": 0.1,
+            "min_convergence_ratio": 0.9,
+            "min_obs_per_fit_window": 250,
+            "persistence_boundary": 0.999
+          },
+          "har_rv": {
+            "intraday_granularity": "5m",
+            "min_bars_per_day": 200,
+            "min_days_with_coverage_pct": 80.0,
+            "min_obs_per_fit_window": 500
+          },
+          "hmm": {
+            "min_obs_per_state_per_fold": 100,
+            "min_state_occupancy_fraction": 0.1
+          },
+          "hrp": {
+            "max_condition_number": 100.0,
+            "min_obs_per_asset": 10
+          },
+          "meta_labeling": {
+            "max_positive_class_ratio": 0.8,
+            "min_effective_events_per_fold": 100,
+            "min_events_per_fold": 200,
+            "min_positive_class_ratio": 0.2
+          },
+          "power": {
+            "alpha": 0.05,
+            "target_power": 0.8,
+            "two_sided": true
+          }
+        },
+        "labeling": {
+          "entry_lag_bars": 1,
+          "horizon_bars": 10,
+          "min_sigma_obs": 60,
+          "profit_target_sigma": 2.0,
+          "stop_loss_sigma": 2.0
+        },
+        "power_analysis": {
+          "alpha": 0.05,
+          "effective_independent_series": 1.2651339524254563,
+          "measured_mean_pairwise_correlation": 0.7485161612328999,
+          "measured_uniqueness_ratio": 0.16219350227347992,
+          "n_symbols": 6,
+          "null_auc": 0.5,
+          "oos_bars_per_symbol": 1200,
+          "scenarios": {
+            "nominal": {
+              "assumptions": {
+                "alpha": 0.05,
+                "effective_n": 7200.0,
+                "n_negative": 3600,
+                "n_positive": 3600,
+                "se_under_alternative": 0.006697767081381821,
+                "se_under_null": 0.006804610667587716,
+                "target_power": 0.8,
+                "threshold_auc": 0.58,
+                "two_sided": true,
+                "variant": "nominal"
+              },
+              "expected_effect": 0.07999999999999996,
+              "informative": true,
+              "minimum_detectable_effect": 0.0189737748305056,
+              "n_effective": 3600.0,
+              "power_deficit": 0.23717218538132012,
+              "test": "Hanley-McNeil AUC tegen 0,5",
+              "unit": "AUC-overschot boven 0,50"
+            },
+            "uniqueness_and_cross_section": {
+              "assumptions": {
+                "alpha": 0.05,
+                "effective_n": 246.23580790676988,
+                "n_negative": 123,
+                "n_positive": 123,
+                "se_under_alternative": 0.03630731345245383,
+                "se_under_null": 0.03688525091820108,
+                "target_power": 0.8,
+                "threshold_auc": 0.58,
+                "two_sided": true,
+                "variant": "uniqueness_and_cross_section"
+              },
+              "expected_effect": 0.07999999999999996,
+              "informative": false,
+              "minimum_detectable_effect": 0.10285076929596973,
+              "n_effective": 123.0,
+              "power_deficit": 1.2856346161996222,
+              "test": "Hanley-McNeil AUC tegen 0,5",
+              "unit": "AUC-overschot boven 0,50"
+            },
+            "uniqueness_corrected": {
+              "assumptions": {
+                "alpha": 0.05,
+                "effective_n": 1167.7932163690555,
+                "n_negative": 583,
+                "n_positive": 583,
+                "se_under_alternative": 0.016649672413780008,
+                "se_under_null": 0.01691516545738938,
+                "target_power": 0.8,
+                "threshold_auc": 0.58,
+                "two_sided": true,
+                "variant": "uniqueness_corrected"
+              },
+              "expected_effect": 0.07999999999999996,
+              "informative": true,
+              "minimum_detectable_effect": 0.04716583292448962,
+              "n_effective": 583.0,
+              "power_deficit": 0.5895729115561206,
+              "test": "Hanley-McNeil AUC tegen 0,5",
+              "unit": "AUC-overschot boven 0,50"
+            }
+          },
+          "target_power": 0.8,
+          "threshold_auc": 0.58,
+          "threshold_source": "ARCHITECTUUR_AUDIT_2026-08-22.md \u00a724",
+          "two_sided": true
+        },
+        "validation": {
+          "cpcv_is_gate": false,
+          "dsr_alpha": 0.05,
+          "embargo_bars": 5,
+          "label_horizon_bars": 1,
+          "n_splits": 6,
+          "pbo_is_gate": false,
+          "scheme": "purged_walk_forward",
+          "spa_alpha": 0.05,
+          "spa_block_length": 10,
+          "spa_bootstrap_reps": 1000,
+          "test_bars": 100,
+          "train_bars": 500
+        },
+        "volatility": {
+          "annualisation_factor": 365.0,
+          "burn_in_bars": 60,
+          "estimator": "ewma",
+          "ewma_lambda": 0.94,
+          "min_periods": 2
+        }
+      },
+      "period_end": "2026-08-23",
+      "period_start": "2020-03-26",
+      "planned_trials": 6,
+      "primary_metric": "oos_auc",
+      "stop_criteria": [
+        {
+          "action": "falsify",
+          "metric": "shuffled_label_auc",
+          "name": "negative_control_leaks",
+          "operator": ">=",
+          "rationale": "Hetzelfde model op GERANDOMISEERDE labels hoort een AUC rond 0.50 te geven. Ligt hij daarboven, dan lekt er informatie in de pipeline \u2014 een scaler over folds heen gefit, een feature die de toekomst raakt, of een purging die niet doet wat zij belooft \u2014 en is elk ander getal uit deze run waardeloos. Dit criterium bindt VOOR alle andere en zijn actie is falsificatie van de RUN, niet van de hypothese.",
+          "threshold": 0.55
+        },
+        {
+          "action": "descope",
+          "metric": "min_effective_events_per_fold",
+          "name": "events_below_adequacy",
+          "operator": "<",
+          "rationale": "De Data Adequacy Gate meet het EFFECTIEVE aantal labels per fold na uniqueness-correctie. Zakt dat onder 100, dan is het nominale aantal een illusie van steekproefgrootte en krijgt het model `UNPROVEN \u2014 insufficient data` zonder gefit te zijn.",
+          "threshold": 100.0
+        },
+        {
+          "action": "archive",
+          "metric": "oos_auc_lower_bound_conservative",
+          "name": "auc_below_threshold",
+          "operator": "<=",
+          "rationale": "\u00a724 legt de drempel op OOS AUC > 0.58 vast als de enige route waarlangs CatBoost terugkeert. Ligt de ONDERGRENS van het conservatieve betrouwbaarheidsinterval daaronder, dan blijft het model ARCHIVED. De drempel wordt niet verlaagd en er wordt geen ander werkpunt gezocht waarop hij wel wordt gehaald.",
+          "threshold": 0.58
+        },
+        {
+          "action": "archive",
+          "metric": "net_sharpe_delta_of_filtered_signal",
+          "name": "filter_adds_no_net_value_through_the_engine",
+          "operator": "<=",
+          "rationale": "Een AUC boven 0.58 is een statistisch resultaat, geen economisch. Het gefilterde signaal gaat door de authoritative engine met volledige kosten; voegt het filter daar netto niets toe, dan wordt het niet gepromoveerd hoe goed de AUC ook is. Een filter dat de helft van de trades weghaalt en de Sharpe met 0,02 verbetert, verdient geen promotie.",
+          "threshold": 0.0
+        },
+        {
+          "action": "promote",
+          "metric": "n_binding_stop_criteria",
+          "name": "promotion_requires_all_gates_clear",
+          "operator": "<=",
+          "rationale": "Promotie vereist dat GEEN van de bovenstaande criteria bindt: de negatieve controle schoon, de adequaatheid gehaald, de conservatieve AUC-ondergrens boven 0.58, en netto economische waarde door de engine. Plus de volledige Phase 2-gate: 6 lookahead-tests, DSR met de eerlijke M, SPA over de multi-modelvergelijking.",
+          "threshold": 0.0
+        }
+      ],
+      "title": "H3 \u2014 CatBoost als secondary model op triple-barrier labels van het Phase 3-baselinesignaal, getoetst tegen de drempel OOS AUC > 0.58 uit \u00a724, onder Purged Walk-Forward met embargo en per fold gefitte scaler.",
+      "universe": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT",
+        "AVAXUSDT",
+        "LINKUSDT",
+        "DOTUSDT"
+      ],
+      "wave": "phase6_h3_meta_labeling"
+    },
+    "frozen_utc": "2026-08-25T17:52:22.307814+00:00",
+    "git_sha": "1b604a8",
+    "ledger_total_at_freeze": 2770,
+    "preregistration_id": "56395fa2013768014c0c915edf346770"
+  },
+  "universe": {
+    "n_bars": 1743,
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "AVAXUSDT",
+      "LINKUSDT",
+      "DOTUSDT"
+    ],
+    "period_start": "2021-11-15",
+    "period_end": "2026-08-23",
+    "data_hashes": {
+      "crypto/ohlcv/AVAXUSDT/1d": "af05b4f95d0e282111641f85904c22f9",
+      "crypto/ohlcv/BTCUSDT/1d": "4f21f2c7ab071ddc19da5eb3f38172f3",
+      "crypto/ohlcv/DOTUSDT/1d": "17be1f4206997f12fd7e1825f123299b",
+      "crypto/ohlcv/ETHUSDT/1d": "d67c9bb18b2c794ba416067556227a5a",
+      "crypto/ohlcv/LINKUSDT/1d": "8d6a82f316253c2626d016bbbad804d4",
+      "crypto/ohlcv/SOLUSDT/1d": "1d64b001993b575f34ef04ce548616c5"
+    }
+  },
+  "track": "xs_momentum_risk_parity",
+  "labeling": {
+    "profit_target_sigma": 2.0,
+    "stop_loss_sigma": 2.0,
+    "horizon_bars": 10,
+    "entry_lag_bars": 1,
+    "min_sigma_obs": 60
+  },
+  "probability_threshold": 0.5,
+  "embargo_bars": 5,
+  "adequacy_a_priori": {
+    "model_class": "meta_labeling",
+    "adequate": true,
+    "requirement": ">= 200 nominale \u00e9n >= 100 effectieve events per fold, met een positieve-klasseratio in [0.20, 0.80]",
+    "measured": {
+      "n_folds": 12,
+      "min_events_per_fold": 2867,
+      "median_events_per_fold": 2938.0,
+      "total_events": 35173,
+      "min_effective_events_per_fold": 442.6743987689199,
+      "median_effective_events_per_fold": 476.524509679484,
+      "uniqueness_ratio": 0.16219350227347992,
+      "min_positive_ratio": 0.482324949014276,
+      "max_positive_ratio": 0.5119535519125683,
+      "required_min_events": 200,
+      "required_min_effective_events": 100,
+      "required_ratio_band": [
+        0.2,
+        0.8
+      ]
+    },
+    "shortfall": "",
+    "verdict": ""
+  },
+  "adequacy_details": {
+    "events_per_fold": [
+      2867,
+      2934,
+      2947,
+      2928,
+      2919,
+      2957,
+      2951,
+      2927,
+      2944,
+      2913,
+      2944,
+      2942
+    ],
+    "effective_events_per_fold": [
+      457.58095368626476,
+      448.7671017638766,
+      442.6743987689199,
+      457.49889754195215,
+      476.2954423525609,
+      478.58502162289767,
+      495.08822881984133,
+      501.31595914957654,
+      480.6668947475684,
+      478.1421453415312,
+      476.7535770064071,
+      469.5321784532607
+    ],
+    "positive_ratio_per_fold": [
+      0.4848273456574817,
+      0.49693251533742333,
+      0.5042416016287751,
+      0.5119535519125683,
+      0.5063377869133264,
+      0.5092999661819412,
+      0.5089800067773637,
+      0.490946361462248,
+      0.49626358695652173,
+      0.4977686234122897,
+      0.4891304347826087,
+      0.482324949014276
+    ],
+    "per_symbol": {
+      "BTCUSDT": {
+        "n_events": 1712,
+        "positive_ratio": 0.5134345794392523,
+        "n_profit_target": 734,
+        "n_stop_loss": 723,
+        "n_vertical": 255,
+        "mean_holding_bars": 5.906542056074766
+      },
+      "ETHUSDT": {
+        "n_events": 1725,
+        "positive_ratio": 0.4643478260869565,
+        "n_profit_target": 683,
+        "n_stop_loss": 783,
+        "n_vertical": 259,
+        "mean_holding_bars": 5.907246376811594
+      },
+      "SOLUSDT": {
+        "n_events": 1701,
+        "positive_ratio": 0.46149323927101704,
+        "n_profit_target": 681,
+        "n_stop_loss": 819,
+        "n_vertical": 201,
+        "mean_holding_bars": 5.62610229276896
+      },
+      "AVAXUSDT": {
+        "n_events": 1731,
+        "positive_ratio": 0.5216637781629117,
+        "n_profit_target": 793,
+        "n_stop_loss": 745,
+        "n_vertical": 193,
+        "mean_holding_bars": 5.631426920854997
+      },
+      "LINKUSDT": {
+        "n_events": 1732,
+        "positive_ratio": 0.5173210161662818,
+        "n_profit_target": 802,
+        "n_stop_loss": 722,
+        "n_vertical": 208,
+        "mean_holding_bars": 5.5796766743648964
+      },
+      "DOTUSDT": {
+        "n_events": 1729,
+        "positive_ratio": 0.496818970503181,
+        "n_profit_target": 753,
+        "n_stop_loss": 790,
+        "n_vertical": 186,
+        "mean_holding_bars": 5.549450549450549
+      }
+    }
+  },
+  "campaign": {
+    "n_trials": 6,
+    "n_planned_trials": 6,
+    "by_status": {
+      "ARCHIVED": 6
+    },
+    "unfiltered": {
+      "label": "unfiltered",
+      "half_spread_bps": 1.0,
+      "n_scored_bars": 1200,
+      "net_sharpe_oos": -0.099752881476377,
+      "net_return_oos": -0.008368294635006324,
+      "max_drawdown_oos": 0.054410506393865625,
+      "fees_oos": 1484.0408006283299,
+      "spread_cost_oos": 269.8250730395332,
+      "impact_cost_oos": 738.4381528622366,
+      "funding_oos": 0.0,
+      "turnover_notional_oos": 2698250.730395332,
+      "n_orders_oos": 6693,
+      "n_fills_oos": 6686,
+      "n_trading_bars_oos": 1200,
+      "n_exposed_bars_oos": 1200,
+      "mean_gross_notional_oos": 12316.9748597237,
+      "risk_policy_hash": "1b60cb664fbf9a2a",
+      "impact_status": "IMPACT_UNCALIBRATED",
+      "spread_status": "SPREAD_ASSUMED",
+      "n_sovereign_halted": 0,
+      "n_sovereign_clipped": 1742
+    },
+    "shuffled_auc": 0.5100027089111475,
+    "shuffled_auc_replicates": [
+      0.48571390663043285,
+      0.5006825646088304,
+      0.5100027089111475,
+      0.4935794772994066,
+      0.489727846116829
+    ],
+    "n_events": 10330,
+    "positive_ratio": 0.49593417231364956,
+    "uniqueness_ratio": 0.15913419560490097,
+    "min_effective_events_per_fold": 442.6743987689199,
+    "min_effective_test_events_per_fold": 85.88585085419231,
+    "effective_n_nominal": 7200.0,
+    "effective_n_conservative": 241.59128862200888,
+    "best_label": "catboost-d3-lr0.1",
+    "mdi": {
+      "method": "MDI",
+      "features": [
+        {
+          "name": "vol_expanding",
+          "mean": 0.12791987069512786,
+          "std": 0.02325606816511934
+        },
+        {
+          "name": "vol_realized_60",
+          "mean": 0.09181298036726622,
+          "std": 0.016815854834280504
+        },
+        {
+          "name": "micro_funding_mean_21",
+          "mean": 0.09171878632855106,
+          "std": 0.02319234151307762
+        },
+        {
+          "name": "mom_logret_60",
+          "mean": 0.08842164179734331,
+          "std": 0.01196354649360725
+        },
+        {
+          "name": "vol_parkinson_20",
+          "mean": 0.07267387048371185,
+          "std": 0.008319484043598656
+        },
+        {
+          "name": "mom_ewma_spread",
+          "mean": 0.06586945393457803,
+          "std": 0.01048643228064003
+        },
+        {
+          "name": "vol_realized_20",
+          "mean": 0.060420065425851044,
+          "std": 0.0071378075263558395
+        },
+        {
+          "name": "vol_realized_5",
+          "mean": 0.05924190739287873,
+          "std": 0.010334649972093563
+        },
+        {
+          "name": "vol_ewma",
+          "mean": 0.05550190667237156,
+          "std": 0.012114808359665625
+        },
+        {
+          "name": "mom_logret_20",
+          "mean": 0.0522353975218962,
+          "std": 0.009825047301376002
+        },
+        {
+          "name": "mom_logret_5",
+          "mean": 0.05222580126771176,
+          "std": 0.005381745548780554
+        },
+        {
+          "name": "micro_oi_logchg_7",
+          "mean": 0.05056054425397577,
+          "std": 0.01090913122661784
+        },
+        {
+          "name": "micro_funding_zscore",
+          "mean": 0.04883767674319612,
+          "std": 0.009771434966429335
+        },
+        {
+          "name": "micro_funding_mean_3",
+          "mean": 0.047614210659258076,
+          "std": 0.009017868097179126
+        },
+        {
+          "name": "micro_oi_logchg_1",
+          "mean": 0.034945886456282445,
+          "std": 0.004537967207571377
+        }
+      ]
+    },
+    "sfi": {
+      "method": "SFI",
+      "features": [
+        {
+          "name": "mom_logret_20",
+          "mean": 0.5145966356211822,
+          "std": 0.03366693474811175
+        },
+        {
+          "name": "mom_logret_5",
+          "mean": 0.5120588401892511,
+          "std": 0.019552937503010567
+        },
+        {
+          "name": "micro_funding_mean_21",
+          "mean": 0.5119779755277181,
+          "std": 0.029895849220632313
+        },
+        {
+          "name": "vol_realized_5",
+          "mean": 0.5113386682649662,
+          "std": 0.023089573281108056
+        },
+        {
+          "name": "vol_parkinson_20",
+          "mean": 0.5000288813890342,
+          "std": 0.04193563986925086
+        },
+        {
+          "name": "micro_funding_mean_3",
+          "mean": 0.49659845482862813,
+          "std": 0.01879559995612634
+        },
+        {
+          "name": "vol_realized_20",
+          "mean": 0.49625838476836165,
+          "std": 0.0354251537012818
+        },
+        {
+          "name": "micro_funding_zscore",
+          "mean": 0.49412854185576105,
+          "std": 0.02960610158355528
+        },
+        {
+          "name": "mom_logret_60",
+          "mean": 0.4937512982899186,
+          "std": 0.041353007729096794
+        },
+        {
+          "name": "micro_oi_logchg_1",
+          "mean": 0.4931916763438972,
+          "std": 0.015833899965338002
+        },
+        {
+          "name": "vol_realized_60",
+          "mean": 0.49029904941417596,
+          "std": 0.050388840387203225
+        },
+        {
+          "name": "micro_oi_logchg_7",
+          "mean": 0.48922560378832713,
+          "std": 0.021501037546387502
+        },
+        {
+          "name": "mom_ewma_spread",
+          "mean": 0.48921164989508475,
+          "std": 0.032997188751396594
+        },
+        {
+          "name": "vol_ewma",
+          "mean": 0.4857719675412902,
+          "std": 0.0322093979699664
+        },
+        {
+          "name": "vol_expanding",
+          "mean": 0.4749675700132136,
+          "std": 0.052932350140192826
+        }
+      ]
+    },
+    "trials": [
+      {
+        "label": "catboost-d3-lr0.03",
+        "oos_auc": 0.4820843842646162,
+        "interval_nominal": [
+          0.4687580575046716,
+          0.4954107110245608,
+          0.006799271244298848
+        ],
+        "interval_conservative": [
+          0.40918839737580825,
+          0.5549803711534241,
+          0.037192513466472954
+        ],
+        "operating_point": {
+          "threshold": 0.5,
+          "precision": 0.4818177450231662,
+          "recall": 0.45405742277826,
+          "kept_fraction": 0.46753446455820613,
+          "base_rate": 0.49611875091855434,
+          "n_kept": 3405,
+          "n_total": 7200
+        },
+        "operating_curve": [
+          {
+            "threshold": 0.35,
+            "precision": 0.4933896061145977,
+            "recall": 0.8721155327387796,
+            "kept_fraction": 0.8769395694536332,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 6348,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.4,
+            "precision": 0.48958693428996103,
+            "recall": 0.7750252821960841,
+            "kept_fraction": 0.7853652701967248,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 5704,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.45,
+            "precision": 0.4829117897659226,
+            "recall": 0.623894768780486,
+            "kept_fraction": 0.6409574169684875,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 4654,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.5,
+            "precision": 0.4818177450231662,
+            "recall": 0.45405742277826,
+            "kept_fraction": 0.46753446455820613,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 3405,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.55,
+            "precision": 0.47152149738546406,
+            "recall": 0.2889253266192999,
+            "kept_fraction": 0.30399732132238794,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 2217,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.6,
+            "precision": 0.4883502666976561,
+            "recall": 0.17385979873814625,
+            "kept_fraction": 0.17662549212514717,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 1337,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.65,
+            "precision": 0.47907080940519897,
+            "recall": 0.09815267521591386,
+            "kept_fraction": 0.10164548052487808,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 789,
+            "n_total": 7200
+          }
+        ],
+        "arm": {
+          "label": "catboost-d3-lr0.03",
+          "half_spread_bps": 1.0,
+          "n_scored_bars": 1200,
+          "net_sharpe_oos": -0.4850769081431198,
+          "net_return_oos": -0.03444137050872187,
+          "max_drawdown_oos": 0.05873678743296706,
+          "fees_oos": 1125.165128700261,
+          "spread_cost_oos": 204.57399763636124,
+          "impact_cost_oos": 916.4073045713185,
+          "funding_oos": 0.0,
+          "turnover_notional_oos": 2045739.9763636123,
+          "n_orders_oos": 986,
+          "n_fills_oos": 986,
+          "n_trading_bars_oos": 289,
+          "n_exposed_bars_oos": 285,
+          "mean_gross_notional_oos": 3058.018822809491,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "impact_status": "IMPACT_UNCALIBRATED",
+          "spread_status": "SPREAD_ASSUMED",
+          "n_sovereign_halted": 955,
+          "n_sovereign_clipped": 1739
+        },
+        "net_sharpe_delta": -0.3853240266667428,
+        "folds": [
+          {
+            "fold_id": 0,
+            "n_test": 600,
+            "n_train": 2886,
+            "positive_ratio": 0.5083333333333333,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2886,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 22,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6792,
+            "purge_n_before_train_window": 0
+          },
+          {
+            "fold_id": 1,
+            "n_test": 600,
+            "n_train": 2954,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2954,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 16,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6192,
+            "purge_n_before_train_window": 538
+          },
+          {
+            "fold_id": 2,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.5066666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 5592,
+            "purge_n_before_train_window": 1138
+          },
+          {
+            "fold_id": 3,
+            "n_test": 600,
+            "n_train": 2966,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2966,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 4,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4992,
+            "purge_n_before_train_window": 1738
+          },
+          {
+            "fold_id": 4,
+            "n_test": 600,
+            "n_train": 2968,
+            "positive_ratio": 0.5216666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2968,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 2,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4392,
+            "purge_n_before_train_window": 2338
+          },
+          {
+            "fold_id": 5,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.51,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3792,
+            "purge_n_before_train_window": 2938
+          },
+          {
+            "fold_id": 6,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.43333333333333335,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3192,
+            "purge_n_before_train_window": 3538
+          },
+          {
+            "fold_id": 7,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 2592,
+            "purge_n_before_train_window": 4138
+          },
+          {
+            "fold_id": 8,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.49166666666666664,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1992,
+            "purge_n_before_train_window": 4738
+          },
+          {
+            "fold_id": 9,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1392,
+            "purge_n_before_train_window": 5338
+          },
+          {
+            "fold_id": 10,
+            "n_test": 600,
+            "n_train": 2958,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2958,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 12,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 792,
+            "purge_n_before_train_window": 5938
+          },
+          {
+            "fold_id": 11,
+            "n_test": 600,
+            "n_train": 2962,
+            "positive_ratio": 0.48833333333333334,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2962,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 8,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 192,
+            "purge_n_before_train_window": 6538
+          }
+        ],
+        "verdict": {
+          "status": "ARCHIVED",
+          "binding": [
+            "auc_below_threshold",
+            "filter_adds_no_net_value_through_the_engine"
+          ],
+          "rationale": "OOS-AUC 0.4821; conservatieve ondergrens 0.4092 en nominale ondergrens 0.4688, tegen de drempel 0.58. Netto Sharpe-delta door de engine -0.3853. CatBoost blijft `ARCHIVED` zoals \u00a724 vastlegt; de drempel wordt niet verlaagd en er wordt geen ander werkpunt gezocht waarop hij w\u00e9l wordt gehaald."
+        }
+      },
+      {
+        "label": "catboost-d3-lr0.1",
+        "oos_auc": 0.4842487530611359,
+        "interval_nominal": [
+          0.47092005014502314,
+          0.4975774559772487,
+          0.006800483591151616
+        ],
+        "interval_conservative": [
+          0.4113397966607716,
+          0.5571577094615002,
+          0.037199130685798755
+        ],
+        "operating_point": {
+          "threshold": 0.5,
+          "precision": 0.4823233381882853,
+          "recall": 0.45506427810823624,
+          "kept_fraction": 0.4680800271675413,
+          "base_rate": 0.49611875091855434,
+          "n_kept": 3397,
+          "n_total": 7200
+        },
+        "operating_curve": [
+          {
+            "threshold": 0.35,
+            "precision": 0.49294118619485827,
+            "recall": 0.7243701341939871,
+            "kept_fraction": 0.7290395208262576,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 5261,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.4,
+            "precision": 0.49212489832048245,
+            "recall": 0.6439994097623896,
+            "kept_fraction": 0.6492258039655973,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 4693,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.45,
+            "precision": 0.48785443339227413,
+            "recall": 0.5491643612743617,
+            "kept_fraction": 0.5584672769496999,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 4045,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.5,
+            "precision": 0.4823233381882853,
+            "recall": 0.45506427810823624,
+            "kept_fraction": 0.4680800271675413,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 3397,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.55,
+            "precision": 0.47798244261262557,
+            "recall": 0.36855420839281156,
+            "kept_fraction": 0.3825384307301929,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 2778,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.6,
+            "precision": 0.47341986038877565,
+            "recall": 0.2875369372842737,
+            "kept_fraction": 0.301323366643878,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 2203,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.65,
+            "precision": 0.4741209282623531,
+            "recall": 0.22114031673224271,
+            "kept_fraction": 0.23140057984157386,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 1691,
+            "n_total": 7200
+          }
+        ],
+        "arm": {
+          "label": "catboost-d3-lr0.1",
+          "half_spread_bps": 1.0,
+          "n_scored_bars": 1200,
+          "net_sharpe_oos": -0.6325343252993675,
+          "net_return_oos": -0.029590785815376663,
+          "max_drawdown_oos": 0.040619429404092286,
+          "fees_oos": 498.31524675583614,
+          "spread_cost_oos": 90.60152160383828,
+          "impact_cost_oos": 389.09890126390314,
+          "funding_oos": 0.0,
+          "turnover_notional_oos": 906015.2160383828,
+          "n_orders_oos": 388,
+          "n_fills_oos": 388,
+          "n_trading_bars_oos": 117,
+          "n_exposed_bars_oos": 114,
+          "mean_gross_notional_oos": 1016.7942966998303,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "impact_status": "IMPACT_UNCALIBRATED",
+          "spread_status": "SPREAD_ASSUMED",
+          "n_sovereign_halted": 1127,
+          "n_sovereign_clipped": 1740
+        },
+        "net_sharpe_delta": -0.5327814438229905,
+        "folds": [
+          {
+            "fold_id": 0,
+            "n_test": 600,
+            "n_train": 2886,
+            "positive_ratio": 0.5083333333333333,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2886,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 22,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6792,
+            "purge_n_before_train_window": 0
+          },
+          {
+            "fold_id": 1,
+            "n_test": 600,
+            "n_train": 2954,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2954,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 16,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6192,
+            "purge_n_before_train_window": 538
+          },
+          {
+            "fold_id": 2,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.5066666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 5592,
+            "purge_n_before_train_window": 1138
+          },
+          {
+            "fold_id": 3,
+            "n_test": 600,
+            "n_train": 2966,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2966,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 4,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4992,
+            "purge_n_before_train_window": 1738
+          },
+          {
+            "fold_id": 4,
+            "n_test": 600,
+            "n_train": 2968,
+            "positive_ratio": 0.5216666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2968,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 2,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4392,
+            "purge_n_before_train_window": 2338
+          },
+          {
+            "fold_id": 5,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.51,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3792,
+            "purge_n_before_train_window": 2938
+          },
+          {
+            "fold_id": 6,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.43333333333333335,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3192,
+            "purge_n_before_train_window": 3538
+          },
+          {
+            "fold_id": 7,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 2592,
+            "purge_n_before_train_window": 4138
+          },
+          {
+            "fold_id": 8,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.49166666666666664,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1992,
+            "purge_n_before_train_window": 4738
+          },
+          {
+            "fold_id": 9,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1392,
+            "purge_n_before_train_window": 5338
+          },
+          {
+            "fold_id": 10,
+            "n_test": 600,
+            "n_train": 2958,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2958,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 12,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 792,
+            "purge_n_before_train_window": 5938
+          },
+          {
+            "fold_id": 11,
+            "n_test": 600,
+            "n_train": 2962,
+            "positive_ratio": 0.48833333333333334,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2962,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 8,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 192,
+            "purge_n_before_train_window": 6538
+          }
+        ],
+        "verdict": {
+          "status": "ARCHIVED",
+          "binding": [
+            "auc_below_threshold",
+            "filter_adds_no_net_value_through_the_engine"
+          ],
+          "rationale": "OOS-AUC 0.4842; conservatieve ondergrens 0.4113 en nominale ondergrens 0.4709, tegen de drempel 0.58. Netto Sharpe-delta door de engine -0.5328. CatBoost blijft `ARCHIVED` zoals \u00a724 vastlegt; de drempel wordt niet verlaagd en er wordt geen ander werkpunt gezocht waarop hij w\u00e9l wordt gehaald."
+        }
+      },
+      {
+        "label": "catboost-d4-lr0.03",
+        "oos_auc": 0.476828337939817,
+        "interval_nominal": [
+          0.4635090545414426,
+          0.4901476213381914,
+          0.006795677626443765
+        ],
+        "interval_conservative": [
+          0.4039707950968021,
+          0.5496858807828319,
+          0.037172898796970694
+        ],
+        "operating_point": {
+          "threshold": 0.5,
+          "precision": 0.47470966701067685,
+          "recall": 0.44364514624496226,
+          "kept_fraction": 0.46365324134252295,
+          "base_rate": 0.49611875091855434,
+          "n_kept": 3364,
+          "n_total": 7200
+        },
+        "operating_curve": [
+          {
+            "threshold": 0.35,
+            "precision": 0.4925694093371396,
+            "recall": 0.829037435391689,
+            "kept_fraction": 0.8350112879822204,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 6055,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.4,
+            "precision": 0.48750315937459726,
+            "recall": 0.7263396496176913,
+            "kept_fraction": 0.7391761730800519,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 5364,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.45,
+            "precision": 0.4812615756867065,
+            "recall": 0.5879565317186456,
+            "kept_fraction": 0.6061075199997877,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 4402,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.5,
+            "precision": 0.47470966701067685,
+            "recall": 0.44364514624496226,
+            "kept_fraction": 0.46365324134252295,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 3364,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.55,
+            "precision": 0.4668885268366819,
+            "recall": 0.3022309141796203,
+            "kept_fraction": 0.3211525128871201,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 2328,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.6,
+            "precision": 0.46611783211789953,
+            "recall": 0.19569595624321087,
+            "kept_fraction": 0.20829160929126686,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 1532,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.65,
+            "precision": 0.48893119807622865,
+            "recall": 0.11933891737498233,
+            "kept_fraction": 0.12109326395411982,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 900,
+            "n_total": 7200
+          }
+        ],
+        "arm": {
+          "label": "catboost-d4-lr0.03",
+          "half_spread_bps": 1.0,
+          "n_scored_bars": 1200,
+          "net_sharpe_oos": -0.23869783802625485,
+          "net_return_oos": -0.029987958843078255,
+          "max_drawdown_oos": 0.07033519084400017,
+          "fees_oos": 2696.8865320369696,
+          "spread_cost_oos": 490.34354311031365,
+          "impact_cost_oos": 2322.094379425042,
+          "funding_oos": 0.0,
+          "turnover_notional_oos": 4903435.431103136,
+          "n_orders_oos": 2670,
+          "n_fills_oos": 2670,
+          "n_trading_bars_oos": 767,
+          "n_exposed_bars_oos": 753,
+          "mean_gross_notional_oos": 6362.15388793372,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "impact_status": "IMPACT_UNCALIBRATED",
+          "spread_status": "SPREAD_ASSUMED",
+          "n_sovereign_halted": 471,
+          "n_sovereign_clipped": 1722
+        },
+        "net_sharpe_delta": -0.13894495654987787,
+        "folds": [
+          {
+            "fold_id": 0,
+            "n_test": 600,
+            "n_train": 2886,
+            "positive_ratio": 0.5083333333333333,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2886,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 22,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6792,
+            "purge_n_before_train_window": 0
+          },
+          {
+            "fold_id": 1,
+            "n_test": 600,
+            "n_train": 2954,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2954,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 16,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6192,
+            "purge_n_before_train_window": 538
+          },
+          {
+            "fold_id": 2,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.5066666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 5592,
+            "purge_n_before_train_window": 1138
+          },
+          {
+            "fold_id": 3,
+            "n_test": 600,
+            "n_train": 2966,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2966,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 4,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4992,
+            "purge_n_before_train_window": 1738
+          },
+          {
+            "fold_id": 4,
+            "n_test": 600,
+            "n_train": 2968,
+            "positive_ratio": 0.5216666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2968,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 2,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4392,
+            "purge_n_before_train_window": 2338
+          },
+          {
+            "fold_id": 5,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.51,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3792,
+            "purge_n_before_train_window": 2938
+          },
+          {
+            "fold_id": 6,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.43333333333333335,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3192,
+            "purge_n_before_train_window": 3538
+          },
+          {
+            "fold_id": 7,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 2592,
+            "purge_n_before_train_window": 4138
+          },
+          {
+            "fold_id": 8,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.49166666666666664,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1992,
+            "purge_n_before_train_window": 4738
+          },
+          {
+            "fold_id": 9,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1392,
+            "purge_n_before_train_window": 5338
+          },
+          {
+            "fold_id": 10,
+            "n_test": 600,
+            "n_train": 2958,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2958,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 12,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 792,
+            "purge_n_before_train_window": 5938
+          },
+          {
+            "fold_id": 11,
+            "n_test": 600,
+            "n_train": 2962,
+            "positive_ratio": 0.48833333333333334,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2962,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 8,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 192,
+            "purge_n_before_train_window": 6538
+          }
+        ],
+        "verdict": {
+          "status": "ARCHIVED",
+          "binding": [
+            "auc_below_threshold",
+            "filter_adds_no_net_value_through_the_engine"
+          ],
+          "rationale": "OOS-AUC 0.4768; conservatieve ondergrens 0.4040 en nominale ondergrens 0.4635, tegen de drempel 0.58. Netto Sharpe-delta door de engine -0.1389. CatBoost blijft `ARCHIVED` zoals \u00a724 vastlegt; de drempel wordt niet verlaagd en er wordt geen ander werkpunt gezocht waarop hij w\u00e9l wordt gehaald."
+        }
+      },
+      {
+        "label": "catboost-d4-lr0.1",
+        "oos_auc": 0.4806802309106764,
+        "interval_nominal": [
+          0.4673556092230512,
+          0.4940048525983016,
+          0.006798401293456488
+        ],
+        "interval_conservative": [
+          0.4077935506346432,
+          0.5535669111867096,
+          0.037187765107396895
+        ],
+        "operating_point": {
+          "threshold": 0.5,
+          "precision": 0.484681242514536,
+          "recall": 0.44984997510538083,
+          "kept_fraction": 0.46046553522923056,
+          "base_rate": 0.49611875091855434,
+          "n_kept": 3342,
+          "n_total": 7200
+        },
+        "operating_curve": [
+          {
+            "threshold": 0.35,
+            "precision": 0.4904775874324562,
+            "recall": 0.6813079117730568,
+            "kept_fraction": 0.6891438851450578,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 4994,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.4,
+            "precision": 0.48780733758635536,
+            "recall": 0.6045005226139964,
+            "kept_fraction": 0.6148001907736329,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 4448,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.45,
+            "precision": 0.4863460703535744,
+            "recall": 0.5268834524233552,
+            "kept_fraction": 0.5374706946966686,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 3905,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.5,
+            "precision": 0.484681242514536,
+            "recall": 0.44984997510538083,
+            "kept_fraction": 0.46046553522923056,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 3342,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.55,
+            "precision": 0.4793932484883124,
+            "recall": 0.3733888345740353,
+            "kept_fraction": 0.38641595975735027,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 2808,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.6,
+            "precision": 0.4717658523218842,
+            "recall": 0.301440492588704,
+            "kept_fraction": 0.31700107144962225,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 2315,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.65,
+            "precision": 0.456980322861276,
+            "recall": 0.23332838415439355,
+            "kept_fraction": 0.25331197145585366,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 1859,
+            "n_total": 7200
+          }
+        ],
+        "arm": {
+          "label": "catboost-d4-lr0.1",
+          "half_spread_bps": 1.0,
+          "n_scored_bars": 1200,
+          "net_sharpe_oos": -0.4693196887917001,
+          "net_return_oos": -0.028226143714936813,
+          "max_drawdown_oos": 0.052361111553480603,
+          "fees_oos": 1274.8151390803334,
+          "spread_cost_oos": 231.7842260735467,
+          "impact_cost_oos": 1124.062859304221,
+          "funding_oos": 0.0,
+          "turnover_notional_oos": 2317842.260735467,
+          "n_orders_oos": 936,
+          "n_fills_oos": 936,
+          "n_trading_bars_oos": 286,
+          "n_exposed_bars_oos": 281,
+          "mean_gross_notional_oos": 2551.607371949861,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "impact_status": "IMPACT_UNCALIBRATED",
+          "spread_status": "SPREAD_ASSUMED",
+          "n_sovereign_halted": 956,
+          "n_sovereign_clipped": 1735
+        },
+        "net_sharpe_delta": -0.3695668073153231,
+        "folds": [
+          {
+            "fold_id": 0,
+            "n_test": 600,
+            "n_train": 2886,
+            "positive_ratio": 0.5083333333333333,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2886,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 22,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6792,
+            "purge_n_before_train_window": 0
+          },
+          {
+            "fold_id": 1,
+            "n_test": 600,
+            "n_train": 2954,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2954,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 16,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6192,
+            "purge_n_before_train_window": 538
+          },
+          {
+            "fold_id": 2,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.5066666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 5592,
+            "purge_n_before_train_window": 1138
+          },
+          {
+            "fold_id": 3,
+            "n_test": 600,
+            "n_train": 2966,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2966,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 4,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4992,
+            "purge_n_before_train_window": 1738
+          },
+          {
+            "fold_id": 4,
+            "n_test": 600,
+            "n_train": 2968,
+            "positive_ratio": 0.5216666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2968,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 2,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4392,
+            "purge_n_before_train_window": 2338
+          },
+          {
+            "fold_id": 5,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.51,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3792,
+            "purge_n_before_train_window": 2938
+          },
+          {
+            "fold_id": 6,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.43333333333333335,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3192,
+            "purge_n_before_train_window": 3538
+          },
+          {
+            "fold_id": 7,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 2592,
+            "purge_n_before_train_window": 4138
+          },
+          {
+            "fold_id": 8,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.49166666666666664,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1992,
+            "purge_n_before_train_window": 4738
+          },
+          {
+            "fold_id": 9,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1392,
+            "purge_n_before_train_window": 5338
+          },
+          {
+            "fold_id": 10,
+            "n_test": 600,
+            "n_train": 2958,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2958,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 12,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 792,
+            "purge_n_before_train_window": 5938
+          },
+          {
+            "fold_id": 11,
+            "n_test": 600,
+            "n_train": 2962,
+            "positive_ratio": 0.48833333333333334,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2962,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 8,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 192,
+            "purge_n_before_train_window": 6538
+          }
+        ],
+        "verdict": {
+          "status": "ARCHIVED",
+          "binding": [
+            "auc_below_threshold",
+            "filter_adds_no_net_value_through_the_engine"
+          ],
+          "rationale": "OOS-AUC 0.4807; conservatieve ondergrens 0.4078 en nominale ondergrens 0.4674, tegen de drempel 0.58. Netto Sharpe-delta door de engine -0.3696. CatBoost blijft `ARCHIVED` zoals \u00a724 vastlegt; de drempel wordt niet verlaagd en er wordt geen ander werkpunt gezocht waarop hij w\u00e9l wordt gehaald."
+        }
+      },
+      {
+        "label": "catboost-d6-lr0.03",
+        "oos_auc": 0.47950456076286424,
+        "interval_nominal": [
+          0.4661814656979748,
+          0.4928276558277537,
+          0.006797622389993034
+        ],
+        "interval_conservative": [
+          0.40662621309048896,
+          0.5523829084352395,
+          0.03718351370087939
+        ],
+        "operating_point": {
+          "threshold": 0.5,
+          "precision": 0.4802656350388733,
+          "recall": 0.44523612586259065,
+          "kept_fraction": 0.459932950665699,
+          "base_rate": 0.49611875091855434,
+          "n_kept": 3336,
+          "n_total": 7200
+        },
+        "operating_curve": [
+          {
+            "threshold": 0.35,
+            "precision": 0.48767758444322246,
+            "recall": 0.7811745147484788,
+            "kept_fraction": 0.7946957926083313,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 5753,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.4,
+            "precision": 0.48368412504268016,
+            "recall": 0.6783249409410099,
+            "kept_fraction": 0.6957634228472162,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 5040,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.45,
+            "precision": 0.4827667982733286,
+            "recall": 0.5649354596223717,
+            "kept_fraction": 0.5805599630709625,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 4210,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.5,
+            "precision": 0.4802656350388733,
+            "recall": 0.44523612586259065,
+            "kept_fraction": 0.459932950665699,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 3336,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.55,
+            "precision": 0.4819867154720936,
+            "recall": 0.3454671459339776,
+            "kept_fraction": 0.35559637521604326,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 2585,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.6,
+            "precision": 0.47781175933089365,
+            "recall": 0.2476925342060576,
+            "kept_fraction": 0.25718268393863547,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 1878,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.65,
+            "precision": 0.4740712679083832,
+            "recall": 0.15952023511574692,
+            "kept_fraction": 0.16693899240304286,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 1241,
+            "n_total": 7200
+          }
+        ],
+        "arm": {
+          "label": "catboost-d6-lr0.03",
+          "half_spread_bps": 1.0,
+          "n_scored_bars": 1200,
+          "net_sharpe_oos": -0.054845368142878805,
+          "net_return_oos": -0.008325729997524345,
+          "max_drawdown_oos": 0.08121041843464416,
+          "fees_oos": 2607.126036720931,
+          "spread_cost_oos": 474.0246915447192,
+          "impact_cost_oos": 2353.460643479549,
+          "funding_oos": 0.0,
+          "turnover_notional_oos": 4740246.915447191,
+          "n_orders_oos": 2436,
+          "n_fills_oos": 2436,
+          "n_trading_bars_oos": 712,
+          "n_exposed_bars_oos": 702,
+          "mean_gross_notional_oos": 5944.989476085524,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "impact_status": "IMPACT_UNCALIBRATED",
+          "spread_status": "SPREAD_ASSUMED",
+          "n_sovereign_halted": 529,
+          "n_sovereign_clipped": 1730
+        },
+        "net_sharpe_delta": 0.04490751333349819,
+        "folds": [
+          {
+            "fold_id": 0,
+            "n_test": 600,
+            "n_train": 2886,
+            "positive_ratio": 0.5083333333333333,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2886,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 22,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6792,
+            "purge_n_before_train_window": 0
+          },
+          {
+            "fold_id": 1,
+            "n_test": 600,
+            "n_train": 2954,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2954,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 16,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6192,
+            "purge_n_before_train_window": 538
+          },
+          {
+            "fold_id": 2,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.5066666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 5592,
+            "purge_n_before_train_window": 1138
+          },
+          {
+            "fold_id": 3,
+            "n_test": 600,
+            "n_train": 2966,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2966,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 4,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4992,
+            "purge_n_before_train_window": 1738
+          },
+          {
+            "fold_id": 4,
+            "n_test": 600,
+            "n_train": 2968,
+            "positive_ratio": 0.5216666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2968,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 2,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4392,
+            "purge_n_before_train_window": 2338
+          },
+          {
+            "fold_id": 5,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.51,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3792,
+            "purge_n_before_train_window": 2938
+          },
+          {
+            "fold_id": 6,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.43333333333333335,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3192,
+            "purge_n_before_train_window": 3538
+          },
+          {
+            "fold_id": 7,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 2592,
+            "purge_n_before_train_window": 4138
+          },
+          {
+            "fold_id": 8,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.49166666666666664,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1992,
+            "purge_n_before_train_window": 4738
+          },
+          {
+            "fold_id": 9,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1392,
+            "purge_n_before_train_window": 5338
+          },
+          {
+            "fold_id": 10,
+            "n_test": 600,
+            "n_train": 2958,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2958,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 12,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 792,
+            "purge_n_before_train_window": 5938
+          },
+          {
+            "fold_id": 11,
+            "n_test": 600,
+            "n_train": 2962,
+            "positive_ratio": 0.48833333333333334,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2962,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 8,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 192,
+            "purge_n_before_train_window": 6538
+          }
+        ],
+        "verdict": {
+          "status": "ARCHIVED",
+          "binding": [
+            "auc_below_threshold"
+          ],
+          "rationale": "OOS-AUC 0.4795; conservatieve ondergrens 0.4066 en nominale ondergrens 0.4662, tegen de drempel 0.58. Netto Sharpe-delta door de engine +0.0449. CatBoost blijft `ARCHIVED` zoals \u00a724 vastlegt; de drempel wordt niet verlaagd en er wordt geen ander werkpunt gezocht waarop hij w\u00e9l wordt gehaald."
+        }
+      },
+      {
+        "label": "catboost-d6-lr0.1",
+        "oos_auc": 0.48259566086606615,
+        "interval_nominal": [
+          0.4692687452206323,
+          0.4959225765115,
+          0.006799571701600073
+        ],
+        "interval_conservative": [
+          0.40969645972778945,
+          0.5554948620043428,
+          0.03719415341980582
+        ],
+        "operating_point": {
+          "threshold": 0.5,
+          "precision": 0.4833189820299206,
+          "recall": 0.4661409156210561,
+          "kept_fraction": 0.4784857566294241,
+          "base_rate": 0.49611875091855434,
+          "n_kept": 3457,
+          "n_total": 7200
+        },
+        "operating_curve": [
+          {
+            "threshold": 0.35,
+            "precision": 0.4879566971512093,
+            "recall": 0.6434398947544714,
+            "kept_fraction": 0.6542027166353921,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 4700,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.4,
+            "precision": 0.48564039795221703,
+            "recall": 0.5788200857569515,
+            "kept_fraction": 0.5913089173865718,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 4258,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.45,
+            "precision": 0.48374887231197516,
+            "recall": 0.5228139126625734,
+            "kept_fraction": 0.5361827182632115,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 3868,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.5,
+            "precision": 0.4833189820299206,
+            "recall": 0.4661409156210561,
+            "kept_fraction": 0.4784857566294241,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 3457,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.55,
+            "precision": 0.4773614206479343,
+            "recall": 0.4080904724676681,
+            "kept_fraction": 0.42412588597464895,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 3059,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.6,
+            "precision": 0.47206072691536444,
+            "recall": 0.35138379398708297,
+            "kept_fraction": 0.3692916589461369,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 2660,
+            "n_total": 7200
+          },
+          {
+            "threshold": 0.65,
+            "precision": 0.4705847943408832,
+            "recall": 0.2905080354019476,
+            "kept_fraction": 0.3062710172292876,
+            "base_rate": 0.49611875091855434,
+            "n_kept": 2221,
+            "n_total": 7200
+          }
+        ],
+        "arm": {
+          "label": "catboost-d6-lr0.1",
+          "half_spread_bps": 1.0,
+          "n_scored_bars": 1200,
+          "net_sharpe_oos": -0.6019366183104421,
+          "net_return_oos": -0.032847533188165356,
+          "max_drawdown_oos": 0.04088590446959433,
+          "fees_oos": 991.2568412872549,
+          "spread_cost_oos": 180.2304814640736,
+          "impact_cost_oos": 1001.996600418285,
+          "funding_oos": 0.0,
+          "turnover_notional_oos": 1802304.8146407357,
+          "n_orders_oos": 837,
+          "n_fills_oos": 837,
+          "n_trading_bars_oos": 228,
+          "n_exposed_bars_oos": 224,
+          "mean_gross_notional_oos": 2166.838899316054,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "impact_status": "IMPACT_UNCALIBRATED",
+          "spread_status": "SPREAD_ASSUMED",
+          "n_sovereign_halted": 1015,
+          "n_sovereign_clipped": 1738
+        },
+        "net_sharpe_delta": -0.5021837368340651,
+        "folds": [
+          {
+            "fold_id": 0,
+            "n_test": 600,
+            "n_train": 2886,
+            "positive_ratio": 0.5083333333333333,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2886,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 22,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6792,
+            "purge_n_before_train_window": 0
+          },
+          {
+            "fold_id": 1,
+            "n_test": 600,
+            "n_train": 2954,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2954,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 16,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 6192,
+            "purge_n_before_train_window": 538
+          },
+          {
+            "fold_id": 2,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.5066666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 5592,
+            "purge_n_before_train_window": 1138
+          },
+          {
+            "fold_id": 3,
+            "n_test": 600,
+            "n_train": 2966,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2966,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 4,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4992,
+            "purge_n_before_train_window": 1738
+          },
+          {
+            "fold_id": 4,
+            "n_test": 600,
+            "n_train": 2968,
+            "positive_ratio": 0.5216666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2968,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 2,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 4392,
+            "purge_n_before_train_window": 2338
+          },
+          {
+            "fold_id": 5,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.51,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3792,
+            "purge_n_before_train_window": 2938
+          },
+          {
+            "fold_id": 6,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.43333333333333335,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 3192,
+            "purge_n_before_train_window": 3538
+          },
+          {
+            "fold_id": 7,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.5266666666666666,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 2592,
+            "purge_n_before_train_window": 4138
+          },
+          {
+            "fold_id": 8,
+            "n_test": 600,
+            "n_train": 2963,
+            "positive_ratio": 0.49166666666666664,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2963,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 7,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1992,
+            "purge_n_before_train_window": 4738
+          },
+          {
+            "fold_id": 9,
+            "n_test": 600,
+            "n_train": 2970,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2970,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 0,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 1392,
+            "purge_n_before_train_window": 5338
+          },
+          {
+            "fold_id": 10,
+            "n_test": 600,
+            "n_train": 2958,
+            "positive_ratio": 0.4816666666666667,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2958,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 12,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 792,
+            "purge_n_before_train_window": 5938
+          },
+          {
+            "fold_id": 11,
+            "n_test": 600,
+            "n_train": 2962,
+            "positive_ratio": 0.48833333333333334,
+            "purge_n_candidates": 10330,
+            "purge_n_kept": 2962,
+            "purge_n_inside_test": 600,
+            "purge_n_purged_by_overlap": 8,
+            "purge_n_embargoed": 30,
+            "purge_n_after_test": 192,
+            "purge_n_before_train_window": 6538
+          }
+        ],
+        "verdict": {
+          "status": "ARCHIVED",
+          "binding": [
+            "auc_below_threshold",
+            "filter_adds_no_net_value_through_the_engine"
+          ],
+          "rationale": "OOS-AUC 0.4826; conservatieve ondergrens 0.4097 en nominale ondergrens 0.4693, tegen de drempel 0.58. Netto Sharpe-delta door de engine -0.5022. CatBoost blijft `ARCHIVED` zoals \u00a724 vastlegt; de drempel wordt niet verlaagd en er wordt geen ander werkpunt gezocht waarop hij w\u00e9l wordt gehaald."
+        }
+      }
+    ]
+  },
+  "ledger_before": 2776,
+  "ledger_after": 2776,
+  "trials_booked_at_freeze": 6,
+  "ledger_unit": "phase6_h3_meta_labeling",
+  "ledger_config_hash": "56395fa201376801",
+  "artefact_path": "artefacts/governance/phase6_h3_meta_labeling.json"
+}

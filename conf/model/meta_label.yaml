@@ -1,0 +1,46 @@
+# conf/model/meta_label.yaml — H3, CatBoost als secondary model (deliverable 20)
+# Gevalideerd tegen schemas/config.py::MetaLabelConfig (extra="forbid", frozen).
+#
+# WAT HIER EEN ZOEKRUIMTE IS EN WAT NIET
+# =======================================
+# Alleen `depths` × `learning_rates` wordt doorzocht: 3 × 2 = 6 trials, exact
+# het `planned_trials` van pre-registratie 56395fa2013768014c0c915edf346770, en
+# die zes zijn bij het bevriezen al in de ledger geboekt.
+#
+# Alles daaronder staat op ÉÉN waarde. Een enkele waarde is geen search en
+# draagt geen trial — maar zij is wel een KEUZE, en daarom staat zij hier en
+# niet in code, waar niemand haar in een diff zou zien.
+#
+# Wat er expliciet NIET wordt gezocht, en waarom dat de kern van deze
+# hypothese is: de barrièrebreedtes. Die staan in conf/model/labeling.yaml op
+# 2σ / 2σ / 10 bars en blijven daar. Barrièrebreedtes zoeken tot de AUC de
+# drempel van 0,58 haalt, is de meest directe manier om deze hypothese te
+# vervalsen zonder het te merken.
+meta_label:
+  depths:         [3, 4, 6]
+  learning_rates: [0.03, 0.1]
+
+  # 500 iteraties met een learning rate van 0,03 is ~15 effectieve bomen aan
+  # signaal; met 0,1 aanzienlijk meer. Beide zijn ruim genoeg om op ~3.000
+  # events te overfitten, en dat is precies waarom de OOS-AUC de maat is en de
+  # in-sample AUC nergens in het rapport staat.
+  iterations:   500
+  l2_leaf_reg:  3.0
+
+  # ÉÉN thread. CatBoost's parallelle histogramreductie is niet volgordevast en
+  # levert bij meerdere threads verschillen in de laatste bits. Een AUC die je
+  # niet kunt herhalen, is geen bewijs — dezelfde reden waarom de HMM-fit zijn
+  # k-means-initialisatie kwijt is (AD-17).
+  thread_count: 1
+  seed:         20260830
+
+  # HET WERKPUNT VAN HET FILTER. 0,5 is de natuurlijke beslisgrens van een kans
+  # en is niet gezocht: er is niet geprobeerd welk werkpunt de mooiste
+  # precision/recall geeft. De volledige curve staat in het rapport, zodat een
+  # lezer ziet wat een ander werkpunt zou hebben gedaan — maar het oordeel valt
+  # op deze.
+  probability_threshold: 0.5
+
+  # De negatieve controle draait vijf keer met verschillende permutaties. Eén
+  # replicatie zou een toevallige uitschieter niet van een lek onderscheiden.
+  n_shuffle_replicates: 5

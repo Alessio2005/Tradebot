@@ -22,10 +22,22 @@ __all__ = ["SignalRunnerConfig", "SignalRunner"]
 class SignalRunnerConfig:
     """Configuration for the signal runner.
 
+    `min_confidence` BESTAAT HIER NIET MEER
+    ----------------------------------------
+    Tot Stage D onderdrukte deze runner elk signaal met `confidence < 0.55`,
+    met R-9 §9 als grondslag. Audit §14 sluit modelvertrouwen echter uit als
+    parameter die de positiegrootte bepaalt, en no-go 8 van de fase maakt dat
+    bindend. Een onderdrukkingspoort is daar een vorm van: een signaal dat wordt
+    weggefilterd levert exposure 0 op in plaats van de gesizede exposure, en dus
+    bepaalt het vertrouwen wel degelijk de grootte -- alleen in twee stappen.
+
+    De richting en de sterkte van het signaal bepalen de exposure; het
+    vertrouwen van het model doet dat niet meer. Wie een signaal wil
+    onderdrukken, doet dat in de alphalaag waar het signaal wordt gemaakt, niet
+    in de live-runner waar de backtest geen tegenhanger heeft.
+
     Parameters
     ----------
-    min_confidence :
-        Signals with confidence < this value are suppressed (R-9 §9).
     use_combiner :
         If True, combine signals with ICWeightedCombiner before returning.
         When both a LONG (signal>0) and SHORT (signal<0) result pass the
@@ -46,12 +58,10 @@ class SignalRunnerConfig:
 
     def __init__(
         self,
-        min_confidence: float = 0.55,
         use_combiner: bool = True,
         ic_lookback: int = 60,
         min_direction_delta: float = 0.02,
     ) -> None:
-        self.min_confidence = min_confidence
         self.use_combiner = use_combiner
         self.ic_lookback = ic_lookback
         self.min_direction_delta = min_direction_delta
@@ -122,8 +132,7 @@ class SignalRunner:
                     result = sig.predict(features, bar_ts=bar_ts)
                 except TypeError:
                     result = sig.predict(features)
-                if result.confidence >= self._cfg.min_confidence:
-                    raw_results.append(result)
+                raw_results.append(result)
             except Exception as exc:
                 # Phase 0: hier verdween een falend signaal STIL uit het boek.
                 # De combiner rekende daarna met minder signalen dan
@@ -251,7 +260,7 @@ class SignalRunner:
                     result = predict_fn(features, bar_ts=bar_ts)
                 except TypeError:
                     result = predict_fn(features)
-                if result is not None and result.confidence >= self._cfg.min_confidence:
+                if result is not None:
                     raw_results.append(result)
             except Exception as exc:
                 # Phase 0: idem predict() - een falend signaal mag niet stil uit

@@ -29,7 +29,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Coroutine
 from dataclasses import dataclass
+from typing import Any
 
 import pandas as pd
 
@@ -208,6 +210,15 @@ class Feed:
         # Track last 8h-boundary already paid out per symbol so we never
         # double-bill within one funding interval.
         self._last_funding_bar_id: dict[str, int] = {}
+        # DI-7 / Stage D-3: achtergrondtaken worden VASTGEHOUDEN. `asyncio`
+        # bewaart alleen een zwakke referentie naar een draaiende task; wordt de
+        # sterke referentie weggegooid, dan mag de GC hem opruimen en verdwijnt
+        # de feed- of pollerlus zonder spoor. Dat is een stille degradatie in de
+        # laag die de koersen levert.
+        self._tasks: set[asyncio.Task[None]] = set()
+        #: De eerste uitzondering die een achtergrondtaak heeft laten vallen.
+        #: Zonder dit veld sterft een task in stilte: niemand await hem.
+        self._task_failure: BaseException | None = None
 
     # ------------------------------------------------------------------
     # Public control
@@ -223,17 +234,17 @@ class Feed:
         """
         self._running = True
         if self._cfg.paper_mode:
-            asyncio.create_task(self._replay())
+            self._spawn(self._replay(), "feed.replay")
         else:
-            asyncio.create_task(self._live_ws_aggtrade())
+            self._spawn(self._live_ws_aggtrade(), "feed.ws_aggtrade")
             # F1 — book-ticker stream is independent; it just updates an
             # in-memory map.  Engine reads from get_best_quote() per bar.
-            asyncio.create_task(self._live_ws_bookticker())
+            self._spawn(self._live_ws_bookticker(), "feed.ws_bookticker")
             # F2 — funding poller (Bybit linear tickers REST). Skip when
             # TRADEBOT_FEED_SPOT_FALLBACK=1 (spot has no funding rate).
             import os as _os
             if _os.environ.get("TRADEBOT_FEED_SPOT_FALLBACK", "0") != "1":
-                asyncio.create_task(self._live_funding_poller())
+                self._spawn(self._live_funding_poller(), "feed.funding_poller")
             else:
                 logger.warning(
                     "Feed: spot fallback active — funding poller disabled "
@@ -242,6 +253,52 @@ class Feed:
 
     async def stop(self) -> None:
         self._running = False
+        for task in list(self._tasks):
+            task.cancel()
+
+    # ------------------------------------------------------------------
+    # DI-7 — achtergrondtaken vasthouden en hun einde opmerken
+    # ------------------------------------------------------------------
+
+    def _spawn(self, coro: Coroutine[Any, Any, None], name: str,
+               ) -> asyncio.Task[None]:
+        """Start een achtergrondtaak en HOUD de referentie vast.
+
+        `asyncio.create_task` geeft de loop een zwakke referentie; de sterke
+        referentie is de returnwaarde. Wie die weggooit, laat de GC beslissen of
+        de taak blijft leven. Zie DI-7.
+        """
+        task = asyncio.create_task(coro, name=name)
+        self._tasks.add(task)
+        task.add_done_callback(self._on_task_done)
+        return task
+
+    def _on_task_done(self, task: asyncio.Task[None]) -> None:
+        """Ruim de referentie op en maak een gevallen taak ZICHTBAAR.
+
+        Er is niemand die deze taken await, dus een uitzondering zou anders
+        alleen in de destructor van de Future opduiken. Hij wordt hier
+        vastgelegd zodat :pyattr:`task_failure` hem kan tonen en de engine erop
+        kan halteren, en hij gaat op CRITICAL naar het log.
+        """
+        self._tasks.discard(task)
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is None:
+            return
+        if self._task_failure is None:
+            self._task_failure = exc
+        logger.critical(
+            "Feed: achtergrondtaak %s is gevallen: %r. De feed levert vanaf nu "
+            "geen of onvolledige data; dit is een halteerbare toestand, geen "
+            "waarschuwing.", task.get_name(), exc,
+        )
+
+    @property
+    def task_failure(self) -> BaseException | None:
+        """De eerste uitzondering uit een achtergrondtaak, of `None`."""
+        return self._task_failure
 
     # ------------------------------------------------------------------
     # F1 — Best-quote accessor (consumed by engine for PaperOMS spread)

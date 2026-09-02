@@ -293,3 +293,45 @@ stages:
       - reports/M0_VS_HMM_BENCHMARK.md:
           cache: false
 
+  # H3 leest de HYPOTHESIS-LEDGER en drukt `M` in zijn rapport af. Die staat
+  # daarom in `deps`: verandert `M`, dan verandert de uitvoer, en een stage die
+  # dat niet weet meldt "up to date" terwijl een herdraai iets anders oplevert.
+  # `phase6_h2_regime_benchmark` mist die dep en heeft hetzelfde probleem; dat
+  # staat als bevinding in het exit-rapport in plaats van dat het hier
+  # stilzwijgend wordt meegerepareerd -- H2 opnieuw laten draaien is een besluit
+  # en geen bijvangst van deze stage.
+  phase6_h3_meta_labeling:
+    cmd: python apps/run_meta_labeling.py
+    deps:
+      - apps/run_meta_labeling.py
+      - src/tradebot/train/meta_label.py
+      - src/tradebot/validation/meta_label_campaign.py
+      - src/tradebot/validation/feature_importance.py
+      - src/tradebot/labeling/phase6_barriers.py
+      - src/tradebot/backtest/regime_overlay.py
+      - src/tradebot/backtest/phase5_baseline.py
+      - src/tradebot/backtest/baseline_runner.py
+      - src/tradebot/features/registry.py
+      - src/tradebot/features/microstructure.py
+      - src/tradebot/reporting/phase6_meta_labeling.py
+      - src/tradebot/data/phase6_universe.py
+      - artefacts/governance/phase6_data_adequacy.json
+      - artefacts/governance/hypothesis_ledger.json
+      - artefacts/governance/preregistration_56395fa2013768014c0c915edf346770.json
+      - data/pit_store
+      - conf/model/meta_label.yaml
+      - conf/model/labeling.yaml
+      - conf/model/alpha.yaml
+      - conf/model/volatility.yaml
+      - conf/features/default.yaml
+      - conf/data/default.yaml
+      - conf/backtest/default.yaml
+      - conf/risk/default.yaml
+      - conf/execution/fees.yaml
+      - conf/execution/impact.yaml
+      - conf/validation/default.yaml
+    outs:
+      - artefacts/governance/phase6_h3_meta_labeling.json:
+          cache: false
+      - reports/META_LABELING_EVALUATION.md:
+          cache: false

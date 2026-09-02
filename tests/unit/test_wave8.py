@@ -420,7 +420,9 @@ class TestCircuitBreaker:
         state.last_feed_ts = now
         cb.check(now)
         assert cb.is_active
-        cb.reset()
+        # STAGE D, C2: een reset vereist een operator en een motivering; zij
+        # gaat door `HaltStore.release` en wordt gejournaliseerd.
+        cb.reset(operator="test-operator", justification="unit test")
         assert not cb.is_active
 
     def test_trips_on_hash_mismatch(self):

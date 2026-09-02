@@ -110,8 +110,22 @@ class LiveEngineConfig:
         self.mode = EngineMode(mode)
         self.interval = interval
         self.audit_log_path = audit_log_path
-        self.cb_config = cb_config or CircuitBreakerConfig()
-        self.ec_config = ec_config or ExecutionControllerConfig()
+        # PHASE 7/8 STAGE D (C1/C3/C4): de soevereine policy wordt EEN keer
+        # geladen en door alle drie de controllers gebruikt. Tot Stage D droeg
+        # elk van hen zijn eigen kopie van de drempels -- `CircuitBreakerConfig`
+        # had `max_drawdown_pct = 0.08` in code staan, gelijk aan `conf/` en
+        # zonder enig mechanisme dat ze gelijk hield -- en bouwde
+        # `ExecutionControllerConfig()` zich op zonder limiet, want
+        # `_max_gross_notional` bleef `float("inf")` omdat niets in de boom hem
+        # ooit zette. Zie `reports/phase7_divergence_map.md` §4.
+        risk_policy = load_config(
+            Path(__file__).resolve().parents[3]
+            / "conf" / "risk" / "default.yaml",
+            RiskConfig,
+        )
+        self.cb_config = cb_config or CircuitBreakerConfig.from_risk_config(
+            risk_policy)
+        self.ec_config = ec_config or ExecutionControllerConfig(risk=risk_policy)
         # PHASE 5: `PortfolioControllerConfig()` had een impliciete
         # concentratielimiet (`max_weight=0.40`) die NIET uit `conf/risk/` kwam
         # (wiring audit C5). De fallback bouwt hem nu uit de soevereine policy,
@@ -127,13 +141,7 @@ class LiveEngineConfig:
         # volatility.
         self.pc_config = pc_config or PortfolioControllerConfig(
             method="erc",
-            constraints=PortfolioConstraints.from_risk_config(
-                load_config(
-                    Path(__file__).resolve().parents[3]
-                    / "conf" / "risk" / "default.yaml",
-                    RiskConfig,
-                )
-            )
+            constraints=PortfolioConstraints.from_risk_config(risk_policy),
         )
         self.sr_config = sr_config or SignalRunnerConfig()
         self.fu_config = fu_config or FeatureUpdaterConfig()
