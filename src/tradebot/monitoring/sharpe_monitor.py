@@ -53,16 +53,38 @@ class LiveSharpeMonitor:
         arr = np.array(self._returns, dtype=np.float64)
         live_sharpe = self._compute_sharpe(arr)
 
-        degradation_sigmas = (
-            (self.backtest_sharpe - live_sharpe) / self.backtest_sharpe_std
-        )
-
         result = {
             "live_sharpe": live_sharpe,
             "backtest_sharpe": self.backtest_sharpe,
-            "degradation_sigmas": degradation_sigmas,
             "n_trades": self._n_trades,
         }
+
+        # GEEN OORDEEL is niet hetzelfde als een SLECHT oordeel.
+        # `_compute_sharpe` gaf 0,0 terug wanneer de Sharpe niet bestaat -- bij
+        # nulvariantie. Dat getal is hier niet neutraal maar het SLECHTST
+        # denkbare: met een baseline van 1,5 en sigma 0,25 leest een Sharpe van
+        # 0,0 als 6 sigma degradatie, en de monitor sloot het boek. Een reeks
+        # van 25 winstgevende trades van +1 % heeft variantie nul en werd zo
+        # afgestraft als een ramp; een boek dat stilstaat (louter
+        # nulrendementen) net zo goed. De poort vuurde dus juist in de gevallen
+        # waarin hij niets had gemeten. Spiegelbeeld van de fout in
+        # `vol_forecast_monitor` -- daar las "geen oordeel" als groen, hier als
+        # rood -- en van de twee is deze de duurdere, want hij handelt.
+        if not math.isfinite(live_sharpe):
+            result["degradation_sigmas"] = float("nan")
+            result["conclusive"] = False
+            result["halt_triggered"] = False
+            logger.warning(
+                "Live Sharpe is niet gedefinieerd over %d trades (variantie "
+                "nul). Geen oordeel, en dus GEEN halt.", self._n_trades,
+            )
+            return result
+
+        degradation_sigmas = (
+            (self.backtest_sharpe - live_sharpe) / self.backtest_sharpe_std
+        )
+        result["degradation_sigmas"] = degradation_sigmas
+        result["conclusive"] = True
 
         if degradation_sigmas >= self.sigma_halt_threshold:
             msg = (
@@ -92,9 +114,30 @@ class LiveSharpeMonitor:
 
     @staticmethod
     def _compute_sharpe(returns: np.ndarray, annualization: float = 252.0) -> float:
+        """De live Sharpe, of NaN wanneer hij niet bestaat.
+
+        NaN en niet 0,0. Een Sharpe is een verhouding tot de spreiding; is die
+        spreiding nul, dan is de verhouding ongedefinieerd en niet "nul". De
+        aanroeper moet dat onderscheid kunnen maken, want 0,0 is hier geen
+        neutrale waarde maar de waarde die de grootste degradatie oplevert --
+        zie `record_trade_return`.
+        """
         if len(returns) < 2:
-            return 0.0
+            return float("nan")
         std = float(np.std(returns, ddof=1))
-        if std <= 0:
-            return 0.0
+        if not math.isfinite(std):
+            return float("nan")
+        # De ruisvloer, AFGELEID en niet gekozen. Een toets op `std <= 0.0`
+        # is niet genoeg: n identieke waarden geven in exacte rekenkunde
+        # precies nul, maar in float64 een opgetelde afrondingsfout. GEMETEN:
+        # 25 rendementen van -0,02 leveren `std ~ 1e-18` op, en daarmee een
+        # Sharpe van -8,9e16 en een "degradatie" van 3,6e17 sigma. Dat getal is
+        # finiet, dus een `isfinite`-poort laat het door -- en het is ook nog
+        # eens de kant op die haltert. Alles onder n * eps * schaal is
+        # rekenruis en geen spreiding; dezelfde afleiding als de exactheids-
+        # tolerantie in `vol_forecast_monitor._mz_verdict_is_bias`.
+        scale = float(np.max(np.abs(returns)))
+        noise_floor = len(returns) * float(np.finfo(np.float64).eps) * scale
+        if std <= noise_floor:
+            return float("nan")
         return float(np.mean(returns) / std * math.sqrt(annualization))

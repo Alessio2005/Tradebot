@@ -1,7 +1,13 @@
 # PHASE 7/8 — EXIT REPORT: CONSOLIDATIE, PRODUCTION READINESS & OPLEVERING
 
-> **Deliverable E-5** · afgesloten 2026-09-01
-> **git_sha bij afsluiting:** `df96805` plus de niet-gecommitte Stage C/D/E-boom
+> **Deliverable E-5** · afgesloten 2026-09-01, **herzien 2026-09-02**
+> **git_sha bij afsluiting:** `2964c69` (de Stage C/D/E-boom is gecommit; bij de
+> eerste versie van dit rapport stond hij nog los, op `df96805`)
+> **Herziening 2026-09-02:** een externe code-review over de volledige
+> Stage C/D/E-boom vond elf defecten die deze fase zelf had aangebracht of
+> aangeraakt, waarvan vijf in het haltpad. Zij staan in §4.9 t/m §4.14, en §0
+> en §2 zijn erop bijgesteld. Dit rapport is daarmee zijn eigen belangrijkste
+> bevinding: de poort die deze fase bouwde, droeg zelf het defect.
 > **Meetregel:** elk cijfer in dit rapport is op 2026-09-01 gemeten. Waar een
 > eerdere meting afweek, staat de afwijking erbij en **prevaleert de nieuwe**.
 
@@ -25,6 +31,14 @@ Wat er wél staat: drie beslist hypothesen, een live-keten waarvan de
 risicolimieten voor het eerst uit de soevereine policy komen, een HALT die niet
 meer met de klok verloopt, en een documentatiegate die drift tegenhoudt in
 plaats van hem op te ruimen.
+
+**En één bevinding die boven de rest uit steekt.** Bij de review van 2026-09-02
+bleek dat haltpad bij een gemeten Sharpe-degradatie helemaal niet af te gaan: de
+monitor riep een methode aan die niet bestond en stierf aan een
+`AttributeError`, terwijl drie exit-criteria (D3, D4, D9) er groen boven stonden.
+Zij stonden groen omdat elk van die tests de vorm van de code toetste en niet de
+werking ervan. Dat is de belangrijkste les van deze fase, en zij gaat over de
+poorten en niet over de handel — §4.9.
 
 Wat er niet staat: één codepad. `live/` en de Phase 5-keten zijn nog steeds twee
 ketens, en zolang dat zo is, kan de 60-daagse klok niet zinvol lopen.
@@ -75,14 +89,22 @@ bit-identiek artefact (`md5 7e78b12305533aa53f17ad7345e8fd46`).
 | Criterium | Status | Bewijs |
 |---|---|---|
 | **D2** — geen limiet defaultet naar oneindig | **groen** | `tests/unit/test_live_limits_are_sovereign.py` |
-| **D3** — DI-7 gesloten | **groen** | `tests/unit/test_background_tasks_are_held.py` |
-| **D4** — `AlertSeverity` kent `HALT` | **groen** | `tests/unit/test_alert_halt_severity.py` |
+| **D3** — DI-7 gesloten | **groen**, herzien | `test_background_tasks_are_held.py` + `test_external_monitors_can_actually_halt.py` |
+| **D4** — `AlertSeverity` kent `HALT` | **groen**, herzien | `test_alert_halt_severity.py`; `send_alert` faalt nu hoorbaar (§4.11) |
 | **D5** — drempels gehasht vóór de klok | **groen** | `artefacts/governance/monitoring_config_hash.json` |
-| **D9** — `HALTED` overleeft een herstart | **groen** | `tests/unit/test_live_halt_is_irreversible.py` |
+| **D9** — `HALTED` overleeft een herstart | **groen**, herzien | `test_live_halt_is_irreversible.py`, nu ook via de externe weg en zonder afhankelijkheid van de werkdirectory (§4.10) |
 | **D1** — één codepad | **rood** | `reports/phase7_divergence_map.md` |
 | **D6** — de vier chaos-skips | **rood** | ongewijzigd; zij vragen D1 |
 | **D7** — dagelijkse bit-identieke pariteit | **niet toetsbaar** | zie §2.2 |
 | **D12** — runbook getoetst door een tweede persoon | **rood** | het runbook is niet herschreven |
+
+> **Herzien 2026-09-02.** D3, D4 en D9 stonden groen terwijl het haltpad bij een
+> gemeten degradatie een `AttributeError` wierp in plaats van het boek te
+> sluiten. Alle drie de tests toetsten de VORM en niet het GEDRAG; zie §4.9.
+> Zij zijn nog steeds groen, maar nu op grond van een test die een degradatie
+> door een echte monitor een echte breaker in rijdt en daarna kijkt of het boek
+> dicht staat. **Dat een criterium groen is, zegt pas iets als de test rood kan
+> worden om de reden waarvoor het criterium bestaat.**
 
 ### 2.1 De twee gevaarlijkste bevindingen in de live-keten
 
@@ -143,8 +165,13 @@ het project voor het eerst probeert.
 ## 4. Wat er tijdens deze fase mis bleek in mijn eigen werk
 
 Phase 5 vond vijf van zijn negen defecten in de bewijsvoering zelf. Deze fase
-vond er **elf**, en dat is geen toeval: hoe strenger de poort, hoe vaker de
-poort zelf het defect draagt.
+vond er eerst **elf** (§4.1–§4.8), en bij de review van 2026-09-02 nog eens
+**elf** (§4.9–§4.14). Totaal **22**. Dat is geen toeval: hoe strenger de poort,
+hoe vaker de poort zelf het defect draagt.
+
+**De tweede reeks weegt zwaarder dan de eerste.** Vijf van de elf zitten in het
+haltpad — het mechanisme waar de hele productieclaim van deze fase op rust — en
+zij overleefden drie groene exit-criteria. Dat is het onderwerp van §4.9.
 
 ### 4.1 Het rapport kende zijn conclusie voordat de campagne had gedraaid
 
@@ -246,6 +273,137 @@ ongekalibreerde `eta = 0,142`, omdat `live/portfolio_controller.py`
 en preciezer. Zonder die controle had er een onwaarheid in een governance-rapport
 gestaan.
 
+### 4.9 Drie groene criteria op een halt die niet kon afgaan
+
+Dit is de ernstigste bevinding van de fase, en zij was groen afgetekend.
+
+`LiveSharpeMonitor.check` riep bij een gemeten degradatie
+`circuit_breaker.trip(...)` aan. **Die methode bestond niet.** De breaker kende
+alleen het private `_trip`, en dat verwacht sinds Stage D een `_Breach` en geen
+string. Een live Sharpe voorbij de haltdrempel wierp dus een `AttributeError` op
+precies het moment dat het boek dicht moest — de monitor stierf aan de handeling
+waarvoor hij bestond.
+
+Erger dan het defect is wat eromheen gebeurde. Stage D ging **deze regel
+bewerken** voor DI-7: de taakreferentie wordt nu vastgehouden zodat de GC hem
+niet kan opruimen *"— een HALT die niet komt, precies wanneer hij nodig is"*.
+Die commentaarregel staat boven een aanroep die per constructie nooit kon
+draaien. Er is zorgvuldig werk verricht aan het vasthouden van een taak die niet
+bestond.
+
+**Waarom D3, D4 en D9 dit niet zagen.** Alle drie meten de VORM, niet het
+GEDRAG:
+
+| Criterium | Wat de test doet | Wat hij daardoor niet ziet |
+|---|---|---|
+| D3 | AST-wandeling: geen `create_task` wordt weggegooid | of de aangeroepen methode bestaat |
+| D4 | bouwt een `AlertRouter` **mét** `HaltStore` | de module-level `send_alert`, die er geen heeft |
+| D9 | laat de breaker zichzelf trippen via `check()` | elke EXTERNE aanroeper |
+
+Niets in de suite reed een degradatie door een echte monitor een echte breaker
+in en keek daarna of het boek dicht stond. Dat gat is nu gedicht met
+`tests/unit/test_external_monitors_can_actually_halt.py`, dat uitsluitend de
+uitkomst toetst. Op de toestand van vóór de reparatie faalt hij niet met een
+assertion maar met `AttributeError: 'CircuitBreaker' object has no attribute
+'trip'` — dezelfde fout die live zou zijn opgetreden.
+
+**En een regressie die deze fase zelf aanbracht.** `live/exchange_status.py`
+riep `_trip("exchange_status:bybit:…", ts=…)` aan. Bij `df96805` was dat
+correct: `_trip(reason: str, ts)`. Stage D gaf `_trip` een `_Breach` — een goede
+wijziging, want een reden zonder getallen maakt een post-mortem tot giswerk —
+en brak daarmee de aanroeper. Het exchange-haltpad was tussen `df96805` en de
+review dus stuk, en het is stuk gegaan dóór de verbetering. Er is nu één
+publieke, getypeerde `trip()`, en een test die verbiedt dat een aanroeper het
+private pad neemt.
+
+### 4.10 De halt-state hing aan de werkdirectory
+
+`_HALT_STORE_PATH` was `Path("artefacts/risk/halt_state.json")` — relatief aan
+`os.getcwd()`, terwijl `live/engine.py`, `schemas/config.py` en
+`apps/freeze_monitoring.py` hun soevereine paden alle drie vanaf `__file__`
+afleiden.
+
+Dat is dodelijk in combinatie met §2.1. Nu het 24-uursvenster weg is, is dat
+bestand de **enige** bron voor "staan we stil". Start het live-proces vanuit een
+andere map — een systemd-unit zonder `WorkingDirectory`, een cron-job, een
+submap — dan vindt `_refuse_start_when_halted()` niets, begint het te handelen
+terwijl het boek gesloten hoort te zijn, en schrijft de volgende trip in een
+tweede, ongerelateerd bestand.
+
+§4.7 beschrijft dezelfde regel, één pas eerder gezien: daar ging het erom dat
+`conftest.py` alleen het oude logbestand isoleerde. De conclusie toen was *"een
+val die ik zelf bijna zette"*. De val stond er nog; ik had hem half gezien en
+voor gesloten aangezien.
+
+### 4.11 `AlertSeverity.HALT` kon via de gewone weg alleen crashen
+
+D4 is groen: een `AlertRouter` mét `HaltStore` sluit het boek zonder te vragen.
+Maar `send_alert()` — de gemakkelijke functie die de rest van de boom gebruikt —
+bouwt bij de eerste aanroep lui een `AlertRouter()` **zonder** store. En omdat
+`_engage_halt` vóór de logregel en vóór Slack draait, verdween bij een `HALT`
+langs die weg ook het ALARM: geen log, geen Slack, alleen een
+`ConfigContractError` bij wie hem toevallig opving. Het dringendste niveau dat
+dit systeem kent, was langs de gewoonste weg het stilste.
+
+Nu logt `_engage_halt` eerst `CRITICAL` en crasht daarna, en
+`configure_default_router()` geeft het opstartpad een manier om de store wél te
+zetten. Falen mag, maar niet onhoorbaar.
+
+### 4.12 De vol-forecastmonitor gaf groen op een dode forecast
+
+`qlike()` is NaN waar de forecast niet strikt positief is. Ontspoort de live-
+estimator naar nul of negatief, dan is `nanmean` NaN, is `ratio` NaN, is
+`NaN > drempel` **False**, blijft `breached` leeg — en ging het oordeel als
+`is_conclusive=True` de deur uit. Een volledig kapotte estimator kwam er als
+schoon uit.
+
+De klassedocstring van `VolForecastVerdict.is_conclusive` verbiedt dat met
+zoveel woorden: *"Een monitor die zwijgt omdat hij niets weet, mag niet worden
+gelezen als een monitor die groen staat."* De regel stond er; de code hield zich
+er niet aan. §4.5 repareerde in deze zelfde monitor de fout de andere kant op —
+een vals HALT op een perfecte forecast. Beide keren was de vraag "wat doet deze
+poort op een degeneraat geval?" en beide keren was het antwoord fout.
+
+### 4.13 En dezelfde fout, één monitor verderop, gevonden door een negatieve controle
+
+Bij het schrijven van de test uit §4.9 zette ik er een negatieve controle naast:
+25 winstgevende trades van +1 %, en het boek hoort open te blijven. **Hij
+faalde.** De monitor haltteerde.
+
+`_compute_sharpe` gaf `0.0` terug zodra de standaarddeviatie nul was. Dat getal
+is hier niet neutraal maar het slechtst mogelijke: tegen een baseline van 1,5
+met sigma 0,25 leest een Sharpe van 0,0 als **6,0 sigma degradatie**, ruim over
+de drempel van 2,0. Een perfect winstgevend boek werd gesloten omdat het te
+constant was. Een boek dat stilstaat — louter nulrendementen — net zo goed.
+
+Bij het repareren bleek de bodem er nog onder te zitten. Een toets op
+`std <= 0.0` is niet genoeg: 25 identieke rendementen van −0,02 geven in float64
+geen nul maar `std ~ 1e-18`, en daarmee een Sharpe van **−8,9e16** en een
+"degradatie" van 3,6e17 sigma. Dat getal is *finiet*, dus ook een
+`isfinite`-poort laat het door — en het wijst de kant op die haltert. De grens
+ligt nu op `n * eps * schaal`, afgeleid uit de rekenkunde zelf en niet gekozen,
+dezelfde afleiding als de exactheidstolerantie in `_mz_verdict_is_bias`.
+
+Dit is §4.12 in spiegelbeeld: daar las "geen oordeel" als groen, hier als rood.
+Van de twee is deze de duurdere, want groen laat een systeem doorlopen dat al
+liep, en rood grijpt in. Het is bovendien de enige bevinding in dit hoofdstuk
+die niet uit de review kwam maar uit een negatieve controle die ik zelf naast
+een test zette — precies waarvoor negatieve controles er zijn, en de reden dat
+no-go 12 ze verplicht stelt.
+
+### 4.14 Vijf in het Stage C-werk, alle vijf latent
+
+Geen van deze vijf raakt een gepubliceerd cijfer; alle vijf zouden bij de
+volgende parameterkeuze wél zijn gaan tellen.
+
+| Bevinding | Waar | Waarom het vandaag niet bijt |
+|---|---|---|
+| Het verdwijnpunt van de spread werd gezocht onder spreads **onder** de basis; de vraag is waar een winst verdwijnt als de spread OPLOOPT | `validation/regime_benchmark.py` | de sweep begint toevallig op de basis (1,0 bp); elke basis daarboven had een verzonnen verdwijnpunt en een FALSIFIED-oordeel opgeleverd |
+| De UNPROVEN-motivering beweerde onvoorwaardelijk dat de opzet het effect niet kon zien, met het power-getal dat het kon tegenspreken ernaast | `validation/regime_benchmark.py` | H2's power haalde de drempel niet, dus de zin klopte toevallig — en die tekst gaat het grootboek in |
+| `covars_.reshape(k, -1)` is fout voor `covariance_type="diag"` boven één feature: hmmlearn 0.3.3 geeft de property altijd als (k, d, d) | `regime/markov.py` | H2 schat univariate returns (d = 1); bit-identiek na de reparatie, dus H2 staat niet ter discussie |
+| `m0_multiplier` schreef door `DataFrame.values` heen | `regime/conditioning.py` | werkt zolang pandas een view teruggeeft; onder Copy-on-Write (default in 3.0, en de pin is `<3.0`) een `ValueError` |
+| MDI en SFI vulden hetzelfde `per_fold`-veld met getransponeerde vormen | `validation/feature_importance.py` | niets buiten de module leest het veld — nog niet |
+
 ---
 
 ## 5. Wat er in bestaand werk is gevonden
@@ -265,6 +423,10 @@ Naast de eigen defecten, gevonden en gerepareerd of geregistreerd:
 | `model_risk_policy.md` beweerde in de tegenwoordige tijd een sign-off-log bij te houden dat niet bestaat | `docs/model_risk_policy.md` |
 | `GarchAdequacyConfig` declareerde `max_forecast_level_ratio` twee keer; de CI-mypy-stap stond daardoor rood | `schemas/config.py` |
 | `phase6_h2_regime_benchmark` mist `hypothesis_ledger.json` in `deps` terwijl zijn rapport `M` afdrukt | `dvc.yaml` (DI-22) |
+| `sharpe_monitor` riep een `trip()` aan die op de breaker niet bestond; al zo bij `df96805` | `monitoring/sharpe_monitor.py` (§4.9) |
+| `_compute_sharpe` gaf 0,0 bij nulvariantie — het getal dat de grootste degradatie oplevert | `monitoring/sharpe_monitor.py` (§4.13) |
+| `apps/live_paper_trader.py` bouwde zijn breaker-drempels nog met de hand, in de app die daadwerkelijk handelt | `apps/live_paper_trader.py` |
+| `.PHONY` noemde twee verwijderde targets en miste `baseline` en `reproduce` | `Makefile` |
 
 ---
 
@@ -298,9 +460,16 @@ De vier failures zijn de pre-geregistreerde killgates op `cm_carry` en
 `cm_tsmom`. Zij horen rood te staan. **Een suite met minder dan vier failures
 betekent dat er een killgate is uitgeschakeld, niet dat er iets is opgelost.**
 
-Nieuwe tests in deze fase: **116**, verdeeld over negen bestanden. Elke detector
-draagt zijn eigen negatieve controle en is aantoonbaar rood geweest op de
-toestand van vóór de reparatie.
+Nieuwe tests in deze fase: **138**, verdeeld over tien bestanden — 116 in de
+eerste ronde, **22** bij de review van 2026-09-02 (11 in
+`test_external_monitors_can_actually_halt.py`, en 5, 4 en 2 toegevoegd aan de
+sovereign-, vol-forecast- en halt-testbestanden). Elke detector draagt zijn eigen
+negatieve controle en is aantoonbaar rood geweest op de toestand van vóór de
+reparatie — voor de haltpad-tests met de `AttributeError` die live zou zijn
+opgetreden, niet met een assertion.
+
+Eén van die negatieve controles vond zelf een defect (§4.13). Dat is het
+argument voor de regel, niet een uitzondering erop.
 
 ---
 

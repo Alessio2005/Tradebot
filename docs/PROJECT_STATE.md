@@ -1,8 +1,18 @@
 # PROJECT STATE — Tradebot
 
-> **Geverifieerd tegen de codebase op 2026-09-01** (Phase 7/8, Stage E-4).
-> Elk cijfer hieronder is op die datum gemeten, niet uit een eerder rapport
-> overgenomen. Waar iets niet is gemeten, staat dat er.
+> **Geverifieerd tegen de codebase op 2026-09-01** (Phase 7/8, Stage E-4),
+> **herzien op 2026-09-02** na een externe review over de volledige Stage
+> C/D/E-boom. Elk cijfer hieronder is op die datum gemeten, niet uit een eerder
+> rapport overgenomen. Waar iets niet is gemeten, staat dat er.
+
+> **Lees dit eerst als je het project overneemt.** De review vond elf defecten
+> in het werk van deze fase, waarvan vijf in het haltpad — inclusief een halt
+> die bij een gemeten degradatie niet afging terwijl drie exit-criteria er
+> groen boven stonden. Zij zijn gerepareerd en met gedragstests afgedekt
+> (`reports/phase7_8_exit_report.md` §4.9–§4.14). De les die je meeneemt: in
+> deze repository is een groen criterium pas bewijs als de bijbehorende test
+> rood kan worden om de reden waarvoor het criterium bestaat. Een AST-test die
+> de vorm van een aanroep controleert, is dat niet.
 
 > **Doel van dit document.** Eén plek waar staat wat dit platform is, wat er
 > aantoonbaar waar is, wat er aantoonbaar NIET waar is, welke besluiten
@@ -30,6 +40,8 @@ point-in-time store met per reeks een hash.
 | Er is één authoritative backtest-engine | `backtest/engine.py`; de vier overlappende engines zijn in Phase 5 verwijderd na een pariteitsbewijs (`tests/integration/test_engine_parity.py`) |
 | De risicolaag is soeverein in de BACKTEST | `risk/engine.py` → `RiskDecision`; `execution/order_router.py` weigert te bouwen zonder |
 | Kill switches zijn onherroepelijk | `risk/kill_switches.py::HaltStore`; opheffen vereist een operator én een motivering |
+| Kill switches gáán ook daadwerkelijk af | `tests/unit/test_external_monitors_can_actually_halt.py` rijdt een degradatie door een echte monitor een echte breaker in; vóór 2026-09-02 was dit alleen op vorm getoetst |
+| De halt-state hangt niet aan de werkdirectory | `live/circuit_breaker.py` leidt beide paden af van `__file__`; subprocestest vanuit een andere map |
 | Elke hypothese is vooraf geregistreerd | `artefacts/governance/preregistration_*.json`, bevroren vóór de eerste fit |
 | `M` wordt eerlijk geteld | `artefacts/governance/hypothesis_ledger.json`, append-only, **M = 2776** |
 | Drie fase-6 hypothesen zijn beslist | H1, H2, H3 — alle drie met een ledger-amendement en een rapport |
