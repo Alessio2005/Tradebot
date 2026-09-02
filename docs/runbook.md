@@ -1,5 +1,13 @@
 # Runbook — Tradebot live engine
 
+> **Gecontroleerd op 2026-09-01** (Phase 7/8, Stage E-3).
+> **LET OP — dit document is NIET geverifieerd.** Het beschrijft het
+> Wave-tijdperk en niet het systeem dat Phase 5 heeft gebouwd. Stage D-4
+> schrijft een herschrijving voor, getoetst doordat een tweede persoon het
+> systeem er uitsluitend op start, halteert en herstart. Die herschrijving
+> is nog niet gedaan; tot dat moment is dit document onbetrouwbaar voor
+> operationeel gebruik.
+
 > **STATUS — Phase 7/8, Stage A-2.** Alles ónder §0 beschrijft nog het
 > **Wave-tijdperk** en niet het systeem dat Phase 5 heeft gebouwd: de beslisboom
 > hangt aan `state/circuit_log.jsonl` en `live.mode`, terwijl de soevereine

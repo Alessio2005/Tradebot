@@ -1,5 +1,8 @@
 # MULTI-ASSET EXPANSION RESEARCH — Setup B (Commodities) & Setup C (Equities)
 
+> **GEARCHIVEERD — historisch document.** Dit is een verslag van de expansie-research van augustus 2026 en beschrijft de toestand van toen. Het wordt NIET bijgewerkt: de paden en artefacten die het noemt, zijn die van die periode en bestaan grotendeels niet meer. Voor de huidige toestand, zie `docs/PROJECT_STATE.md`.
+> *Als historisch gemarkeerd op 2026-09-01 (Phase 7/8, Stage E-3).*
+
 **Author:** Lead Quantitative Researcher / Systems Architect (agent)
 **Date:** 2026-08-10
 **Input:** "Tradebot Multi-Asset Research Prompt v2.0"

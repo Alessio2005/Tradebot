@@ -1,5 +1,10 @@
 # TCA methodology — Tradebot v1.0
 
+> **Geverifieerd tegen de codebase op 2026-09-01** (Phase 7/8, Stage E-3).
+> GEMETEN: de paden rond `apps/calibrate_impact.py` zijn gecorrigeerd
+> naar wat de app werkelijk schrijft, en de genoemde consument
+> `pre_trade.estimate_cost` bestaat nergens in `src/`.
+
 Reference for the `tradebot.tca` package. Notation follows Almgren-Chriss
 (2000) and Perold (1988) Implementation-Shortfall.
 
@@ -78,6 +83,17 @@ The report is uploaded as a workflow artefact by `nightly-regression.yml`.
 | `spread_t`    | per bar   | live exchange book / fallback to OHLC half-range |
 | `ADV_t`       | daily     | trailing 30-day median quote volume              |
 
-`apps/calibrate_impact.py` produces the new coefficients and writes them
-under `artefacts/tca/coefficients.yaml`. The values are consumed by
-`pre_trade.estimate_cost` via Hydra (`conf/tca/default.yaml`).
+`apps/calibrate_impact.py` produces the new coefficients and writes them to
+`artefacts/execution/impact_params.json`, with the accompanying report in
+`reports/TCA_CALIBRATION_REPORT.md`. The BINDING values live in
+`conf/execution/impact.yaml` (`eta`, `kappa_d`, plus provenance: `status`,
+`data_hash`, `sample_size`, `eta_ci_low`/`eta_ci_high`) and are consumed by
+`execution/impact_model.py::square_root_impact`, which refuses to run without
+complete `ImpactParams`.
+
+> **Corrected 2026-09-01 (Phase 7/8, Stage E-3).** This paragraph named
+> `artefacts/tca/coefficients.yaml` and a consumer `pre_trade.estimate_cost`.
+> Neither exists: the calibrator writes elsewhere, and no function by that name
+> is defined anywhere in `src/`. DI-5 recorded that this document claimed files
+> that did not exist; `apps/calibrate_impact.py` has since been built, but the
+> paths around it were never corrected.

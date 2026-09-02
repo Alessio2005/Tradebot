@@ -86,9 +86,19 @@ def _isolate_cb_log(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     Prevents production ``artefacts/circuit_breaker.log`` from affecting
     unit/integration tests that instantiate CircuitBreaker without an explicit
     ``cb_log_path`` in their config.
+
+    STAGE D, C2: hetzelfde geldt nu voor de SOEVEREINE halt-state. Zonder deze
+    tweede omleiding zou een test die de breaker laat trippen een echte
+    `artefacts/risk/halt_state.json` achterlaten (no-go 15) -- en omdat die
+    toestand per ontwerp NIET verloopt, zou elke volgende `CircuitBreaker` in de
+    suite daarna weigeren te starten. Een testartefact zou dan de hele suite
+    stilleggen, en de volgende ontwikkelaar zou dat niet op een test wijten.
     """
     import tradebot.live.circuit_breaker as _cb_module
 
     monkeypatch.setattr(
         _cb_module, "_CB_LOG_PATH", tmp_path / "circuit_breaker.log"
+    )
+    monkeypatch.setattr(
+        _cb_module, "_HALT_STORE_PATH", tmp_path / "risk" / "halt_state.json"
     )

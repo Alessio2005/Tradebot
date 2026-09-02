@@ -204,8 +204,16 @@ changed — re-attestation is a checkpoint, not just a release gate.
 | Engineering on-call  | Runs runbook, owns infra (Wave 10–11).                  |
 | Compliance officer   | Verifies MRM report completeness before production.     |
 
-All sign-offs are recorded in `artefacts/governance/sign_off_log.jsonl`
-(append-only).
+Sign-offs are to be recorded in an append-only
+`artefacts/governance/sign_off_log.jsonl`.
+
+> **NOT YET IN USE — corrected 2026-09-01 (Phase 7/8, Stage E-3).** This
+> sentence read *"All sign-offs are recorded in …"*, in the present tense, for a
+> file that does not exist and that nothing in `src/` or `apps/` writes. A policy
+> that asserts a record it does not keep is worse than one that admits the gap:
+> a reader takes the audit trail for granted. There have been no production
+> promotions to sign off — the roles above describe the process that applies once
+> there are — but the log must be built before the first one, not after.
 
 ## 9. Incident reporting
 

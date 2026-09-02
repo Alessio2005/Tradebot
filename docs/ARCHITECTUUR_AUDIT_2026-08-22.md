@@ -13,6 +13,13 @@ v
 
 
 ### Kernproblemen in de Legacy Structuur:
+
+> **Geverifieerd tegen de codebase op 2026-09-01** (Phase 7/8, Stage E-3).
+> Het bindende auditdocument, ONGEWIJZIGD sinds 2026-08-22.
+> "Geverifieerd" betekent hier uitsluitend dat het nog steeds het
+> document is waarnaar de rest van de repository verwijst; de inhoud is
+> NIET regel voor regel tegen de code herlezen. Dat zou een audit zijn,
+> geen verificatie, en het is niet gedaan.
 1. **Circulaire & Misplaatste Afhankelijkheden:** Risicolimieten en volatiliteitstargeting bevinden zich gedeeltelijk binnen de alpha-units en feature-pipelines, wat een strikte scheiding van verantwoordelijkheden onmogelijk maakt.
 2. **Shadow Trees & Configuration Drift:** De aanwezigheid van overbodige mappen en afwijkende omgevingsconfiguraties leidt tot onvoorspelbaar gedrag tussen test- en runtime-omgevingen.
 3. **Versnipperde Backtest Engine:** Vier overlappende engines (`evaluation`, `portfolio`, `bidirectional`, `per_side`) verhogen de onderhoudslast en creëren kweekvijvers voor subtiele simulatiefouten.

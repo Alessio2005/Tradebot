@@ -52,9 +52,9 @@ async def monitor_exchange_status(
                                 ret_code,
                                 msg_text,
                             )
-                            circuit_breaker._trip(
+                            circuit_breaker.trip(
                                 f"exchange_status:bybit:{msg_text}",
-                                ts=__import__("pandas").Timestamp.utcnow(),
+                                config_key="live.exchange_status",
                             )
                     else:
                         logger.warning(

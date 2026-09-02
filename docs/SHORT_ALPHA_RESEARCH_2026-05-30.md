@@ -1,5 +1,8 @@
 # Short Alpha Research — waar zit positieve edge in shorts?
 
+> **GEARCHIVEERD — historisch document.** Dit is een verslag van het short-alpha-onderzoek van mei 2026 en beschrijft de toestand van toen. Het wordt NIET bijgewerkt: de paden en artefacten die het noemt, zijn die van die periode en bestaan grotendeels niet meer. Voor de huidige toestand, zie `docs/PROJECT_STATE.md`.
+> *Als historisch gemarkeerd op 2026-09-01 (Phase 7/8, Stage E-3).*
+
 **Datum:** 2026-05-30 · **Goal:** positieve edge vinden in de short-kant (systeem is nu de-facto long-only)
 **Status:** onderzoeksnotitie / hypothese-backlog (geen code-wijziging)
 

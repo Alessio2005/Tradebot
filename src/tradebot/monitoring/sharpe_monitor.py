@@ -72,12 +72,20 @@ class LiveSharpeMonitor:
             )
             logger.critical(msg)
             if self.circuit_breaker is not None:
-                import asyncio
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(
-                        self.circuit_breaker.trip(f"live_sharpe_degradation:{degradation_sigmas:.1f}sigma")
-                    )
+                # `CircuitBreaker.trip` is SYNCHROON. Hier stond een
+                # `asyncio.create_task(...)` eromheen, en die constructie kon
+                # per definitie niet werken: er bestond helemaal geen `trip` op
+                # de breaker (alleen het private `_trip`), dus de aanroep wierp
+                # een `AttributeError` nog voordat `create_task` een coroutine
+                # te zien kreeg -- de HALT kwam nooit en `check()` crashte in
+                # plaats daarvan. Een schakelaar die het boek sluit hoort ook
+                # niet op een event-loop te wachten: hij gaat nu direct om.
+                self.circuit_breaker.trip(
+                    f"live_sharpe_degradation:{degradation_sigmas:.1f}sigma",
+                    measured=float(degradation_sigmas),
+                    threshold=float(self.sigma_halt_threshold),
+                    config_key="live.sigma_halt_threshold",
+                )
             result["halt_triggered"] = True
 
         return result

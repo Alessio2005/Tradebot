@@ -1,0 +1,78 @@
+# conf/monitoring/default.yaml — de drempels waarop de 60-daagse klok rust.
+# Gevalideerd tegen schemas/config.py::MonitoringConfig (extra="forbid", frozen).
+#
+# WAAROM DIT BESTAND BESTAAT
+# ===========================
+# Tot Stage D stonden deze getallen als module-constanten in
+# `monitoring/drift.py`. Een drempel in code is een drempel die tijdens de rit
+# kan worden bijgesteld zonder dat een diff van de CONFIGURATIE het laat zien —
+# en no-go 10 van deze fase verbiedt precies dat: *"Een monitoringdrempel is na
+# de start van de 60-daagse klok vastgesteld."*
+#
+# De sluiting is niet dit bestand maar de HASH ervan. `apps/freeze_monitoring.py`
+# bevriest hem in `artefacts/governance/monitoring_config_hash.json` voordat de
+# klok start; `tests/unit/test_monitoring_thresholds_are_frozen.py` weigert
+# groen te worden zodra de gemeten hash afwijkt van de bevroren hash. Een
+# drempel wijzigen mag — hem wijzigen zonder opnieuw te bevriezen niet.
+monitoring:
+  # ── Feature-drift (PSI) ───────────────────────────────────────────────────
+  # De grenzen komen uit de standaardpraktijk (Siddiqi, credit scoring): onder
+  # 0,10 stabiel, 0,10-0,20 matig, boven 0,20 kritiek. Zij zijn NIET op dit
+  # universum gekalibreerd en dragen dat label ook niet; het zijn
+  # operationele alarmdrempels en geen statistische toets.
+  psi_moderate: 0.10
+  psi_critical: 0.20
+
+  # De referentievensterpoort. Een referentie die zelf een regimewissel
+  # overspant, is multimodaal en laat ALLES eruitzien als niet-gedrift.
+  # Dezelfde grens als `psi_critical`: is de eerste helft van het
+  # referentievenster al kritiek gedrift ten opzichte van de tweede, dan is
+  # het venster ongeschikt als baseline.
+  reference_intra_psi_limit: 0.20
+
+  # Een PSI op minder dan dit aantal waarnemingen is ruis. Onder deze grens
+  # wordt geen oordeel geveld — geen 'stabiel', want dat zou een bewering zijn
+  # over data die er niet is.
+  min_samples: 50
+
+  # ── Execution drift (D-3) ─────────────────────────────────────────────────
+  # Per order: wat de beslislaag verwachtte tegen wat de beurs deed. Deze
+  # drempels bepalen mede of de 60-daagse teller doorloopt: D-6 zegt dat een
+  # ONVERKLAARD verschil boven de drempel de reeks breekt, een verklaard
+  # verschil (exchange-outage) niet.
+  #
+  # 25 bp is ruim tegen de aangenomen half-spread van 1,0 bp uit
+  # conf/execution/fees.yaml. Dat is opzet: deze poort moet een DEFECT vangen
+  # (verkeerde symbool, verkeerde zijde, een order dat in een gat valt), niet
+  # de normale ruis van marktimpact. Een drempel die op de spread staat, vuurt
+  # elke dag en wordt dan genegeerd.
+  max_adverse_price_drift_bps: 25.0
+
+  # Van beslisbar tot fillbevestiging. `latency_bars = 1` is de conventie van
+  # de backtest; op 5s-bars is 30 s daar ruim boven en vangt het hangende
+  # orders zonder op normale netwerkvariatie af te gaan.
+  max_fill_latency_seconds: 30.0
+
+  # Een partiele fill onder dit aandeel is een ander boek dan besloten.
+  min_fill_ratio: 0.99
+
+  # ── Vol-forecast (D-3) ────────────────────────────────────────────────────
+  # De productie-estimator is EWMA(0,94); H1 heeft hem niet verslagen zien
+  # worden (zie reports/GARCH_VS_EWMA_COMPETITION.md). Deze monitor bewaakt of
+  # hij LIVE nog doet wat hij in de backtest deed.
+  #
+  # Er staat hier bewust GEEN absolute QLIKE-drempel. QLIKE is nul bij een
+  # perfecte forecast en onbegrensd daarboven; elk absoluut getal zou verzonnen
+  # zijn. De poort is RELATIEF: hoeveel maal de backtest-QLIKE mag de live-QLIKE
+  # bedragen voordat er iets mis is. Drie is ruim en operationeel — het vangt
+  # een estimator die ontspoort, niet een die een slechte week heeft. Deze
+  # drempel is NIET gekalibreerd en draagt dat label ook.
+  vol_qlike_degradation_ratio: 3.0
+
+  # De Mincer-Zarnowitz-zuiverheidstoets. Dezelfde alpha als overal elders in
+  # dit project; zie conf/validation/default.yaml.
+  vol_mz_alpha: 0.05
+
+  # Onder dit aantal waarnemingen wordt geen oordeel geveld. Een QLIKE over
+  # twintig bars is ruis, en een MZ-regressie erover is zinloos.
+  vol_forecast_min_obs: 250

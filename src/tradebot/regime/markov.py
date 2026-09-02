@@ -564,8 +564,17 @@ def _fit_gaussian(
     model.means_ = start["means"]
     model.covars_ = start["covars"]
     model.fit(train)
+    # `hmmlearn` 0.3.3 geeft via de PROPERTY `covars_` altijd de volledige
+    # (k, d, d)-vorm terug, ook voor `covariance_type="diag"` -- de interne
+    # (k, d) staat in `_covars_`. `reshape(k, -1)` leverde daarom (k, d^2) met
+    # nullen buiten de diagonaal, terwijl `HmmParameters` en beide
+    # dichtheidsfuncties (k, d) verwachten: `student_t_log_density` zou op zijn
+    # `scale > 0`-controle vallen en `_gaussian_log_density` op een
+    # broadcast-fout. Latent zolang H2 univariate returns schat (d == 1, waar
+    # (k, 1, 1) toevallig goed reshapet), maar `HmmSpec` biedt `diag` in het
+    # algemeen aan. GEMETEN tegen hmmlearn 0.3.3.
     covars = (model.covars_ if spec.covariance_type == "full"
-              else model.covars_.reshape(spec.n_states, -1))
+              else np.diagonal(model.covars_, axis1=1, axis2=2))
     fitted = {
         "start_prob": np.asarray(model.startprob_, dtype=np.float64),
         "trans_mat": np.asarray(model.transmat_, dtype=np.float64),

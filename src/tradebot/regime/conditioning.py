@@ -265,8 +265,14 @@ def m0_multiplier(buckets: pd.DataFrame, mask: np.ndarray) -> pd.DataFrame:
     values = pd.DataFrame(
         1.0, index=buckets.index, columns=buckets.columns, dtype="float64")
     is_high = (buckets == float(VolBucket.HIGH)).to_numpy()
-    values.values[mask & np.ones(len(buckets), dtype=bool)] = np.where(
-        is_high[mask], 0.0, 1.0)
+    # Via `.loc` en niet via `.values`. De oude regel schreef in de array die
+    # `DataFrame.values` teruggeeft; dat werkt alleen zolang pandas daar een
+    # VIEW voor teruggeeft. Onder Copy-on-Write -- opt-in in pandas 2.x, de
+    # standaard in 3.0, en de pin is `pandas>=2.0,<3.0` -- is die array
+    # read-only en werpt de toewijzing `ValueError: assignment destination is
+    # read-only`. Dan verandert dit stil van "M0-factor toegepast" in een crash.
+    # (`& np.ones(len(buckets), dtype=bool)` was bovendien een no-op.)
+    values.loc[mask, :] = np.where(is_high[mask], 0.0, 1.0)
     return values
 
 

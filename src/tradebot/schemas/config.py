@@ -504,14 +504,6 @@ class GarchAdequacyConfig(StrictModel):
     persistence_boundary: Annotated[float, Field(gt=0.0, le=1.0)] = 0.999
     max_boundary_solution_ratio: Annotated[float, Field(ge=0.0, le=1.0)] = 0.10
 
-    #: Een variantieforecast boven dit veelvoud van de gemiddelde gekwadrateerde
-    #: return is geen forecast meer maar een numeriek artefact. GEMETEN op
-    #: 2026-08-29: de gesimuleerde 5-staps EGARCH-forecast liep op BTCUSDT op
-    #: tot 4,5e25 maal die referentie. De EGARCH-recursie loopt in ln(sigma^2)
-    #: en de verwachting van exp van een zwaarstaartige random walk hoeft niet
-    #: te bestaan; de simulatie schat dan een moment dat er niet is.
-    max_forecast_level_ratio: Annotated[float, Field(gt=1.0)] = 100.0
-
     #: Een variantieforecast die dit veelvoud van de gemiddelde gekwadrateerde
     #: return overschrijdt, is geen forecast meer. GEMETEN op 2026-08-29: de
     #: gesimuleerde 5-staps EGARCH-forecast liep op BTCUSDT op tot 4,5e25 maal
@@ -814,6 +806,83 @@ class M2HmmConfig(StrictModel):
         return self
 
 
+class MetaLabelConfig(StrictModel):
+    """De H3-parameterruimte en wat er NIET aan wordt gezocht.
+
+    Alleen `depths` x `learning_rates` is een ZOEKRUIMTE: drie maal twee is zes
+    trials, exact het `planned_trials` van pre-registratie
+    `56395fa2013768014c0c915edf346770`. Alles daaronder staat op EEN waarde en
+    wordt dus niet doorzocht -- een enkele waarde is geen search en draagt geen
+    trial. Wie er een tweede waarde bij zet, doet een nieuwe pre-registratie.
+    """
+
+    depths: tuple[PositiveInt, ...] = (3, 4, 6)
+    learning_rates: tuple[Annotated[float, Field(gt=0.0, lt=1.0)], ...] = (
+        0.03, 0.1)
+    iterations: PositiveInt = 500
+    l2_leaf_reg: Annotated[float, Field(gt=0.0)] = 3.0
+    #: Eén thread. CatBoost's parallelle histogramreductie is niet
+    #: volgordevast, en een AUC die je niet kunt herhalen is geen bewijs -
+    #: dezelfde reden als bij AD-17.
+    thread_count: PositiveInt = 1
+    seed: Annotated[int, Field(ge=0)] = 20260830
+    #: Het werkpunt van het filter. 0,5 is de natuurlijke beslisgrens van een
+    #: kans en geen gezochte drempel; een ander werkpunt is een nieuwe trial.
+    probability_threshold: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.5
+    #: Herhalingen van de negatieve controle op gerandomiseerde labels.
+    n_shuffle_replicates: PositiveInt = 5
+
+    @model_validator(mode="after")
+    def _grid_is_sane(self) -> MetaLabelConfig:
+        for name, values in (("depths", self.depths),
+                             ("learning_rates", self.learning_rates)):
+            if not values:
+                raise ValueError(f"{name} is leeg; dan is er niets te fitten")
+            if len(set(values)) != len(values):
+                raise ValueError(
+                    f"{name} bevat dubbelen ({values}); een trial die twee keer "
+                    "in de ruimte staat, telt twee keer in M zonder twee keer "
+                    "iets te meten"
+                )
+        return self
+
+
+class MonitoringConfig(StrictModel):
+    """Contract voor `conf/monitoring/default.yaml`.
+
+    De drempels waarop de 60-daagse paper-trading-klok rust. Zij staan hier en
+    niet in `monitoring/drift.py` omdat no-go 10 verbiedt dat een
+    monitoringdrempel na de start van de klok wordt vastgesteld -- en een
+    constante in code is achteraf te wijzigen zonder dat een configuratiediff
+    het toont. De hash van dit domein wordt vóór de klok bevroren.
+    """
+
+    psi_moderate: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.10
+    psi_critical: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.20
+    reference_intra_psi_limit: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.20
+    min_samples: PositiveInt = 50
+
+    #: Executiedrift, per order. Zie `monitoring/execution_drift.py`.
+    max_adverse_price_drift_bps: Annotated[float, Field(gt=0.0)] = 25.0
+    max_fill_latency_seconds: Annotated[float, Field(gt=0.0)] = 30.0
+    min_fill_ratio: Annotated[float, Field(gt=0.0, le=1.0)] = 0.99
+
+    #: Vol-forecast. Zie `monitoring/vol_forecast_monitor.py`.
+    vol_qlike_degradation_ratio: Annotated[float, Field(gt=1.0)] = 3.0
+    vol_mz_alpha: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.05
+    vol_forecast_min_obs: PositiveInt = 250
+
+    @model_validator(mode="after")
+    def _critical_is_above_moderate(self) -> MonitoringConfig:
+        if self.psi_critical <= self.psi_moderate:
+            raise ValueError(
+                f"psi_critical ({self.psi_critical}) moet BOVEN psi_moderate "
+                f"({self.psi_moderate}) liggen; anders is er geen matige zone "
+                "en springt het alarm van stabiel naar kritiek"
+            )
+        return self
+
+
 class RegimeConfig(StrictModel):
     """Contract voor de L3 regime-engines. Zie `conf/model/regime.yaml`."""
 
@@ -857,6 +926,8 @@ DOMAIN_SCHEMAS: dict[str, type[StrictModel]] = {
     "labeling": LabelingConfig,
     "fracdiff": FracDiffConfig,
     "regime": RegimeConfig,
+    "meta_label": MetaLabelConfig,
+    "monitoring": MonitoringConfig,
 }
 
 
@@ -992,3 +1063,32 @@ def regime_config() -> RegimeConfig:
     het laat zien.
     """
     return load_config(REGIME_CONFIG_PATH, RegimeConfig)
+
+
+MONITORING_CONFIG_PATH = _REPO_ROOT / "conf" / "monitoring" / "default.yaml"
+
+
+@lru_cache(maxsize=1)
+def monitoring_config() -> MonitoringConfig:
+    """De monitoringdrempels uit `conf/monitoring/default.yaml`.
+
+    Zelfde constructie als :func:`regime_config`. De reden is hier scherper: de
+    hash van dit bestand wordt vóór de 60-daagse klok bevroren, en een drempel
+    die in code zou staan valt buiten die hash.
+    """
+    return load_config(MONITORING_CONFIG_PATH, MonitoringConfig)
+
+
+META_LABEL_CONFIG_PATH = _REPO_ROOT / "conf" / "model" / "meta_label.yaml"
+
+
+@lru_cache(maxsize=1)
+def meta_label_config() -> MetaLabelConfig:
+    """De H3-parameterruimte uit `conf/model/meta_label.yaml`.
+
+    Zelfde constructie en dezelfde reden als :func:`regime_config`: het aantal
+    gezochte combinaties bepaalt hoeveel trials er in `M` horen, en een
+    zoekruimte die in code staat is achteraf uit te breiden zonder dat een diff
+    het laat zien.
+    """
+    return load_config(META_LABEL_CONFIG_PATH, MetaLabelConfig)

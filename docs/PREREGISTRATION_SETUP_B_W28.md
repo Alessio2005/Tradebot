@@ -1,5 +1,8 @@
 # PRE-REGISTRATION — Setup B (futures book with ML overlay), Wave 28
 
+> **GEARCHIVEERD — historisch document.** Dit is een verslag van de pre-registratie van Wave 28 en beschrijft de toestand van toen. Het wordt NIET bijgewerkt: de paden en artefacten die het noemt, zijn die van die periode en bestaan grotendeels niet meer. Voor de huidige toestand, zie `docs/PROJECT_STATE.md`.
+> *Als historisch gemarkeerd op 2026-09-01 (Phase 7/8, Stage E-3).*
+
 **Status:** FROZEN on 2026-08-10 before any Setup-B unit was measured.
 **Authority:** `SETUP_B_ML_PROMPT.md` §6 Fase 0 · `ULTIMATE_GOAL_PROMPT.md` §11.
 **Ledger at freeze:** `total_n_hypotheses = 2706` (restored, see §1).

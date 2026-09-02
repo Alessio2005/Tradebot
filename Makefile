@@ -1,5 +1,7 @@
-.PHONY: help install install-dev lint type-check test test-fast test-slow test-regression
-.PHONY: benchmark clean doctor sync-data build-features tune train backtest tearsheet
+.PHONY: help install install-dev lint format type-check loc-check
+.PHONY: test test-fast test-slow test-regression benchmark coverage
+.PHONY: doctor sync-data build-features tune train baseline reproduce
+.PHONY: regenerate-baselines monitor-drift clean
 
 PYTHON  ?= python
 PYTEST  ?= pytest
@@ -81,11 +83,11 @@ tune:  ## Stage 2: hyperparameter optimisation
 train:  ## Stage 3: CPCV training
 	tb-train-cpcv
 
-backtest:  ## Stage 4: portfolio backtest
-	tb-backtest-portfolio
+baseline:  ## Stage 4: authoritative event-driven baseline (Phase 5)
+	python apps/run_phase5_baseline.py
 
-tearsheet:  ## Stage 4.5: generate tearsheet
-	tb-make-tearsheet
+reproduce:  ## E-1: het volledige reproductiepad, zie docs/REPRODUCTION.md
+	dvc repro
 
 # ── Maintenance ───────────────────────────────────────────────────────────────
 

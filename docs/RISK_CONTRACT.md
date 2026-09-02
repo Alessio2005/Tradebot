@@ -1,5 +1,11 @@
 # RISK CONTRACT — L7 Independent Risk & Volatility Targeting
 
+> **Geverifieerd tegen de codebase op 2026-09-01** (Phase 7/8, Stage E-3).
+> De limieten komen uit `conf/risk/default.yaml`; sinds Stage D geldt
+> dat ook voor de live-keten (`CircuitBreakerConfig.from_risk_config`,
+> `ExecutionControllerConfig(risk=...)`). De GETALLEN in dit document
+> zijn niet een voor een tegen de YAML gehertoetst.
+
 > **Fase:** 4, stap 2 · **Status:** bindend vanaf `git_sha` van deze commit
 > **Bindend brondocument:** `ARCHITECTUUR_AUDIT_2026-08-22.md` — secties 11.1, 14, 14.1, 19, 24
 > **Implementatie:** `src/tradebot/risk/contract.py` (types), `risk/engine.py` (compositie)

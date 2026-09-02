@@ -1,5 +1,10 @@
 # DATA REGISTER
 
+> **Geverifieerd tegen de codebase op 2026-09-01** (Phase 7/8, Stage E-3).
+> GEMETEN: de gap-ledger. De dekkings- en hashcijfers in dit document
+> zijn NIET opnieuw tegen de PIT-store gedraaid; daarvoor is
+> `apps/run_data_adequacy.py` de bron.
+
 > **De enige geldige bron voor de vraag: welke data mag ik gebruiken?**
 >
 > Een onderzoeksresultaat dat geen `data_hash` uit dit register citeert,
@@ -44,7 +49,9 @@
 
 **Nul ontbrekende bars over alle reeksen.** Gemeten met
 `data/validation/gaps.py` op de bar-cadans van elke granulariteit.
-De gap-ledger (`artefacts/governance/gap_ledger.jsonl`) is leeg.
+De gap-ledger (`artefacts/governance/gap_ledger.jsonl`) BESTAAT NIET, en dat
+is de correcte toestand: hij wordt pas aangemaakt bij het eerste gat. Een leeg
+bestand zou niet te onderscheiden zijn van een ledger die nooit is geschreven.
 
 Er wordt **nooit** geinterpoleerd. `gap_policy` staat in
 `conf/data/default.yaml`; bij `reject` breekt een gat de ingestion.

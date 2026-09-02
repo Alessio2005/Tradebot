@@ -1,5 +1,8 @@
 # WAVE LOG — mandaat v3 (vanaf Wave 20)
 
+> **GEARCHIVEERD — historisch document.** Dit is een verslag van Waves 1 t/m 28 en beschrijft de toestand van toen. Het wordt NIET bijgewerkt: de paden en artefacten die het noemt, zijn die van die periode en bestaan grotendeels niet meer. Voor de huidige toestand, zie `docs/PROJECT_STATE.md`.
+> *Als historisch gemarkeerd op 2026-09-01 (Phase 7/8, Stage E-3).*
+
 > Append-only. Per wave: hypothese (+ literatuur-prior), implementatie,
 > resultaat, beslissing, beste-tot-nu-toe OOS-stand, volgende aanvalslinie,
 > en de VOLLEDIGE gate-tabel G1–G10 (nooit losse highlights). Dit log is het

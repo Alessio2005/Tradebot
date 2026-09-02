@@ -1,0 +1,18 @@
+{
+  "config_hash": "5c3a9795b4abb59f",
+  "frozen_utc": "2026-09-01T14:35:03.887078+00:00",
+  "git_sha": "df96805",
+  "source": "conf/monitoring/default.yaml",
+  "values": {
+    "max_adverse_price_drift_bps": 25.0,
+    "max_fill_latency_seconds": 30.0,
+    "min_fill_ratio": 0.99,
+    "min_samples": 50,
+    "psi_critical": 0.2,
+    "psi_moderate": 0.1,
+    "reference_intra_psi_limit": 0.2,
+    "vol_forecast_min_obs": 250,
+    "vol_mz_alpha": 0.05,
+    "vol_qlike_degradation_ratio": 3.0
+  }
+}

@@ -305,10 +305,11 @@ def _build_engine(cfg: DictConfig) -> tuple[LiveEngine, Feed]:
             "generate no trades. Check artefacts/models/ directory."
         )
 
-    # ── Signal runner (min_confidence comes from each signal's own min_conf;
-    #    the runner's threshold is set low so individual signals gate themselves)
+    # ── Signal runner. STAGE D (C6): de runner heeft geen `min_confidence`
+    #    meer -- audit paragraaf 14 sluit modelvertrouwen uit als parameter die
+    #    de positiegrootte bepaalt (no-go 8). Elk signaal poortwacht zichzelf in
+    #    de alphalaag, waar de backtest dezelfde code draait.
     sr_cfg = SignalRunnerConfig(
-        min_confidence=0.0,   # ModelSignal gates by its own min_conf
         use_combiner=False,   # One model per side; no IC combiner needed
     )
     sr = SignalRunner(signals=signals, config=sr_cfg)

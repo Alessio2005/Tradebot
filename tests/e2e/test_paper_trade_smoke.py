@@ -59,9 +59,9 @@ def test_paper_trade_24h_no_crash(tmp_path: Path) -> None:
         feed_timeout_sec=60,
         cb_log_path=tmp_path / "circuit_breaker.log",  # Wave 15 P0-5.5: isolated log
     )
-    ec_cfg = ExecutionControllerConfig(model_version="test_v0.1", git_sha="deadbeef")
     # PHASE 5: `constraints` is verplicht. L13 kiest geen risicodrempels meer;
     # ze komen uit `conf/risk/default.yaml` (wiring audit C5).
+    # STAGE D: datzelfde geldt nu voor de executiecontroller (C3/C4).
     from pathlib import Path as _Path
 
     from tradebot.portfolio.constraints import PortfolioConstraints
@@ -69,6 +69,8 @@ def test_paper_trade_24h_no_crash(tmp_path: Path) -> None:
 
     _risk = load_config(
         _Path(__file__).resolve().parents[2] / "conf/risk/default.yaml", RiskConfig)
+    ec_cfg = ExecutionControllerConfig(
+        risk=_risk, model_version="test_v0.1", git_sha="deadbeef")
     pc_cfg = PortfolioControllerConfig(
         # STAGE C-1: expliciet, want `method` heeft geen default meer. HRP is
         # research-gated (fase-6 no-go 15).
@@ -76,7 +78,7 @@ def test_paper_trade_24h_no_crash(tmp_path: Path) -> None:
         constraints=PortfolioConstraints.from_risk_config(_risk),
         min_history_bars=5,
     )
-    sr_cfg = SignalRunnerConfig(min_confidence=0.0)
+    sr_cfg = SignalRunnerConfig()
 
     engine_cfg = LiveEngineConfig(
         symbols=symbols,

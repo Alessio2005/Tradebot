@@ -1,5 +1,10 @@
 # ARCHITECTURAL DECISIONS
 
+> **Geverifieerd tegen de codebase op 2026-09-01** (Phase 7/8, Stage E-3).
+> AD-1 t/m AD-21. GEMETEN: alle 16 testverwijzingen in dit document
+> wijzen naar een bestaand bestand. Dat die tests groen zijn, blijkt uit
+> de suite; dat zij het JUISTE bewaken, staat per AD in de tekst.
+
 > Beslissingen die niet uit de code zijn af te lezen, met de reden erbij.
 >
 > Dit register bestaat omdat een keuze zonder motivering na een half jaar
@@ -756,3 +761,143 @@ De mediaan en `n_fits_below_gate` staan in het rapport en in het artefact, zodat
 een lezer ziet of het oordeel "dit model kan hier niet" luidt of "deze folds
 konden niet". Voor `m1-k2` is dat 66 van 72 fits — het eerste. Voor
 `hmm2-diag-student_t` 2 van 72 — het tweede.
+
+---
+
+## AD-19 — De purge gebeurt op `t1`, niet op een embargo-aantal
+
+**Fase:** 6 (H3, stap 12) · besloten tijdens Phase 7/8 Stage C-3
+**Status:** actief
+**Bewaakt door:** `tests/unit/test_meta_label.py::TestPurging`
+
+### Besluit
+
+`train/meta_label.py::purged_training_index` laat elk trainevent vallen waarvan
+het interval `[t, t1]` het testvenster raakt — `exit_bar >= test_start` — en legt
+de embargo van 5 bars daar BOVENOP als buffer na het venster. De embargo is dus
+niet het mechanisme dat de labeloverlap afdekt; hij dekt de seriële correlatie
+na het venster af.
+
+### Waarom
+
+De bevroren pre-registratie draagt `embargo_bars: 5` en `label_horizon_bars: 1`
+uit `conf/validation/default.yaml`. Die 1 slaat op het **Phase 3-baselinelabel**,
+niet op de verticale barrière van **10 bars** die H3 gebruikt. Een
+triple-barrier-label van bar `t` gebruikt bars tot en met `t + 1 + H`; met H = 10
+overleeft het een embargo van 5 met ruime marge.
+
+Waren die 5 bars het enige mechanisme geweest, dan had elke fold trainevents
+bevat waarvan de uitkomst in het testvenster wordt bepaald — precies het lek dat
+no-go 11 verbiedt, en precies het lek dat een meta-labeling-AUC optilt zonder
+dat er iets is geleerd.
+
+De purge op `t1` is exact in plaats van conservatief-geschat: `exit_bar` is per
+event bekend, dus er wordt weggegooid wat daadwerkelijk overlapt en niet wat een
+vuistregel vermoedt. De combinatie is strikt sterker dan "embargo ≥ horizon".
+
+### Wat er daarom NAAST staat
+
+`purged_training_index` telt de drie categorieën apart — events IN het
+testvenster, events die erin doorlopen (`n_purged_by_overlap`), en events in de
+embargozone — en elke fold rapporteert ze in het artefact. Een purge die niets
+wegneemt, is aan die telling te zien; een bewering dat er is gepurged, niet.
+
+De verhouding hoort groot te zijn: met een horizon van 10 bars en een event op
+vrijwel elke bar raakt een aanzienlijk deel van de trainrand het testvenster.
+Een `n_purged_by_overlap` van bijna nul zou betekenen dat de purge langs de data
+heen grijpt.
+
+---
+
+## AD-20 — Er zijn twee effectieve steekproefgroottes, en het oordeel valt op de conservatieve
+
+**Fase:** 6 (H3, stap 12) · besloten tijdens Phase 7/8 Stage C-3
+**Status:** actief
+**Bewaakt door:**
+`tests/unit/test_meta_label.py::TestUniqueness`,
+`tests/unit/test_meta_label.py::TestWeightedAuc`
+
+### Besluit
+
+Het Hanley-McNeil-interval om de OOS-AUC wordt op **twee** effectieve
+steekproefgroottes gerapporteerd, en het oordeel tegen de drempel van 0,58 valt
+op de conservatieve:
+
+* **nominaal** — het aantal gescoorde testrijen;
+* **conservatief** — datzelfde aantal maal de gemeten uniqueness maal
+  `effective_independent_series / n_symbols` uit de bevroren pre-registratie.
+
+De AUC zelf weegt de uniqueness al mee (`weighted_auc`): hij is de kans dat een
+willekeurig getrokken geslaagde trade hoger scoort dan een willekeurig getrokken
+mislukte, beide getrokken proportioneel aan hun uniqueness.
+
+### Waarom
+
+Het nominale aantal labels overschat de informatie op twee manieren tegelijk, en
+ze stapelen:
+
+1. **Overlap in de tijd.** Met een verticale barrière van 10 bars en een event op
+   vrijwel elke bar delen buren negen van hun tien toekomstige bars (AFML
+   hoofdstuk 4). De gemeten uniqueness is 0,1622.
+2. **Afhankelijkheid in de cross-sectie.** Zes perpetuals met een gemeten
+   gemiddelde paarsgewijze correlatie van 0,7485 zijn **1,27** onafhankelijke
+   reeksen waard, niet zes.
+
+Welke van de twee de "juiste" n is, volgt niet uit de data: twee labels van
+verschillende symbolen op dezelfde bar zijn verschillende trades met
+verschillende uitkomsten, maar hun uitkomsten zijn gecorreleerd. Omdat die keuze
+niet uit de data volgt, is zij **vóór de run** vastgelegd in de pre-registratie
+in plaats van erna gekozen — dat laatste is het werkpunt kiezen op de uitkomst,
+één abstractieniveau hoger.
+
+Het nominale interval blijft in het rapport staan, en niet uit volledigheid: het
+is het interval dat een pipeline zonder uniqueness-correctie zou publiceren. Het
+verschil tussen de twee is de reden dat meta-labeling-resultaten uit de
+literatuur zo vaak niet repliceren.
+
+### Wat dit NIET is
+
+Het is geen vrijbrief om het brede interval te gebruiken wanneer het uitkomt en
+het smalle wanneer dat beter uitkomt. De pre-registratie wijst één van de twee
+aan als bindend, en dat is de conservatieve — in beide richtingen. Haalt de
+conservatieve ondergrens de drempel, dan promoveert het model ook wanneer het
+nominale interval breder zou zijn geweest.
+
+---
+
+## AD-21 — De CatBoost-pipeline heeft geen scaler en geen imputer
+
+**Fase:** 6 (H3, stap 12) · besloten tijdens Phase 7/8 Stage C-3
+**Status:** actief
+**Bewaakt door:**
+`tests/unit/test_meta_label.py::TestTheModelNeverSeesTheTestWindow`
+
+### Besluit
+
+`fit_secondary_model` fit geen scaler en geen imputer. Niet één per fold, en
+zeker niet één over folds heen.
+
+### Waarom dat GEEN schending is van "elke scaler per fold gefit"
+
+Die regel beschermt één ding: dat er niets wordt gefit op data buiten het
+trainvenster. Dat contract geldt hier onverkort — het is alleen niet met een
+scaler te schenden die er niet is.
+
+CatBoost splitst op ORDENINGEN en is daarmee invariant onder elke monotone
+transformatie per feature. Een per-fold gefitte scaler zou het model
+aantoonbaar niet veranderen; wat hij wél zou doen, is de indruk van
+zorgvuldigheid wekken op een plek waar geen zorg nodig is, en de aandacht
+weghalen bij de plek waar zij dat wél is — de purge op `t1` (AD-19).
+
+Ontbrekende waarden worden evenmin geïmputeerd. CatBoost verwerkt NaN zelf; een
+imputatie zou een SCHATTING toevoegen die niemand heeft gevraagd en die, per
+fold gefit, alsnog een vrijheidsgraad introduceert.
+
+### Wat de plaats van de test-garantie inneemt
+
+`test_the_model_never_sees_the_test_window` vervangt de scaler-per-fold-test
+door een sterkere: hij vervangt de testrijen door andere waarden en eist dat het
+gefitte model onveranderd blijft. Dat dekt niet alleen de scaler maar élke route
+waarlangs testdata de fit zou kunnen bereiken — een `eval_set` voor early
+stopping bijvoorbeeld, de meest voorkomende manier waarop een 'out-of-sample'
+AUC in-sample wordt doordat het aantal iteraties op de testdata wordt gekozen.

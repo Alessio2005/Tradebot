@@ -45,6 +45,7 @@ from tradebot.live.signal_runner import SignalRunner, SignalRunnerConfig
 from tradebot.oms.paper_oms import PaperOMS
 from tradebot.oms.audit_log import AuditLog
 from tradebot.alpha.base import SignalResult
+from tradebot.schemas.config import RiskConfig, load_config
 
 try:
     from catboost import CatBoostClassifier, Pool as CatPool
@@ -320,7 +321,7 @@ def _run_replay(
     ]
     sr = SignalRunner(
         signals=all_sigs,
-        config=SignalRunnerConfig(min_confidence=0.0, use_combiner=False),
+        config=SignalRunnerConfig(use_combiner=False),
     )
     logger.info("SignalRunner: %d signals wired", len(all_sigs))
 
@@ -342,7 +343,9 @@ def _run_replay(
         PortfolioControllerConfig(method="erc", min_history_bars=30),
         symbols=symbols,
     )
-    ec = ExecutionController(ExecutionControllerConfig(max_weight_change=0.25))
+    ec = ExecutionController(ExecutionControllerConfig(
+        risk=load_config(_ROOT / "conf" / "risk" / "default.yaml", RiskConfig),
+        max_weight_change=0.25))
     # Disable fat-finger for paper replay — no manual override risk
     for sym in symbols:
         ec._last_order_qty[sym] = 1e9

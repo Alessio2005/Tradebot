@@ -1,5 +1,10 @@
 # Data dictionary
 
+> **Geverifieerd tegen de codebase op 2026-09-01** (Phase 7/8, Stage E-3).
+> GEMETEN: hoofdstuk 7 beschreef `artefacts/portfolio/equity_curve.parquet`,
+> een artefact dat Phase 5 heeft laten vervallen. Het staat er nu als
+> historisch schema, met de reden erbij.
+
 Every parquet column the pipeline emits, with dtype, source, and causal lag.
 Mandatory reading before any feature edit.
 
@@ -99,7 +104,22 @@ Schema: `tradebot.schemas.oos_predictions.OOSPredictionSchema`.
 | `fold_id`  | int32      | CPCV fold-pair index that produced this row.      |
 | `side`     | category   | `long` or `short`.                                |
 
-## 7. Portfolio output — `artefacts/portfolio/equity_curve.parquet`
+## 7. Portfolio output — VERVALLEN sinds Phase 5
+
+> **Gecorrigeerd 2026-09-01 (Phase 7/8, Stage E-3).** Dit hoofdstuk beschreef
+> het schema van `artefacts/portfolio/equity_curve.parquet`. Dat bestand bestaat
+> niet en wordt door niets meer geproduceerd: `PortfolioBacktester` en
+> `bidirectional_backtest` zijn in Phase 5 verwijderd na het pariteitsbewijs
+> (`tests/integration/test_engine_parity.py`, `reports/phase5_engine_diff.md`),
+> en hun DVC-stages `backtest_portfolio` en `make_tearsheet` met hen.
+>
+> De opvolger is `backtest/engine.py` (`EventDrivenEngine`) met
+> `backtest/accounting.py` als boekhouding; het resultaat van een run staat in
+> `artefacts/baseline/phase5_revaluation.json`. De kolomnamen hieronder staan er
+> als HISTORISCHE beschrijving, zodat oude parquet-bestanden nog leesbaar zijn —
+> niet als contract voor iets dat vandaag wordt geschreven.
+
+### 7.1 Historisch schema (niet meer geproduceerd)
 
 | Column            | Dtype       | Description                                  |
 |-------------------|-------------|----------------------------------------------|

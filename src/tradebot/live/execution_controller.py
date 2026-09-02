@@ -1,9 +1,33 @@
 # src/tradebot/live/execution_controller.py
-"""Convert target portfolio weights to orders with impact-aware sizing.
+"""Zet doelgewichten om in orders, binnen de SOEVEREINE risicolimieten.
 
-Compares current positions against target weights, computes the required
-delta, applies Kelly sizing and position limits, and emits Order objects
-for the OMS router.
+WAT DEZE MODULE WEL EN NIET DOET
+=================================
+Hij vergelijkt de huidige posities met de doelgewichten, filtert op inertie, en
+levert `Order`-objecten voor de OMS-router. Wat hij NIET doet is een eigen
+limiet stellen: `max_position_pct` en `gross_cap` komen uit
+`conf/risk/default.yaml` en zijn een VERPLICHT constructorargument.
+
+De oude docstring beweerde hier *"applies Kelly sizing and position limits"*.
+Gemeten op 2026-09-01 klopte geen van beide:
+
+* de Kelly-fractie werd berekend en op de `Order` gezet, maar de ordergrootte
+  bleef `|delta_w| * equity / price`; niets stroomafwaarts leest
+  `Order.kelly_fraction` behalve het auditlogboek;
+* `_check_position_limits` vergeleek met `float("inf")`, en **niets in de boom
+  zette die velden ooit** -- de poort kon per constructie niet vuren.
+
+Beide staan in `reports/phase7_divergence_map.md` §4. De Kelly-fractie blijft nu
+staan als wat zij feitelijk is: een auditveld. De limiet is vervangen door een
+VERIFICATIE tegen de soevereine policy.
+
+WAAROM VERIFIEREN EN NIET CAPPEN
+=================================
+AD-1: de soevereine laag is de enige die een limiet stelt. Zou deze controller
+het doelboek terugschalen, dan bestond er een tweede sizing-implementatie
+(no-go 6) en zou een fout stroomopwaarts onzichtbaar worden opgelost. Een
+doelboek buiten de policy is een defect in de laag die het boek maakte; hier
+crasht het.
 """
 from __future__ import annotations
 
@@ -12,6 +36,9 @@ import logging
 import pandas as pd
 
 from ..oms.order import Order, OrderSide, OrderType
+from ..risk.limits import GROSS_CAP_KEY, PER_ASSET_KEY
+from ..schemas.config import RiskConfig
+from ..utils.failfast import ConfigContractError, require
 
 logger = logging.getLogger(__name__)
 
@@ -22,18 +49,28 @@ __all__ = ["ExecutionControllerConfig", "ExecutionController"]
 # is the operational gate (default $1 000).
 _MIN_ORDER_NOTIONAL = 10.0  # USDT
 
+#: Zelfde tolerantie als de VERIFICATIE in `risk/engine.py` (regels 342 en 356
+#: gebruiken `+ 1e-9`). `risk/limits.py::_TOL` staat op 1e-12, maar dat is de
+#: tolerantie waarmee daar wordt teruggeschaald, niet waarmee wordt getoetst.
+#: Hier wordt getoetst, dus geldt de toetsingstolerantie -- anders kan deze
+#: controller een boek weigeren dat de soevereine laag zojuist heeft goedgekeurd.
+_LIMIT_TOL = 1e-9
+
 
 class ExecutionControllerConfig:
     """Configuration for the execution controller.
 
     Parameters
     ----------
+    risk :
+        De soevereine risicopolicy uit `conf/risk/default.yaml`. VERPLICHT en
+        zonder default: een ontbrekende limietconfiguratie is een crash, geen
+        "geen limiet" (no-go 7, audit §23).
     kelly_divisor :
-        Fractional Kelly divisor for conservative sizing (default 4).
+        Fractional Kelly divisor. Wordt op de `Order` vastgelegd voor het
+        auditspoor en beinvloedt de ordergrootte NIET; zie de moduledocstring.
     max_kelly_fraction :
-        Absolute cap on Kelly fraction per signal.
-    min_confidence :
-        Minimum signal confidence to place a trade.
+        Absolute cap op de vastgelegde Kelly-fractie.
     max_weight_change :
         Maximum allowed single-bar weight change (turnover limiter).
     git_sha :
@@ -57,18 +94,24 @@ class ExecutionControllerConfig:
 
     def __init__(
         self,
+        risk: RiskConfig,
         kelly_divisor: float = 4.0,
         max_kelly_fraction: float = 0.25,
-        min_confidence: float = 0.55,
         max_weight_change: float = 0.10,
         git_sha: str = "",
         model_version: str = "v1.0.0",
         min_notional_per_trade: float = 1_000.0,
         min_weight_change: float = 0.02,
     ) -> None:
+        require(
+            isinstance(risk, RiskConfig),
+            "ExecutionControllerConfig vereist de soevereine RiskConfig. Er is "
+            "geen pad waarlangs deze controller zonder limietpolicy draait.",
+            ConfigContractError, received=type(risk).__name__,
+        )
+        self.risk = risk
         self.kelly_divisor = kelly_divisor
         self.max_kelly_fraction = max_kelly_fraction
-        self.min_confidence = min_confidence
         self.max_weight_change = max_weight_change
         self.git_sha = git_sha
         self.model_version = model_version
@@ -90,9 +133,12 @@ class ExecutionController:
         self._cfg = config
         self._seq: int = 0
 
-        # Wave 15 P0-5.2 — position limit parameters (set via attributes after init)
-        self._max_notional_per_symbol: float = float("inf")
-        self._max_gross_notional: float = float("inf")
+        # De limieten komen uit de soevereine policy en staan hier als
+        # AFLEZING, niet als eigen instelbare toestand. Er is geen setter: een
+        # limiet die na constructie te wijzigen is, is een limiet die iemand
+        # vergeet te zetten.
+        self.max_position_pct: float = float(config.risk.max_position_pct)
+        self.gross_cap: float = float(config.risk.gross_cap)
 
         # Wave 15 P0-5.3 — fat-finger state
         self._last_order_qty: dict[str, float] = {}
@@ -132,6 +178,8 @@ class ExecutionController:
         -------
         List of Order objects.  Empty list if no rebalancing is needed.
         """
+        self._verify_target_book(target_weights)
+
         orders: list[Order] = []
         now = pd.Timestamp.now(tz="UTC")
         date_str = now.strftime("%Y%m%d")
@@ -190,17 +238,6 @@ class ExecutionController:
             signal_prob = (signal_probs or {}).get(symbol, 0.5)
             feature_hash = (feature_hashes or {}).get(symbol, "")
 
-            # Wave 15 P0-5.2 — position limit pre-trade gate
-            current_notionals = {
-                sym: abs(float(current_weights.get(sym, 0.0)) * equity)
-                for sym in target_weights.index
-            }
-            try:
-                self._check_position_limits(symbol, qty_base, notional, current_notionals)
-            except ValueError as exc:
-                logger.error("ExecutionController: %s", exc)
-                continue
-
             # Wave 15 P0-5.3 — fat-finger check
             price_for_ff = prices.get(symbol, 0.0)
             try:
@@ -237,34 +274,42 @@ class ExecutionController:
         return orders
 
     # ------------------------------------------------------------------
-    # Wave 15 P0-5.2 — Position limit pre-trade check
+    # Verificatie tegen de soevereine policy (Stage D, C3/C4)
     # ------------------------------------------------------------------
 
-    def _check_position_limits(
-        self,
-        symbol: str,
-        new_qty: float,
-        new_notional: float,
-        current_positions: dict,
-    ) -> None:
-        """Pre-trade position limit gate (Wave 15 P0-5.2).
+    def _verify_target_book(self, target_weights: pd.Series) -> None:
+        """Toets het DOELBOEK aan `risk.max_position_pct` en `risk.gross_cap`.
 
-        Raises ValueError als een limiet overschreden wordt.
+        Dezelfde grootheden en dezelfde sleutels als `risk/limits.py`:
+        `|w_i| <= max_position_pct` per symbool en `sum |w_i| <= gross_cap` over
+        het boek. Gewichten, geen notionals -- dat is de definitie waarop de
+        soevereine laag zijn besluit neemt, en een tweede definitie hier zou
+        precies het probleem zijn dat §4 van de divergence map beschrijft.
+
+        Crasht bij overschrijding. Cappen zou het defect stroomopwaarts
+        verbergen; overslaan-en-loggen (wat de oude poort deed) laat het boek in
+        een toestand achter die niemand heeft besloten.
         """
-        # Per-symbol notional check
-        if new_notional > self._max_notional_per_symbol:
-            raise ValueError(
-                f"POSITION LIMIT BREACH: {symbol} notional {new_notional:.2f} > "
-                f"max {self._max_notional_per_symbol:.2f} (Wave 15 P0-5.2)"
+        weights = target_weights.astype(float)
+        gross = float(weights.abs().sum())
+        for symbol, weight in weights.items():
+            require(
+                abs(float(weight)) <= self.max_position_pct + _LIMIT_TOL,
+                f"{PER_ASSET_KEY} overschreden door het doelboek: "
+                f"|w[{symbol}]| = {abs(float(weight)):.4f} > "
+                f"{self.max_position_pct:.4f}. De soevereine laag hoort dit "
+                f"boek al te hebben teruggeschaald; dat het hier aankomt, is "
+                f"een defect stroomopwaarts.",
+                ConfigContractError, key=PER_ASSET_KEY, symbol=str(symbol),
+                measured=abs(float(weight)), threshold=self.max_position_pct,
             )
-
-        # Gross notional check
-        total_notional = sum(abs(p) for p in current_positions.values()) + abs(new_notional)
-        if total_notional > self._max_gross_notional:
-            raise ValueError(
-                f"GROSS NOTIONAL LIMIT BREACH: total {total_notional:.2f} > "
-                f"max {self._max_gross_notional:.2f} (Wave 15 P0-5.2)"
-            )
+        require(
+            gross <= self.gross_cap + _LIMIT_TOL,
+            f"{GROSS_CAP_KEY} overschreden door het doelboek: "
+            f"sum |w| = {gross:.4f} > {self.gross_cap:.4f}.",
+            ConfigContractError, key=GROSS_CAP_KEY, measured=gross,
+            threshold=self.gross_cap,
+        )
 
     # ------------------------------------------------------------------
     # Wave 15 P0-5.3 — Fat-finger validator

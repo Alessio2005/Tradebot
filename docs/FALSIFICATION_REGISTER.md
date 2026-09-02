@@ -1,5 +1,11 @@
 # FALSIFICATION REGISTER — bindend, append-only
 
+> **Geverifieerd tegen de codebase op 2026-09-01** (Phase 7/8, Stage E-3).
+> GEMETEN: de drie geciteerde ledger-amendementen bestaan in
+> `artefacts/governance/hypothesis_ledger.json`. Bij die controle bleek
+> het H2-amendement met een ONJUIST `config_hash` te zijn geciteerd; zie
+> de correctie bij H2.
+
 > Mandaat v3 §3. Her-testen van een item hieronder zonder aantoonbaar gewijzigde
 > premisse = verspilde DSR-trials en een mandaatschending. Nieuwe falsificaties
 > worden onderaan toegevoegd met bewijslink; bestaande regels worden nooit
@@ -193,7 +199,17 @@ zoals dat van H1 hierboven.
 *Toegevoegd 2026-08-30, Phase 6 stap 11 / Phase 7/8 Stage C-3. Bewijs:
 `reports/M0_VS_HMM_BENCHMARK.md`, artefact
 `artefacts/governance/phase6_h2_regime_benchmark.json`, ledger-amendement
-`5e5e07579587cddd` (`amends: 3d3af28730a6c7f9`).*
+`beb6a14e4f362658` (`amends: 3d3af28730a6c7f9`).*
+
+> **Gecorrigeerd 2026-09-01 (Phase 7/8, Stage E-3).** Hier stond
+> `5e5e07579587cddd` als het `config_hash` van het H2-amendement. Die
+> entry bestaat niet in `artefacts/governance/hypothesis_ledger.json`;
+> het werkelijke amendement draagt `beb6a14e4f362658`. Het
+> `amends`-veld klopte wel. Een register dat naar een niet-bestaande
+> ledger-entry verwijst, is precies wat no-go 20 verbiedt — en het is
+> alleen te vinden door de verwijzing daadwerkelijk op te zoeken, wat de
+> reden is dat Stage E-3 dat automatiseert
+> (`tests/unit/test_docs_claim_only_what_exists.py`).*
 
 Alle zes gepre-registreerde conditioneerders zijn **gedescopeerd**, en géén
 enkele is gefalsificeerd.
@@ -242,5 +258,91 @@ poort opengaat.
 
 **M0 Causal Vol-Buckets blijft de productie-baseline**, en dat is hier een
 niet-verworpen nulhypothese en geen bewezen superioriteit.
+
+`M` blijft **2776**.
+
+---
+
+## H3 — CatBoost als meta-labeler: **geen falsificatie**
+
+*Toegevoegd 2026-09-01, Phase 6 stappen 12 en 13 / Phase 7/8 Stage C-3. Bewijs:
+`reports/META_LABELING_EVALUATION.md`, artefact
+`artefacts/governance/phase6_h3_meta_labeling.json`, ledger-amendement
+`b08585c4394488eb` (`amends: 56395fa201376801`).*
+
+Alle zes gepre-registreerde specs zijn **`ARCHIVED`**, en géén enkele is
+gefalsificeerd.
+
+| | |
+|---|---|
+| Gepromoveerd | 0 |
+| Gefalsifieerd | **0** |
+| `UNPROVEN` | 0 |
+| `DESCOPED` | 0 |
+| `ARCHIVED` (AUC-drempel niet gehaald) | 6 |
+
+**De negatieve controle is schoon, en dat is de voorwaarde voor al het andere.**
+Hetzelfde model op gerandomiseerde labels geeft een AUC van **0,5100** (maximum
+over vijf permutaties: 0,4857 · 0,5007 · 0,5100 · 0,4936 · 0,4897), tegen een
+falsificatiegrens van 0,55. De pipeline lekt niet: geen scaler over folds heen,
+geen feature die de toekomst raakt, en een purge op `t1` die doet wat zij
+belooft. Was dit getal 0,55 of hoger geweest, dan was de RUN ongeldig geweest en
+niet de hypothese — en dan had er hier niets gestaan.
+
+**De adequaatheidspoort bindt niet.** 442,7 effectieve gepurgede trainevents per
+fold tegen een eis van 100. Dit is dus géén `UNPROVEN — insufficient data` zoals
+bij H1 en H2: er is genoeg data, er is gefit, en er is gemeten.
+
+**Waarom dan toch geen falsificatie.** De zes OOS-AUC's liggen tussen **0,4768
+en 0,4842** — alle zes onder 0,50 — en de conservatieve ondergrenzen tussen
+0,4040 en 0,4113, ver onder de drempel van 0,58. Stop-criterium 3 bindt op alle
+zes, en zijn gepre-registreerde actie is `archive`, niet `falsify`.
+
+Dat is geen formaliteit maar de juiste lezing, en de reden staat in de
+power-analyse die vóór de run vastlag:
+
+| Variant | effectieve n | MDE (AUC-overschot) | informatief? |
+|---|---|---|---|
+| nominaal | 7.200 | 0,0190 | ja |
+| na uniqueness | 1.167,8 | 0,0472 | ja |
+| **na uniqueness én cross-sectie** | **246,2** | **0,1029** | **nee** |
+
+Het overschot dat de drempel van 0,58 vraagt is 0,08, en dat is KLEINER dan de
+MDE van 0,1029 op de steekproefgrootte waarop het oordeel valt. Een toets die
+het effect dat zij zoekt niet kan detecteren, kan het ook niet verwerpen. Dat
+lag vóór de run vast; het is geen verklaring achteraf.
+
+**De twee lezingen wijzen niet dezelfde kant op, en dat hoort er te staan.** Op
+het NOMINALE interval ligt de bovengrens van de beste spec op 0,4976 — onder
+0,50, en dus zou een pipeline zonder uniqueness-correctie hier concluderen dat
+het model significant SLECHTER dan willekeurig rangschikt. Dat interval is
+ongeveer 5,5 keer zo smal als het conservatieve, en het is precies het interval
+dat de pre-registratie vóór de run heeft afgewezen als te smal. De conservatieve
+lezing omvat 0,50 ruim; het is ruis, geen anti-signaal.
+
+**De economische toets bevestigt het beeld, maar draagt het oordeel niet.** Vijf
+van de zes specs verslechteren de netto Sharpe (−0,5328 tot −0,1389). Eén,
+`catboost-d6-lr0.03`, verbetert hem met **+0,0449** — van −0,0998 naar −0,0548 —
+op een spec met een AUC van 0,4795, dus zonder gemeten voorspellende waarde. Dat
+is exact het geval waar stap 13 voor waarschuwt. Het bindende criterium bij die
+spec is dan ook de AUC en niet de engine. Bovendien zakt het aantal bars met
+positie van 1.200 naar 114–753; een Sharpe over zo weinig bars draagt een brede
+foutmarge.
+
+De precision op het werkpunt (0,4747 tot 0,4847) ligt bij alle zes ONDER de
+basisrate van 0,4961. Een filter dat selecteert op een kans die het niet kan
+schatten, houdt trades over die het gemiddelde niet halen.
+
+**Wat dit betekent voor hertesten.** H3 mag opnieuw worden getoetst zodra de
+effectieve steekproef groter is — een langer venster, een groter universum
+(DI-15), of een lagere labeloverlap door een kortere horizon. Alle drie zijn een
+gewijzigde premisse en vereisen een NIEUWE pre-registratie met een eigen
+bijdrage aan `M`. Wat NIET mag: de barrièrebreedtes variëren tot de AUC de
+drempel haalt, een ander werkpunt kiezen op de uitkomst, of de drempel van 0,58
+verlagen.
+
+**CatBoost blijft `ARCHIVED` zoals §24 vastlegt**, en directionele CatBoost
+blijft technisch geblokkeerd: `build_dataset` neemt geen `target`-argument, dus
+er bestaat geen handtekening waarmee dit model een eigen doelvector krijgt.
 
 `M` blijft **2776**.

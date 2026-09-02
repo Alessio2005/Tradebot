@@ -4,7 +4,10 @@
 > module-level docstrings and the binding audit document
 > [`ARCHITECTUUR_AUDIT_2026-08-22.md`](ARCHITECTUUR_AUDIT_2026-08-22.md).
 >
-> **Geverifieerd tegen de codebase op 2026-08-22, Phase 0.**
+> **Geverifieerd tegen de codebase op 2026-09-01** (Phase 7/8, Stage E-3).
+> De DAG in §2 is opnieuw uit `dvc.yaml` gelezen; de eerdere verificatie van
+> 2026-08-22 dateerde van vóór Phase 5 en beschreef twee stages die sindsdien
+> zijn verwijderd.
 >
 > Phase 0 corrigeert hier **D-5**: dit document verwees naar een
 > `REFACTOR_BLUEPRINT_v3.md` in de projectroot dat nooit heeft bestaan. De
@@ -39,17 +42,39 @@ Layer 3 imports from Layers 1+2 and never writes to their artefacts.
 
 ## 2. DAG stages
 
-| Stage | App entry-point          | Output                              |
-|-------|---------------------------|-------------------------------------|
-| 0     | `data_sync`               | `market_data_parquet/`              |
-| 1     | `build_features`          | `artefacts/features/, events/`      |
-| 1b    | `featurestore_sync`       | `artefacts/feature_store/`          |
-| 2     | `tune_hparams`            | `artefacts/hparams/`                |
-| 3     | `train_cpcv`              | `artefacts/models/, calibrators/`   |
-| 4     | `backtest_portfolio`      | `artefacts/portfolio/, tracks/`     |
-| 5     | `make_tearsheet`          | `reports/tearsheets/`               |
-| 6     | `alpha_combine`           | `artefacts/alpha_signals/`          |
-| live  | `live_trader`             | live or paper-trade event loop      |
+*Gemeten uit `dvc.yaml` op 2026-09-01. Dit is de VOLLEDIGE DAG; er zijn geen
+andere stages.*
+
+| Stage | Commando | Output |
+|-------|----------|--------|
+| `data_sync` | `apps.data_sync` | `market_data_parquet/<symbool>/` |
+| `build_features` | `apps.build_features` | `artefacts/bars/`, `artefacts/features/`, `artefacts/events/` |
+| `tune_hparams` | `apps.tune_hparams` | `artefacts/hparams/` |
+| `train_cpcv` | `apps.train_cpcv` | `artefacts/models/`, `artefacts/calibrators/`, `artefacts/oos_probs/` |
+| `phase5_revaluation` | `apps/run_phase5_baseline.py` | `artefacts/baseline/phase5_revaluation.json` |
+| `phase6_adequacy` | `apps/run_data_adequacy.py` | `artefacts/governance/phase6_data_adequacy.json` |
+| `phase6_econometrics` | `apps/run_econometric_diagnostics.py` | `artefacts/governance/phase6_econometrics.json` |
+| `phase6_h1_competition` | `apps/run_vol_competition.py` | `…/phase6_h1_competition.json`, `reports/GARCH_VS_EWMA_COMPETITION.md` |
+| `phase6_h2_regime_benchmark` | `apps/run_regime_benchmark.py` | `…/phase6_h2_regime_benchmark.json`, `reports/M0_VS_HMM_BENCHMARK.md` |
+| `phase6_h3_meta_labeling` | `apps/run_meta_labeling.py` | `…/phase6_h3_meta_labeling.json`, `reports/META_LABELING_EVALUATION.md` |
+
+**Wat hier NIET meer staat, en waarom.** Tot Phase 7/8 Stage E-3 droeg deze
+tabel twee stages die Phase 5 heeft VERWIJDERD — `backtest_portfolio` en
+`make_tearsheet`, die `bidirectional_backtest` en `PortfolioBacktester` dreven.
+Audit §16.1 en §24 schrijven consolidatie tot één event-driven engine voor; het
+pariteitsbewijs staat in `tests/integration/test_engine_parity.py` en de
+vergelijking in `reports/phase5_engine_diff.md`. `dvc.yaml` documenteert de
+verwijdering op de plek waar de stages stonden. De opvolger is
+`src/tradebot/backtest/engine.py` (`EventDrivenEngine`), met `phase5_revaluation`
+als DVC-stage.
+
+Daarmee vervielen ook de outputs `artefacts/portfolio/`, `reports/tearsheets/` en
+`artefacts/alpha_signals/`, die dit document nog als bestaand aanwees.
+
+**Apps buiten de DAG.** `apps/featurestore_sync.py`, `apps/alpha_combine.py`,
+`apps/live_trader.py` en `apps/paper_trade_runner.py` bestaan wel maar zijn geen
+DVC-stage: zij worden met de hand of door de live-loop gestart en produceren
+geen gehashte artefacten in de pijplijn.
 
 ## 3. Live event flow (per bar-close)
 

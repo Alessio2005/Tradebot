@@ -181,17 +181,33 @@ def judge_conditioner(
                 f"spread-aanname en geen modelresultaat."),
         )
 
+    # De motivering moet zeggen wat de controles WERKELIJK aantoonden. Hier
+    # stond onvoorwaardelijk "deze opzet kon het verwachte effect ook niet
+    # zien", direct gevolgd door `power_at_expected_effect`. Haalden de
+    # controles hun doel, dan sprak die zin het getal ernaast tegen -- en dat is
+    # de tekst die in het hypothese-grootboek belandt.
+    if controls.power_passed:
+        blindness = (
+            f"De opzet had het verwachte effect van "
+            f"{controls.expected_effect:.2f} Sharpe-eenheden WEL kunnen zien "
+            f"(power {controls.power_at_expected_effect:.1%} tegen een doel van "
+            f"{controls.target_power:.0%}); de delta is er eenvoudigweg niet. "
+            f"Dat blijft UNPROVEN en geen falsificatie: de vooraf vastgelegde "
+            f"falsificatiecriteria zijn niet geraakt.")
+    else:
+        blindness = (
+            f"En deze opzet kon het verwachte effect van "
+            f"{controls.expected_effect:.2f} Sharpe-eenheden ook niet zien: de "
+            f"gemeten power daar is {controls.power_at_expected_effect:.1%} "
+            f"tegen een doel van {controls.target_power:.0%}. Afwezigheid van "
+            f"bewijs is geen bewijs van afwezigheid.")
     return H2Verdict(
         status="UNPROVEN", binding=tuple(binding),
         rationale=(
             f"Netto Sharpe-delta {net_sharpe_delta:+.4f} tegen M0 "
             f"(gepaard: z = {dm.z_statistic:.3f}, p = {dm.p_value:.4g}, "
-            f"rho = {dm.correlation:.3f}). Geen verbetering, en deze opzet kon "
-            f"het verwachte effect van {controls.expected_effect:.2f} "
-            f"Sharpe-eenheden ook niet zien: de gemeten power daar is "
-            f"{controls.power_at_expected_effect:.1%} tegen een doel van "
-            f"{controls.target_power:.0%}. M0 blijft productie-baseline; "
-            f"afwezigheid van bewijs is geen bewijs van afwezigheid."),
+            f"rho = {dm.correlation:.3f}). Geen verbetering. {blindness} "
+            f"M0 blijft productie-baseline."),
     )
 
 
@@ -332,7 +348,17 @@ def _spread_delta(
     sweep = {bps: challenger[bps] - baseline[bps] for bps in challenger}
     if sweep[float(base_bps)] <= 0.0:
         return sweep, None
-    vanish = [bps for bps in sorted(sweep) if sweep[bps] <= 0.0]
+    # Alleen spreads BOVEN de basis tellen. De vraag is waar een winst die bij
+    # `base_bps` gemeten is, verdwijnt naarmate de spread OPLOOPT; een
+    # GOEDKOPERE spread kan die winst niet wegnemen. De scan liep over de hele
+    # sweep -- inclusief de spreads onder de basis -- en nam daarvan de
+    # kleinste. Vandaag onschadelijk, want `apps/run_regime_benchmark.py` zet
+    # `SPREAD_SWEEP = (1.0, 2.0, 3.0, 5.0, 10.0)` met de basis op 1,0 bp; bij
+    # elke basis boven het sweep-minimum levert het een verzonnen verdwijnpunt
+    # op, en daarmee een FALSIFIED-oordeel uit `judge_conditioner` dat nergens
+    # op slaat.
+    vanish = [bps for bps in sorted(sweep)
+              if bps > float(base_bps) and sweep[bps] <= 0.0]
     return sweep, (float(vanish[0]) if vanish else None)
 
 

@@ -17,6 +17,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..schemas.config import monitoring_config
+
 logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -31,9 +33,16 @@ __all__ = [
     "wasserstein_drift",
 ]
 
-PSI_MODERATE: float = 0.10
-PSI_CRITICAL: float = 0.20
-_MIN_SAMPLES: int = 50
+# STAGE D-3: deze drie stonden hier als module-constanten. Een drempel in code
+# is achteraf te wijzigen zonder dat een configuratiediff het toont, en no-go 10
+# verbiedt dat een monitoringdrempel na de start van de 60-daagse klok wordt
+# vastgesteld. Zij komen nu uit `conf/monitoring/default.yaml`, waarvan de hash
+# vóór de klok wordt bevroren. De NAMEN blijven staan zodat bestaande
+# aanroepers en hun default-argumenten ongewijzigd werken.
+_CFG = monitoring_config()
+PSI_MODERATE: float = _CFG.psi_moderate
+PSI_CRITICAL: float = _CFG.psi_critical
+_MIN_SAMPLES: int = _CFG.min_samples
 
 # CHIEF AUDIT-FIX (Sim-to-Reality #16):
 #   Drift PSI uses ``reference`` bins as the baseline distribution.  If the
@@ -45,7 +54,7 @@ _MIN_SAMPLES: int = 50
 #   halves, and flag references with intra-window PSI > critical.
 #   These references should NOT be used until a regime-stable subset is
 #   selected.
-REFERENCE_INTRA_PSI_LIMIT: float = PSI_CRITICAL
+REFERENCE_INTRA_PSI_LIMIT: float = _CFG.reference_intra_psi_limit
 
 
 @dataclass

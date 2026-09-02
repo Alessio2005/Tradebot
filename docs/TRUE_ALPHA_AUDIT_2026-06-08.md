@@ -1,5 +1,8 @@
 # TRUE-ALPHA AUDIT — FINAL: STATE (B) (2026-06-08)
 
+> **GEARCHIVEERD — historisch document.** Dit is een verslag van de alpha-audit van juni 2026 en beschrijft de toestand van toen. Het wordt NIET bijgewerkt: de paden en artefacten die het noemt, zijn die van die periode en bestaan grotendeels niet meer. Voor de huidige toestand, zie `docs/PROJECT_STATE.md`.
+> *Als historisch gemarkeerd op 2026-09-01 (Phase 7/8, Stage E-3).*
+
 **Author:** Chief Quantitative Architect
 **Mandate:** ULTIMATE REFACTOR — ≥100% net CAGR via true (market-neutral, regime-
 independent, non-trend) alpha, OOS, after all costs, within Bybit-EU 10× spot cap.

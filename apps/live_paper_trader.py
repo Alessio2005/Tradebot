@@ -120,6 +120,7 @@ def _build_engine_shadow():
     from tradebot.live.feed import Feed, FeedConfig
     from tradebot.live.model_signal import ModelSignal, ModelSignalConfig
     from tradebot.live.signal_runner import SignalRunner, SignalRunnerConfig
+    from tradebot.schemas.config import RiskConfig, load_config
     import json
 
     # Load Hydra config without @hydra.main decorator
@@ -230,13 +231,13 @@ def _build_engine_shadow():
         #   injection below (see "Force initial equal-weight LONG allocation").
         #   Subsequent signal-gated rebalances only fire when direction is clear.
         config=SignalRunnerConfig(
-            # min_confidence=0.0: ModelSignal heeft al zijn eigen Optuna-
-            # geoptimaliseerde _min_conf (0.35–0.41 per pair/side, geladen uit
-            # artefacts/hparams/{SYM}_{SIDE}.json).  Een extra gate hier
-            # onderdrukken signals met cal_prob 0.40–0.55 die al door de model-
-            # gate zijn gekomen → dubbele filtering buiten de Optuna-optimisatie.
-            # 0.0 = laat ModelSignal's eigen hparam-drempel de enige gate zijn.
-            min_confidence=0.0,
+            # STAGE D (C6): de runner had hier `min_confidence=0.0` staan om
+            # dubbele filtering te vermijden -- ModelSignal poortwacht al op
+            # zijn eigen Optuna-drempel (`_min_conf`, 0,35-0,41 per pair/side
+            # uit artefacts/hparams/{SYM}_{SIDE}.json). Die parameter bestaat
+            # niet meer: audit paragraaf 14 sluit modelvertrouwen uit als
+            # bepaler van de positiegrootte (no-go 8). De poort van ModelSignal
+            # blijft, en dat was hier feitelijk al de enige.
             use_combiner=True,
             min_direction_delta=0.02,
         ),
@@ -287,13 +288,20 @@ def _build_engine_shadow():
     )
 
     # ── Engine config ─────────────────────────────────────────────────────────
-    cb_cfg = CircuitBreakerConfig(
-        max_drawdown_pct=0.08,
-        max_daily_loss_pct=0.03,
-        feed_timeout_sec=120,       # 120s gap before CB trips (P0-3: allow spot
-                                    # WS reconnect delay; engine.run() seeds
-                                    # last_feed_ts at start so clock ticks from t=0)
-        max_position_age_h=48,
+    # STAGE D, C1 -- de drempels komen uit de soevereine policy, niet uit code.
+    # Hier stonden `max_drawdown_pct=0.08`, `max_daily_loss_pct=0.03` en
+    # `max_position_age_h=48` als losse getallen. Ze waren gelijk aan
+    # `conf/risk/default.yaml` en niets hield ze gelijk: een wijziging in de
+    # policy liet deze app stilzwijgend op de oude limieten doorhandelen. Dat is
+    # exact de divergentie die `CircuitBreakerConfig.from_risk_config` in
+    # `live/engine.py` opheft; deze app deelt hem nu.
+    risk_policy = load_config(_ROOT / "conf" / "risk" / "default.yaml", RiskConfig)
+    cb_cfg = CircuitBreakerConfig.from_risk_config(
+        risk_policy,
+        # Live-eigen, zonder tegenhanger in de policy: 120s gap before CB trips
+        # (P0-3: allow spot WS reconnect delay; engine.run() seeds last_feed_ts
+        # at start so clock ticks from t=0).
+        feed_timeout_sec=120,
     )
     # CHIEF-1 (2026-05-28) — INERTIA FILTER active.
     #   max_weight_change=0.25  : turnover cap per rebalance (existing)
@@ -302,6 +310,7 @@ def _build_engine_shadow():
     # Stops the $234/$304 DOT churn observed in Run 4b that was eating alpha
     # via half-spread + fees on near-zero informational content.
     ec_cfg = ExecutionControllerConfig(
+        risk=risk_policy,
         max_weight_change=0.25,
         min_notional_per_trade=1_000.0,
         min_weight_change=0.02,

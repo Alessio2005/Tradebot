@@ -1,5 +1,8 @@
 # Strategy Design & Audit — Crypto Propfirm Accounts A & B
 
+> **GEARCHIVEERD — historisch document.** Dit is een verslag van de strategie-audit van juni 2026 en beschrijft de toestand van toen. Het wordt NIET bijgewerkt: de paden en artefacten die het noemt, zijn die van die periode en bestaan grotendeels niet meer. Voor de huidige toestand, zie `docs/PROJECT_STATE.md`.
+> *Als historisch gemarkeerd op 2026-09-01 (Phase 7/8, Stage E-3).*
+
 **Author:** CHIEF (Quantitative Architect / Head of ML)
 **Date:** 2026-06-14
 **Scope:** Concrete strategy specification for the two crypto propfirm accounts

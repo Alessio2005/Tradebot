@@ -85,8 +85,13 @@ tb-data-sync          = "apps.data_sync:main"
 tb-build-features     = "apps.build_features:main"
 tb-tune-hparams       = "apps.tune_hparams:main"
 tb-train-cpcv         = "apps.train_cpcv:main"
-tb-backtest-portfolio = "apps.backtest_portfolio:main"
-tb-make-tearsheet     = "apps.make_tearsheet:main"
+# tb-backtest-portfolio en tb-make-tearsheet zijn VERWIJDERD in Phase 7/8
+# Stage E-1. Zij wezen naar apps/backtest_portfolio.py en
+# apps/make_tearsheet.py, die Phase 5 heeft verwijderd na het
+# pariteitsbewijs. `pip install -e .` maakte er commando's van die bij
+# aanroep crashten met ModuleNotFoundError -- een gedocumenteerd
+# commandopad dat niet werkt. De opvolger is apps/run_phase5_baseline.py.
+tb-run-baseline       = "apps.run_phase5_baseline:main"
 tb-monitor-drift      = "apps.monitor_drift:main"
 
 # ─────────────────────────────────────────────────────────────────────────────
