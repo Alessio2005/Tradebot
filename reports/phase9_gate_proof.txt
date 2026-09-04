@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# BEWIJS DAT DE INVENTARISPOORT ROOD KAN WORDEN — Phase 9, stap 13
+#
+# "Een groen criterium telt pas wanneer de bijbehorende controle rood KAN
+#  worden om de reden waarvoor zij bestaat."  -- exit-criterium, harde regel.
+#
+# Uitgevoerd op 2026-09-04 in een wegwerpbranch `phase9-gate-proof` op commit
+# 736a988. Per poort is een echte overtreding geintroduceerd en is de exitcode
+# vastgelegd. De branch is daarna verwijderd; niets hiervan staat in main.
+#
+# Wat er per poort is aangericht:
+#   1  een module toegevoegd die door niets wordt geimporteerd
+#   2  een regel toegevoegd aan een GECAPT bestand (data_adequacy.py, cap 807)
+#   3  een default-literal 0.0731 in risk/engine.py, een module met budget 0
+#   4  een `try: import numpy / except ImportError` in risk/engine.py
+#   5  positieve en negatieve controle op de vier killgate-node-ids
+#
+# Alle vijf gaven exit 1 op de overtreding (poort 5 exit 0 op de schone boom,
+# met de negatieve controle die aantoont dat de vergelijking echt vergelijkt).
+# ─────────────────────────────────────────────────────────────────────────────
+
+######## BEWIJS: de inventarispoort wordt rood ########
+commit: 736a988 (branch phase9-gate-proof, wegwerp)
+toegevoegd: src/tradebot/deliberately_unreachable.py -- door niets geimporteerd
+
+===== POORT 1/5: reachability_map.py --strict =====
+D:   20 modules     3036 LOC
+E:    3 modules     1021 LOC
+totaal: 291 modules, 71030 LOC
+
+geregistreerd onbereikbaar (2), zie docs/CODE_REGISTER.md:
+  tradebot.portfolio.covariance  (194 LOC)
+  tradebot.portfolio.legacy_sizing  (824 LOC)
+
+FAIL: 1 ONGEREGISTREERDE onbereikbare module(s):
+  tradebot.deliberately_unreachable  (src/tradebot/deliberately_unreachable.py, 3 LOC)
+
+Verwijder de module, of -- als zij een contract draagt dat de importgraaf niet ziet -- zet haar met reden in REGISTERED_UNREACHABLE en in docs/CODE_REGISTER.md.
+EXIT=1
+
+===== POORT 2/5: check_file_size.py (een regel bij een GECAPT bestand) =====
+FAIL: 1 bestand(en) boven hun plafond:
+  src/tradebot/validation/data_adequacy.py: 809 regels > 807 (cap)
+
+Splits het bestand, of verhoog zijn cap in scripts/check_file_size.py met een reden in de `# LOC-EXCEPTION:`-regel van het bestand zelf.
+EXIT=1
+
+===== POORT 3/5: check_hardcoded_params.py --strict (nieuwe literal) =====
+
+OVERSCHRIJDINGEN:
+  risk/engine.py: 1 literal(s) in een door Phase 0-3 bestuurde module (budget 0)
+
+303 numerieke literal(s) in 99 bestand(en).
+Toegestaan door de ratchet: 317. Bestuurd door Phase 0-3: budget 0.
+EXIT=1
+
+===== POORT 4/5: audit_fallbacks.py --strict (stille degradatie) =====
+src/tradebot/train/thompson.py:91: SWALLOWED_EXCEPT [LinAlgError] in LedoitWolfThompsonSampler.sample_theta -> evals, evecs = np.linalg.eigh(cov); evals_clipped = np.maximum(evals, 
+src/tradebot/volatility/garch.py:432: SWALLOWED_EXCEPT [_NUMERICAL_FIT_FAILURES] in fit_garch_window -> return GarchFit(spec=spec, symbol=symbol, fold_id=fold_id, n_obs...
+src/tradebot/volatility/yang_zhang.py:70: SWALLOWED_EXCEPT [AttributeError, TypeError] in get_yang_zhang_volatility -> logger.debug('Yang-Zhang intraday guard inconclusive: %s', exc)
+
+TOTAAL 40 bevinding(en): IMPORT_FALLBACK=1, SWALLOWED_EXCEPT=39
+  blokkerend: 1   advies: 39
+EXIT=1
+
+===== POORT 5/5: de vier killgates moeten deze vier zijn =====
+POSITIEVE CONTROLE  : GROEN
+  gevonden node-ids : 4
+NEGATIEVE CONTROLE  : alsof een killgate is uitgeschakeld -> ROOD (correct)
+EXIT=0
