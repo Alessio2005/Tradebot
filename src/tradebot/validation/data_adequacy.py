@@ -1,3 +1,6 @@
+# LOC-EXCEPTION: de poort meet vijf modelklassen tegen dezelfde bevroren drempels uit
+# conf/model/adequacy.yaml; per klasse een bestand zou die drempels vijf keer inlezen.
+# Cap staat op 804 regels in scripts/check_file_size.py; groeien is rood.
 """Data Adequacy Gate — Phase 6, §3. Meet vóór de fit of de data de vraag draagt.
 
 WAAROM DEZE POORT BESTAAT

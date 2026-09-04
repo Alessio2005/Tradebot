@@ -77,6 +77,28 @@ HYDRA_TARGET = re.compile(r"^\s*(?:-\s*)?_target_\s*:\s*['\"]?([A-Za-z_][\w.]*)[
 #: `python apps/foo.py` of `python -m apps.foo` in een dvc.yaml-`cmd`.
 DVC_CMD_PATH = re.compile(r"(?:python\s+(?:-m\s+)?)([\w./]+)")
 
+#: Modules die de importgraaf NIET bereikt en die toch een contract dragen.
+#:
+#: De scanner meet imports. Een test kan een bestand ook noemen zonder het te
+#: importeren, en dan bestaat het contract wel maar ziet de graaf het niet.
+#: Beide onderstaande modules worden door
+#: `tests/unit/test_risk_alpha_decoupling.py` op hun BESTAAN getoetst -- het
+#: Phase 4 exit-criterium 3-bewijs dat de verstrengelde module uit `risk/` is
+#: verdwenen. Een `git rm` zou een groene test rood maken.
+#:
+#: Elke regel hier moet in `docs/CODE_REGISTER.md` staan; die binding wordt
+#: afgedwongen door `tests/unit/test_reachability_map.py`. Zonder dat zou dit
+#: een sluiproute worden in plaats van een gelezen besluit.
+REGISTERED_UNREACHABLE: dict[str, str] = {
+    "tradebot.portfolio.legacy_sizing":
+        "bestaansassertie in tests/unit/test_risk_alpha_decoupling.py (Phase 4 "
+        "exit-criterium 3); DI-10 houdt het bestand ONGEWIJZIGD zodat de Phase "
+        "3-baseline herrekenbaar blijft",
+    "tradebot.portfolio.covariance":
+        "bestaansassertie in tests/unit/test_risk_alpha_decoupling.py (Phase 4 "
+        "exit-criterium 3); DI-10 noemt `_safe_corr` expliciet",
+}
+
 
 class Klass(Enum):
     A = "A"
@@ -381,6 +403,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--markdown", type=Path, help="schrijf de markdown-tabel hierheen")
     parser.add_argument("--coverage", type=Path, help="coverage.py-JSON om de dekkingskolom te vullen")
     parser.add_argument("--strict", action="store_true", help="exit 1 zodra klasse E niet leeg is")
+    parser.add_argument(
+        "--allow", action="append", default=None, metavar="MODULE",
+        help="extra module die klasse E mag zijn (naast REGISTERED_UNREACHABLE)",
+    )
     args = parser.parse_args(argv)
 
     rows = scan(args.root, coverage=args.coverage)
@@ -398,11 +424,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{klass.value}: {s['modules']:>4} modules  {s['loc']:>7} LOC")
     print(f"totaal: {len(rows)} modules, {sum(r.loc for r in rows)} LOC")
 
+    allowed = set(REGISTERED_UNREACHABLE) | set(args.allow or ())
     unreachable = [r for r in rows if r.klass is Klass.E]
-    if args.strict and unreachable:
-        print(f"\nFAIL: {len(unreachable)} onbereikbare module(s) in klasse E:")
-        for r in unreachable:
+    registered = [r for r in unreachable if r.module in allowed]
+    offending = [r for r in unreachable if r.module not in allowed]
+
+    if registered:
+        print(f"\ngeregistreerd onbereikbaar ({len(registered)}), zie docs/CODE_REGISTER.md:")
+        for r in registered:
+            print(f"  {r.module}  ({r.loc} LOC)")
+
+    if args.strict and offending:
+        print(f"\nFAIL: {len(offending)} ONGEREGISTREERDE onbereikbare module(s):")
+        for r in offending:
             print(f"  {r.module}  ({r.path}, {r.loc} LOC)")
+        print(
+            "\nVerwijder de module, of -- als zij een contract draagt dat de "
+            "importgraaf niet ziet -- zet haar met reden in REGISTERED_UNREACHABLE "
+            "en in docs/CODE_REGISTER.md."
+        )
         return 1
     return 0
 

@@ -1,3 +1,7 @@
+# LOC-EXCEPTION: een enkel bestand met alle pydantic-contracten is hier het punt: het configuratiecontract
+# van het platform hoort op EEN plek te staan, zodat een veld niet in twee modellen kan
+# gaan leven.
+# Cap staat op 1094 regels in scripts/check_file_size.py; groeien is rood.
 """Pydantic v2 configuratiecontracten - Phase 0, deliverable 4.
 
 Elk configuratiedomein heeft hier een model. De regels zijn overal identiek:

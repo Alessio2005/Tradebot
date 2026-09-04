@@ -1,3 +1,7 @@
+# LOC-EXCEPTION: de asyncio-engine orkestreert feed, features, orders en halt in een enkele
+# gebeurtenislus; splitsen introduceert een gedeelde toestand tussen modules waar nu een
+# lokale variabele staat.
+# Cap staat op 913 regels in scripts/check_file_size.py; groeien is rood.
 # src/tradebot/live/engine.py
 """AsyncIO live trading engine — orchestrates all live components.
 

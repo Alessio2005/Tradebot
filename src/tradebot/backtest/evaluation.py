@@ -1,3 +1,6 @@
+# LOC-EXCEPTION: de realisme-helpers vormen een keten waarin elke stap de output van de vorige
+# consumeert (kosten -> slippage -> impact -> metriek); de volgorde IS de logica.
+# Cap staat op 1054 regels in scripts/check_file_size.py; groeien is rood.
 # src/tradebot/backtest/evaluation.py
 """Institutional realism helpers for backtest evaluation.
 

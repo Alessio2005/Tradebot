@@ -1,3 +1,7 @@
+# LOC-EXCEPTION: regimedetectie, structurele-breukanalyse en de featurepipeline delen dezelfde
+# vensterdefinities; die uit elkaar trekken levert twee bestanden die elkaars constanten
+# moeten importeren.
+# Cap staat op 1056 regels in scripts/check_file_size.py; groeien is rood.
 # src/tradebot/features/regime.py
 """Regime detection, structural break analysis and feature pipeline.
 

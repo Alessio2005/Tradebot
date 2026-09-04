@@ -303,3 +303,52 @@ def test_a_module_reached_only_from_research_is_class_c(tree: Path) -> None:
     rows = {r.module: r for r in scan(tree)}
     assert rows["pkg.research_only"].klass is Klass.C
     assert rows["pkg.research_only"].seed == "research/w99_eval.py"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# De geregistreerde uitzonderingen op --strict (stap 13)
+# ─────────────────────────────────────────────────────────────────────────────
+def test_a_registered_exception_does_not_make_the_gate_red(tree: Path) -> None:
+    """Een klasse-E-module met een gedocumenteerd contract blokkeert niet.
+
+    `portfolio/legacy_sizing.py` en `portfolio/covariance.py` zijn onbereikbaar
+    voor de importgraaf en dragen tóch een bestaansassertie. Zonder
+    uitzonderingsmechanisme zou `--strict` eeuwig rood staan of zou iemand ze
+    verwijderen om de poort groen te krijgen.
+    """
+    from scripts.reachability_map import main
+
+    assert main(["--root", str(tree), "--strict"]) == 1
+    assert main(["--root", str(tree), "--strict", "--allow", "pkg.orphan"]) == 0
+
+
+def test_an_unregistered_module_still_makes_the_gate_red(tree: Path) -> None:
+    """De negatieve controle: de uitzondering geldt alleen voor wat er staat."""
+    from scripts.reachability_map import main
+
+    _write(tree / "src" / "pkg" / "second_orphan.py", "x = 1\n")
+    assert main(["--root", str(tree), "--strict", "--allow", "pkg.orphan"]) == 1
+
+
+def test_every_registered_exception_is_named_in_the_code_register() -> None:
+    """De poort en het register mogen niet uit elkaar lopen.
+
+    De uitzonderingen staan als constante in de scanner, want markdown parsen
+    is brozer dan een lijst. Deze test bindt die lijst aan
+    `docs/CODE_REGISTER.md`: wie een uitzondering toevoegt zonder hem te
+    documenteren, wordt hier rood.
+    """
+    from scripts.reachability_map import REGISTERED_UNREACHABLE
+
+    register = (ROOT / "docs" / "CODE_REGISTER.md").read_text(encoding="utf-8")
+    for module, reason in REGISTERED_UNREACHABLE.items():
+        relpath = module.replace("tradebot.", "").replace(".", "/") + ".py"
+        assert relpath in register, f"{module} staat niet in docs/CODE_REGISTER.md"
+        assert reason, f"{module} heeft geen reden"
+
+
+def test_the_repository_has_no_unregistered_unreachable_module() -> None:
+    """Exit-criterium 3, op de echte boom: `--strict` retourneert 0."""
+    from scripts.reachability_map import main
+
+    assert main(["--strict"]) == 0
