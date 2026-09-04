@@ -427,3 +427,113 @@ toestand van vóór de reparatie.
 3. **Of `portfolio/optimizer.py` en `portfolio/risk_parity.py` hetzelfde doen.**
    Component 8 in §2 draagt daarom "niet vergelijkbaar zonder pariteitstest" en
    geen risico-oordeel.
+
+---
+
+## 11. Nameting na de inventarisatie — Phase 9, stap 15
+
+> **Gemeten 2026-09-04** met `scripts/reachability_map.py` op commit `2542d62`.
+> Deze sectie **kwantificeert** en **corrigeert**; zij lost niets op. De
+> consolidatie hoort bij openstaand besluit 0 en 3 van de eigenaar
+> (`docs/PROJECT_STATE.md` §5), en fence 5 van Phase 9 verbiedt expliciet dat
+> een opruimfase een van de twee stacks weggooit.
+
+### 11.1 De twee afsluitingen, gemeten
+
+De opruiming maakte het mogelijk beide afsluitingen met hetzelfde instrument te
+meten in plaats van te schatten:
+
+| | Modules | LOC |
+|---|---:|---:|
+| authoritative (de tien DVC-seeds) | 193 | 53.096 |
+| live (`apps/live_paper_trader.py`) | 146 | 37.534 |
+| **doorsnede** | **113** | **29.879** |
+| alleen authoritative | 80 | 23.217 |
+| alleen live | 33 | 7.655 |
+
+De doorsnede is groot omdat de live-APP veel van de authoritative keten
+importeert — schemas, utils, features, execution. Dat is niet waar de
+divergentie zit. Zij zit een laag dieper:
+
+| | Modules | LOC |
+|---|---:|---:|
+| de pakketten `live/` + `oms/` | 21 | 6.173 |
+| **daarvan ook in de authoritative afsluiting** | **0** | **0** |
+
+**Nul.** De live-app deelt code met de authoritative keten; de live-*pakketten*
+delen er niets mee. Dat is de scherpste formulering van §3.2 die uit een meting
+volgt, en zij is scherper dan het beeld dat de app-afsluiting geeft.
+
+### 11.2 Correctie op `PROJECT_STATE.md` §3.2
+
+§3.2 stelt: *"Er zijn **nul** verwijzingen naar `RiskDecision`, `risk/engine.py`
+of `risk/kill_switches.py` in `live/` of `oms/`."* Dat is sinds Stage D niet
+meer waar, en het verschil is precies het interessante deel:
+
+| Symbool | Imports in `live/` + `oms/` | |
+|---|---:|---|
+| `RiskDecision` | **0** | de besluitweg is NIET aangesloten |
+| `RiskEngine` | **0** | idem |
+| `execution/order_router.py` | **0** | de live-orderweg loopt er niet langs |
+| `risk/kill_switches.py::HaltStore` | **1** | `live/circuit_breaker.py:29` |
+| `risk/limits.py` | **1** | `live/execution_controller.py:39` |
+| `risk/daily_loss_governor.py` | **1** | `live/engine.py:41` |
+
+**Het HALT-pad staat op de soevereine laag; het BESLUIT-pad niet.** Dat is een
+nauwkeuriger uitspraak dan "nul verwijzingen", en zij verklaart ook waarom §2
+van `PROJECT_STATE.md` tegelijk kan zeggen dat de halt-state niet aan de
+werkdirectory hangt: `live/circuit_breaker.py` deelt de HaltStore wél.
+
+`oms/router.py::place_order` vraagt nog altijd geen risicobesluit:
+
+```python
+async def place_order(self, order: Order) -> Fill:
+    """Route an order to paper or live exchange."""
+    if not self._live_mode:
+        return self._paper.place_order(order)
+    return await self._live_place(order)
+```
+
+Er is geen `RiskDecision` tussen het signaal en de order. Dat blijft de kern van
+openstaand besluit 3.
+
+### 11.3 Wat de dekkingsmeting toevoegt
+
+Nieuw ten opzichte van eerdere metingen: de twee ketens zijn niet even goed
+getoetst.
+
+| | Dekking |
+|---|---:|
+| `risk/` (soeverein, authoritative) | **86,8 %** |
+| `live/` | **38,5 %** |
+| `oms/` | **69,8 %** |
+| waarvan `oms/router.py` — de orderweg zelf | **27,9 %** |
+
+De laag waarvan `PROJECT_STATE.md` §2 zegt dat hij *"soeverein is in de
+BACKTEST"* draagt 86,8 % dekking; de laag die in productie de orders plaatst,
+draagt er 38,5 %. Phase 9 heeft de twee zuivere functies van `router.py`
+afgedekt (ondertekening en lotgrootte-afronding) omdat die stil verkeerd kunnen
+zijn; de async HTTP-weg staat onder een ratchet in `docs/CODE_REGISTER.md`.
+
+### 11.4 De duplicatie, feitelijk
+
+Onveranderd ten opzichte van §6.1 t/m §6.4, hier alleen bij elkaar gezet:
+
+| | authoritative | live |
+|---|---|---|
+| featurestack | `features/registry.py` → `features/base.py` | `features/pipeline.py` |
+| impactmodel | `eta = 2,991922` (gekalibreerd) | `eta = 0,1` / `0,142` |
+| slippage | 1 bp aangenomen half-spread | 5 bp vast |
+| barresolutie | dagbars | 5-secondebars (`FeedConfig.bar_seconds = 5`) |
+| annualisatie | 365 | 6.307.200 — factor **131,5** op sigma |
+| universum | zes namen | vijf namen (geen BTCUSDT) |
+| risicobesluit | `RiskEngine.decide` → `RiskDecision` | geen |
+
+### 11.5 Wat deze sectie NIET doet
+
+Zij kiest niet. Welke van de twee featurestacks blijft, welke barresolutie
+geldt en of `live/` wordt aangesloten of herbouwd, zijn besluiten van de
+eigenaar van het risicoregime — openstaand besluit 0 en 3. Phase 9 heeft de
+`live/`-modules om precies die reden **niet** gearchiveerd, hoewel zij met 38,5
+% dekking en een app die nergens werd genoemd de goedkoopste kandidaten van de
+hele inventarisatie waren. Ze weggooien zou het besluit nemen.
