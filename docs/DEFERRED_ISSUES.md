@@ -8,6 +8,8 @@
 > gemarkeerd met de commit die het sluit.
 
 **Geverifieerd tegen de codebase op 2026-08-22, Phase 0.**
+**Herzien 2026-09-04 (Phase 9): DI-8 gesloten; DI-3 en DI-4 herbevestigd met een
+gecorrigeerde meting. Geen enkele DI is verwijderd.**
 
 ---
 
@@ -50,9 +52,9 @@
 
 | DI | Oordeel | Voorwaarde of motivering | Eigenaar |
 |---|---|---|---|
-| **DI-3** | doorgeschoven, met ratchet | 9 bestanden >800 LOC bij Phase 0; **gemeten 2026-09-01: nog 2** (`labeling/meta.py` 838, `backtest/evaluation.py` 833). Voorwaarde: splitsen zodra een van beide functioneel wordt aangeraakt. Tot dan geldt de ratchet die verdere groei blokkeert. | Engineering |
-| **DI-4** | bewust geaccepteerd, met ratchet | 19 van 30 apps >80 LOC bij Phase 0; **gemeten nu: 18 van 40** (45 % tegen 63 %). Nieuwe apps respecteren de limiet — `apps/freeze_monitoring.py` telt 63 regels. De bestaande overschrijdingen raken geen statistisch contract; herschrijven is kosten zonder baat. | Engineering |
-| **DI-8** | doorgeschoven, met voorwaarde | **Gemeten: 58 scripts in `scripts/`**, waarvan het merendeel Wave-onderzoek. Zij staan buiten de CI-lintscope en buiten de DAG. Voorwaarde: verplaatsen naar `research/` zodra iemand de wave-documentatie die ernaar verwijst bijwerkt — eerder breekt het die verwijzingen. | Research |
+| **DI-3** | **herbevestigd met gecorrigeerde meting** (Phase 9, stap 13) | De meting van 2026-09-01 was ONJUIST. Zij noteerde *"nog 2"* (`labeling/meta.py` 838, `backtest/evaluation.py` 833); **gemeten 2026-09-04 zijn het er negen**, en die twee stonden toen al op 1.181 en 1.054. De ratchet die *"verdere groei blokkeert"* bestond niet: hij stond in de `Makefile` en `make` bestaat niet in deze omgeving. **Wat er nu wel is:** `scripts/check_file_size.py` met een CAP per bestand op de gemeten omvang, afgedwongen door `.github/workflows/inventory.yml` en getoetst door `tests/unit/test_file_size_ratchet.py` -- inclusief het bewijs dat de poort rood wordt op één toegevoegde regel. Zeven van de negen dragen nu een `# LOC-EXCEPTION:`-regel met hun reden; `portfolio/legacy_sizing.py` is uitgezonderd omdat DI-10 hem ONGEWIJZIGD houdt. Voorwaarde ongewijzigd: splitsen zodra een bestand functioneel wordt aangeraakt. | Engineering |
+| **DI-4** | **herbevestigd met gecorrigeerde meting** (Phase 9, stap 12) | De meting *"18 van 40"* was onjuist; **gemeten 2026-09-04: 27 van 40** (68 %, tegen de 63 % van Phase 0 -- het aandeel is dus GESTEGEN, niet gedaald). Ook het voorbeeld klopte niet: `apps/freeze_monitoring.py` telt geen 63 maar **82** regels en overschrijdt de limiet zelf. De motivering blijft staan: de overschrijdingen raken geen statistisch contract en herschrijven is kosten zonder baat. **Wat er wel is veranderd:** alle 40 apps staan nu met LOC, DVC-stage en doel in `docs/runbook.md` §0.7, en het aantal apps dat nergens werd genoemd is van 12 naar 0 gegaan. Een te lange app die gedocumenteerd is, is een andere post dan een te lange app die niemand kent. | Engineering |
+| **DI-8** | **GESLOTEN** (Phase 9, stap 9, commit `43a1ddf`) | De voorwaarde is vervuld. 48 onderzoeksscripts zijn met `git mv` naar `research/` verhuisd -- historie meeverhuisd -- en 77 verwijzingen in 35 bestanden zijn bijgewerkt, waaronder 32 in de wave-documentatie. Elf platformgereedschappen blijven in `scripts/`. `research/README.md` vermeldt de herkomst per bestand. **Drie verwijzingen zouden stil kapot zijn gegaan** en zijn meeverhuisd: `tests/unit/test_factor_alpha.py` laadt `true_alpha_gates.py` per PAD (die test is geskipt, dus de suite had het niet gemeld), drie research-scripts laden elkaar zo, en twee docstrings in `src/`. De verhuizing is klasse-neutraal gemeten: C = 8 modules / 1.108 LOC vóór en na. | Research |
 | **DI-9** | bewust geaccepteerd, onder ratchet | `check_hardcoded_params.py --strict` staat **groen** (310 literals, budget 317) en de door Phase 0-3 bestuurde modules dragen budget **0**. Wat resteert staat in niet-bestuurde legacy en kan niet groeien. | Engineering |
 | **DI-10** | idem DI-9 | Het nieuwe `risk/`-pakket draagt budget 0; het restant zit in `portfolio/legacy_sizing.py`, bewust ONGEWIJZIGD zodat de Phase 3-baseline herrekenbaar blijft. | Engineering |
 | **DI-11** | bewust geaccepteerd, onder ratchet | Idem. De Phase 6-modules die daadwerkelijk zijn gebouwd (`volatility/garch.py`, `regime/`, `train/meta_label.py`, `validation/`) halen hun parameters uit `conf/model/`. | Research |
@@ -69,7 +71,16 @@
 **Samenvatting.** Van de 18 openstaande DI's zijn er **3 gesloten met bewijs**
 (DI-5, DI-6, DI-12 — zie de tabel hierboven), **6 bewust geaccepteerd** onder
 een ratchet of met motivering, en **9 doorgeschoven met een concrete
-voorwaarde**. Vier van die negen zijn INKOOPBESLUITEN over data (DI-15, DI-18,
+voorwaarde**.
+
+> **Bijgesteld 2026-09-04, Phase 9.** DI-8 is **gesloten**; de voorwaarde
+> waarop hij sinds Phase 0 doorschoof, is vervuld. DI-3 en DI-4 zijn
+> **herbevestigd met een gecorrigeerde meting**: beide droegen een cijfer dat
+> aantoonbaar onjuist was (DI-3 noteerde 2 bestanden >800 LOC waar er 9 staan;
+> DI-4 noteerde 18 van 40 apps >80 LOC waar het er 27 zijn). Dat is de reden
+> dat deze fase de nulmeting heeft nagemeten in plaats van overgenomen: een
+> register dat zichzelf niet hermeet, verrot in de richting die niemand
+> opmerkt — het ziet er beter uit dan het is. Vier van die negen zijn INKOOPBESLUITEN over data (DI-15, DI-18,
 DI-21) of een organisatorisch moment (DI-17), en geen van hen is met code op te
 lossen.
 
@@ -79,6 +90,7 @@ Geen enkele DI verwijst nog naar een afgeronde fase als "toewijzing".
 
 | ID | Probleem | Gesloten door |
 |---|---|---|
+| **DI-8** | De onderzoeksscripts stonden naast het platformgereedschap in `scripts/`; sectie 20 van de architectuuraudit schrijft een `research/`-track zonder productiecode voor. | **Phase 9, stap 9, commit `43a1ddf`.** 48 onderzoeksscripts met `git mv` naar `research/`, elf platformgereedschappen blijven in `scripts/`. De doorgeschoven voorwaarde was *"verplaatsen zodra iemand de wave-documentatie die ernaar verwijst bijwerkt"*; 77 verwijzingen in 35 bestanden zijn meeverhuisd, waaronder 32 in de wave-documentatie. **Bewijs:** `research/README.md` vermeldt de herkomst per bestand, en de verhuizing is klasse-neutraal gemeten met `scripts/reachability_map.py` -- klasse C staat op 8 modules / 1.108 LOC vóór én na. Drie verwijzingen die per PAD laden (`spec_from_file_location`) zijn handmatig nagelopen; één daarvan zat in een geskipte test en zou stil kapot zijn gegaan. |
 | **DI-5** | `docs/tca_methodology.md` verwees naar `apps/calibrate_impact.py`, `tests/integration/test_tca_roundtrip.py` en `conf/tca/default.yaml` die niet bestonden. | **Phase 7/8, Stage E-3.** Alle drie bestaan inmiddels. Bij het nalopen bleek het document daarnaast twee NIEUWE onjuistheden te dragen: het noemde `artefacts/tca/coefficients.yaml` als output (de app schrijft `artefacts/execution/impact_params.json`) en `pre_trade.estimate_cost` als consument (bestaat nergens in `src/`). Beide zijn gecorrigeerd; de bindende waarden staan in `conf/execution/impact.yaml`. **Bewijs:** `tests/unit/test_docs_claim_only_what_exists.py` faalt zodra een document opnieuw naar een niet-bestaand pad verwijst. |
 | **DI-6** | Vier overlappende backtest-engines (`evaluation`, `portfolio`, `bidirectional`, `per_side`). | **Phase 5**, na het pariteitsbewijs. `portfolio`, `bidirectional` en `per_side` zijn verwijderd; `backtest/engine.py` (`EventDrivenEngine`) is de enige authoritative engine. `backtest/vectorized.py` bestaat nog als REFERENTIE en is per AD-8 technisch uitgesloten van promotie. **Bewijs:** `tests/integration/test_engine_parity.py`, `reports/phase5_engine_diff.md`, en de verwijdering staat gedocumenteerd op de plek in `dvc.yaml` waar de stages stonden. |
 | **DI-12** | `volatility/ewma.py` had `halflife=20` als default-argument en vulde de burn-in met `fillna(0.0)` - een impliciete volatiliteit van nul, wat in risk parity een oneindig gewicht oplevert. | **Phase 3, deliverable 1.** De moduledocstring van `src/tradebot/volatility/ewma.py` draagt de sluiting; lambda komt uit `conf/model/volatility.yaml` en de burn-in propageert NaN. **Gemeten 2026-09-01 via de AST:** geen enkele `fillna`- of `halflife`-aanroep in de code van dat bestand; de twee treffers op een tekstzoekopdracht staan in de docstring die het oude idioom citeert om uit te leggen wat er mis was. |
