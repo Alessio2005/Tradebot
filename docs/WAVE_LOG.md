@@ -41,7 +41,7 @@ resultaat onboekbaar.
 - `src/tradebot/risk/factor_alpha.py` — `factor_residual_alpha()` (HAC/
   Newey-West; α, t, p, loadings, R², n; `gate_row()` voor de gate-tabel),
   `G4_FACTORSETS` per markt (mandaat §10 G4). Gepromoveerd uit
-  `scripts/true_alpha_gates.py::gate_g6` (R-2).
+  `research/true_alpha_gates.py::gate_g6` (R-2).
 - `tests/unit/test_factor_alpha.py` — synthetische bekende-uitkomst-tests
   (deterministisch, R-5) + audit-§9-reproductie (skipif zonder cached panel).
 
@@ -50,8 +50,8 @@ De compute-omgeving was deze sessie onbeschikbaar (sandbox: onvoldoende
 schijfruimte). Vereiste run (lokaal):
 ```
 pytest tests/ -q                         # incl. nieuwe 0.1/0.2/0.3-tests
-python scripts/wave_final_eval.py artefacts/broad_perp_daily_close_WIDE.parquet 10 0.35
-python scripts/multi_sleeve_combine.py
+python research/wave_final_eval.py artefacts/broad_perp_daily_close_WIDE.parquet 10 0.35
+python research/multi_sleeve_combine.py
 ```
 Daarna: 4 bestaande crypto-units (ML-XS, LOWVOL, REVERSAL-k10, CARRY) als
 `accepted` in de ledger; baseline-gate-tabel bit-identiek reproduceren.
@@ -120,13 +120,13 @@ Na vrijmaken van schijfruimte faalt de sandbox-VM definitief met
 Fix (gebruiker): virtualisatie aanzetten (BIOS/UEFI: Intel VT-x / AMD SVM;
 Windows: "Virtual Machine Platform"/Hyper-V aan, daarna herstart).
 
-Mitigatie zodat de wave niet op de VM wacht: **`scripts/wave20_runner.py`**
+Mitigatie zodat de wave niet op de VM wacht: **`research/wave20_runner.py`**
 — one-shot evidence-runner voor de volledige keten (pytest → rebaseline 2×
 met bit-identiek-check (G7) → multi_sleeve_combine → smoke-fetches alle
 PIT-bronnen → W21-universumbouw → W22-unit-evals met ledger-staging).
 Logs naar `artefacts/wave20_runlog/`, status naar `status.json`. De runner
 verzamelt alleen bewijs; accept/archiveer en ledger-merge blijven serieel.
-Lokaal draaien: `python scripts/wave20_runner.py` (of `--quick` voor een
+Lokaal draaien: `python research/wave20_runner.py` (of `--quick` voor een
 25-namen-smoke van de universumbouw).
 
 ### Addendum 3 (2026-06-10) — 0.4 REBASELINE GEDRAAID: bit-identiek bevestigd
@@ -153,7 +153,7 @@ Gefaald in run 1 + fixes (alle gerepareerd, herrun vereist):
 4. wiki-parser StopIteration op tabel-layout → robuuste tabel-detectie.
 
 Wave 20 sluit zodra de herrun pytest groen toont
-(`python scripts/wave20_runner.py --skip-rebaseline`); 0.4-kern is binnen.
+(`python research/wave20_runner.py --skip-rebaseline`); 0.4-kern is binnen.
 
 ### Addendum 4 (2026-06-10) — run 2 verwerkt: 3 pytest-fails + stooq-blokkade
 
@@ -349,7 +349,7 @@ Baur, Cahill, Godfrey & Liu (2019) — trading around the clock; practitioner-
 lore rond 8h-funding-timestamps (klok-mechanisme; onderscheiden van het
 F1-gefalsifieerde funding-VALUE-signaal).
 
-**Implementatie.** `scripts/w26_seasonality_diag.py`: 6 perps, 5s→1h
+**Implementatie.** `research/w26_seasonality_diag.py`: 6 perps, 5s→1h
 (43.681 uurbars, 2021-06→2026-05, cache `artefacts/crypto_hourly.parquet`),
 EW-markt-uurreturns; diagnostiek vóór unit-bouw (wave-protocol: bruto effect
 moet de kostenlat halen vóór er een unit wordt gebouwd).
@@ -423,7 +423,7 @@ maandelijkse herbalancering, gross = 1.
 6 sectoren, 2004-01-02 -> 2026-08-07, PIT-gestempeld, 135.183 rijen);
 `alpha/cm_tsmom.py` (unit, mét borrow op de shortkant — anders dan FX, waar
 shorts swap-impliciet zijn); `apps/ingest_xasset.py` (R-6, met truncatie- en
-staleness-weigering); evals in `scripts/w27_xasset_tsmom_eval.py` + `w27_g4.py`.
+staleness-weigering); evals in `research/w27_xasset_tsmom_eval.py` + `w27_g4.py`.
 Kosten: 1bp commissie + 3bp half-spread per zijde, 0,50%/jr borrow. De TER van
 de ETFs zit al ín de aangepaste NAV en wordt niet dubbel geteld.
 
@@ -553,7 +553,7 @@ delisting-inclusieve PIT-bron bestaat.
 ### Fase 0 — governance
 
 **0.1 Ledger hersteld.** De canonieke `hypothesis_ledger.json` ontbrak in beide
-werkkopieën. `scripts/w28_seed_ledger.py` bouwt hem terug uit de geïtemiseerde
+werkkopieën. `research/w28_seed_ledger.py` bouwt hem terug uit de geïtemiseerde
 wave-log-keten: seed 2363 + 6 gereconstrueerde wave-rijen = 2702, daarna W27
 via de gesanctioneerde CLI-merge → **2706**, exact de twee onafhankelijk
 vermelde totalen in dit log. Config-hashes van W20–W26 zijn niet te herstellen;

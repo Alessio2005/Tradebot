@@ -74,7 +74,7 @@ FASE 0  fundament (W20)            ── blokkeert ALLES hierna
   rapporteert α, t(α), p, loadings. Eén functie, hergebruikt door élke unit.
 - Factorsets klaarzetten als data: Ken French (Mkt-RF, SMB, HML, RMW, CMA, MOM)
   via 0.2; AQR BAB (gratis download); crypto MKT+TSMOM (zelf construeren uit
-  bestaande data — bestaat al deels in `scripts/true_alpha_gates.py`, promoveer
+  bestaande data — bestaat al deels in `research/true_alpha_gates.py`, promoveer
   naar `src/tradebot/`, R-2); FX dollar/carry/trend en commodity markt/carry/mom
   zelf construeren zodra 5.3/5.4-data er is.
 - Unit-test met een bekende uitkomst (bv. de audit-§9-boekcijfers reproduceren:
@@ -84,8 +84,8 @@ FASE 0  fundament (W20)            ── blokkeert ALLES hierna
 
 ### 0.4 Crypto-rebaseline (parallel met 0.2/0.3; alleen compute)
 - Draai de bestaande validatie integraal opnieuw: `pytest tests/lookahead/`,
-  determinisme-suite (R-5), daarna `scripts/wave_final_eval.py` en
-  `scripts/multi_sleeve_combine.py` → officiële **Wave-20-baseline-gate-tabel**
+  determinisme-suite (R-5), daarna `research/wave_final_eval.py` en
+  `research/multi_sleeve_combine.py` → officiële **Wave-20-baseline-gate-tabel**
   (verwacht: Sharpe ~1.0–1.2, CAGR ~50–60% @40% vol, G1 rood — dat is de start).
 - Leg de vier bestaande crypto-units vast als geaccepteerde units in de ledger:
   ML-XS (`artefacts/tracks_breadth/`), LOWVOL, REVERSAL-k10, CARRY.

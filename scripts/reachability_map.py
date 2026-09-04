@@ -20,7 +20,7 @@ als vanuit een test bereikbaar is, is A. Wat overblijft is E.
 
     A  authoritative   bereikbaar vanuit een `dvc.yaml`-stage
     B  operationeel    bereikbaar vanuit een app die niet in de DAG staat
-    C  research        uitsluitend bereikbaar vanuit `scripts/`
+    C  research        uitsluitend bereikbaar vanuit `scripts/` of `research/`
     D  test-only       uitsluitend bereikbaar vanuit `tests/`
     E  onbereikbaar    door niets bereikt
 
@@ -63,7 +63,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 #: Mappen buiten `src/` waarvan de bestanden als seed dienen.
-ENTRYPOINT_DIRS = ("apps", "scripts", "tests")
+ENTRYPOINT_DIRS = ("apps", "scripts", "research", "tests")
+
+#: Klasse C is "research". Sinds stap 9 van Phase 9 wonen de
+#: wave-onderzoeksscripts in `research/` en het platformgereedschap in
+#: `scripts/`; beide mappen seeden dezelfde klasse, zodat de verhuizing geen
+#: module van klasse verandert.
+RESEARCH_DIRS = ("scripts", "research")
 
 #: `_target_: pkg.mod.Klasse` in een Hydra-config.
 HYDRA_TARGET = re.compile(r"^\s*(?:-\s*)?_target_\s*:\s*['\"]?([A-Za-z_][\w.]*)['\"]?\s*$", re.MULTILINE)
@@ -284,7 +290,7 @@ def scan(root: Path | str = ROOT, coverage: Path | str | None = None) -> list[Ro
     seed_sets: list[tuple[Klass, list[str]]] = [
         (Klass.A, _dvc_seeds(root, known) + _hydra_seeds(root, known)),
         (Klass.B, _dir_seeds(known, "apps")),
-        (Klass.C, _dir_seeds(known, "scripts")),
+        (Klass.C, [s for d in RESEARCH_DIRS for s in _dir_seeds(known, d)]),
         (Klass.D, _dir_seeds(known, "tests")),
     ]
 

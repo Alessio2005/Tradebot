@@ -111,7 +111,7 @@ raise Sharpe toward ~3 via breadth + orthogonal sleeves + ML sizing, tighten G4 
 a hedge overlay, then vol-target/leverage and run the full G1–G9 gate. Conclude (A)
 only on all-green OOS-after-cost, or (B) only after these levers demonstrably top out.
 
-**Reproduce:** `python scripts/validate_neutral_book.py` · `python scripts/true_alpha_gates.py`
+**Reproduce:** `python research/validate_neutral_book.py` · `python research/true_alpha_gates.py`
 
 ---
 
@@ -229,7 +229,7 @@ dumps, would *lower* low-vol), (ii) options/perp VRP instruments (barred for EEA
 retail), or (iii) accepting directional/trend exposure (violates the true-alpha
 definition). None are available under the current mandate.
 
-**Reproduce final:** `python scripts/wave_final_eval.py artefacts/broad_perp_daily_close_WIDE.parquet 10 0.35`
+**Reproduce final:** `python research/wave_final_eval.py artefacts/broad_perp_daily_close_WIDE.parquet 10 0.35`
 
 ---
 
@@ -303,7 +303,7 @@ directional information (AUC 0.51) and the market-neutral premia are √N-capped
   than the 5-name carry. Funding-as-alpha falsification confirmed at breadth.
 - Funding-conditioned reversal: conditioning *hurts* (0.61 → 0.42 → −1.03).
 
-**Leverage/execution optimization — safer verified product (`scripts/mn_optimized_exec.py`):**
+**Leverage/execution optimization — safer verified product (`research/mn_optimized_exec.py`):**
 position-level sleeve netting + no-trade band + ruin-bounded fractional-Kelly
 de-grossing:
 
@@ -328,13 +328,13 @@ re-enters the directional region already mapped in §10 (Option 1), now at full
 breadth and with the canonical AFML techniques applied directly.
 
 **Data.** Fetched **full daily OHLCV** for 99 long-history (onboard <2022-07) USDT
-perps, Binance public, 2021-06→2026-06 (`scripts/fetch_broad_ohlcv.py` →
+perps, Binance public, 2021-06→2026-06 (`research/fetch_broad_ohlcv.py` →
 `artefacts/broad_perp_ohlcv.parquet`, 176.7k rows). Free, point-in-time-honest
 (klines are settled at bar close), survivorship caveat unchanged (delisted names
 absent — *upward* bias). Costs 10 bps; vol-target 40%.
 
 **A. Per-asset L/S models (the literal 70×2 = 198 models).**
-`scripts/breadth_ml_book.py` — per asset: causal 16-feature set, triple-barrier
+`research/breadth_ml_book.py` — per asset: causal 16-feature set, triple-barrier
 L/S labels, 6-fold purged+embargoed CV → OOS probs. **198 models scored: median
 AUC 0.551, pooled 0.547, 51% of models >0.55** — *looks* skilled. But directional
 rank-IC **−0.007** (wrong sign ≈ 0), and the inverse-vol breadth book **LOSES:
@@ -342,7 +342,7 @@ Sharpe −0.59, −27% CAGR, MaxDD −84%, DSR 0.000.** Fundamental-Law line at 
 breadth: need IC 0.215, measured **0.007** → **31× gap**.
 
 **B. Pooled cross-sectional model (the AFML-correct rework).**
-`scripts/pooled_xs_book.py` — ONE LONG + ONE SHORT CatBoost on **all 169,031 events
+`research/pooled_xs_book.py` — ONE LONG + ONE SHORT CatBoost on **all 169,031 events
 pooled**, global time-purged CV, then dollar-neutral decile book.
 - Pooled OOS AUC = **0.574 (L) / 0.592 (S)** — apparently strong skill.
 - Tradeable books: momentum (long top score) **Sharpe −0.89**; reversal (long
@@ -352,7 +352,7 @@ pooled**, global time-purged CV, then dollar-neutral decile book.
   blow-ups that honest costs eat. Opposite of the √N dream.
 
 **C. Meta-labeling done right (LdP central technique).**
-`scripts/meta_label_book.py` — primary = cross-sectional reversal (the only signal
+`research/meta_label_book.py` — primary = cross-sectional reversal (the only signal
 with faint + edge); secondary CatBoost predicts p(bet wins), purged CV.
 - Meta-model OOS AUC = **0.548**; it *does* filter losers (book −0.40 → −0.19) but
   **cannot turn a ≤0 base signal positive.**
@@ -388,7 +388,7 @@ probe used **per-asset features only** → models learned volatility/path artifa
 **The fix (genuinely new):** cross-sectional features — rank-transform each feature
 across the universe daily, BTC-beta residual momentum, market-relative return,
 funding-z — and a **relative-winner target** (asset fwd H-day return > XS median).
-`scripts/xs_alpha_rework.py`; **6 CatBoost models PERSISTED** to
+`research/xs_alpha_rework.py`; **6 CatBoost models PERSISTED** to
 `artefacts/tracks_breadth/`; OOS scores cached (`xs_oos_scores.parquet`).
 
 **Result — the IC flipped positive and robust:**
@@ -398,17 +398,17 @@ funding-z — and a **relative-winner target** (asset fwd H-day return > XS medi
 - Naive decile book only Sharpe 0.25 → the signal is real but **harvesting** was
   broken (score loads on vol; turnover/tail names eat it).
 
-**Harvesting (`scripts/xs_harvest.py`):** rank-demean + vol/beta-neutralise + EWMA5
+**Harvesting (`research/xs_harvest.py`):** rank-demean + vol/beta-neutralise + EWMA5
 smooth + no-trade band → **Sharpe 0.97, +36% CAGR, MaxDD −42%, β −0.07, all 6 years
 positive.** A genuine market-neutral sleeve.
 
-**Diagnostics (`scripts/xs_diagnose.py`) — honest character:**
+**Diagnostics (`research/xs_diagnose.py`) — honest character:**
 - ex-2022 Sharpe **0.55** (full 0.80); 2022 contributes +94% → crash-alpha tilt.
 - **long-only −0.61 / short-only +0.81** → edge is short-side (borrow/squeeze risk).
 - corr(ML, low-vol)=+0.03, corr(market)=−0.04 → **orthogonal to BAB**, not just
   rediscovered low-vol.
 
-**Multi-sleeve combine (`scripts/multi_sleeve_combine.py`) — the √N test:**
+**Multi-sleeve combine (`research/multi_sleeve_combine.py`) — the √N test:**
 | Sleeve | Sharpe | β |
 |---|---|---|
 | ML-XS | 0.71 | −0.02 |
@@ -435,19 +435,19 @@ User challenge: *"is my feature set perfect since you change nothing?"* Correct 
 prior waves used a thin ~16–34 feature set and **zero new alt-data**. This wave maxes
 the free space.
 
-**A. New free alt-data (`scripts/fetch_altdata.py` → `altdata_macro.parquet`, 8 series,
+**A. New free alt-data (`research/fetch_altdata.py` → `altdata_macro.parquet`, 8 series,
 none used before):** Fear&Greed sentiment, DefiLlama TVL + stablecoin supply, BTC
 on-chain (active addrs / tx / hashrate), Deribit DVOL (BTC+ETH). (FRED macro network-
 blocked here.) All free, point-in-time, lagged 1d.
 
-**B. Directional regime-timing sleeve (`scripts/regime_timing_book.py`):** the alt-data
+**B. Directional regime-timing sleeve (`research/regime_timing_book.py`):** the alt-data
 are MARKET-WIDE → time the market (traded via BTC/ETH basket).
 - timing OOS **AUC 0.45, IC −0.10** — alt-data are *anti-predictive / overfit* for
   direction (17 feats on ~1625 daily samples; the simpler DVOL-only timer beat it).
 - combined timing+XS Sharpe 1.24 / +52% CAGR **but a 2022 artifact** (+198% that yr,
   ~flat else, DSR 0.21). Not robust. Market timing has breadth ≈ 1 → sample-starved.
 
-**C. Max cross-sectional feature set (`scripts/xs_maxfeat.py`, 52 feats):** added
+**C. Max cross-sectional feature set (`research/xs_maxfeat.py`, 52 feats):** added
 fractional-diff price, downside/vol-of-vol, Amihud illiquidity, drawdown/52w-high,
 per-asset DVOL-beta & BTC-corr (how market-wide alt-data enters a XS model), + ranks.
 - 20-asset smoke: IC **+0.015 (WORSE than baseline)**, book −0.33 — new features
@@ -475,7 +475,7 @@ User: experiment with RR ratios & bars/timeframe (bigger TF = more trend); deman
 book that makes **>60% EVERY year** (no 2022-only / 2021-bleed concentration),
 "extremely robust, methodologically 100% watertight."
 
-**A. Multi-TF / RR sweep (`scripts/trend_robust_sweep.py`, 40 configs, walk-forward).**
+**A. Multi-TF / RR sweep (`research/trend_robust_sweep.py`, 40 configs, walk-forward).**
 TF {1,2,3,5,7}d × lookbacks {fast,mid,slow,blend} × {long-short, long-flat}, vol-
 targeted, 10bps, DSR **deflated by n_trials=40**.
 - **No config makes >60% every year.** Most-robust (tf2/fast/LS): +5/+3/+14/−5/+14/
@@ -519,7 +519,7 @@ deployable, but the worst year is ~−15%, not +60%. The only levers that reach 
 
 User (valid): one static strategy across 5 regimes is the wrong test; judge
 robustness FORWARD for the coming year, recency-weighted, current regime; backtest =
-validation. Built exactly that (`scripts/walkforward_forward.py`): rolling quarterly
+validation. Built exactly that (`research/walkforward_forward.py`): rolling quarterly
 refit, **train only on past < t0−embargo**, exp **recency weights** (half-life 365d),
 **regime guard** de-grossing the short-biased book in bull manias. Strict no-future-
 leak.
@@ -563,7 +563,7 @@ variant count + CSCV PBO** (`backtest/pbo.py`), deterministic.
 - forward per-year: 2023 +18 / 2024 +58 / 2025 +63 / **2026 −11% (YTD)**.
 - "last-12m +92%" = **one quarter** (2025-08 +102%; neighbours −21/+14/−15/−14/+5).
 
-**Conclusive PBO (`scripts/adaptive_wf_pbo.py`, 72 harvest variants, S≥50 floor met):**
+**Conclusive PBO (`research/adaptive_wf_pbo.py`, 72 harvest variants, S≥50 floor met):**
 **PBO = 0.51** (CSCV, 12,870 combinations). The indicative S=8 value (0.22) was
 optimistic; at proper scale the **harvest-construction selection has ~no OOS skill**
 (config ranking is noise). The deployed config ranks 56/72 by IS Sharpe — correctly

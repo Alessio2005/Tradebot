@@ -138,7 +138,7 @@ drukt verdient zijn plek, ook bij Sharpe ≈ 0 standalone. Dit is precies het ga
 
 ## 4b. EMPIRISCH RESULTAAT — H2 funding-carry diagnostiek (2026-05-30)
 
-Script: `scripts/diag_funding_short_edge.py` (volledig causaal aan signaal-kant,
+Script: `research/diag_funding_short_edge.py` (volledig causaal aan signaal-kant,
 niet-overlappende samples, kosten + carry inbegrepen). Output: `reports/diag_funding_short_edge.csv`.
 5 assets, 1h-bars, horizons 8/24/72h, ~4.97 jr.
 
@@ -168,9 +168,9 @@ gecombineerd met de bear-regime-gate, en meet short-only OOS Trade-Sharpe per re
 
 Twee model-vrije test-harnassen (geen retrain), volledig causaal aan signaal-kant,
 niet-overlappende trades met per-asset kosten:
-- `scripts/diag_short_barrier_sweep.py` → `reports/short_barrier_sweep.csv`
+- `research/diag_short_barrier_sweep.py` → `reports/short_barrier_sweep.csv`
   (6 barrier-geometrieën × 4 entry-condities × 5 assets, triple-barrier short-sim)
-- `scripts/diag_xsectional_ls.py` → `reports/xsectional_ls.csv`
+- `research/diag_xsectional_ls.py` → `reports/xsectional_ls.csv`
   (cross-sectionele momentum long/short, sleeve-decompositie)
 
 ### H1 (asymmetrische barrier) — **GEFALSIFIEERD voor EV**

@@ -64,7 +64,7 @@ be built as a NEW module (per §3.3 of the mandate) rather than by mutating it.
 
 | # | Defect | Resolution |
 |---|---|---|
-| 0.1 | canonical `hypothesis_ledger.json` missing from both working copies | Rebuilt by `scripts/w28_seed_ledger.py` from the itemised wave-log chain (seed 2363 + 6 reconstructed wave rows = 2702), then W27 merged from its staging file through the sanctioned CLI path -> **2706**, matching the two independent totals stated in the log. Config hashes for W20-W26 did not survive; rows are flagged `RECONSTRUCTED` and are wave-granular. Trial COUNTS are exact. |
+| 0.1 | canonical `hypothesis_ledger.json` missing from both working copies | Rebuilt by `research/w28_seed_ledger.py` from the itemised wave-log chain (seed 2363 + 6 reconstructed wave rows = 2702), then W27 merged from its staging file through the sanctioned CLI path -> **2706**, matching the two independent totals stated in the log. Config hashes for W20-W26 did not survive; rows are flagged `RECONSTRUCTED` and are wave-granular. Trial COUNTS are exact. |
 | 0.2 | phantom rebalancing in `alpha/xs_unit.py`, `alpha/fx_tsmom.py` | **REPAIRED** (not scoped) — see §2. |
 | 0.3b | KG-B1 drawdown-shape constants rest on the wrong distribution | **RE-DERIVED** before measuring anything — see §3. |
 
@@ -125,7 +125,7 @@ a reflected Brownian motion with negative drift. It is not the expected
 *maximum*, and for reflected BM the all-time supremum is a.s. unbounded, growing
 logarithmically in the horizon.
 
-Measured (`scripts/w28_dd_shape_calibration.py`, seed 42, 20 000 iid-normal
+Measured (`research/w28_dd_shape_calibration.py`, seed 42, 20 000 iid-normal
 paths, 5685 bars = 22.6y, Sharpe 0.40):
 
 | quantity | vol units |

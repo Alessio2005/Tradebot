@@ -93,7 +93,7 @@ def test_audit_section9_reproduction() -> None:
 
     sys.path.insert(0, str(ROOT / "src"))
     spec = importlib.util.spec_from_file_location(
-        "tag", ROOT / "scripts/true_alpha_gates.py"
+        "tag", ROOT / "research/true_alpha_gates.py"
     )
     tag = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(tag)
