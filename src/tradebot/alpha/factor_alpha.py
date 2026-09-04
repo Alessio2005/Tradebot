@@ -16,7 +16,7 @@ the tradeable factorset of the unit's market and report the intercept
     A sleeve that only retains factor loading after regression
     (|t(alpha)| < 2) is not alpha and does not count.
 
-Promoted from ``scripts/true_alpha_gates.py::gate_g6`` into the package
+Promoted from ``research/true_alpha_gates.py::gate_g6`` into the package
 (R-2), generalised to all markets. Factor *data* comes from the
 point-in-time data layer (``tradebot.data.sources``); this module only
 defines the per-market factorset names (G4 spec) and the regression.

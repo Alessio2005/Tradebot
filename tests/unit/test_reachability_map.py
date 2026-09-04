@@ -285,3 +285,21 @@ def test_json_output_carries_the_coverage_column(tree: Path, tmp_path: Path) -> 
     payload = json.loads(out.read_text(encoding="utf-8"))
     row = next(m for m in payload["modules"] if m["module"] == "pkg.orphan")
     assert row["coverage"] == pytest.approx(42.0)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# De research/-track (stap 9)
+# ─────────────────────────────────────────────────────────────────────────────
+def test_a_module_reached_only_from_research_is_class_c(tree: Path) -> None:
+    """`research/` is een seedmap naast `scripts/`, en levert dezelfde klasse.
+
+    Stap 9 verhuist de wave-onderzoeksscripts van `scripts/` naar `research/`.
+    Kent de scanner die map niet, dan verliezen de modules die zij bereiken hun
+    seed en zakken zij naar D of E -- waarna `--strict` verwijdering zou eisen
+    van code die research wel degelijk gebruikt.
+    """
+    _write(tree / "src" / "pkg" / "research_only.py", "def probe() -> None:\n    pass\n")
+    _write(tree / "research" / "w99_eval.py", "from pkg.research_only import probe\n")
+    rows = {r.module: r for r in scan(tree)}
+    assert rows["pkg.research_only"].klass is Klass.C
+    assert rows["pkg.research_only"].seed == "research/w99_eval.py"

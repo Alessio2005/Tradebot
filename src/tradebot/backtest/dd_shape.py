@@ -11,7 +11,7 @@ Brownian motion with negative drift.
 
 The *maximum* over a horizon is a different quantity, and for reflected BM the
 all-time supremum is a.s. unbounded: it grows logarithmically in the horizon.
-Measured (``scripts/w28_dd_shape_calibration.py``, seed 42, 20k paths, iid
+Measured (``research/w28_dd_shape_calibration.py``, seed 42, 20k paths, iid
 normal, 5685 bars == 22.6y, Sharpe 0.40):
 
     drawdown at a random time   1.04 vol units   <- what 1/(2S) = 1.25 predicts
