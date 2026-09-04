@@ -215,6 +215,12 @@ ignore_missing_imports = true
 [tool.coverage.run]
 source = ["src/tradebot"]
 omit = ["*/tests/*", "*/__pycache__/*", "*/migrations/*"]
+# Het dekkingsdatabestand hoort NIET in de repository-root. Zonder deze regel
+# schrijft coverage.py er `.coverage` neer, en dan wordt
+# tests/unit/test_repository_hygiene.py::test_no_unexpected_file_sits_in_the_repository_root
+# rood -- niet door een defect in de code maar door het METEN ervan. Gevonden in
+# Phase 9 stap 3, toen de dekkingsnulmeting precies dat deed.
+data_file = ".pytest_cache/.coverage"
 
 [tool.coverage.report]
 fail_under = 70
