@@ -121,3 +121,9 @@ data/feature_store/
 # bestand opleveren dat bij elke lokale run wijzigt en dat het absolute pad van
 # de gebruikte interpreter draagt.
 artefacts/governance/research_gates.json
+
+# Claude Code-sessietoestand. Stond als src/tradebot/.claude/ IN het pakket en
+# reisde dus mee met elke `pip install .`. Lokale gereedschapstoestand hoort
+# niet in versiebeheer en al helemaal niet in een geinstalleerd pakket.
+# Gevonden in Phase 9, stap 14.
+.claude/

@@ -121,13 +121,22 @@ bestanden binnen het pakket zelf**, die met `pip install .` meereizen naar elke
 installatie:
 
 ```
-src/tradebot/.claude/settings.local.json
-src/tradebot/.claude/scheduled_tasks.lock
-src/tradebot/artefacts/PROPFIRM_PARALLEL_AUDIT.md
-src/tradebot/artefacts/runbook.md
+src/tradebot/.claude/settings.local.json          -> ontrackt (stap 14)
+src/tradebot/.claude/scheduled_tasks.lock         -> ontrackt (stap 14)
+src/tradebot/artefacts/runbook.md                 -> verplaatst (stap 14)
+src/tradebot/artefacts/PROPFIRM_PARALLEL_AUDIT.md -> BEHOUDEN
 ```
 
-Deze horen bij stap 14 (werkboom-hygiëne), niet bij deze stap.
+Afgehandeld in stap 14. De twee `.claude/`-bestanden zijn lokale
+gereedschapstoestand en zijn uit versiebeheer gehaald; `.claude/` staat nu in
+`.gitignore`. De runbook in het pakket was een TWEEDE runbook naast
+`docs/runbook.md` met nul verwijzingen — dubbele waarheid — en staat nu als
+`miscellaneous/runbook_wave15_2026-05-19.md`.
+
+`PROPFIRM_PARALLEL_AUDIT.md` blijft waar hij staat: hij wordt aangehaald door
+`src/tradebot/risk/daily_loss_governor.py`, `tests/unit/test_propfirm_governor.py`
+en `docs/STRATEGY_AUDIT_CRYPTO_ACCOUNTS_2026-06-14.md`. Een document dat de
+risicolaag als bron noemt, verplaats je niet als bijvangst van een opruiming.
 
 ---
 
