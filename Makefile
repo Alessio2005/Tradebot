@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format type-check loc-check
+.PHONY: help install install-dev lint format type-check loc-check inventory
 .PHONY: test test-fast test-slow test-regression benchmark coverage
 .PHONY: doctor sync-data build-features tune train baseline reproduce
 .PHONY: regenerate-baselines monitor-drift clean
@@ -30,19 +30,29 @@ format:  ## Auto-format with ruff
 type-check:  ## Run mypy on schema + utils modules
 	mypy src/tradebot/schemas/ src/tradebot/utils/ apps/ --ignore-missing-imports
 
-loc-check:  ## Check no file exceeds 800 LOC (whitelist: tightly-coupled algorithms)
-	@# LOC whitelist: files where splitting would break algorithm cohesion.
-	@# Each exception is documented in the file header with # LOC-EXCEPTION.
-	@LOC_WHITELIST="train/ensemble.py labeling/meta.py risk/portfolio.py tune/objective.py"; \
-	find src/ -name "*.py" | while read f; do \
-	  lines=$$(wc -l < "$$f"); \
-	  basename=$$(echo "$$f" | sed 's|src/tradebot/||'); \
-	  exempt=0; \
-	  for w in $$LOC_WHITELIST; do [ "$$basename" = "$$w" ] && exempt=1 && break; done; \
-	  if [ "$$lines" -gt 800 ] && [ "$$exempt" -eq 0 ]; then \
-	    echo "FAIL: $$f ($$lines LOC > 800 limit)"; exit 1; \
-	  fi; \
-	done && echo "LOC check passed."
+loc-check:  ## Check no file exceeds 800 LOC (ratchet: per-file caps)
+	@# De logica staat in scripts/check_file_size.py en NIET meer hier.
+	@#
+	@# Waarom: deze regel stond hier als shell-lus met een whitelist, en die
+	@# bewaakte niets. `make` bestaat niet in elke omgeving waarin dit project
+	@# draait -- gemeten op 2026-09-04: `make: command not found` -- dus de poort
+	@# is nooit uitgevoerd. De whitelist noemde bovendien risk/portfolio.py, dat
+	@# sinds Phase 4 niet bestaat. Een poort die zijn eigen scope niet kent en
+	@# nooit draait, is documentatie.
+	@#
+	@# De vervanger is een ratchet: elk bestand boven 800 regels heeft een CAP op
+	@# zijn gemeten omvang en mag niet groeien. Hij draait in CI
+	@# (.github/workflows/inventory.yml) en wordt getoetst door
+	@# tests/unit/test_file_size_ratchet.py, inclusief het bewijs dat hij rood
+	@# kan worden.
+	$(PYTHON) scripts/check_file_size.py
+
+inventory:  ## Run the inventory gates (same set as CI)
+	$(PYTHON) scripts/reachability_map.py --strict
+	$(PYTHON) scripts/check_file_size.py
+	$(PYTHON) scripts/check_hardcoded_params.py --strict
+	$(PYTHON) scripts/audit_fallbacks.py --strict
+	$(PYTHON) scripts/check_banned_methods.py --strict
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 

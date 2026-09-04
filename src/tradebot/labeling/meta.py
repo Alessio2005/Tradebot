@@ -1,3 +1,7 @@
+# LOC-EXCEPTION: meta-labeling is een AFML-hoofdstuk (ch. 10) waarvan de barrier-, sample-weight- en
+# sequential-bootstrap-stappen elkaars tussenresultaten delen; splitsen verplaatst die
+# koppeling naar een modulegrens zonder haar op te heffen.
+# Cap staat op 1181 regels in scripts/check_file_size.py; groeien is rood.
 """Meta-Labeling Architecture (López de Prado AFML ch. 10).
 
 Migrated from legacy meta_labeling.py.

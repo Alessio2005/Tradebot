@@ -1,0 +1,145 @@
+name: inventory
+
+# De inventarispoort — Phase 9, deliverable 10.
+#
+# WAAROM DEZE WORKFLOW BESTAAT
+# ============================
+# Phase 9 heeft de oppervlakte gemeten en teruggebracht. Zonder poort loopt dat
+# binnen een fase weer vol: een nieuwe onbereikbare module komt er ongemerkt bij,
+# een bestand groeit stil door de LOC-limiet heen, en de volgende opruiming moet
+# alles opnieuw meten.
+#
+# Twee van de poorten hieronder stonden al in de repository maar draaiden niet:
+# de LOC-controle zat in de `Makefile` en `make` bestaat niet in elke omgeving
+# (gemeten 2026-09-04: `make: command not found`), en de dekkingsdrempel
+# `fail_under = 70` was nooit uitgevoerd. Een poort die niet draait, is
+# documentatie.
+#
+# DEZE WORKFLOW FAALT, HIJ WAARSCHUWT NIET.
+# Elke stap hieronder geeft exit 1 bij een bevinding, en er staat geen enkele
+# `continue-on-error` in. Dat is de eis uit deliverable 10.
+#
+# Het BEWIJS dat hij rood kan worden staat niet alleen in CI maar ook in de
+# suite: `tests/unit/test_reachability_map.py` en
+# `tests/unit/test_file_size_ratchet.py` dragen allebei een negatieve controle
+# die aantoont dat de poort op een echte overtreding afgaat.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.0"
+
+      # De omgeving IS de lock. requirements-dev.lock pint de testketen en de
+      # linters; zonder die pin verandert een tooling-release het oordeel van
+      # een poort zonder dat de code verandert (DI-16).
+      - name: Install the locked environment
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+          pip install -r requirements-dev.lock
+          pip install -e . --no-deps
+
+      - name: Verify the installed environment matches the lock
+        run: |
+          python - <<'PY'
+          import re, subprocess, sys, pathlib
+          def norm(n): return re.sub(r"[-_.]+", "-", n).lower()
+          def parse(text):
+              d = {}
+              for raw in text.splitlines():
+                  line = raw.split("#")[0].strip()
+                  if line and "==" in line:
+                      name, ver = line.split("==", 1)
+                      d[norm(name.strip())] = ver.strip().split()[0]
+              return d
+          have = parse(subprocess.run([sys.executable, "-m", "pip", "freeze"],
+                                      capture_output=True, text=True, check=True).stdout)
+          bad = []
+          for lock in ("requirements.lock", "requirements-dev.lock"):
+              for name, want in parse(pathlib.Path(lock).read_text(encoding="utf-8")).items():
+                  if name not in have:
+                      bad.append(f"MISSING {name}=={want}")
+                  elif have[name] != want:
+                      bad.append(f"DIFF {name}: lock={want} installed={have[name]}")
+          if bad:
+              print("\n".join(bad))
+              sys.exit(1)
+          print("environment matches both lock files exactly")
+          PY
+
+      # ── De vier poorten ────────────────────────────────────────────────────
+
+      - name: Reachability — no unregistered unreachable module
+        run: python scripts/reachability_map.py --strict
+
+      - name: File size — the per-file LOC ratchet
+        run: python scripts/check_file_size.py
+
+      - name: Hardcoded parameters — the ratchet may not rise
+        run: python scripts/check_hardcoded_params.py --strict
+
+      - name: Fail-fast — no silent degradation
+        run: python scripts/audit_fallbacks.py --strict
+
+      - name: Banned validation methods
+        run: python scripts/check_banned_methods.py --strict
+
+      - name: Lint — the CI scope is src/
+        run: python -m ruff check src/
+
+      # ── De dekkingsdrempel ─────────────────────────────────────────────────
+      #
+      # fail_under = 70 staat in pyproject.toml en is tot Phase 9 nooit
+      # uitgevoerd. Gemeten op 2026-09-04: 55,82 %. De drempel wordt NIET
+      # verlaagd -- reports/phase9_coverage_baseline.md legt uit waarom dat de
+      # verkeerde reparatie zou zijn -- dus deze stap staat rood tot de
+      # ratchets uit docs/CODE_REGISTER.md zijn afgewerkt.
+      #
+      # Hij staat er wel, en zonder continue-on-error, omdat een drempel die
+      # niet draait geen drempel is. De uitkomst hoort zichtbaar te zijn.
+      - name: Coverage against the fail_under threshold
+        run: |
+          python -m pytest -m "not slow and not regression" -p no:randomly \
+                 --cov=src/tradebot --cov-report=term -q
+
+      # ── De vingerafdruk ────────────────────────────────────────────────────
+      #
+      # De suite hoort exact VIER failures te geven, en het moeten deze vier
+      # killgates zijn. Minder failures betekent dat een killgate is
+      # uitgeschakeld, niet dat er iets is opgelost (PROJECT_STATE.md §7).
+      - name: The four pre-registered killgates must still be red
+        run: |
+          python - <<'PY'
+          import re, subprocess, sys
+          EXPECTED = {
+              "tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B1 in-sample-cm_carry]",
+              "tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B2 residual alpha-cm_tsmom]",
+              "tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B2 residual alpha-cm_carry]",
+              "tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B3 out-of-sample-cm_carry]",
+          }
+          out = subprocess.run(
+              [sys.executable, "-m", "pytest", "-q", "-p", "no:randomly",
+               "--no-header", "-rf", "tests/killgates"],
+              capture_output=True, text=True).stdout
+          got = set(re.findall(r"^FAILED (\S+.*?)(?:\s+-|$)", out, re.M))
+          if got != EXPECTED:
+              print(out)
+              print("\nverwacht:", sorted(EXPECTED))
+              print("gekregen:", sorted(got))
+              sys.exit(1)
+          print("de vier pre-geregistreerde killgates staan rood, en het zijn deze vier")
+          PY

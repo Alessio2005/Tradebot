@@ -1,3 +1,6 @@
+# LOC-EXCEPTION: de Optuna-objective is een gesloten eenheid: zoekruimte, pruning en scoring horen bij
+# dezelfde trial en zijn los van elkaar niet uitvoerbaar.
+# Cap staat op 955 regels in scripts/check_file_size.py; groeien is rood.
 """objective.py — Optuna HPO objective for binary CPCV classification.
 
 Extracted from train_regime.py lines 1631-2403.
