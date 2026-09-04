@@ -205,21 +205,23 @@ governance-bevriezer of een paper-trader hoort niet in een reproductiepad.
 
 ### Platformgereedschap in `scripts/`
 
-De eerste vier zijn POORTEN: zij geven exit 1 en horen in CI. Zie
-`.github/workflows/inventory.yml`.
+Vijf ervan zijn POORTEN — gemarkeerd met **poort** hieronder: zij geven exit 1
+en zij draaien alle vijf in `.github/workflows/inventory.yml`.
 
 | Script | LOC | Waarvoor |
 |---|---:|---|
-| `scripts/audit_fallbacks.py` | 387 | Phase 0 / Stap 4 - AST-gebaseerde scanner voor stille degradatie. |
+| `scripts/audit_fallbacks.py` | 387 | **poort** — Phase 0 / Stap 4 - AST-gebaseerde scanner voor stille degradatie. |
 | `scripts/build_data_register.py` | 201 | Genereer docs/DATA_REGISTER.md uit de PIT-store — Phase 1, stap 11. |
 | `scripts/build_feature_store.py` | 99 | Phase 2, deliverable 9 - bouw de gecertificeerde L3 feature store. |
-| `scripts/check_banned_methods.py` | 275 | Phase 2 / Stage B-5 — AST-scanner op verboden validatiemethoden. |
-| `scripts/check_hardcoded_params.py` | 284 | Phase 0 / stap 8 - scanner voor hardcoded parameters (exit criterium 6). |
+| `scripts/check_banned_methods.py` | 275 | **poort** — Phase 2 / Stage B-5 — AST-scanner op verboden validatiemethoden. |
+| `scripts/check_file_size.py` | 114 | **poort** — Phase 9 / stap 13 - de LOC-ratchet met een cap per bestand. Vervangt het `loc-check`-doel in de `Makefile`, dat nooit is uitgevoerd omdat `make` in deze omgeving niet bestaat. Sluit DI-3. |
+| `scripts/check_hardcoded_params.py` | 284 | **poort** — Phase 0 / stap 8 - scanner voor hardcoded parameters (exit criterium 6). |
+| `scripts/clean.py` | 131 | Phase 9 / stap 14 - verwijdert tool-caches en runlogs (`.mypy_cache`, `.hypothesis`, `.pytest_cache`, `.ruff_cache`, `catboost_info`, `logs/`, `outputs/`). Vervangt het `clean`-doel in de `Makefile`. **Draai hem droog voordat je hem echt draait** — dit is het enige gereedschap hier dat bestanden verwijdert die NIET in versiebeheer staan en dus niet met `git show` terug te halen zijn. `data/pit_store/` en `artefacts/governance/` staan buiten zijn bereik en `tests/unit/test_clean.py` dwingt af dat hij ze zelfs niet VOORSTELT. |
 | `scripts/monitor_retrain.py` | 110 | scripts/monitor_retrain.py — Live progress dashboard for the retrain run. |
 | `scripts/paper_trade_report.py` | 74 | Parse live-engine state into a human-readable paper-trade report. |
 | `scripts/phase0_baseline.py` | 245 | Phase 0 / Step 1 - repository baseline inventory (evidence artefact). |
 | `scripts/phase1_data_gap.py` | 214 | Phase 1 / stap 1 - formele vastlegging van de datalacune (bewijsartefact). |
-| `scripts/reachability_map.py` | 411 | AST-bereikbaarheidskaart over `src/` — Phase 9, deliverable 1. |
+| `scripts/reachability_map.py` | 411 | **poort** — AST-bereikbaarheidskaart over `src/` — Phase 9, deliverable 1. `--strict` geeft exit 1 op een ongeregistreerde onbereikbare module. |
 | `scripts/unwrap_broad_except.py` | 201 | Phase 0 helper - unwrap `except Exception` handlers that swallow errors. |
 
 ### Onderzoek

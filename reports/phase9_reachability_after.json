@@ -1,0 +1,2350 @@
+{
+  "summary": {
+    "A": {
+      "modules": 193,
+      "loc": 53096
+    },
+    "B": {
+      "modules": 67,
+      "loc": 12767
+    },
+    "C": {
+      "modules": 8,
+      "loc": 1108
+    },
+    "D": {
+      "modules": 20,
+      "loc": 3036
+    },
+    "E": {
+      "modules": 2,
+      "loc": 1018
+    }
+  },
+  "totals": {
+    "modules": 290,
+    "loc": 71025
+  },
+  "modules": [
+    {
+      "module": "tradebot",
+      "path": "src/tradebot/__init__.py",
+      "loc": 31,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 66.66666666666667
+    },
+    {
+      "module": "tradebot.alpha",
+      "path": "src/tradebot/alpha/__init__.py",
+      "loc": 65,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.alpha.adaptive_wf",
+      "path": "src/tradebot/alpha/adaptive_wf.py",
+      "loc": 362,
+      "klass": "B",
+      "seed": "apps/run_adaptive_wf.py",
+      "coverage": 81.93832599118943
+    },
+    {
+      "module": "tradebot.alpha.base",
+      "path": "src/tradebot/alpha/base.py",
+      "loc": 366,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 93.6
+    },
+    {
+      "module": "tradebot.alpha.carry",
+      "path": "src/tradebot/alpha/carry.py",
+      "loc": 134,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 87.75510204081633
+    },
+    {
+      "module": "tradebot.alpha.cm_carry",
+      "path": "src/tradebot/alpha/cm_carry.py",
+      "loc": 383,
+      "klass": "C",
+      "seed": "research/w28_cm_carry_eval.py",
+      "coverage": 75.53956834532374
+    },
+    {
+      "module": "tradebot.alpha.cm_tsmom",
+      "path": "src/tradebot/alpha/cm_tsmom.py",
+      "loc": 159,
+      "klass": "C",
+      "seed": "research/w27_g4.py",
+      "coverage": 96.7741935483871
+    },
+    {
+      "module": "tradebot.alpha.combination",
+      "path": "src/tradebot/alpha/combination.py",
+      "loc": 151,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 92.06349206349206
+    },
+    {
+      "module": "tradebot.alpha.csm_volume_clock",
+      "path": "src/tradebot/alpha/csm_volume_clock.py",
+      "loc": 296,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 17.582417582417584
+    },
+    {
+      "module": "tradebot.alpha.eq_lowvol",
+      "path": "src/tradebot/alpha/eq_lowvol.py",
+      "loc": 71,
+      "klass": "B",
+      "seed": "apps/run_eq_units.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.alpha.eq_overnight",
+      "path": "src/tradebot/alpha/eq_overnight.py",
+      "loc": 58,
+      "klass": "C",
+      "seed": "research/w23c_eval.py",
+      "coverage": 93.33333333333333
+    },
+    {
+      "module": "tradebot.alpha.eq_pead",
+      "path": "src/tradebot/alpha/eq_pead.py",
+      "loc": 95,
+      "klass": "C",
+      "seed": "research/w23ab_eval.py",
+      "coverage": 82.85714285714286
+    },
+    {
+      "module": "tradebot.alpha.eq_quality",
+      "path": "src/tradebot/alpha/eq_quality.py",
+      "loc": 81,
+      "klass": "C",
+      "seed": "research/w23ab_eval.py",
+      "coverage": 87.5
+    },
+    {
+      "module": "tradebot.alpha.eq_strev",
+      "path": "src/tradebot/alpha/eq_strev.py",
+      "loc": 46,
+      "klass": "B",
+      "seed": "apps/run_eq_units.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.alpha.eq_xsmom",
+      "path": "src/tradebot/alpha/eq_xsmom.py",
+      "loc": 55,
+      "klass": "B",
+      "seed": "apps/run_eq_units.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.alpha.factor_alpha",
+      "path": "src/tradebot/alpha/factor_alpha.py",
+      "loc": 150,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.alpha.fx_carry",
+      "path": "src/tradebot/alpha/fx_carry.py",
+      "loc": 47,
+      "klass": "C",
+      "seed": "research/w25_fx_carry_eval.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.alpha.fx_tsmom",
+      "path": "src/tradebot/alpha/fx_tsmom.py",
+      "loc": 119,
+      "klass": "D",
+      "seed": "tests/lookahead/test_fx_tsmom_causality.py",
+      "coverage": 85.41666666666667
+    },
+    {
+      "module": "tradebot.alpha.kalman_ou",
+      "path": "src/tradebot/alpha/kalman_ou.py",
+      "loc": 269,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 20.652173913043477
+    },
+    {
+      "module": "tradebot.alpha.macro_regime",
+      "path": "src/tradebot/alpha/macro_regime.py",
+      "loc": 166,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 73.97260273972603
+    },
+    {
+      "module": "tradebot.alpha.mean_reversion",
+      "path": "src/tradebot/alpha/mean_reversion.py",
+      "loc": 139,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 87.09677419354838
+    },
+    {
+      "module": "tradebot.alpha.microstructure",
+      "path": "src/tradebot/alpha/microstructure.py",
+      "loc": 103,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 91.89189189189189
+    },
+    {
+      "module": "tradebot.alpha.momentum",
+      "path": "src/tradebot/alpha/momentum.py",
+      "loc": 404,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 68.14159292035399
+    },
+    {
+      "module": "tradebot.alpha.multi_sleeve_book",
+      "path": "src/tradebot/alpha/multi_sleeve_book.py",
+      "loc": 120,
+      "klass": "B",
+      "seed": "apps/paper_multi_sleeve.py",
+      "coverage": 29.11392405063291
+    },
+    {
+      "module": "tradebot.alpha.neutral_book",
+      "path": "src/tradebot/alpha/neutral_book.py",
+      "loc": 118,
+      "klass": "B",
+      "seed": "apps/paper_multi_sleeve.py",
+      "coverage": 33.84615384615385
+    },
+    {
+      "module": "tradebot.alpha.research_harness",
+      "path": "src/tradebot/alpha/research_harness.py",
+      "loc": 161,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 27.397260273972602
+    },
+    {
+      "module": "tradebot.alpha.xs_unit",
+      "path": "src/tradebot/alpha/xs_unit.py",
+      "loc": 255,
+      "klass": "B",
+      "seed": "apps/run_eq_units.py",
+      "coverage": 89.47368421052632
+    },
+    {
+      "module": "tradebot.backtest",
+      "path": "src/tradebot/backtest/__init__.py",
+      "loc": 152,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 69.23076923076923
+    },
+    {
+      "module": "tradebot.backtest._kernels",
+      "path": "src/tradebot/backtest/_kernels.py",
+      "loc": 100,
+      "klass": "A",
+      "seed": "apps/tune_hparams.py",
+      "coverage": 12.820512820512821
+    },
+    {
+      "module": "tradebot.backtest.accounting",
+      "path": "src/tradebot/backtest/accounting.py",
+      "loc": 528,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 95.26627218934911
+    },
+    {
+      "module": "tradebot.backtest.baseline_report",
+      "path": "src/tradebot/backtest/baseline_report.py",
+      "loc": 488,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.backtest.baseline_runner",
+      "path": "src/tradebot/backtest/baseline_runner.py",
+      "loc": 298,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 52.325581395348834
+    },
+    {
+      "module": "tradebot.backtest.dd_shape",
+      "path": "src/tradebot/backtest/dd_shape.py",
+      "loc": 148,
+      "klass": "C",
+      "seed": "research/w28_cm_carry_eval.py",
+      "coverage": 92.3076923076923
+    },
+    {
+      "module": "tradebot.backtest.engine",
+      "path": "src/tradebot/backtest/engine.py",
+      "loc": 455,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 95.39473684210526
+    },
+    {
+      "module": "tradebot.backtest.evaluation",
+      "path": "src/tradebot/backtest/evaluation.py",
+      "loc": 1057,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 27.22063037249284
+    },
+    {
+      "module": "tradebot.backtest.metrics",
+      "path": "src/tradebot/backtest/metrics.py",
+      "loc": 289,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 41.41414141414141
+    },
+    {
+      "module": "tradebot.backtest.pbo",
+      "path": "src/tradebot/backtest/pbo.py",
+      "loc": 122,
+      "klass": "B",
+      "seed": "apps/run_adaptive_wf.py",
+      "coverage": 17.647058823529413
+    },
+    {
+      "module": "tradebot.backtest.phase5_baseline",
+      "path": "src/tradebot/backtest/phase5_baseline.py",
+      "loc": 304,
+      "klass": "A",
+      "seed": "apps/run_meta_labeling.py",
+      "coverage": 48.0
+    },
+    {
+      "module": "tradebot.backtest.regime_overlay",
+      "path": "src/tradebot/backtest/regime_overlay.py",
+      "loc": 235,
+      "klass": "A",
+      "seed": "apps/run_meta_labeling.py",
+      "coverage": 98.86363636363636
+    },
+    {
+      "module": "tradebot.backtest.spa",
+      "path": "src/tradebot/backtest/spa.py",
+      "loc": 184,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 73.52941176470588
+    },
+    {
+      "module": "tradebot.backtest.vectorized",
+      "path": "src/tradebot/backtest/vectorized.py",
+      "loc": 202,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.bars",
+      "path": "src/tradebot/bars/__init__.py",
+      "loc": 5,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.bars._kernels",
+      "path": "src/tradebot/bars/_kernels.py",
+      "loc": 330,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 3.930131004366812
+    },
+    {
+      "module": "tradebot.bars.dollar",
+      "path": "src/tradebot/bars/dollar.py",
+      "loc": 173,
+      "klass": "D",
+      "seed": "tests/unit/test_audit_fixes.py",
+      "coverage": 45.45454545454545
+    },
+    {
+      "module": "tradebot.bars.imbalance",
+      "path": "src/tradebot/bars/imbalance.py",
+      "loc": 175,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 11.363636363636363
+    },
+    {
+      "module": "tradebot.bars.runs",
+      "path": "src/tradebot/bars/runs.py",
+      "loc": 254,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 9.01639344262295
+    },
+    {
+      "module": "tradebot.compliance",
+      "path": "src/tradebot/compliance/__init__.py",
+      "loc": 23,
+      "klass": "B",
+      "seed": "apps/generate_mrm_report.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.compliance.champion_challenger",
+      "path": "src/tradebot/compliance/champion_challenger.py",
+      "loc": 225,
+      "klass": "B",
+      "seed": "apps/generate_mrm_report.py",
+      "coverage": 94.73684210526316
+    },
+    {
+      "module": "tradebot.compliance.circuit_log",
+      "path": "src/tradebot/compliance/circuit_log.py",
+      "loc": 138,
+      "klass": "B",
+      "seed": "apps/generate_mrm_report.py",
+      "coverage": 90.9090909090909
+    },
+    {
+      "module": "tradebot.compliance.mrm_report",
+      "path": "src/tradebot/compliance/mrm_report.py",
+      "loc": 245,
+      "klass": "B",
+      "seed": "apps/generate_mrm_report.py",
+      "coverage": 79.24528301886792
+    },
+    {
+      "module": "tradebot.compliance.position_report",
+      "path": "src/tradebot/compliance/position_report.py",
+      "loc": 183,
+      "klass": "B",
+      "seed": "apps/generate_mrm_report.py",
+      "coverage": 94.73684210526316
+    },
+    {
+      "module": "tradebot.compliance.shadow_trader",
+      "path": "src/tradebot/compliance/shadow_trader.py",
+      "loc": 201,
+      "klass": "B",
+      "seed": "apps/generate_mrm_report.py",
+      "coverage": 95.71428571428571
+    },
+    {
+      "module": "tradebot.cv",
+      "path": "src/tradebot/cv/__init__.py",
+      "loc": 15,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.cv.bootstrap",
+      "path": "src/tradebot/cv/bootstrap.py",
+      "loc": 232,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 31.147540983606557
+    },
+    {
+      "module": "tradebot.cv.cpcv",
+      "path": "src/tradebot/cv/cpcv.py",
+      "loc": 326,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 90.1639344262295
+    },
+    {
+      "module": "tradebot.cv.purge",
+      "path": "src/tradebot/cv/purge.py",
+      "loc": 107,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 47.05882352941177
+    },
+    {
+      "module": "tradebot.cv.uniqueness",
+      "path": "src/tradebot/cv/uniqueness.py",
+      "loc": 186,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 44.285714285714285
+    },
+    {
+      "module": "tradebot.cv.walk_forward",
+      "path": "src/tradebot/cv/walk_forward.py",
+      "loc": 176,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 88.88888888888889
+    },
+    {
+      "module": "tradebot.data",
+      "path": "src/tradebot/data/__init__.py",
+      "loc": 20,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.data.crypto",
+      "path": "src/tradebot/data/crypto.py",
+      "loc": 501,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 14.963503649635037
+    },
+    {
+      "module": "tradebot.data.crypto_macro",
+      "path": "src/tradebot/data/crypto_macro.py",
+      "loc": 332,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 14.685314685314685
+    },
+    {
+      "module": "tradebot.data.edgar_universe",
+      "path": "src/tradebot/data/edgar_universe.py",
+      "loc": 83,
+      "klass": "B",
+      "seed": "apps/ingest_edgar.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.data.equity_universe",
+      "path": "src/tradebot/data/equity_universe.py",
+      "loc": 157,
+      "klass": "B",
+      "seed": "apps/build_equity_universe.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.data.funding",
+      "path": "src/tradebot/data/funding.py",
+      "loc": 129,
+      "klass": "D",
+      "seed": "tests/e2e/test_chaos.py",
+      "coverage": 21.428571428571427
+    },
+    {
+      "module": "tradebot.data.fx_universe",
+      "path": "src/tradebot/data/fx_universe.py",
+      "loc": 137,
+      "klass": "C",
+      "seed": "research/w25_fx_carry_eval.py",
+      "coverage": 98.24561403508773
+    },
+    {
+      "module": "tradebot.data.ingestion",
+      "path": "src/tradebot/data/ingestion/__init__.py",
+      "loc": 35,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.data.ingestion.bybit",
+      "path": "src/tradebot/data/ingestion/bybit.py",
+      "loc": 206,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 29.487179487179485
+    },
+    {
+      "module": "tradebot.data.ingestion.contract",
+      "path": "src/tradebot/data/ingestion/contract.py",
+      "loc": 211,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 96.29629629629629
+    },
+    {
+      "module": "tradebot.data.ingestion.crypto_sources",
+      "path": "src/tradebot/data/ingestion/crypto_sources.py",
+      "loc": 148,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 50.0
+    },
+    {
+      "module": "tradebot.data.ingestion.legacy",
+      "path": "src/tradebot/data/ingestion/legacy.py",
+      "loc": 100,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 37.5
+    },
+    {
+      "module": "tradebot.data.macro",
+      "path": "src/tradebot/data/macro.py",
+      "loc": 239,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 35.80246913580247
+    },
+    {
+      "module": "tradebot.data.open_interest",
+      "path": "src/tradebot/data/open_interest.py",
+      "loc": 204,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 79.0
+    },
+    {
+      "module": "tradebot.data.orderbook",
+      "path": "src/tradebot/data/orderbook.py",
+      "loc": 150,
+      "klass": "D",
+      "seed": "tests/unit/test_wave6.py",
+      "coverage": 92.45283018867924
+    },
+    {
+      "module": "tradebot.data.panel",
+      "path": "src/tradebot/data/panel.py",
+      "loc": 105,
+      "klass": "D",
+      "seed": "tests/lookahead/test_asof_join_crypto.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.data.perp_feed",
+      "path": "src/tradebot/data/perp_feed.py",
+      "loc": 173,
+      "klass": "B",
+      "seed": "apps/paper_multi_sleeve.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.data.phase6_universe",
+      "path": "src/tradebot/data/phase6_universe.py",
+      "loc": 180,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.data.pit_store",
+      "path": "src/tradebot/data/pit_store.py",
+      "loc": 303,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 95.53571428571429
+    },
+    {
+      "module": "tradebot.data.sources",
+      "path": "src/tradebot/data/sources/__init__.py",
+      "loc": 23,
+      "klass": "B",
+      "seed": "apps/build_equity_universe.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.data.sources.base",
+      "path": "src/tradebot/data/sources/base.py",
+      "loc": 143,
+      "klass": "B",
+      "seed": "apps/build_equity_universe.py",
+      "coverage": 64.61538461538461
+    },
+    {
+      "module": "tradebot.data.sources.edgar",
+      "path": "src/tradebot/data/sources/edgar.py",
+      "loc": 120,
+      "klass": "B",
+      "seed": "apps/ingest_edgar.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.data.sources.eia",
+      "path": "src/tradebot/data/sources/eia.py",
+      "loc": 177,
+      "klass": "B",
+      "seed": "apps/ingest_eia.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.data.sources.fred",
+      "path": "src/tradebot/data/sources/fred.py",
+      "loc": 129,
+      "klass": "B",
+      "seed": "apps/ingest_fx.py",
+      "coverage": 22.857142857142858
+    },
+    {
+      "module": "tradebot.data.sources.kenfrench",
+      "path": "src/tradebot/data/sources/kenfrench.py",
+      "loc": 89,
+      "klass": "B",
+      "seed": "apps/fetch_factors.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.data.sources.stooq",
+      "path": "src/tradebot/data/sources/stooq.py",
+      "loc": 155,
+      "klass": "B",
+      "seed": "apps/build_equity_universe.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.data.sources.wiki_constituents",
+      "path": "src/tradebot/data/sources/wiki_constituents.py",
+      "loc": 149,
+      "klass": "B",
+      "seed": "apps/build_equity_universe.py",
+      "coverage": 35.61643835616438
+    },
+    {
+      "module": "tradebot.data.sources.yfinance_backup",
+      "path": "src/tradebot/data/sources/yfinance_backup.py",
+      "loc": 108,
+      "klass": "B",
+      "seed": "apps/build_equity_universe.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.data.tradfi_macro",
+      "path": "src/tradebot/data/tradfi_macro.py",
+      "loc": 411,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 11.956521739130435
+    },
+    {
+      "module": "tradebot.data.validation",
+      "path": "src/tradebot/data/validation/__init__.py",
+      "loc": 49,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.data.validation.continuity",
+      "path": "src/tradebot/data/validation/continuity.py",
+      "loc": 191,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 92.04545454545455
+    },
+    {
+      "module": "tradebot.data.validation.gaps",
+      "path": "src/tradebot/data/validation/gaps.py",
+      "loc": 176,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 95.71428571428571
+    },
+    {
+      "module": "tradebot.data.validation.outliers",
+      "path": "src/tradebot/data/validation/outliers.py",
+      "loc": 140,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 97.87234042553192
+    },
+    {
+      "module": "tradebot.data.validation.schema",
+      "path": "src/tradebot/data/validation/schema.py",
+      "loc": 138,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 97.91666666666667
+    },
+    {
+      "module": "tradebot.data.xasset_proxy",
+      "path": "src/tradebot/data/xasset_proxy.py",
+      "loc": 160,
+      "klass": "B",
+      "seed": "apps/ingest_xasset.py",
+      "coverage": 50.0
+    },
+    {
+      "module": "tradebot.exceptions",
+      "path": "src/tradebot/exceptions.py",
+      "loc": 25,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 78.26086956521739
+    },
+    {
+      "module": "tradebot.execution",
+      "path": "src/tradebot/execution/__init__.py",
+      "loc": 47,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.execution.context",
+      "path": "src/tradebot/execution/context.py",
+      "loc": 307,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 97.75280898876404
+    },
+    {
+      "module": "tradebot.execution.fees",
+      "path": "src/tradebot/execution/fees.py",
+      "loc": 158,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 77.41935483870968
+    },
+    {
+      "module": "tradebot.execution.impact_calibration",
+      "path": "src/tradebot/execution/impact_calibration.py",
+      "loc": 454,
+      "klass": "B",
+      "seed": "apps/calibrate_impact.py",
+      "coverage": 88.60759493670886
+    },
+    {
+      "module": "tradebot.execution.impact_model",
+      "path": "src/tradebot/execution/impact_model.py",
+      "loc": 288,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 98.36065573770492
+    },
+    {
+      "module": "tradebot.execution.market_impact",
+      "path": "src/tradebot/execution/market_impact.py",
+      "loc": 621,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 17.370892018779344
+    },
+    {
+      "module": "tradebot.execution.order_router",
+      "path": "src/tradebot/execution/order_router.py",
+      "loc": 482,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 99.27536231884058
+    },
+    {
+      "module": "tradebot.execution.simulator",
+      "path": "src/tradebot/execution/simulator.py",
+      "loc": 406,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 34.02061855670103
+    },
+    {
+      "module": "tradebot.execution.slippage",
+      "path": "src/tradebot/execution/slippage.py",
+      "loc": 163,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 61.76470588235294
+    },
+    {
+      "module": "tradebot.execution.spread",
+      "path": "src/tradebot/execution/spread.py",
+      "loc": 314,
+      "klass": "A",
+      "seed": "apps/tune_hparams.py",
+      "coverage": 17.94871794871795
+    },
+    {
+      "module": "tradebot.features",
+      "path": "src/tradebot/features/__init__.py",
+      "loc": 37,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.features._ta_kernels",
+      "path": "src/tradebot/features/_ta_kernels.py",
+      "loc": 635,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 14.859437751004016
+    },
+    {
+      "module": "tradebot.features.base",
+      "path": "src/tradebot/features/base.py",
+      "loc": 785,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 96.56652360515021
+    },
+    {
+      "module": "tradebot.features.blocks",
+      "path": "src/tradebot/features/blocks.py",
+      "loc": 66,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 65.0
+    },
+    {
+      "module": "tradebot.features.cfi",
+      "path": "src/tradebot/features/cfi.py",
+      "loc": 371,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 69.62962962962963
+    },
+    {
+      "module": "tradebot.features.fracdiff",
+      "path": "src/tradebot/features/fracdiff.py",
+      "loc": 335,
+      "klass": "A",
+      "seed": "apps/run_econometric_diagnostics.py",
+      "coverage": 86.04651162790698
+    },
+    {
+      "module": "tradebot.features.funding_carry",
+      "path": "src/tradebot/features/funding_carry.py",
+      "loc": 106,
+      "klass": "D",
+      "seed": "tests/unit/test_audit_fixes.py",
+      "coverage": 95.65217391304348
+    },
+    {
+      "module": "tradebot.features.microstructure",
+      "path": "src/tradebot/features/microstructure.py",
+      "loc": 474,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 66.875
+    },
+    {
+      "module": "tradebot.features.momentum",
+      "path": "src/tradebot/features/momentum.py",
+      "loc": 154,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.features.open_interest",
+      "path": "src/tradebot/features/open_interest.py",
+      "loc": 106,
+      "klass": "D",
+      "seed": "tests/unit/test_open_interest.py",
+      "coverage": 96.7741935483871
+    },
+    {
+      "module": "tradebot.features.orthogonalize",
+      "path": "src/tradebot/features/orthogonalize.py",
+      "loc": 555,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 75.13812154696133
+    },
+    {
+      "module": "tradebot.features.pipeline",
+      "path": "src/tradebot/features/pipeline.py",
+      "loc": 388,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 70.94017094017094
+    },
+    {
+      "module": "tradebot.features.regime",
+      "path": "src/tradebot/features/regime.py",
+      "loc": 1060,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 11.889596602972398
+    },
+    {
+      "module": "tradebot.features.regime_features",
+      "path": "src/tradebot/features/regime_features.py",
+      "loc": 120,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 26.666666666666668
+    },
+    {
+      "module": "tradebot.features.registry",
+      "path": "src/tradebot/features/registry.py",
+      "loc": 369,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 99.0
+    },
+    {
+      "module": "tradebot.features.scaling",
+      "path": "src/tradebot/features/scaling.py",
+      "loc": 186,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 73.91304347826087
+    },
+    {
+      "module": "tradebot.features.stationarity_gate",
+      "path": "src/tradebot/features/stationarity_gate.py",
+      "loc": 176,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 73.01587301587301
+    },
+    {
+      "module": "tradebot.features.ta",
+      "path": "src/tradebot/features/ta.py",
+      "loc": 775,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 9.090909090909092
+    },
+    {
+      "module": "tradebot.features.transforms",
+      "path": "src/tradebot/features/transforms.py",
+      "loc": 268,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 95.3125
+    },
+    {
+      "module": "tradebot.features.volatility",
+      "path": "src/tradebot/features/volatility.py",
+      "loc": 356,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.featurestore",
+      "path": "src/tradebot/featurestore/__init__.py",
+      "loc": 14,
+      "klass": "B",
+      "seed": "apps/featurestore_sync.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.featurestore.backfill",
+      "path": "src/tradebot/featurestore/backfill.py",
+      "loc": 73,
+      "klass": "B",
+      "seed": "apps/featurestore_sync.py",
+      "coverage": 40.90909090909091
+    },
+    {
+      "module": "tradebot.featurestore.schema",
+      "path": "src/tradebot/featurestore/schema.py",
+      "loc": 23,
+      "klass": "B",
+      "seed": "apps/featurestore_sync.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.featurestore.store",
+      "path": "src/tradebot/featurestore/store.py",
+      "loc": 158,
+      "klass": "B",
+      "seed": "apps/featurestore_sync.py",
+      "coverage": 90.54054054054055
+    },
+    {
+      "module": "tradebot.labeling",
+      "path": "src/tradebot/labeling/__init__.py",
+      "loc": 26,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.labeling.cusum",
+      "path": "src/tradebot/labeling/cusum.py",
+      "loc": 408,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 28.346456692913385
+    },
+    {
+      "module": "tradebot.labeling.fixed_horizon",
+      "path": "src/tradebot/labeling/fixed_horizon.py",
+      "loc": 34,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 50.0
+    },
+    {
+      "module": "tradebot.labeling.meta",
+      "path": "src/tradebot/labeling/meta.py",
+      "loc": 1185,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 17.956656346749227
+    },
+    {
+      "module": "tradebot.labeling.phase6_barriers",
+      "path": "src/tradebot/labeling/phase6_barriers.py",
+      "loc": 303,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 89.69072164948453
+    },
+    {
+      "module": "tradebot.labeling.trend_scanning",
+      "path": "src/tradebot/labeling/trend_scanning.py",
+      "loc": 440,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 15.789473684210526
+    },
+    {
+      "module": "tradebot.labeling.triple_barrier",
+      "path": "src/tradebot/labeling/triple_barrier.py",
+      "loc": 360,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 40.14598540145985
+    },
+    {
+      "module": "tradebot.live",
+      "path": "src/tradebot/live/__init__.py",
+      "loc": 25,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.live.circuit_breaker",
+      "path": "src/tradebot/live/circuit_breaker.py",
+      "loc": 466,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 92.4812030075188
+    },
+    {
+      "module": "tradebot.live.cusum_filter",
+      "path": "src/tradebot/live/cusum_filter.py",
+      "loc": 157,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 22.033898305084747
+    },
+    {
+      "module": "tradebot.live.engine",
+      "path": "src/tradebot/live/engine.py",
+      "loc": 917,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 34.01162790697674
+    },
+    {
+      "module": "tradebot.live.exchange_status",
+      "path": "src/tradebot/live/exchange_status.py",
+      "loc": 72,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 32.142857142857146
+    },
+    {
+      "module": "tradebot.live.execution_controller",
+      "path": "src/tradebot/live/execution_controller.py",
+      "loc": 341,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 87.05882352941177
+    },
+    {
+      "module": "tradebot.live.feature_updater",
+      "path": "src/tradebot/live/feature_updater.py",
+      "loc": 572,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 38.15028901734104
+    },
+    {
+      "module": "tradebot.live.feed",
+      "path": "src/tradebot/live/feed.py",
+      "loc": 747,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 22.69503546099291
+    },
+    {
+      "module": "tradebot.live.judge_gate",
+      "path": "src/tradebot/live/judge_gate.py",
+      "loc": 174,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 22.413793103448278
+    },
+    {
+      "module": "tradebot.live.model_signal",
+      "path": "src/tradebot/live/model_signal.py",
+      "loc": 591,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.live.portfolio_controller",
+      "path": "src/tradebot/live/portfolio_controller.py",
+      "loc": 331,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 36.666666666666664
+    },
+    {
+      "module": "tradebot.live.signal_runner",
+      "path": "src/tradebot/live/signal_runner.py",
+      "loc": 321,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 23.214285714285715
+    },
+    {
+      "module": "tradebot.live.sigterm",
+      "path": "src/tradebot/live/sigterm.py",
+      "loc": 58,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 43.75
+    },
+    {
+      "module": "tradebot.live.state",
+      "path": "src/tradebot/live/state.py",
+      "loc": 128,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 88.67924528301887
+    },
+    {
+      "module": "tradebot.monitoring",
+      "path": "src/tradebot/monitoring/__init__.py",
+      "loc": 27,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.monitoring.alerts",
+      "path": "src/tradebot/monitoring/alerts.py",
+      "loc": 182,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 88.70967741935483
+    },
+    {
+      "module": "tradebot.monitoring.cross_account",
+      "path": "src/tradebot/monitoring/cross_account.py",
+      "loc": 113,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 93.54838709677419
+    },
+    {
+      "module": "tradebot.monitoring.drift",
+      "path": "src/tradebot/monitoring/drift.py",
+      "loc": 314,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 32.38095238095238
+    },
+    {
+      "module": "tradebot.monitoring.execution_drift",
+      "path": "src/tradebot/monitoring/execution_drift.py",
+      "loc": 228,
+      "klass": "D",
+      "seed": "tests/unit/test_execution_drift.py",
+      "coverage": 97.14285714285714
+    },
+    {
+      "module": "tradebot.monitoring.feature_health",
+      "path": "src/tradebot/monitoring/feature_health.py",
+      "loc": 101,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 50.98039215686274
+    },
+    {
+      "module": "tradebot.monitoring.live_drift_monitor",
+      "path": "src/tradebot/monitoring/live_drift_monitor.py",
+      "loc": 218,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.monitoring.metrics",
+      "path": "src/tradebot/monitoring/metrics.py",
+      "loc": 151,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 79.48717948717949
+    },
+    {
+      "module": "tradebot.monitoring.prob_calibration",
+      "path": "src/tradebot/monitoring/prob_calibration.py",
+      "loc": 108,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 34.61538461538461
+    },
+    {
+      "module": "tradebot.monitoring.sharpe_monitor",
+      "path": "src/tradebot/monitoring/sharpe_monitor.py",
+      "loc": 143,
+      "klass": "D",
+      "seed": "tests/unit/test_external_monitors_can_actually_halt.py",
+      "coverage": 96.22641509433963
+    },
+    {
+      "module": "tradebot.monitoring.vol_forecast_monitor",
+      "path": "src/tradebot/monitoring/vol_forecast_monitor.py",
+      "loc": 212,
+      "klass": "D",
+      "seed": "tests/unit/test_vol_forecast_monitor.py",
+      "coverage": 98.48484848484848
+    },
+    {
+      "module": "tradebot.oms",
+      "path": "src/tradebot/oms/__init__.py",
+      "loc": 17,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.oms.audit_log",
+      "path": "src/tradebot/oms/audit_log.py",
+      "loc": 169,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 89.02439024390245
+    },
+    {
+      "module": "tradebot.oms.order",
+      "path": "src/tradebot/oms/order.py",
+      "loc": 135,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 98.0
+    },
+    {
+      "module": "tradebot.oms.paper_oms",
+      "path": "src/tradebot/oms/paper_oms.py",
+      "loc": 272,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 69.0721649484536
+    },
+    {
+      "module": "tradebot.oms.position_tracker",
+      "path": "src/tradebot/oms/position_tracker.py",
+      "loc": 182,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 80.26315789473684
+    },
+    {
+      "module": "tradebot.oms.reconciler",
+      "path": "src/tradebot/oms/reconciler.py",
+      "loc": 183,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 91.07142857142857
+    },
+    {
+      "module": "tradebot.oms.router",
+      "path": "src/tradebot/oms/router.py",
+      "loc": 315,
+      "klass": "B",
+      "seed": "apps/live_paper_trader.py",
+      "coverage": 34.10852713178294
+    },
+    {
+      "module": "tradebot.portfolio",
+      "path": "src/tradebot/portfolio/__init__.py",
+      "loc": 55,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.portfolio.black_litterman",
+      "path": "src/tradebot/portfolio/black_litterman.py",
+      "loc": 207,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 84.33734939759036
+    },
+    {
+      "module": "tradebot.portfolio.constraints",
+      "path": "src/tradebot/portfolio/constraints.py",
+      "loc": 291,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 91.89189189189189
+    },
+    {
+      "module": "tradebot.portfolio.covariance",
+      "path": "src/tradebot/portfolio/covariance.py",
+      "loc": 194,
+      "klass": "E",
+      "seed": "",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.portfolio.equal_weight",
+      "path": "src/tradebot/portfolio/equal_weight.py",
+      "loc": 108,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.portfolio.hrp",
+      "path": "src/tradebot/portfolio/hrp.py",
+      "loc": 371,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 99.01960784313725
+    },
+    {
+      "module": "tradebot.portfolio.legacy_sizing",
+      "path": "src/tradebot/portfolio/legacy_sizing.py",
+      "loc": 824,
+      "klass": "E",
+      "seed": "",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.portfolio.markowitz",
+      "path": "src/tradebot/portfolio/markowitz.py",
+      "loc": 142,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 85.45454545454545
+    },
+    {
+      "module": "tradebot.portfolio.optimizer",
+      "path": "src/tradebot/portfolio/optimizer.py",
+      "loc": 126,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 81.81818181818181
+    },
+    {
+      "module": "tradebot.portfolio.rebalance",
+      "path": "src/tradebot/portfolio/rebalance.py",
+      "loc": 125,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 84.21052631578948
+    },
+    {
+      "module": "tradebot.portfolio.risk_parity",
+      "path": "src/tradebot/portfolio/risk_parity.py",
+      "loc": 218,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 83.58208955223881
+    },
+    {
+      "module": "tradebot.regime",
+      "path": "src/tradebot/regime/__init__.py",
+      "loc": 56,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.regime.buckets",
+      "path": "src/tradebot/regime/buckets.py",
+      "loc": 280,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 98.59154929577464
+    },
+    {
+      "module": "tradebot.regime.conditioning",
+      "path": "src/tradebot/regime/conditioning.py",
+      "loc": 483,
+      "klass": "A",
+      "seed": "apps/run_meta_labeling.py",
+      "coverage": 97.88732394366197
+    },
+    {
+      "module": "tradebot.regime.markov",
+      "path": "src/tradebot/regime/markov.py",
+      "loc": 729,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 98.20627802690584
+    },
+    {
+      "module": "tradebot.regime.student_t",
+      "path": "src/tradebot/regime/student_t.py",
+      "loc": 421,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 95.0920245398773
+    },
+    {
+      "module": "tradebot.registry",
+      "path": "src/tradebot/registry/__init__.py",
+      "loc": 21,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.registry.catalog",
+      "path": "src/tradebot/registry/catalog.py",
+      "loc": 145,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 83.33333333333333
+    },
+    {
+      "module": "tradebot.registry.experiment",
+      "path": "src/tradebot/registry/experiment.py",
+      "loc": 223,
+      "klass": "D",
+      "seed": "tests/unit/test_wave6.py",
+      "coverage": 77.0
+    },
+    {
+      "module": "tradebot.registry.hypothesis_ledger",
+      "path": "src/tradebot/registry/hypothesis_ledger.py",
+      "loc": 291,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 97.29729729729729
+    },
+    {
+      "module": "tradebot.registry.lifecycle",
+      "path": "src/tradebot/registry/lifecycle.py",
+      "loc": 310,
+      "klass": "D",
+      "seed": "tests/killgates/test_gate_cannot_be_bypassed.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.registry.lineage",
+      "path": "src/tradebot/registry/lineage.py",
+      "loc": 86,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 50.0
+    },
+    {
+      "module": "tradebot.registry.phase6_power",
+      "path": "src/tradebot/registry/phase6_power.py",
+      "loc": 173,
+      "klass": "A",
+      "seed": "apps/run_vol_competition.py",
+      "coverage": 27.77777777777778
+    },
+    {
+      "module": "tradebot.registry.preregistration",
+      "path": "src/tradebot/registry/preregistration.py",
+      "loc": 528,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 96.0
+    },
+    {
+      "module": "tradebot.registry.promotion",
+      "path": "src/tradebot/registry/promotion.py",
+      "loc": 205,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 82.3529411764706
+    },
+    {
+      "module": "tradebot.registry.risk_registry",
+      "path": "src/tradebot/registry/risk_registry.py",
+      "loc": 113,
+      "klass": "B",
+      "seed": "apps/run_stress.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.registry.trial_counter",
+      "path": "src/tradebot/registry/trial_counter.py",
+      "loc": 208,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.reporting",
+      "path": "src/tradebot/reporting/__init__.py",
+      "loc": 26,
+      "klass": "A",
+      "seed": "apps/run_econometric_diagnostics.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.reporting.phase6_econometrics",
+      "path": "src/tradebot/reporting/phase6_econometrics.py",
+      "loc": 268,
+      "klass": "A",
+      "seed": "apps/run_econometric_diagnostics.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.reporting.phase6_meta_labeling",
+      "path": "src/tradebot/reporting/phase6_meta_labeling.py",
+      "loc": 633,
+      "klass": "A",
+      "seed": "apps/run_meta_labeling.py",
+      "coverage": 97.14285714285714
+    },
+    {
+      "module": "tradebot.reporting.phase6_regime_benchmark",
+      "path": "src/tradebot/reporting/phase6_regime_benchmark.py",
+      "loc": 578,
+      "klass": "A",
+      "seed": "apps/run_regime_benchmark.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.reporting.phase6_vol_competition",
+      "path": "src/tradebot/reporting/phase6_vol_competition.py",
+      "loc": 754,
+      "klass": "A",
+      "seed": "apps/run_vol_competition.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.risk",
+      "path": "src/tradebot/risk/__init__.py",
+      "loc": 107,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.risk.beta_hedge",
+      "path": "src/tradebot/risk/beta_hedge.py",
+      "loc": 104,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 22.80701754385965
+    },
+    {
+      "module": "tradebot.risk.contract",
+      "path": "src/tradebot/risk/contract.py",
+      "loc": 327,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.risk.daily_loss_governor",
+      "path": "src/tradebot/risk/daily_loss_governor.py",
+      "loc": 255,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 98.18181818181819
+    },
+    {
+      "module": "tradebot.risk.drawdown",
+      "path": "src/tradebot/risk/drawdown.py",
+      "loc": 149,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 88.13559322033899
+    },
+    {
+      "module": "tradebot.risk.engine",
+      "path": "src/tradebot/risk/engine.py",
+      "loc": 515,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 97.5609756097561
+    },
+    {
+      "module": "tradebot.risk.factor_risk",
+      "path": "src/tradebot/risk/factor_risk.py",
+      "loc": 179,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 95.45454545454545
+    },
+    {
+      "module": "tradebot.risk.hmm_regime",
+      "path": "src/tradebot/risk/hmm_regime.py",
+      "loc": 270,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 98.21428571428571
+    },
+    {
+      "module": "tradebot.risk.kelly",
+      "path": "src/tradebot/risk/kelly.py",
+      "loc": 170,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 96.875
+    },
+    {
+      "module": "tradebot.risk.kill_switches",
+      "path": "src/tradebot/risk/kill_switches.py",
+      "loc": 454,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.risk.limits",
+      "path": "src/tradebot/risk/limits.py",
+      "loc": 497,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 98.66666666666667
+    },
+    {
+      "module": "tradebot.risk.liquidity_risk",
+      "path": "src/tradebot/risk/liquidity_risk.py",
+      "loc": 148,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 97.5
+    },
+    {
+      "module": "tradebot.risk.position_limits",
+      "path": "src/tradebot/risk/position_limits.py",
+      "loc": 105,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 95.34883720930233
+    },
+    {
+      "module": "tradebot.risk.stress_report",
+      "path": "src/tradebot/risk/stress_report.py",
+      "loc": 294,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.risk.stress_test",
+      "path": "src/tradebot/risk/stress_test.py",
+      "loc": 543,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 90.7103825136612
+    },
+    {
+      "module": "tradebot.risk.var",
+      "path": "src/tradebot/risk/var.py",
+      "loc": 350,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 64.58333333333333
+    },
+    {
+      "module": "tradebot.risk.vol_targeting",
+      "path": "src/tradebot/risk/vol_targeting.py",
+      "loc": 204,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.schemas",
+      "path": "src/tradebot/schemas/__init__.py",
+      "loc": 30,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.schemas._common",
+      "path": "src/tradebot/schemas/_common.py",
+      "loc": 32,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 73.33333333333333
+    },
+    {
+      "module": "tradebot.schemas.bars",
+      "path": "src/tradebot/schemas/bars.py",
+      "loc": 98,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 97.87234042553192
+    },
+    {
+      "module": "tradebot.schemas.config",
+      "path": "src/tradebot/schemas/config.py",
+      "loc": 1098,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 96.4769647696477
+    },
+    {
+      "module": "tradebot.schemas.events",
+      "path": "src/tradebot/schemas/events.py",
+      "loc": 72,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 95.0
+    },
+    {
+      "module": "tradebot.schemas.features",
+      "path": "src/tradebot/schemas/features.py",
+      "loc": 90,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 60.0
+    },
+    {
+      "module": "tradebot.schemas.folds",
+      "path": "src/tradebot/schemas/folds.py",
+      "loc": 68,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 92.3076923076923
+    },
+    {
+      "module": "tradebot.schemas.hparams",
+      "path": "src/tradebot/schemas/hparams.py",
+      "loc": 21,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.schemas.labels",
+      "path": "src/tradebot/schemas/labels.py",
+      "loc": 86,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 80.55555555555556
+    },
+    {
+      "module": "tradebot.schemas.oos_predictions",
+      "path": "src/tradebot/schemas/oos_predictions.py",
+      "loc": 27,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 84.21052631578948
+    },
+    {
+      "module": "tradebot.schemas.orders",
+      "path": "src/tradebot/schemas/orders.py",
+      "loc": 39,
+      "klass": "D",
+      "seed": "tests/unit/test_wave8.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.selection",
+      "path": "src/tradebot/selection/__init__.py",
+      "loc": 14,
+      "klass": "B",
+      "seed": "apps/feature_selection.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.selection.mda",
+      "path": "src/tradebot/selection/mda.py",
+      "loc": 142,
+      "klass": "B",
+      "seed": "apps/feature_selection.py",
+      "coverage": 96.22641509433963
+    },
+    {
+      "module": "tradebot.selection.sfi",
+      "path": "src/tradebot/selection/sfi.py",
+      "loc": 137,
+      "klass": "B",
+      "seed": "apps/feature_selection.py",
+      "coverage": 51.92307692307692
+    },
+    {
+      "module": "tradebot.tca",
+      "path": "src/tradebot/tca/__init__.py",
+      "loc": 27,
+      "klass": "D",
+      "seed": "tests/integration/test_engine_parity.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.tca.arrival_price",
+      "path": "src/tradebot/tca/arrival_price.py",
+      "loc": 92,
+      "klass": "D",
+      "seed": "tests/integration/test_engine_parity.py",
+      "coverage": 74.19354838709677
+    },
+    {
+      "module": "tradebot.tca.implementation_shortfall",
+      "path": "src/tradebot/tca/implementation_shortfall.py",
+      "loc": 136,
+      "klass": "D",
+      "seed": "tests/integration/test_engine_parity.py",
+      "coverage": 79.41176470588235
+    },
+    {
+      "module": "tradebot.tca.post_trade",
+      "path": "src/tradebot/tca/post_trade.py",
+      "loc": 304,
+      "klass": "D",
+      "seed": "tests/integration/test_engine_parity.py",
+      "coverage": 95.74468085106383
+    },
+    {
+      "module": "tradebot.tca.pre_trade",
+      "path": "src/tradebot/tca/pre_trade.py",
+      "loc": 87,
+      "klass": "D",
+      "seed": "tests/integration/test_engine_parity.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.tca.report",
+      "path": "src/tradebot/tca/report.py",
+      "loc": 77,
+      "klass": "D",
+      "seed": "tests/integration/test_engine_parity.py",
+      "coverage": 80.0
+    },
+    {
+      "module": "tradebot.train",
+      "path": "src/tradebot/train/__init__.py",
+      "loc": 110,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.train._bandit_helpers",
+      "path": "src/tradebot/train/_bandit_helpers.py",
+      "loc": 84,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 18.867924528301888
+    },
+    {
+      "module": "tradebot.train._scalers",
+      "path": "src/tradebot/train/_scalers.py",
+      "loc": 498,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 11.965811965811966
+    },
+    {
+      "module": "tradebot.train.adapter",
+      "path": "src/tradebot/train/adapter.py",
+      "loc": 47,
+      "klass": "A",
+      "seed": "apps/train_cpcv.py",
+      "coverage": 28.0
+    },
+    {
+      "module": "tradebot.train.calibration",
+      "path": "src/tradebot/train/calibration.py",
+      "loc": 333,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 91.66666666666667
+    },
+    {
+      "module": "tradebot.train.catboost",
+      "path": "src/tradebot/train/catboost.py",
+      "loc": 600,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 11.934156378600823
+    },
+    {
+      "module": "tradebot.train.checkpoints",
+      "path": "src/tradebot/train/checkpoints.py",
+      "loc": 210,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 53.7037037037037
+    },
+    {
+      "module": "tradebot.train.ensemble",
+      "path": "src/tradebot/train/ensemble.py",
+      "loc": 1117,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 8.314606741573034
+    },
+    {
+      "module": "tradebot.train.meta_label",
+      "path": "src/tradebot/train/meta_label.py",
+      "loc": 476,
+      "klass": "A",
+      "seed": "apps/run_meta_labeling.py",
+      "coverage": 97.65625
+    },
+    {
+      "module": "tradebot.train.meta_train",
+      "path": "src/tradebot/train/meta_train.py",
+      "loc": 167,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 14.925373134328359
+    },
+    {
+      "module": "tradebot.train.quant_arch",
+      "path": "src/tradebot/train/quant_arch.py",
+      "loc": 393,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 66.48936170212765
+    },
+    {
+      "module": "tradebot.train.reward",
+      "path": "src/tradebot/train/reward.py",
+      "loc": 272,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 93.82716049382717
+    },
+    {
+      "module": "tradebot.train.schema_guard",
+      "path": "src/tradebot/train/schema_guard.py",
+      "loc": 217,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 91.35802469135803
+    },
+    {
+      "module": "tradebot.train.seeded",
+      "path": "src/tradebot/train/seeded.py",
+      "loc": 120,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 42.42424242424242
+    },
+    {
+      "module": "tradebot.train.stack",
+      "path": "src/tradebot/train/stack.py",
+      "loc": 75,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 84.0
+    },
+    {
+      "module": "tradebot.train.thompson",
+      "path": "src/tradebot/train/thompson.py",
+      "loc": 130,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 25.641025641025642
+    },
+    {
+      "module": "tradebot.tune",
+      "path": "src/tradebot/tune/__init__.py",
+      "loc": 14,
+      "klass": "A",
+      "seed": "apps/tune_hparams.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.tune.objective",
+      "path": "src/tradebot/tune/objective.py",
+      "loc": 958,
+      "klass": "A",
+      "seed": "apps/tune_hparams.py",
+      "coverage": 10.416666666666666
+    },
+    {
+      "module": "tradebot.tune.pruning",
+      "path": "src/tradebot/tune/pruning.py",
+      "loc": 44,
+      "klass": "A",
+      "seed": "apps/tune_hparams.py",
+      "coverage": 80.0
+    },
+    {
+      "module": "tradebot.tune.samplers",
+      "path": "src/tradebot/tune/samplers.py",
+      "loc": 70,
+      "klass": "A",
+      "seed": "apps/tune_hparams.py",
+      "coverage": 42.10526315789474
+    },
+    {
+      "module": "tradebot.tune.search_space",
+      "path": "src/tradebot/tune/search_space.py",
+      "loc": 89,
+      "klass": "A",
+      "seed": "apps/tune_hparams.py",
+      "coverage": 50.0
+    },
+    {
+      "module": "tradebot.tune.storage",
+      "path": "src/tradebot/tune/storage.py",
+      "loc": 50,
+      "klass": "A",
+      "seed": "apps/tune_hparams.py",
+      "coverage": 30.0
+    },
+    {
+      "module": "tradebot.utils",
+      "path": "src/tradebot/utils/__init__.py",
+      "loc": 16,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.utils.arrays",
+      "path": "src/tradebot/utils/arrays.py",
+      "loc": 154,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 81.48148148148148
+    },
+    {
+      "module": "tradebot.utils.failfast",
+      "path": "src/tradebot/utils/failfast.py",
+      "loc": 193,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 93.75
+    },
+    {
+      "module": "tradebot.utils.hashing",
+      "path": "src/tradebot/utils/hashing.py",
+      "loc": 122,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 97.72727272727273
+    },
+    {
+      "module": "tradebot.utils.parquet_io",
+      "path": "src/tradebot/utils/parquet_io.py",
+      "loc": 148,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 33.333333333333336
+    },
+    {
+      "module": "tradebot.utils.time",
+      "path": "src/tradebot/utils/time.py",
+      "loc": 285,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 72.6027397260274
+    },
+    {
+      "module": "tradebot.validation",
+      "path": "src/tradebot/validation/__init__.py",
+      "loc": 15,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.validation.adequacy_report",
+      "path": "src/tradebot/validation/adequacy_report.py",
+      "loc": 269,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.validation.data_adequacy",
+      "path": "src/tradebot/validation/data_adequacy.py",
+      "loc": 807,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 97.61904761904762
+    },
+    {
+      "module": "tradebot.validation.diagnostics_report",
+      "path": "src/tradebot/validation/diagnostics_report.py",
+      "loc": 223,
+      "klass": "A",
+      "seed": "apps/run_econometric_diagnostics.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.validation.dsr",
+      "path": "src/tradebot/validation/dsr.py",
+      "loc": 243,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 89.28571428571429
+    },
+    {
+      "module": "tradebot.validation.econometrics",
+      "path": "src/tradebot/validation/econometrics.py",
+      "loc": 368,
+      "klass": "A",
+      "seed": "apps/run_econometric_diagnostics.py",
+      "coverage": 96.7741935483871
+    },
+    {
+      "module": "tradebot.validation.feature_importance",
+      "path": "src/tradebot/validation/feature_importance.py",
+      "loc": 244,
+      "klass": "A",
+      "seed": "apps/run_meta_labeling.py",
+      "coverage": 97.1830985915493
+    },
+    {
+      "module": "tradebot.validation.gate_runner",
+      "path": "src/tradebot/validation/gate_runner.py",
+      "loc": 221,
+      "klass": "B",
+      "seed": "apps/run_gates.py",
+      "coverage": 93.33333333333333
+    },
+    {
+      "module": "tradebot.validation.gates",
+      "path": "src/tradebot/validation/gates.py",
+      "loc": 365,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 86.20689655172414
+    },
+    {
+      "module": "tradebot.validation.meta_label_campaign",
+      "path": "src/tradebot/validation/meta_label_campaign.py",
+      "loc": 504,
+      "klass": "A",
+      "seed": "apps/run_meta_labeling.py",
+      "coverage": 0.0
+    },
+    {
+      "module": "tradebot.validation.regime_benchmark",
+      "path": "src/tradebot/validation/regime_benchmark.py",
+      "loc": 489,
+      "klass": "A",
+      "seed": "apps/run_regime_benchmark.py",
+      "coverage": 69.65517241379311
+    },
+    {
+      "module": "tradebot.validation.sharpe_difference",
+      "path": "src/tradebot/validation/sharpe_difference.py",
+      "loc": 335,
+      "klass": "A",
+      "seed": "apps/run_regime_benchmark.py",
+      "coverage": 98.95833333333333
+    },
+    {
+      "module": "tradebot.validation.spa",
+      "path": "src/tradebot/validation/spa.py",
+      "loc": 176,
+      "klass": "A",
+      "seed": "apps/run_data_adequacy.py",
+      "coverage": 93.33333333333333
+    },
+    {
+      "module": "tradebot.validation.vol_campaign",
+      "path": "src/tradebot/validation/vol_campaign.py",
+      "loc": 580,
+      "klass": "A",
+      "seed": "apps/run_vol_competition.py",
+      "coverage": 44.73684210526316
+    },
+    {
+      "module": "tradebot.validation.vol_competition",
+      "path": "src/tradebot/validation/vol_competition.py",
+      "loc": 759,
+      "klass": "A",
+      "seed": "apps/run_vol_competition.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.validation.vol_metrics",
+      "path": "src/tradebot/validation/vol_metrics.py",
+      "loc": 552,
+      "klass": "A",
+      "seed": "apps/run_vol_competition.py",
+      "coverage": 96.7032967032967
+    },
+    {
+      "module": "tradebot.validation.walk_forward",
+      "path": "src/tradebot/validation/walk_forward.py",
+      "loc": 201,
+      "klass": "B",
+      "seed": "apps/feature_selection.py",
+      "coverage": 90.9090909090909
+    },
+    {
+      "module": "tradebot.volatility",
+      "path": "src/tradebot/volatility/__init__.py",
+      "loc": 27,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.volatility.ewma",
+      "path": "src/tradebot/volatility/ewma.py",
+      "loc": 196,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 100.0
+    },
+    {
+      "module": "tradebot.volatility.garch",
+      "path": "src/tradebot/volatility/garch.py",
+      "loc": 653,
+      "klass": "A",
+      "seed": "apps/run_vol_competition.py",
+      "coverage": 93.28859060402685
+    },
+    {
+      "module": "tradebot.volatility.garman_klass",
+      "path": "src/tradebot/volatility/garman_klass.py",
+      "loc": 135,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 25.58139534883721
+    },
+    {
+      "module": "tradebot.volatility.har_rv",
+      "path": "src/tradebot/volatility/har_rv.py",
+      "loc": 270,
+      "klass": "D",
+      "seed": "tests/property/test_hypothesis_kernels.py",
+      "coverage": 81.66666666666667
+    },
+    {
+      "module": "tradebot.volatility.parkinson",
+      "path": "src/tradebot/volatility/parkinson.py",
+      "loc": 43,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 43.75
+    },
+    {
+      "module": "tradebot.volatility.realized",
+      "path": "src/tradebot/volatility/realized.py",
+      "loc": 387,
+      "klass": "A",
+      "seed": "apps/run_vol_competition.py",
+      "coverage": 94.89795918367346
+    },
+    {
+      "module": "tradebot.volatility.rogers_satchell",
+      "path": "src/tradebot/volatility/rogers_satchell.py",
+      "loc": 22,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 28.571428571428573
+    },
+    {
+      "module": "tradebot.volatility.yang_zhang",
+      "path": "src/tradebot/volatility/yang_zhang.py",
+      "loc": 97,
+      "klass": "A",
+      "seed": "apps/build_features.py",
+      "coverage": 13.953488372093023
+    }
+  ]
+}

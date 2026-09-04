@@ -67,8 +67,29 @@ enkel model in deze repository waarvan is aangetoond dat het geld verdient.
 
 Gemeten 2026-09-01 (`reports/phase7_divergence_map.md`): `live/` importeert 18
 `tradebot`-modules, de Phase 5-keten 19, en de doorsnede is **drie** — waarvan
-er één domeinlogica is. Er zijn **nul** verwijzingen naar `RiskDecision`,
-`risk/engine.py` of `risk/kill_switches.py` in `live/` of `oms/`.
+er één domeinlogica is.
+
+> **Herzien 2026-09-04 (Phase 9, stap 15).** De zin die hier stond — *"er zijn
+> nul verwijzingen naar `RiskDecision`, `risk/engine.py` of
+> `risk/kill_switches.py` in `live/` of `oms/`"* — is sinds Stage D niet meer
+> waar, en het verschil is precies het punt:
+>
+> | Symbool | imports in `live/` + `oms/` |
+> |---|---:|
+> | `RiskDecision` | **0** |
+> | `RiskEngine` | **0** |
+> | `execution/order_router.py` | **0** |
+> | `risk/kill_switches.py::HaltStore` | 1 — `live/circuit_breaker.py:29` |
+> | `risk/limits.py` | 1 — `live/execution_controller.py:39` |
+> | `risk/daily_loss_governor.py` | 1 — `live/engine.py:41` |
+>
+> **Het HALT-pad staat op de soevereine laag; het BESLUIT-pad niet.** Dat is
+> nauwkeuriger dan "nul verwijzingen" en het verklaart waarom §2 hierboven
+> tegelijk kan zeggen dat de halt-state niet aan de werkdirectory hangt.
+>
+> Scherper nog, en gemeten met dezelfde scanner voor beide ketens: van de **21
+> modules / 6.173 LOC** in de pakketten `live/` en `oms/` staat er **nul** in de
+> authoritative afsluiting.
 
 Concreet betekent dat:
 
@@ -124,6 +145,7 @@ uitsluitend op start, halteert en herstart. **Die herschrijving is niet gedaan.*
 | 7/8 Stage C — Phase 6 afmaken | **grotendeels**; H1/H2/H3 beslist, HRP open |
 | 7/8 Stage D — productie | **deels**: D2, D3, D4, D5, D9 groen; D1, D6, D7 open; de 60-daagse klok is niet gestart |
 | 7/8 Stage E — oplevering | **deels**: E-2 t/m E-4 gedaan; E-1 en E-5 zie hieronder |
+| 9 — opschoning, consolidatie & testmassa | **afgerond**, zie `reports/phase9_exit_report.md` |
 
 ## 5. Openstaande besluiten
 
@@ -145,11 +167,39 @@ lossen.
    Dat is een geldige keuze voor een operationele test, maar het moet expliciet
    zo worden geregistreerd zodat niemand het later als rendementsverwachting
    leest.
-5. **DI-3 en DI-4** (bestanden boven de LOC-limieten) schuiven sinds Phase 0
-   door. Opruimen of formeel accepteren met een ratchet — doorschuiven is de
-   derde optie die dit project zichzelf niet toestaat.
+5. ~~**DI-3 en DI-4** (bestanden boven de LOC-limieten) schuiven sinds Phase 0
+   door.~~ **Afgehandeld in Phase 9.** Beide zijn herbevestigd met een
+   gecorrigeerde meting — DI-3 noteerde 2 bestanden >800 LOC waar er 9 staan,
+   DI-4 noteerde 18 van 40 apps waar het er 27 zijn — en de ratchet die niet
+   bestond is gebouwd: `scripts/check_file_size.py` met een cap per bestand,
+   afgedwongen door `.github/workflows/inventory.yml` en met bewijs dat hij
+   rood wordt.
 
 ## 6. De volgende drie stappen
+
+> **Bijgewerkt 2026-09-04 na Phase 9.** De volgorde hieronder is ongewijzigd —
+> de opruimfase heeft geen enkele openstaande onderzoeksvraag geraakt. Wat zij
+> wel heeft veranderd, is dat de oppervlakte nu **gemeten** is in plaats van
+> geschat, zodat stap 1 hieronder op cijfers kan steunen:
+>
+> * `docs/CODE_REGISTER.md` — 290 modules, 71.025 LOC, 60,6 % LOC-gewogen
+>   dekking, met per pakket het entrypoint dat het bereikt en per module onder
+>   de drempel een ratchet met datum en eigenaar.
+> * `reports/phase9_inventory.md` — elke module, app en script met een verdict.
+> * `.github/workflows/inventory.yml` — de poort die voorkomt dat er ongemerkt
+>   een onbereikbare module bij komt.
+> * `docs/runbook.md` §0.7 — alle 53 entrypoints (40 apps, 13 gereedschappen)
+>   met LOC, DVC-stage en doel, plus de 48 onderzoeksbestanden via
+>   `research/README.md`. Het aantal dat nergens werd genoemd is van **36 van
+>   98** naar **0** gegaan.
+>
+> **Eén nieuwe post die vóór stap 2 hoort:** de dekking staat op **56,64 %**
+> tegen een drempel van 70, met **108 modules / 31.903 LOC** onder een ratchet
+> die op 2027-03-04 wordt herzien. Zij is in deze fase gestegen (van 55,82 %,
+> met 89 statements méér gedekt), maar het gat naar de drempel is werk op
+> zichzelf en geen bijvangst van een opruiming. Het raakt stap 1 rechtstreeks:
+> `live/` draagt 38,5 % en `oms/router.py` — de weg waarlangs in productie een
+> order de deur uit gaat — **27,9 %**.
 
 0. **Besluit over de barresolutie en het universum** (§3.2, herziening
    2026-09-02). Dagbars of intraday? Vijf namen of zes? Dit zijn besluiten van

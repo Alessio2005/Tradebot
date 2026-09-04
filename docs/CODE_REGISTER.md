@@ -16,14 +16,31 @@ Elke module in klasse A of B draagt **ofwel dekking boven de 70 %-drempel,
 ofwel een geregistreerde ratchet met een datum en een eigenaar**. Er is geen
 derde optie. "Eigenaar" is een ROL; dit project heeft er nog geen bezet.
 
-| | |
-|---|---|
-| modules in `src/` | **290** |
-| LOC | **71000** |
-| dekking, LOC-gewogen | **60.3 %** |
-| modules boven de drempel | **176** |
-| modules onder een ratchet | **110** |
-| ratchet-herzieningsdatum | **2027-03-04** |
+| | stap 10 | **nagemeten, stap 16** |
+|---|---:|---:|
+| modules in `src/` | 290 | **290** |
+| LOC | 71.000 | **71.025** |
+| dekking, LOC-gewogen | 60,3 % | **60,6 %** |
+| dekking, statements (`pytest-cov`) | 55,82 % | **56,64 %** |
+| modules boven de drempel | 176 | **178** |
+| modules onder een ratchet (A/B) | 110 | **108** |
+| modules in een derde categorie | 0 | **0** |
+| ratchet-herzieningsdatum | | **2027-03-04** |
+
+> **Nagemeten 2026-09-04 bij het exit-rapport** met
+> `reachability_map.py --coverage reports/phase9_coverage_after.json`. De
+> ratchetlijst hieronder is ongewijzigd gelaten: zij is geschreven op de
+> nulmeting en dat is de referentie waartegen de ratchet krimpt. Twee regels
+> zijn er inmiddels **uit gegroeid** — `selection/__init__.py` (100,0 %) en
+> `selection/mda.py` (96,2 %), beide dankzij de tests van stap 11 voor het
+> pakket dat er nul had. Zij blijven staan zodat zichtbaar is dát ze zijn
+> opgelost. De 71.025 LOC tegen 71.000 is geen groei van code maar de acht
+> `# LOC-EXCEPTION:`-regels van stap 13 en hun context.
+>
+> De controle die telt, is omgekeerd uitgevoerd — niet *"staat elke
+> ratchet-regel in het register"* maar *"staat elke module onder de drempel in
+> het register"*: **108 van 108, nul modules onder de drempel die hier niet
+> staan.** Bewijs in `reports/phase9_exit_report.md`, criterium 5.
 
 ## Per pakket
 

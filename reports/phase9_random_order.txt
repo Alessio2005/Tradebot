@@ -1,0 +1,138 @@
+........................................................................ [  2%]
+........................................................................ [  4%]
+........................................................................ [  7%]
+........................................................................ [  9%]
+........................................................................ [ 12%]
+.......................................sss.............................. [ 14%]
+........................................................................ [ 17%]
+........................................................................ [ 19%]
+........................................................................ [ 22%]
+........................................................................ [ 24%]
+........................................................................ [ 27%]
+........................................................................ [ 29%]
+........................................................................ [ 32%]
+........................................................................ [ 34%]
+............................................................s.FF....Fs.. [ 37%]
+ss..s.ss..sss.F.........................s............................... [ 39%]
+.......................................sss.............................. [ 42%]
+........................................................................ [ 44%]
+........................................................................ [ 47%]
+........................................................................ [ 49%]
+........................................................................ [ 52%]
+................................s...................s................... [ 54%]
+........................................................................ [ 57%]
+........................................................................ [ 59%]
+........................................................................ [ 62%]
+........................................................................ [ 64%]
+........................................................................ [ 67%]
+........................................................................ [ 69%]
+........................................................................ [ 72%]
+........................................................................ [ 74%]
+........................................................................ [ 77%]
+........................................................................ [ 79%]
+........................................................................ [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 87%]
+........................................................................ [ 89%]
+ssss.................................................................... [ 92%]
+........................................................................ [ 94%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+.....                                                                    [100%]
+================================== FAILURES ===================================
+________ test_futures_unit_against_gate[KG-B2 residual alpha-cm_tsmom] ________
+tests\killgates\test_expansion_killgates.py:427: in test_futures_unit_against_gate
+    assert not failures, f"{unit} fails {spec.name}:\n  " + "\n  ".join(failures)
+E   AssertionError: cm_tsmom fails KG-B2 residual alpha:
+E       KG-B2 residual alpha: alpha_p=0.0793 violates alpha_p <= 0.05
+E   assert not ['KG-B2 residual alpha: alpha_p=0.0793 violates alpha_p <= 0.05']
+________ test_futures_unit_against_gate[KG-B2 residual alpha-cm_carry] ________
+tests\killgates\test_expansion_killgates.py:427: in test_futures_unit_against_gate
+    assert not failures, f"{unit} fails {spec.name}:\n  " + "\n  ".join(failures)
+E   AssertionError: cm_carry fails KG-B2 residual alpha:
+E       KG-B2 residual alpha: alpha_p=0.3618 violates alpha_p <= 0.05
+E   assert not ['KG-B2 residual alpha: alpha_p=0.3618 violates alpha_p <= 0.05']
+__________ test_futures_unit_against_gate[KG-B1 in-sample-cm_carry] ___________
+tests\killgates\test_expansion_killgates.py:427: in test_futures_unit_against_gate
+    assert not failures, f"{unit} fails {spec.name}:\n  " + "\n  ".join(failures)
+E   AssertionError: cm_carry fails KG-B1 in-sample:
+E       KG-B1 in-sample: net_sharpe=0.09987 violates net_sharpe >= 0.4
+E       KG-B1 in-sample: years_positive_frac=0.4516 violates years_positive_frac >= 0.6
+E   assert not ['KG-B1 in-sample: net_sharpe=0.09987 violates net_sharpe >= 0.4', 'KG-B1 in-sample: years_positive_frac=0.4516 violates years_positive_frac >= 0.6']
+________ test_futures_unit_against_gate[KG-B3 out-of-sample-cm_carry] _________
+tests\killgates\test_expansion_killgates.py:427: in test_futures_unit_against_gate
+    assert not failures, f"{unit} fails {spec.name}:\n  " + "\n  ".join(failures)
+E   AssertionError: cm_carry fails KG-B3 out-of-sample:
+E       KG-B3 out-of-sample: wf_sharpe=-0.2784 violates wf_sharpe >= 0.3
+E       KG-B3 out-of-sample: sharpe_decay=1.613 violates sharpe_decay <= 0.4
+E       KG-B3 out-of-sample: bootstrap_p_positive=0.723 violates bootstrap_p_positive >= 0.75
+E       KG-B3 out-of-sample: metric 'abs_rho_vs_book' missing — cannot decide
+E   assert not ['KG-B3 out-of-sample: wf_sharpe=-0.2784 violates wf_sharpe >= 0.3', 'KG-B3 out-of-sample: sharpe_decay=1.613 violates...=0.723 violates bootstrap_p_positive >= 0.75', "KG-B3 out-of-sample: metric 'abs_rho_vs_book' missing — cannot decide"]
+============================== warnings summary ===============================
+tests/unit/test_var_finiteness.py::test_scipy_still_returns_nan_here_so_the_guard_has_work_to_do
+  D:\Tradebot\tests\unit\test_var_finiteness.py:48: RuntimeWarning: Precision loss occurred in moment calculation due to catastrophic cancellation. This occurs when the data are nearly identical. Results may be unreliable.
+    skew = _stats.skew(_COUNTEREXAMPLE)
+
+tests/unit/test_var_finiteness.py::test_scipy_still_returns_nan_here_so_the_guard_has_work_to_do
+  D:\Tradebot\tests\unit\test_var_finiteness.py:49: RuntimeWarning: Precision loss occurred in moment calculation due to catastrophic cancellation. This occurs when the data are nearly identical. Results may be unreliable.
+    kurt = _stats.kurtosis(_COUNTEREXAMPLE)
+
+tests/unit/test_var_finiteness.py::test_evt_is_finite_across_degenerate_and_normal_shapes[constant-arr0-0.5]
+tests/unit/test_var_finiteness.py::test_the_guard_fires_on_underflowed_central_moments_too
+tests/unit/test_var_finiteness.py::test_evt_is_finite_across_degenerate_and_normal_shapes[constant-arr0-0.6]
+tests/unit/test_var_finiteness.py::test_the_point_mass_answer_is_the_exact_value_not_a_placeholder
+tests/unit/test_var_finiteness.py::test_evt_is_finite_across_degenerate_and_normal_shapes[constant-arr0-0.95]
+tests/unit/test_var_finiteness.py::test_evt_is_finite_across_degenerate_and_normal_shapes[constant-arr0-0.9]
+tests/unit/test_var_finiteness.py::test_evt_is_finite_across_degenerate_and_normal_shapes[constant-arr0-0.75]
+tests/unit/test_var_finiteness.py::test_the_historical_counterexample_is_now_finite
+tests/property/test_hypothesis_kernels.py::test_evt_gpd_var_less_than_cf_at_extreme
+  D:\Tradebot\src\tradebot\risk\var.py:221: RuntimeWarning: Precision loss occurred in moment calculation due to catastrophic cancellation. This occurs when the data are nearly identical. Results may be unreliable.
+    skew = float(_stats.skew(arr))
+
+tests/unit/test_var_finiteness.py::test_evt_is_finite_across_degenerate_and_normal_shapes[constant-arr0-0.5]
+tests/unit/test_var_finiteness.py::test_the_guard_fires_on_underflowed_central_moments_too
+tests/unit/test_var_finiteness.py::test_evt_is_finite_across_degenerate_and_normal_shapes[constant-arr0-0.6]
+tests/unit/test_var_finiteness.py::test_the_point_mass_answer_is_the_exact_value_not_a_placeholder
+tests/unit/test_var_finiteness.py::test_evt_is_finite_across_degenerate_and_normal_shapes[constant-arr0-0.95]
+tests/unit/test_var_finiteness.py::test_evt_is_finite_across_degenerate_and_normal_shapes[constant-arr0-0.9]
+tests/unit/test_var_finiteness.py::test_evt_is_finite_across_degenerate_and_normal_shapes[constant-arr0-0.75]
+tests/unit/test_var_finiteness.py::test_the_historical_counterexample_is_now_finite
+tests/property/test_hypothesis_kernels.py::test_evt_gpd_var_less_than_cf_at_extreme
+  D:\Tradebot\src\tradebot\risk\var.py:222: RuntimeWarning: Precision loss occurred in moment calculation due to catastrophic cancellation. This occurs when the data are nearly identical. Results may be unreliable.
+    kurt_excess = float(_stats.kurtosis(arr))  # Fisher definition (excess)
+
+tests/integration/test_dvc_pipeline.py::TestTheLockFileMatches::test_the_engine_stage_has_actually_run
+tests/unit/test_meta_label.py::TestWalkForwardAndImportance::test_every_fold_reports_its_purge
+  D:\venv\tradebot\Lib\site-packages\_pytest\fixtures.py:1313: PytestRemovedIn10Warning: Class-scoped fixture defined as instance method is deprecated.
+  Instance attributes set in this fixture will NOT be visible to test methods,
+  as each test gets a new instance while the fixture runs only once per class.
+  Use @classmethod decorator and set attributes on cls instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#class-scoped-fixture-as-instance-method
+    fixturefunc = resolve_fixture_function(fixturedef, request)
+
+tests/lookahead/test_event_units_causality.py::test_pead_ar3_window_is_realised_before_asof
+tests/lookahead/test_event_units_causality.py::test_pead_ar3_window_is_realised_before_asof
+  D:\Tradebot\src\tradebot\alpha\eq_pead.py:57: DeprecationWarning: parsing timezone aware datetimes is deprecated; this will raise an error in the future
+    d = int(np.searchsorted(idx.values, np.datetime64(acc), side="left"))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+SKIPPED [3] tests\test_multi_sleeve_book.py:27: data caches not present
+SKIPPED [5] tests\killgates\test_expansion_killgates.py:276: no kill-gate artefact at artefacts\killgates\cm_basis_mom.json — unit not evaluated yet
+SKIPPED [1] tests\killgates\test_expansion_killgates.py:276: no kill-gate artefact at artefacts\killgates\book_with_futures.json — unit not evaluated yet
+SKIPPED [1] tests\killgates\test_expansion_killgates.py:425: cm_tsmom has not been evaluated for KG-B4 tradeability yet
+SKIPPED [1] tests\killgates\test_expansion_killgates.py:425: cm_tsmom has not been evaluated for KG-B5 paper yet
+SKIPPED [1] tests\killgates\test_expansion_killgates.py:425: cm_carry has not been evaluated for KG-B5 paper yet
+SKIPPED [1] tests\killgates\test_expansion_killgates.py:425: cm_carry has not been evaluated for KG-B4 tradeability yet
+SKIPPED [1] tests\unit\test_factor_alpha.py:81: cached broad-perp panel not present
+SKIPPED [3] tests\test_neutral_book.py:26: broad_perp_daily_close.parquet not present
+SKIPPED [2] tests\lookahead\test_feature_causality.py:95: input begint later dan het bar-raster; grens niet scherp
+SKIPPED [1] tests\e2e\test_chaos.py:19: Requires live engine integration — implement in Wave 20 sprint
+SKIPPED [1] tests\e2e\test_chaos.py:25: Requires OMS router integration — implement in Wave 20 sprint
+SKIPPED [1] tests\e2e\test_chaos.py:31: Requires live engine signal handler — implement in Wave 20 sprint
+SKIPPED [1] tests\e2e\test_chaos.py:89: Requires mock parquet data — add in Wave 20 sprint
+FAILED tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B2 residual alpha-cm_tsmom]
+FAILED tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B2 residual alpha-cm_carry]
+FAILED tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B1 in-sample-cm_carry]
+FAILED tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B3 out-of-sample-cm_carry]
+EXIT=1
