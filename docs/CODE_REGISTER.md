@@ -1,6 +1,7 @@
 # CODE REGISTER — de overlevende oppervlakte
 
-> **Aangelegd 2026-09-04, Phase 9.** Dit document beschrijft wat er in `src/`
+> **Geverifieerd tegen de codebase op 2026-09-04** (Phase 9, stap 10).
+> Dit document beschrijft wat er in `src/`
 > staat, door welk entrypoint het wordt bereikt, hoeveel dekking het draagt en
 > of het onder een ratchet staat. Het is bedoeld voor wie het project overneemt
 > en wil weten wat hij mag aanraken.
