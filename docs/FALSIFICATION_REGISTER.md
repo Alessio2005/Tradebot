@@ -16,17 +16,17 @@
 
 | # | Gefalsifieerde hypothese | Bewijs | Heropening alleen als… |
 |---|--------------------------|--------|------------------------|
-| F1 | Funding-rate als standalone alpha of conditioner (crypto) | AUDIT §11: IC ≈ 0 alle horizonten, n=176k; breadth maakt het erger (Sharpe −0.14…+0.18); conditioning schaadt (0.61→−1.03) | ander mechanisme (bv. funding-basis cross-exchange arb met executiebewijs) |
-| F2 | Tick/intraday OFI & runs-imbalance op info-bars (crypto) | AUDIT §7: IC −0.008…−0.019 echt maar net −7…−13 @10bps (~32 bars/dag × 0.32 turnover) | kostenstructuur verandert (maker-rebates aantoonbaar haalbaar) |
-| F3 | Per-asset directionele ML (long/short probs per naam) | AUDIT §10b, §12A: OOS AUC 0.504–0.523 op 5 én 99 namen; 198 modellen: boek-Sharpe −0.59; "tracks Sharpe 2.18" = constructie-artifact | fundamenteel andere featureklasse per markt (niet crypto-OHLCV) |
+| F1 | Funding-rate als standalone alpha of conditioner (crypto) | AUDIT §11: IC ≈ 0 alle horizonten, n=176k; breadth maakt het erger (Sharpe −0.14…+0.18); conditioning schaadt (0.61→−1.03) | ander mechanisme (bv. funding-basis cross-exchange arb met executiebewijs) — buiten het meetdomein (AD-23) |
+| F2 | Tick/intraday OFI & runs-imbalance op info-bars (crypto) | AUDIT §7: IC −0.008…−0.019 echt maar net −7…−13 @10bps (~32 bars/dag × 0.32 turnover) | kostenstructuur verandert (maker-rebates aantoonbaar haalbaar) — buiten het meetdomein (AD-23) |
+| F3 | Per-asset directionele ML (long/short probs per naam) | AUDIT §10b, §12A: OOS AUC 0.504–0.523 op 5 én 99 namen; 198 modellen: boek-Sharpe −0.59; "tracks Sharpe 2.18" = constructie-artifact | fundamenteel andere featureklasse per markt (niet crypto-OHLCV) — buiten het meetdomein (AD-23) |
 | F4 | Triple-barrier AUC als bewijs van edge | AUDIT §12 (Silent Killer): AUC 0.55–0.59 = vol/path-artifact, geen richting-informatie; elk verhandelbaar boek erop ≤ 0 | nooit — AUC zonder verhandelbaar boek telt per definitie niet |
-| F5 | Markt-brede alt-data als directionele timer (F&G, TVL, DVOL, on-chain) | AUDIT §14B: timing-AUC 0.45, IC −0.10, breadth ≈ 1 → sample-starved | als conditioner/de-grosser mag het wél getest (geen timer) |
-| F6 | Feature-maximalisatie op het XS-model (52 features) | AUDIT §14C: IC 0.064 ≤ baseline 0.069; kleinere samples: overfit (IC +0.015) | nieuwe informatie-bron, niet meer transformaties van dezelfde prijs |
-| F7 | Multi-TF trend/RR-sweeps (crypto, 40 configs) | AUDIT §15A: geen config elk jaar positief; WF-winnaar verliest OOS (−0.28); RR-ratio irrelevant | trend in ANDERE asset-klasse (managed-futures-premie is academisch reëel) |
-| F8 | Hand-made trend-heuristieken (MA-cross, XSMOM-long crypto) | AUDIT §10: Sharpe ≤ 0.3, MaxDD −90%+, ruïne onder leverage; crypto is XS-reversal, niet -momentum | n.v.t. binnen crypto; in equities/FX/commodities is XSMOM een ander, gedocumenteerd premium |
+| F5 | Markt-brede alt-data als directionele timer (F&G, TVL, DVOL, on-chain) | AUDIT §14B: timing-AUC 0.45, IC −0.10, breadth ≈ 1 → sample-starved | als conditioner/de-grosser mag het wél getest (geen timer) — buiten het meetdomein (AD-23) |
+| F6 | Feature-maximalisatie op het XS-model (52 features) | AUDIT §14C: IC 0.064 ≤ baseline 0.069; kleinere samples: overfit (IC +0.015) | nieuwe informatie-bron, niet meer transformaties van dezelfde prijs — buiten het meetdomein (AD-23) |
+| F7 | Multi-TF trend/RR-sweeps (crypto, 40 configs) | AUDIT §15A: geen config elk jaar positief; WF-winnaar verliest OOS (−0.28); RR-ratio irrelevant | trend in ANDERE asset-klasse (managed-futures-premie is academisch reëel) — buiten het meetdomein (AD-23) |
+| F8 | Hand-made trend-heuristieken (MA-cross, XSMOM-long crypto) | AUDIT §10: Sharpe ≤ 0.3, MaxDD −90%+, ruïne onder leverage; crypto is XS-reversal, niet -momentum | n.v.t. binnen crypto; in equities/FX/commodities is XSMOM een ander, gedocumenteerd premium — buiten het meetdomein (AD-23) |
 | F9 | Symmetrische long-mirror short-pipeline (TrendScan + PT2/SL1) | SHORT D1–D6: shorts onvoorwaardelijk −EV; Sharpe 2.92→1.31 bij meer shorts; AUDIT §10b: shorts toevoegen → −3.26 | nooit in deze vorm; short-edge komt uit carry/reversal/relative-value |
-| F10 | Naïeve breedte ("meer namen/modellen = meer Sharpe") | AUDIT §12: 99 namen per-asset −0.59; §13: raw reversal +0.30 (12) → +0.06 (99); breadth meet nul-edge preciezer | breedte over markten/premia (mandaat v3) i.p.v. namen binnen één betafactor |
-| F11 | Combination-tuning boven risk-parity | AUDIT §7: Sharpe-prop 0.71 / μσ² 0.69 < RP 0.94 — schattingsruis | bewezen stabiele μ-schatter (bv. shrinkage met OOS-bewijs) |
+| F10 | Naïeve breedte ("meer namen/modellen = meer Sharpe") | AUDIT §12: 99 namen per-asset −0.59; §13: raw reversal +0.30 (12) → +0.06 (99); breadth meet nul-edge preciezer | breedte over markten/premia (mandaat v3) i.p.v. namen binnen één betafactor — buiten het meetdomein (AD-23) |
+| F11 | Combination-tuning boven risk-parity | AUDIT §7: Sharpe-prop 0.71 / μσ² 0.69 < RP 0.94 — schattingsruis | bewezen stabiele μ-schatter (bv. shrinkage met OOS-bewijs) — binnen het meetdomein: `daily_ohlcv` (AD-23) |
 | F12 | Harvest-parameter-tuning als edge-bron | AUDIT §17: PBO 0.51 op 72 varianten (CSCV, S≥50) — config-ranking is ruis | n.v.t.; harvest simpel en vast houden |
 
 ## Appendix — nieuwe falsificaties (append hieronder, nooit hierboven wijzigen)
@@ -37,9 +37,9 @@
 
 | # | Gefalsifieerde hypothese | Bewijs | Heropening alleen als… |
 |---|--------------------------|--------|------------------------|
-| F13 | XSMOM 12-1 (JT1993) als netto-positieve unit op S&P-large-caps (~190 namen/dag, decile-spread $-neutraal, maandelijks, 2000–2026, 6bp+1bp/zijde) | W22 run 3: net Sharpe −0.34, gross −0.27, 9/27 jaren positief (`artefacts/wave20_runlog/w22_eq_units.log`; ledger c3cef72def149ffd) | breder/kleiner-cap universum met PIT-data; óf G4-MOM-loading-check toont lage loading (= constructiefout) zodra factordata bereikbaar |
-| F14 | Low-vol als netto unit op S&P-large-caps — v1 $-neutraal vol-rank én v2 FP-conform beta-levered | v1 −0.82 (beta-bleed), v2 −0.12 (na correctie nog ≤0); 11/27 jaren positief (ledger 2b521b71d71864b9); G4-diag: restbèta +0.075, α −2%/jr t=−1.1 (geen artifact, premium afwezig) | beta-RANK BAB op breder universum; óf G4 met AQR BAB-factordata toont onverwachte α |
-| F15 | Overnight-persistentie (LPS 2019) als close-to-close verhandelbare unit op S&P-large-caps (21d-formatie, maandelijks) | W23c: net −0.60 / gross −0.39; G4 α −3.0%/jr t=−3.01 (significant NEGATIEF); corr met strev −0.51 (`artefacts/wave20_runlog/w23c_eval.log`; ledger b395b1a409e98aa3) | uitvoering op open/close-auctions zelf (het LPS-construct — andere executieroute, G10-bewijs vereist); NOOIT als post-hoc sign-flip (§1.3) |
+| F13 | XSMOM 12-1 (JT1993) als netto-positieve unit op S&P-large-caps (~190 namen/dag, decile-spread $-neutraal, maandelijks, 2000–2026, 6bp+1bp/zijde) | W22 run 3: net Sharpe −0.34, gross −0.27, 9/27 jaren positief (`artefacts/wave20_runlog/w22_eq_units.log`; ledger c3cef72def149ffd) | breder/kleiner-cap universum met PIT-data; óf G4-MOM-loading-check toont lage loading (= constructiefout) zodra factordata bereikbaar — buiten het meetdomein (AD-23) |
+| F14 | Low-vol als netto unit op S&P-large-caps — v1 $-neutraal vol-rank én v2 FP-conform beta-levered | v1 −0.82 (beta-bleed), v2 −0.12 (na correctie nog ≤0); 11/27 jaren positief (ledger 2b521b71d71864b9); G4-diag: restbèta +0.075, α −2%/jr t=−1.1 (geen artifact, premium afwezig) | beta-RANK BAB op breder universum; óf G4 met AQR BAB-factordata toont onverwachte α — buiten het meetdomein (AD-23) |
+| F15 | Overnight-persistentie (LPS 2019) als close-to-close verhandelbare unit op S&P-large-caps (21d-formatie, maandelijks) | W23c: net −0.60 / gross −0.39; G4 α −3.0%/jr t=−3.01 (significant NEGATIEF); corr met strev −0.51 (`artefacts/wave20_runlog/w23c_eval.log`; ledger b395b1a409e98aa3) | uitvoering op open/close-auctions zelf (het LPS-construct — andere executieroute, G10-bewijs vereist); NOOIT als post-hoc sign-flip (§1.3) — buiten het meetdomein (AD-23) |
 
 Geen falsificatie maar archivering (lat niet gehaald): `eq_strev_1m` net +0.39
 (< 0.40) mét decay-staart 2024/25/26 = −3.6/−6.6/−7.2% — edge sterft richting
@@ -50,9 +50,9 @@ Heropening als **residual/industry-adjusted reversal** (Da-Liu-Schaumburg
 
 | # | Gefalsifieerde hypothese | Bewijs | Heropening alleen als… |
 |---|--------------------------|--------|------------------------|
-| F16 | Residual (mkt-beta-252d) short-term reversal op S&P-large-caps (DLS2014-route) | W24: net −0.35, **gross −0.15** (raw strev gross was +0.56 — residualisatie vernietigt het signaal hier); G4 α −1.9% t=−1.8 (`w24_strev_resid.log`) | industry-adjusted variant met echte industriedata; óf small/mid-cap-universum |
-| F17 | Quality GP/A (Novy-Marx 2013) als netto unit op S&P-large-caps, PIT-EDGAR 2010–2026 | W23b: net −0.25; G4: RMW-loading +0.114 (t=11.8) = getrouwe bouw, α −1.4% t=−1.65 (`w23b_quality.log`; 319 tickers met GrossProfit — financials vallen uit) | breder universum; óf composiet-quality (meerdere metrics) als ECHT ander construct |
-| F18 | PEAD via announcement-return (BT1989/CJL1996), anchor = EDGAR-acceptance, S&P-large-caps 2010–2026 | W23a: net −0.18, gross −0.05; G4 α t=−0.6, R²=0.04 (`w23a_pead.log`; 23k events, 622 tickers) | 8-K item-2.02-anchor (echte persbericht-timestamp) op small/mid-caps; SUE-variant vereist quarterly-start-veld (her-ingest) |
+| F16 | Residual (mkt-beta-252d) short-term reversal op S&P-large-caps (DLS2014-route) | W24: net −0.35, **gross −0.15** (raw strev gross was +0.56 — residualisatie vernietigt het signaal hier); G4 α −1.9% t=−1.8 (`w24_strev_resid.log`) | industry-adjusted variant met echte industriedata; óf small/mid-cap-universum — buiten het meetdomein (AD-23) |
+| F17 | Quality GP/A (Novy-Marx 2013) als netto unit op S&P-large-caps, PIT-EDGAR 2010–2026 | W23b: net −0.25; G4: RMW-loading +0.114 (t=11.8) = getrouwe bouw, α −1.4% t=−1.65 (`w23b_quality.log`; 319 tickers met GrossProfit — financials vallen uit) | breder universum; óf composiet-quality (meerdere metrics) als ECHT ander construct — buiten het meetdomein (AD-23) |
+| F18 | PEAD via announcement-return (BT1989/CJL1996), anchor = EDGAR-acceptance, S&P-large-caps 2010–2026 | W23a: net −0.18, gross −0.05; G4 α t=−0.6, R²=0.04 (`w23a_pead.log`; 23k events, 622 tickers) | 8-K item-2.02-anchor (echte persbericht-timestamp) op small/mid-caps; SUE-variant vereist quarterly-start-veld (her-ingest) — buiten het meetdomein (AD-23) |
 
 **Hard patroon na F13–F18 (zes constructen, twee informatiebronnen):** het
 S&P-large-cap-universum (~190 PIT-namen/dag) levert 2000/2010–2026 GEEN
@@ -62,11 +62,11 @@ meer constructen op deze 190 namen (F10-logica).
 
 | # | Gefalsifieerde hypothese | Bewijs | Heropening alleen als… |
 |---|--------------------------|--------|------------------------|
-| F19 | Crypto intraday klok-seizoenaliteit (uur-van-dag/dag-van-week/funding-venster 00-08-16 UTC) als netto unit op 6 USDT-perps (1h-bars uit 5s-data, 2021-06–2026-05) | W26: beste uur t=2.11 (max over 24 → NS na multiple-comparison), DOW max |t|=1.67, funding-venster t≈−0.5; beste aaneengesloten venster (in-sample max over 288) +7.4 bps/dag bruto < 20 bps/dag taker-round-trip (`research/w26_seasonality_diag.py`, `w26_diag.log`; ledger W26, n_trials=321) | maker-execution aantoonbaar haalbaar (zelfde conditie als F2); óf veel breder perp-universum met cross-sectionele klok-effecten (≥50 namen) |
+| F19 | Crypto intraday klok-seizoenaliteit (uur-van-dag/dag-van-week/funding-venster 00-08-16 UTC) als netto unit op 6 USDT-perps (1h-bars uit 5s-data, 2021-06–2026-05) | W26: beste uur t=2.11 (max over 24 → NS na multiple-comparison), DOW max |t|=1.67, funding-venster t≈−0.5; beste aaneengesloten venster (in-sample max over 288) +7.4 bps/dag bruto < 20 bps/dag taker-round-trip (`research/w26_seasonality_diag.py`, `w26_diag.log`; ledger W26, n_trials=321) | maker-execution aantoonbaar haalbaar (zelfde conditie als F2); óf veel breder perp-universum met cross-sectionele klok-effecten (≥50 namen) — buiten het meetdomein (AD-23) |
 
 | # | Gefalsifieerde hypothese | Bewijs | Heropening alleen als… |
 |---|--------------------------|--------|------------------------|
-| F20 | Energie-termijnstructuur-carry (Gorton-Rouwenhorst 2006 / Koijen et al. 2018) als netto unit op de EIA NYMEX Contract 1-4-archief — WTI/NG/HO/RBOB, tijdreeks-carry `(F1−F2)/F1`, slot-2 gehouden, maandelijkse herbalancering, 1994–2024 (n=7585, 30,1 jaar) | W28: net Sharpe **+0,100** (gross 0,148 — de rolkosten zijn het verschil), CAGR −0,65%/jr, 14/31 jaren positief (45,2%); **IS +0,454 → OOS −0,278, decay +161%**; G4-S3 α **−4,56%/jr t=−0,91** (S1 +3,89% t=0,87 → S2 +4,51% t=1,03 → S3 negatief zodra per-product passives meedoen); bootstrap P(S>0) 0,723 < 0,75; N_eff **1,54 op 4 producten**. 8 van 9 poorten rood. (`research/w28_cm_carry_eval.py`, `artefacts/killgates/cm_carry.json`; ledger W28) | een universum met échte breedte (N_eff ≫ 1,5 vraagt landbouw/metalen/vee-termijnstructuur, niet vier gecorreleerde energieproducten); **of** een termijnstructuurbron die ná 2024-04 doorloopt, zodat er überhaupt een recent OOS-venster bestaat. NOOIT door de horizon of het gehouden segment achteraf te wisselen — dat zijn trials, geen ontdekkingen. |
+| F20 | Energie-termijnstructuur-carry (Gorton-Rouwenhorst 2006 / Koijen et al. 2018) als netto unit op de EIA NYMEX Contract 1-4-archief — WTI/NG/HO/RBOB, tijdreeks-carry `(F1−F2)/F1`, slot-2 gehouden, maandelijkse herbalancering, 1994–2024 (n=7585, 30,1 jaar) | W28: net Sharpe **+0,100** (gross 0,148 — de rolkosten zijn het verschil), CAGR −0,65%/jr, 14/31 jaren positief (45,2%); **IS +0,454 → OOS −0,278, decay +161%**; G4-S3 α **−4,56%/jr t=−0,91** (S1 +3,89% t=0,87 → S2 +4,51% t=1,03 → S3 negatief zodra per-product passives meedoen); bootstrap P(S>0) 0,723 < 0,75; N_eff **1,54 op 4 producten**. 8 van 9 poorten rood. (`research/w28_cm_carry_eval.py`, `artefacts/killgates/cm_carry.json`; ledger W28) | een universum met échte breedte (N_eff ≫ 1,5 vraagt landbouw/metalen/vee-termijnstructuur, niet vier gecorreleerde energieproducten); **of** een termijnstructuurbron die ná 2024-04 doorloopt, zodat er überhaupt een recent OOS-venster bestaat. NOOIT door de horizon of het gehouden segment achteraf te wisselen — dat zijn trials, geen ontdekkingen. — buiten het meetdomein (AD-23) |
 
 **Wat F20 toevoegt aan het patroon.** Dit is de zesde onafhankelijke keer dat
 een gedocumenteerd premium in dit programma **IS-positief en OOS-negatief**
@@ -191,6 +191,28 @@ zoals dat van H1 hierboven.
 
 `M` blijft **2776**.
 
+### Sluiting — Phase 10, stap 2 (AD-23)
+
+*Toegevoegd 2026-09-05, Phase 10 stap 2.6. Bewijs: `reports/GARCH_VS_EWMA_COMPETITION.md`
+§9, geciteerd in `Prompts-fases/fase_10_herstart_dagbars.md` §5.4.*
+
+| Symbool | h | Variant | p (rogers_satchell) | p (garman_klass) | p (parkinson) | **p (squared_return)** |
+|---|---|---|---:|---:|---:|---:|
+| AVAXUSDT | 1 | `garch(1,1)-t` | 0,0076 | 0,0047 | 0,0104 | **0,517** |
+| AVAXUSDT | 1 | `gjr_garch(1,1,1)-t` | 0,0075 | 0,0070 | 0,0202 | **0,752** |
+| AVAXUSDT | 1 | `egarch(1,1,1)-t` | 0,0106 | 0,0079 | 0,0200 | **0,514** |
+| AVAXUSDT | 5 | `garch(1,1)-t` | 0,0121 | 0,0116 | 0,0264 | **0,368** |
+
+Op de drie range-proxies lijkt het verschil significant; op `squared_return` —
+de enige proxy die per constructie zuiver is voor de voorspelde grootheid
+`E[r_t²|F_{t−1}] = σ_t²` — verdampt het volledig. De range-proxies zijn
+efficiënter maar niet zuiver; `squared_return` is zuiver maar zeer ruisig.
+Binnen het meetdomein van AD-23 bestaat geen schatter die beide is, en het
+verschil is op de dagbar dus niet identificeerbaar. **H1 is daarmee gesloten en
+niet geblokkeerd**, en EWMA(0,94) is de productie-estimator bij besluit. Dit is
+expliciet geen bewering dat GARCH slechter is; het is de constatering dat het
+verschil op de meetbasis niet meetbaar is. De vraag "wijst GARCH een andere
+TOESTAND toe" is een andere vraag en staat open — zie stap 8.
 
 ---
 

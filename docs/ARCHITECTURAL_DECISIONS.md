@@ -910,8 +910,10 @@ AUC in-sample wordt doordat het aantal iteraties op de testdata wordt gekozen.
 **Fase:** 10 (mandaatbesluit B-1, stap 1.2)
 **Status:** actief
 **Bewaakt door:** `docs/MEASUREMENT_CONTRACT.md` §2; daarnaast de
-domeinconsistentiepoort `check_domain_consistency.py`, die stap 2 in `scripts/`
-bouwt en die op dit moment nog niet bestaat
+domeinconsistentiepoort `scripts/check_domain_consistency.py` (de
+`RESOLUTION`-scan over `conf/`), gebouwd in stap 2, met
+`tests/unit/test_domain_consistency.py::test_a_non_daily_resolution_in_conf_is_refused`
+als negatieve controle
 
 ### Besluit
 
@@ -962,9 +964,11 @@ niets. De adapter zou daarmee de divergentie niet oplossen maar verbergen.
 
 **Fase:** 10 (mandaatbesluit B-2, stap 1.3)
 **Status:** actief
-**Bewaakt door:** de whitelist `measurement_domain.yaml` en de poort
-`check_domain_consistency.py`, beide gebouwd in stap 2 en op dit moment nog niet
-aanwezig, met een negatieve controle die bewijst dat de poort rood kan worden
+**Bewaakt door:** de whitelist `conf/governance/measurement_domain.yaml` en de
+poort `scripts/check_domain_consistency.py`, beide gebouwd in stap 2, met
+`tests/unit/test_domain_consistency.py` (zeven tests, waaronder twee negatieve
+controles op een rij in de vorm van het echte register) als bewijs dat de poort
+rood kan worden
 
 ### Besluit
 

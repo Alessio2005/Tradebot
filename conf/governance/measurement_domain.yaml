@@ -1,0 +1,23 @@
+# AD-23. Dit bestand IS het meetdomein. Een grootheid is toelaatbaar dan en
+# slechts dan wanneer zij een functie is van een bron hieronder, geobserveerd
+# op de frequentie hieronder. Toevoegen aan deze lijst is een mandaatbesluit
+# en geen configuratiewijziging.
+observation:
+  bars_per_day: 1
+  bar_resolution: "1d"
+
+sources:
+  - id: daily_ohlcv
+    description: "Gecertificeerde dagelijkse open/high/low/close/volume per symbool"
+    store: "data/pit_store"
+  - id: funding_rate_8h
+    description: "8-uurs funding rate, geaggregeerd naar de dagbar"
+    store: "data/pit_store"
+  - id: open_interest_daily
+    description: "Open interest, één observatie per dag"
+    store: "data/pit_store"
+
+# Een heropeningsconditie in FALSIFICATION_REGISTER.md of DEFERRED_ISSUES.md is
+# geldig wanneer zij ten minste één source-id hierboven noemt, of expliciet is
+# gemarkeerd als buiten het domein.
+out_of_domain_marker: "buiten het meetdomein (AD-23)"

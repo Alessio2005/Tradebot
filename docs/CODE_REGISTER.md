@@ -87,7 +87,7 @@ verandert een `passed` in een `error`.
 |---|---:|---:|:---:|:---:|---|
 | `registry/lifecycle.py` | 310 | 100.0 % | **CONTRACT** | DI-15 | `SymbolLifecycle` weigert bars voor de listing of na de delisting; wacht op een databron met delisting-historie |
 | `tca/post_trade.py` | 304 | 95.7 % | **CONTRACT** | DI-5 | `docs/tca_methodology.md` |
-| `volatility/har_rv.py` | 270 | 81.7 % | **CONTRACT** | DI-18 | HAR-RV is geblokkeerd op een intraday-bron, niet beslist |
+| `volatility/har_rv.py` | 270 | 81.7 % | **CONTRACT** | AD-23 | buiten het meetdomein, geen afnemer meer |
 | `monitoring/execution_drift.py` | 228 | 97.1 % | **CONTRACT** | governance | drempels bevroren in `monitoring_config_hash.json` |
 | `registry/experiment.py` | 223 | 77.0 % | **CONTRACT** | governance | experimentregistratie |
 | `monitoring/vol_forecast_monitor.py` | 212 | 98.5 % | **CONTRACT** | governance | drempels bevroren in `monitoring_config_hash.json` |
