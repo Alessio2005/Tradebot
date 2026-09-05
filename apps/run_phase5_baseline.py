@@ -22,6 +22,7 @@ from tradebot.alpha.momentum import build_cross_sectional_momentum
 from tradebot.backtest.baseline_report import load_baseline_configs
 from tradebot.backtest.baseline_runner import CostModel, build_weight_tracks
 from tradebot.backtest.phase5_baseline import run_all_layers, summarise
+from tradebot.data.funding_panel import daily_funding_panel
 from tradebot.data.pit_store import PitStore
 from tradebot.execution.impact_model import ImpactParams, ImpactStatus
 from tradebot.execution.order_router import SpreadModel, SpreadStatus, VenueSpec
@@ -60,8 +61,11 @@ def load_market(root: Path, cfg: dict) -> dict:
     volume = pd.DataFrame(turnover).reindex(prices.index)
     # Causaal: de turnover van bar t is pas op zijn close bekend.
     adv = volume.rolling(30, min_periods=30).mean().shift(1)
+    funding = daily_funding_panel(
+        store, register, symbols=symbols, asset_class="crypto",
+        funding_granularity="8h", bar_index=prices.index)
     return {"prices": prices, "sigma": sigma, "adv": adv, "volume": volume,
-            "annualisation": cfg["vol"].annualisation_factor}
+            "funding": funding, "annualisation": cfg["vol"].annualisation_factor}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
             market["sigma"].loc[usable],
             market["sigma"].loc[usable] / float(np.sqrt(market["annualisation"])),
             market["adv"].loc[usable], market["volume"].loc[usable],
-            pd.DataFrame(0.0, index=usable, columns=market["prices"].columns),
+            market["funding"].loc[usable],
             dict(risk.clusters), risk_cfg=risk, impact=params,
             venue=VenueSpec(maker_fee_bps=cfg["exec"].maker_fee_bps,
                             taker_fee_bps=cfg["exec"].taker_fee_bps,

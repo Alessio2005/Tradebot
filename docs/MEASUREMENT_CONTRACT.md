@@ -307,11 +307,29 @@ grootte is niet meer te herleiden. Wie strenger wil zijn, verhoogt `M`.
 > **Een backtest die funding niet expliciet boekt, is op perpetuals geen
 > backtest.** `backtest/accounting.py` boekt funding correct — met het teken van
 > de positie, en met beide invarianten sluitend (geverifieerd in stap 1.7,
-> `tests/unit/test_accounting.py`). De **aanvoer** is echter niet
-> contractconform: `apps/run_phase5_baseline.py` levert een fundingpaneel van
-> nul. Zie `docs/PROJECT_STATE.md` en het stap-1-rapport; dit is een openstaand
-> defect en elke Sharpe uit `phase5_revaluation.json` is tot de reparatie een
-> **prijs-only** meting.
+> `tests/unit/test_accounting.py`). De **aanvoer** was echter niet
+> contractconform: `apps/run_phase5_baseline.py` leverde een fundingpaneel van
+> nul aan `run_all_layers`, terwijl alle zes reeksen `crypto/funding/<symbool>/8h`
+> hash-gecertificeerd aanwezig zijn — bedrading, geen databeperking.
+>
+> **Gesloten in stap 1B.** `data/funding_panel.py::daily_funding_panel` laadt de
+> gecertificeerde 8h-reeks via `load_certified_series` en SOMMEERT de
+> afrekeningen per dagbar (niet de laatst bekende rate via een asof-join, die
+> ongeveer een derde van de werkelijke funding had geboekt — zie het
+> stap-1B-rapport voor de valkuil). `apps/run_phase5_baseline.py` geeft dat
+> paneel nu door in plaats van de nul-DataFrame. Gemeten op de gecertificeerde
+> store: gemiddelde `|dagelijkse funding|` per symbool ligt tussen 2,6e-4 en
+> 5,5e-4 (orde 1e-4, zoals verwacht voor een 8h-perp gesommeerd naar dagen).
+> Alleen **L3** boekt funding — L0/L1/L2 zijn bit-identiek aan de prijs-only
+> meting, geverifieerd per track. `cost_funding` op L3 ging van `0,0` naar
+> 261,7 / 279,7 / 761,4 / 397,4 (long_only_equal_weight /
+> long_only_risk_parity / xs_momentum_equal_weight / xs_momentum_risk_parity;
+> in equity-eenheden op `initial_equity`), en de L3-netto-Sharpe verschoof met
+> -0,024 / -0,024 / -0,065 / -0,038 (steeds negatiever: funding was en blijft
+> een kostenpost op dit long-only boek). De cap `funding_cap_abs = 0,02` bond 8
+> keer op 22.892 boekingen (0,035 %), veroorzaakt door enkele extreme
+> fundingpieken (SOLUSDT tot -0,124 op één dag) en niet door een eenhedenfout.
+> Zie het stap-1B-rapport voor de volledige tabel en de per-track cijfers.
 
 ---
 

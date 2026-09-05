@@ -134,31 +134,64 @@ contract dat delistings zou verwerken is gebouwd; de data ontbreekt.
 herschrijving voor, getoetst doordat een tweede persoon het systeem er
 uitsluitend op start, halteert en herstart. **Die herschrijving is niet gedaan.**
 
-### 3.5 De Phase 5-ladder is op een prijs-only P&L gemeten
+### 3.5 De Phase 5-ladder was op een prijs-only P&L gemeten — gerepareerd in stap 1B
 
-**Gemeten in fase 10, stap 1.7.** Op perpetuals is de P&L per contract
-`prijsrendement + funding` (`docs/MEASUREMENT_CONTRACT.md` §7). De
-boekhoudlaag doet dat correct: `backtest/accounting.py::apply_funding` boekt
-`qty * mark_price * rate`, dus **met het teken van de positie**, en beide
-invarianten van de dubbele boekhouding sluiten. Dat is geverifieerd met twee
-nieuwe tests in `tests/unit/test_accounting.py`, elk bewezen rood-kunnend via
-een mutatie van de fundingregel.
+**Gemeten in fase 10, stap 1.7; gerepareerd in stap 1B.** Op perpetuals is de
+P&L per contract `prijsrendement + funding`
+(`docs/MEASUREMENT_CONTRACT.md` §7). De boekhoudlaag doet dat correct:
+`backtest/accounting.py::apply_funding` boekt `qty * mark_price * rate`, dus
+**met het teken van de positie**, en beide invarianten van de dubbele
+boekhouding sluiten. Dat is geverifieerd met twee nieuwe tests in
+`tests/unit/test_accounting.py`, elk bewezen rood-kunnend via een mutatie van
+de fundingregel.
 
-De **aanvoer** is echter niet contractconform. `apps/run_phase5_baseline.py`
-laadt prijzen, volatiliteit, ADV en volume, maar **geen funding**, en geeft
+De **aanvoer** was echter niet contractconform. `apps/run_phase5_baseline.py`
+laadde prijzen, volatiliteit, ADV en volume, maar **geen funding**, en gaf
 `run_all_layers` een fundingpaneel van nul mee. In
-`artefacts/baseline/phase5_revaluation.json` staat daarom voor elke track
+`artefacts/baseline/phase5_revaluation.json` stond daardoor voor elke track
 `cost_funding = 0.0`.
 
-De data ontbreekt niet: alle zes reeksen `crypto/funding/<symbool>/8h` zijn
-hash-gecertificeerd aanwezig in `artefacts/governance/data_hashes.json`. Het is
-bedrading, geen databeperking.
+De data ontbrak niet: alle zes reeksen `crypto/funding/<symbool>/8h` zijn
+hash-gecertificeerd aanwezig in `artefacts/governance/data_hashes.json`. Het
+was bedrading, geen databeperking.
 
-**Gevolg:** elke Sharpe in de vier-lagen-ladder is tot de reparatie een
-**prijs-only** meting, en de fundingcomponent — de enige kostenpost die op een
-long-only perpetualboek structureel één kant op werkt — ontbreekt erin. De
-ladder blijft reproduceerbaar en intern consistent; hij is alleen niet wat het
-meetcontract van een perpetual-backtest eist.
+**Reparatie (stap 1B).** `src/tradebot/data/funding_panel.py::daily_funding_panel`
+laadt de gecertificeerde 8h-fundingreeks via `features/base.py::load_certified_series`
+en SOMMEERT — per dagbar — de afrekeningen die binnen die bar zijn gevallen
+(tot drie 8h-settlements per dagbar). De voor de hand liggende kortere weg,
+hergebruik van de bestaande `asof_join(direction="backward")`-koppeling in
+`features/microstructure.py::build_certified_micro_frame`, is bewust NIET
+gebruikt: die levert de laatst bekende rate op het beslismoment — het juiste
+antwoord voor een feature, maar het zou hier ongeveer een derde van de
+werkelijke funding hebben geboekt. `apps/run_phase5_baseline.py::load_market`
+geeft het gesommeerde paneel nu door in plaats van de nul-DataFrame.
+
+**Gemeten uitkomst.**
+
+| | prijs-only (§5.2, vóór stap 1B) | met funding (na stap 1B) | Δ netto Sharpe |
+|---|---:|---:|---:|
+| L3 `long_only_equal_weight` | −0,695 | −0,719 | −0,024 |
+| L3 `long_only_risk_parity` | −0,721 | −0,745 | −0,024 |
+| L3 `xs_momentum_equal_weight` | −0,103 | −0,168 | −0,065 |
+| L3 `xs_momentum_risk_parity` | −0,331 | −0,369 | −0,038 |
+
+`cost_funding` op L3 ging van `0,0` (alle vier tracks) naar 261,7 / 279,7 /
+761,4 / 397,4 respectievelijk (equity-eenheden). **L0, L1 en L2 zijn bit-identiek**
+aan de prijs-only meting op alle vier tracks — funding raakt uitsluitend L3,
+zoals de blast radius van stap 1B voorschreef. Eenhedencontrole: gemiddelde
+`|dagelijkse funding|` per symbool op de gecertificeerde store ligt tussen
+2,6e-4 en 5,5e-4 — orde 1e-4, zoals verwacht voor 8h-perp-funding gesommeerd
+naar dagen. De venue-cap `funding_cap_abs = 0,02` bond 8 keer op 22.892
+boekingen (0,035 %), veroorzaakt door enkele extreme fundingpieken (SOLUSDT tot
+−0,124 op één dag) en niet door een eenhedenfout.
+
+**Duiding.** De verschuiving is materieel maar verandert geen enkele
+kwalitatieve conclusie van §5.2: elke track was al negatief of marginaal op L3
+vóór funding, en blijft dat — nu met de juiste reden erbij. Funding werkt op
+dit long-only boek structureel één kant op (F9 falsificeert shorts
+onvoorwaardelijk) en verergert dus uitsluitend de reeds negatieve L3-uitkomst.
+Zie `.superpowers/sdd/fase_10_herstart_dagbars/stap-1B-report.md` voor de
+volledige zestien-cellen-tabel en de per-track uitsplitsing.
 
 ## 4. Waar de fasen staan
 
