@@ -294,9 +294,11 @@ H1 is daarmee **gesloten, niet geblokkeerd**, en EWMA(0,94) is de productie-esti
 
 ### 5.5 De gedragsvingerafdruk
 
-`python -m pytest -q` → **exact 4 failures**, alle vier pre-geregistreerde killgates op `cm_carry` en `cm_tsmom`.
+`python -m pytest -q` → **0 failed, 4 xfailed, 0 xpassed**.
 
-> **Q11.** Deze conventie normaliseert rood. Stap 1.8 zet de vier killgates om naar `@pytest.mark.xfail(strict=True, reason=...)` met een verwijzing naar hun registerregel. Daarna is de vingerafdruk: **0 failed, 4 xfailed, 0 xpassed**. Een killgate die begint te slagen, maakt de suite rood — wat de bedoeling was. Het aantal blijft vier; alleen de kleur van "normaal" verandert.
+Gemeten in stap 1.8 (commit `7507d6d`, interpreter `D:/venv/tradebot/Scripts/python.exe`): **2887 collected · 2860 passed · 23 skipped · 0 failed · 4 xfailed · 0 xpassed**, exit 0. De vier `xfail`s zijn de pre-geregistreerde killgates op `cm_carry` en `cm_tsmom` — alle vier geparametriseerde gevallen van `tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate`.
+
+> **Q11 — uitgevoerd in stap 1.8.** Vóór die stap luidde de vingerafdruk **exact 4 failures** (2885 collected · 2858 passed · 23 skipped · 4 failed, exit 1), en die conventie normaliseerde rood: een échte regressie viel daardoor niet meer op. De vier killgates staan nu op `@pytest.mark.xfail(strict=True, reason=...)` met een `reason` die hun registerregel noemt. Een killgate die begint te slagen, verschijnt als `xpassed` en maakt de suite rood — wat de bedoeling was. Het aantal blijft vier; alleen de kleur van "normaal" is veranderd. De twee extra tests ten opzichte van 2885 collected zijn de fundingtests uit stap 1.7, niet een gevolg van de conversie.
 
 ### 5.6 De DSR-drempel als functie van M (N = 1615, dagbars)
 
