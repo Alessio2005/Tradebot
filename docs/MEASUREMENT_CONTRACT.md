@@ -144,6 +144,22 @@ bestaat.
 > eigen `n_obs` (§1 en §3.1 van de fasetekst), en de drempel wordt dááruit
 > berekend.
 
+> **Reikwijdte van de 1615-rij — dit is geen tweede standaard.** Zij bestaat
+> voor één doel: het correct **teruglezen** van de bestaande
+> phase3/phase4-artefacten (`artefacts/baseline/phase3_baseline.json`,
+> `artefacts/risk/phase4_stress.json`), waarvan de Sharpes nu eenmaal op die
+> OOS-steekproef zijn gemeten. Zij is **geen** drempel die een nieuwe meting mag
+> kiezen. Elke meting in fase 10 draait op `W_FULL` en rapporteert haar eigen
+> `n_obs`; wie 0,9508 op een nieuwe meting toepast, kiest de ruimere drempel
+> zonder de steekproef te bezitten die haar rechtvaardigt.
+>
+> **Consequentie voor §5.6 van de fasetekst.** De tabel "DSR-drempel als functie
+> van M" is berekend op **N = 1615** — verifieerbaar aan haar M = 2776-cel, die
+> 2,47 luidt en daarmee exact de 1615-waarde is. Die tabel moet **op `W_FULL`
+> worden herberekend voordat een latere stap haar gebruikt**: op 1743 bars ligt
+> de M = 2776-drempel op **2,380**, niet op 2,474, en elke andere cel schuift
+> mee. Stap 4A voert die herberekening uit, met de handtekening uit §6.
+
 De DSR-drempel volgt dezelfde regel. Ter referentie, met normale momenten en de
 implementatie van `backtest/metrics.py` zoals zij vóór stap 4A is:
 
@@ -334,9 +350,55 @@ toestandsmodules er ook onder vallen en dat nergens stond.
 
 ## 10. Wat dit contract van elke meting eist
 
-Een samenvatting in één regel, want dit is wat de serializer afdwingt:
+Een samenvatting in één regel. Let op de werkwoordstijd: dit is een **eis aan
+de code die nog gebouwd moet worden**, geen beschrijving van een bestaande
+poort.
 
 > Elke gerapporteerde Sharpe draagt onlosmakelijk het drietal
 > **`(n_obs, bars_per_year, t_years)`** met `t_years = n_obs / bars_per_year`,
 > plus een SE volgens §3. Een Sharpe zonder dat drietal is geen getal maar een
-> gerucht, en `metrics.py` weigert hem te serialiseren.
+> gerucht, en de serializer **moet** hem weigeren.
+
+**Die weigering bestaat op dit moment niet.** `backtest/metrics.py` kent geen
+serialisatiepoort die het drietal afdwingt; niets in de huidige code houdt een
+Sharpe zonder `(n_obs, bars_per_year, t_years)` tegen. **Stap 4A bouwt haar**,
+samen met de expliciete DSR-handtekening uit §6 en de ene implementatie van
+Sharpe-SE, DSR en Sharpe-verschil in `validation/inference.py` (R-3).
+
+Tot stap 4A rust deze regel dus op de auteur van elke meting en niet op een
+poort. Wie hem in de tussentijd citeert als "de serializer weigert dat", citeert
+een garantie die er nog niet is.
+
+### 10.1 Openstaand defect voor stap 4A — de annualisatie-default
+
+`src/tradebot/backtest/metrics.py:53` luidt:
+
+```python
+_BARS_PER_YEAR_DEFAULT = 365 * 24  # hourly bars; override via bars_per_year kwarg
+```
+
+De default is **8760** — uurbars. Onder AD-22 is elke bar een dagbar, en §1 van
+dit contract eist **365**. Elke aanroeper die de `bars_per_year`-kwarg weglaat,
+annualiseert daarom met 8760 in plaats van 365 en verschaalt zijn Sharpe met een
+factor `sqrt(8760 / 365) = sqrt(24)` ≈ **4,9**.
+
+Dit is een **openstaand defect, toegewezen aan stap 4A**, die `metrics.py`
+herschrijft. Het wordt hier bewust **niet** gerepareerd: de default los
+omzetten zou de uitkomst van elke bestaande aanroeper stil van waarde laten
+veranderen, zonder dat de nieuwe handtekening uit §6 er al is om die verandering
+zichtbaar te maken.
+
+Tot stap 4A geldt daarom als contractregel: **geen enkele aanroep van
+`metrics.py` mag `bars_per_year` weglaten.** Een Sharpe die op de default leunt,
+is per dit contract ongeldig — en is bovendien vrijwel zeker een factor 4,9 te
+hoog.
+
+**En er is een derde annualisatie in omloop.** `src/tradebot/backtest/pbo.py:105`
+definieert een eigen `_sharpe_ratio(returns, annualization=252.0)` — handelsdagen
+— en `pbo.py:36` gebruikt die functie als de default-metriek van de
+PBO-berekening. Daarmee staan er drie annualisaties naast elkaar in één
+repository: **365** (dit contract en `conf/`), **8760** (de default van
+`metrics.py`) en **252** (`pbo.py`). Dat is tegelijk een annualisatiedefect en
+een schending van R-3 — één implementatie per statistische grootheid. Ook dit
+gaat naar **stap 4A**, die Sharpe-SE, DSR en Sharpe-verschil samenbrengt in
+`validation/inference.py`; het wordt hier niet gerepareerd.

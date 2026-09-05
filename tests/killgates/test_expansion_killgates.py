@@ -435,10 +435,13 @@ _CM_CARRY_REASON = (
     "registered floor, N_eff 1.54 on four correlated energy products."
 )
 _CM_TSMOM_REASON = (
-    "docs/PREREGISTRATION_SETUP_B_W28.md §1.1b: cm_tsmom stays ARCHIVED on "
-    "KG-B2 — G4-strict residual alpha t=1.75 below the registered bar. It "
-    "carries no F-number in FALSIFICATION_REGISTER.md; §1.1b is its register "
-    "line. Cross-checked by test_cm_tsmom_stays_archived_on_g4_strict."
+    "docs/PREREGISTRATION_SETUP_B_W28.md, the W28 KG-B2 ruling (lines 187-191): "
+    "cm_tsmom stays ARCHIVED on KG-B2 — G4-strict residual alpha t=1.75 < 2.0, "
+    "left untouched by the W28 shape re-derivation, and that is the substantive "
+    "reason it was archived. It carries no F-number in FALSIFICATION_REGISTER.md; "
+    "that ruling is its register line. (The reopening condition the ruling cites, "
+    "SETUP_B_ML_PROMPT 1.1b, lives in a different document.) Cross-checked by "
+    "test_cm_tsmom_stays_archived_on_g4_strict."
 )
 _REGISTERED_FAILURES = {
     ("KG-B1 in-sample", "cm_carry"): _CM_CARRY_REASON,
