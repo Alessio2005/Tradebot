@@ -328,3 +328,73 @@ def test_funding_is_not_capped_by_the_ledger() -> None:
     led.apply_fill(_fill("BTCUSDT", 1.0, 1_000.0))
     paid = led.apply_funding("BTCUSDT", rate=0.08, mark_price=1_000.0, ts=TS)
     assert paid == pytest.approx(80.0)
+
+
+# =========================================================================== #
+# 7. Stap 1.7 — funding over een HOUDPERIODE (fase 10, meetcontract §7)
+# =========================================================================== #
+def test_a_position_held_across_funding_moments_carries_funding_in_its_pnl(
+) -> None:
+    """De perpetual-conventie: P&L is prijsrendement PLUS funding.
+
+    De bestaande fundingtests kijken naar een enkele afrekening op een stil
+    boek. Deze test houdt de positie over drie fundingmomenten heen vast
+    terwijl de prijs beweegt, want dat is de situatie waarin een backtest de
+    fundingcomponent stilzwijgend kan laten vallen: het prijsrendement klopt
+    dan nog steeds, en alleen de attributie verraadt het gat.
+
+    De negatieve controle onderaan is het punt van de test: de spot-lezing --
+    alleen prijsrendement -- mag NIET sluiten. Sluit zij wel, dan is funding
+    nergens geboekt.
+    """
+    led = Ledger(EQ)
+    qty, entry, rate = 3.0, 1_000.0, 0.0001
+    led.apply_fill(_fill("BTCUSDT", qty, entry))
+
+    marks = (1_010.0, 1_020.0, 1_030.0)
+    for i, price in enumerate(marks, start=1):
+        ts = TS + pd.Timedelta(hours=8 * i)
+        led.apply_funding("BTCUSDT", rate=rate, mark_price=price, ts=ts)
+        # mark() toetst beide invarianten en crasht bij afwijking.
+        led.mark({"BTCUSDT": price}, ts)
+
+    snap = led.mark({"BTCUSDT": marks[-1]}, TS + pd.Timedelta(days=1))
+    expected_funding = sum(qty * price * rate for price in marks)
+    price_pnl = qty * (marks[-1] - entry)
+
+    assert snap.funding_paid == pytest.approx(expected_funding)
+    assert snap.unrealized_pnl == pytest.approx(price_pnl)
+    assert snap.equity - EQ == pytest.approx(price_pnl - expected_funding)
+    assert snap.equity - EQ == pytest.approx(
+        snap.realized_pnl + snap.unrealized_pnl - snap.fees_paid
+        - snap.funding_paid
+    )
+    # Negatieve controle: zonder de fundingcomponent sluit de rekening niet.
+    assert snap.equity - EQ != pytest.approx(price_pnl)
+
+
+def test_funding_over_a_hold_follows_the_sign_of_the_position() -> None:
+    """Funding loopt met het teken van de positie (§3.6), ook over een hold.
+
+    Long en short worden spiegelbeeldig over dezelfde drie fundingmomenten
+    gehouden. Een implementatie die `abs(qty)` gebruikt -- of die het teken
+    aan de rate ontleent in plaats van aan de positie -- laat beide boeken
+    dezelfde kant op lopen en faalt hier.
+    """
+    long_led, short_led = Ledger(EQ), Ledger(EQ)
+    long_led.apply_fill(_fill("BTCUSDT", 2.0, 1_000.0))
+    short_led.apply_fill(_fill("BTCUSDT", -2.0, 1_000.0))
+
+    marks = (1_005.0, 995.0, 1_000.0)
+    for i, price in enumerate(marks, start=1):
+        ts = TS + pd.Timedelta(hours=8 * i)
+        for led in (long_led, short_led):
+            led.apply_funding("BTCUSDT", rate=0.0001, mark_price=price, ts=ts)
+            led.mark({"BTCUSDT": price}, ts)
+
+    long_snap = long_led.mark({"BTCUSDT": marks[-1]}, TS + pd.Timedelta(days=1))
+    short_snap = short_led.mark({"BTCUSDT": marks[-1]}, TS + pd.Timedelta(days=1))
+
+    assert long_snap.funding_paid > 0.0
+    assert short_snap.funding_paid < 0.0
+    assert long_snap.funding_paid == pytest.approx(-short_snap.funding_paid)

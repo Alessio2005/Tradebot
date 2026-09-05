@@ -134,6 +134,32 @@ contract dat delistings zou verwerken is gebouwd; de data ontbreekt.
 herschrijving voor, getoetst doordat een tweede persoon het systeem er
 uitsluitend op start, halteert en herstart. **Die herschrijving is niet gedaan.**
 
+### 3.5 De Phase 5-ladder is op een prijs-only P&L gemeten
+
+**Gemeten in fase 10, stap 1.7.** Op perpetuals is de P&L per contract
+`prijsrendement + funding` (`docs/MEASUREMENT_CONTRACT.md` §7). De
+boekhoudlaag doet dat correct: `backtest/accounting.py::apply_funding` boekt
+`qty * mark_price * rate`, dus **met het teken van de positie**, en beide
+invarianten van de dubbele boekhouding sluiten. Dat is geverifieerd met twee
+nieuwe tests in `tests/unit/test_accounting.py`, elk bewezen rood-kunnend via
+een mutatie van de fundingregel.
+
+De **aanvoer** is echter niet contractconform. `apps/run_phase5_baseline.py`
+laadt prijzen, volatiliteit, ADV en volume, maar **geen funding**, en geeft
+`run_all_layers` een fundingpaneel van nul mee. In
+`artefacts/baseline/phase5_revaluation.json` staat daarom voor elke track
+`cost_funding = 0.0`.
+
+De data ontbreekt niet: alle zes reeksen `crypto/funding/<symbool>/8h` zijn
+hash-gecertificeerd aanwezig in `artefacts/governance/data_hashes.json`. Het is
+bedrading, geen databeperking.
+
+**Gevolg:** elke Sharpe in de vier-lagen-ladder is tot de reparatie een
+**prijs-only** meting, en de fundingcomponent — de enige kostenpost die op een
+long-only perpetualboek structureel één kant op werkt — ontbreekt erin. De
+ladder blijft reproduceerbaar en intern consistent; hij is alleen niet wat het
+meetcontract van een perpetual-backtest eist.
+
 ## 4. Waar de fasen staan
 
 | Fase | Status |
@@ -152,15 +178,28 @@ uitsluitend op start, halteert en herstart. **Die herschrijving is niet gedaan.*
 Dit zijn keuzes die iemand met mandaat moet maken; ze zijn niet technisch op te
 lossen.
 
-1. **Koopt dit project delisting-historie?** (DI-15) Zonder tweede databron
-   blijft elk resultaat op dit universum survivorship-vertekend. Dit is een
-   inkoopbesluit, geen codebesluit.
-2. **Koopt dit project intraday-data?** (DI-18) De Data Adequacy Gate meet
-   **0,00 %** 5m-dekking tegen een eis van 80 %. Zonder die data blijft H1
-   geblokkeerd en blijft HAR-RV onbeslist.
-3. **Wordt `live/` aangesloten of herbouwd?** §3.2 laat twee ketens zien. De
-   goedkope route is aansluiten op de bestaande Phase 5-componenten; de dure is
-   een herbouw. Dit besluit gaat vóór elke paper-trading-periode.
+1. ~~**Koopt dit project delisting-historie?** (DI-15)~~ **Beslist in fase 10 —
+   zie AD-23** (mandaatbesluit B-2, `docs/MANDATE.md`). Het meetdomein is
+   vastgelegd op drie gecertificeerde bronnen; een vierde bron toevoegen is
+   geen openstaand besluit meer maar een domeinwijziging, en die valt buiten
+   het mandaat. De survivorship-vertekening wordt daarmee een **permanent
+   gelabelde beperking** (§3.3) in plaats van een inkoopvraag.
+2. ~~**Koopt dit project intraday-data?** (DI-18)~~ **Beslist in fase 10 — zie
+   AD-23** (mandaatbesluit B-2). Een grootheid die een fijnere waarneming dan
+   één bar per dag vereist, is geen uitgestelde vraag maar een niet-bestaande
+   vraag. DI-18 vervalt daarmee als besluit; H1 is **gesloten, niet
+   geblokkeerd** (`reports/GARCH_VS_EWMA_COMPETITION.md` §9).
+3. ~~**Wordt `live/` aangesloten of herbouwd?**~~ **Beslist in fase 10 — zie
+   AD-22** (mandaatbesluit B-1). De handelsklok volgt de meetklok:
+   `FeedConfig.bar_seconds` vervalt en er is nog één barresolutie. Welke van de
+   twee routes — aansluiten of herbouwen — dat oplevert, is uitvoering en wordt
+   in stap 16 uitgevoerd en in AD-26 vastgelegd; het is geen mandaatvraag meer.
+
+   > De derde mandaatbeslissing, **B-3** (de ledger-reset, **AD-24**), stond
+   > niet in deze lijst omdat zij hier nooit als besluit is opgeschreven — de
+   > rekenkundige onbereikbaarheid van de promotiepoort bij `M = 2776` is in
+   > `docs/DEFERRED_ISSUES.md` blijven staan als eigenschap in plaats van als
+   > keuze. Zij is nu een besluit met een protocol (R1-R8).
 4. **Wat draait er in de 60 dagen?** D-6 eist dat dit vooraf wordt vastgelegd.
    Omdat niets is gepromoveerd, is de champion de Phase 3-baseline plus de
    soevereine risicolaag — een systeem waarvan bekend is dat het geld verliest.
@@ -219,13 +258,23 @@ lossen.
 ## 7. Hoe je dit verifieert
 
 ```bash
-python -m pytest tests -q          # verwacht: exact 4 failures, alle vier killgates
+python -m pytest tests -q          # verwacht: 0 failed, 4 xfailed, 0 xpassed
 python -m ruff check src/          # CI-scope, hoort schoon te zijn
 python apps/freeze_monitoring.py --check
 dvc status                          # welke stages zijn stale
 ```
 
-De vier verwachte failures zijn de pre-geregistreerde killgates op `cm_carry` en
-`cm_tsmom`. Zij horen rood te staan; zie `reports/phase0_fallback_register.md`.
-Een suite met minder dan vier failures betekent dat een killgate is
-uitgeschakeld, niet dat er iets is opgelost.
+De vier verwachte `xfail`s zijn de pre-geregistreerde killgates op `cm_carry` en
+`cm_tsmom` in `tests/killgates/test_expansion_killgates.py`; zie
+`reports/phase0_fallback_register.md`.
+
+> **Gewijzigd in fase 10, stap 1.8 (Q11).** Deze vier faalden tot dan toe
+> permanent, en daarmee was **rood de normale toestand van de suite** — een
+> echte regressie viel niet meer op. Zij staan nu op
+> `@pytest.mark.xfail(strict=True)` met een `reason` die hun registerregel
+> noemt. De suite is groen, en `strict=True` betekent dat een killgate die
+> begint te **slagen** de suite rood maakt: precies de gebeurtenis die je wilt
+> zien, want die betekent dat het gefalsifieerde gedrag is teruggekeerd of dat
+> de killgate is uitgehold. Het aantal blijft vier; alleen de kleur van
+> "normaal" is veranderd. Minder dan vier `xfail`s betekent dat een killgate is
+> uitgeschakeld, niet dat er iets is opgelost.

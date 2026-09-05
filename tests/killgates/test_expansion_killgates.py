@@ -19,6 +19,7 @@ import json
 import os
 from dataclasses import dataclass, fields
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -416,8 +417,57 @@ def test_the_median_qualifying_unit_failed_the_old_gate():
 # --------------------------------------------------------------------------- #
 # Tests — live units (skip until the artefact exists)
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("unit", ["cm_tsmom", "cm_carry", "cm_basis_mom"])
-@pytest.mark.parametrize("spec", ALL_GATES, ids=lambda s: s.name)
+_FUTURES_UNITS = ("cm_tsmom", "cm_carry", "cm_basis_mom")
+
+# Phase 10, step 1.8 (Q11) — the four pre-registered killgates become
+# xfail(strict=True).
+#
+# These four failed permanently, which made RED the normal state of the suite:
+# a genuine regression no longer stood out. strict=True inverts that. The
+# assertion below is untouched; only the expectation is now registered. If one
+# of these four ever PASSES, the suite goes red — which is exactly the event
+# worth seeing, because it means the falsified behaviour has returned or the
+# killgate has been hollowed out.
+_CM_CARRY_REASON = (
+    "F20 (docs/FALSIFICATION_REGISTER.md): cm_carry is ARCHIVED — net Sharpe "
+    "+0.100 against a 0.40 mandate bar, IS +0.454 to OOS -0.278 (decay +161%), "
+    "G4-S3 residual alpha negative (t=-0.91), bootstrap P(S>0) below the "
+    "registered floor, N_eff 1.54 on four correlated energy products."
+)
+_CM_TSMOM_REASON = (
+    "docs/PREREGISTRATION_SETUP_B_W28.md §1.1b: cm_tsmom stays ARCHIVED on "
+    "KG-B2 — G4-strict residual alpha t=1.75 below the registered bar. It "
+    "carries no F-number in FALSIFICATION_REGISTER.md; §1.1b is its register "
+    "line. Cross-checked by test_cm_tsmom_stays_archived_on_g4_strict."
+)
+_REGISTERED_FAILURES = {
+    ("KG-B1 in-sample", "cm_carry"): _CM_CARRY_REASON,
+    ("KG-B2 residual alpha", "cm_carry"): _CM_CARRY_REASON,
+    ("KG-B3 out-of-sample", "cm_carry"): _CM_CARRY_REASON,
+    ("KG-B2 residual alpha", "cm_tsmom"): _CM_TSMOM_REASON,
+}
+
+
+def _gate_cases() -> list[Any]:
+    """The (spec, unit) cross product, with the registered failures marked.
+
+    Built explicitly rather than as two stacked ``parametrize`` decorators
+    because a mark on either axis alone would apply to every case on the
+    other axis, and only four of the fifteen combinations are registered.
+    The ids are unchanged from the stacked form: ``<spec name>-<unit>``.
+    """
+    cases: list[Any] = []
+    for spec in ALL_GATES:
+        for unit in _FUTURES_UNITS:
+            reason = _REGISTERED_FAILURES.get((spec.name, unit))
+            marks = [pytest.mark.xfail(strict=True, reason=reason)] if reason else []
+            cases.append(
+                pytest.param(spec, unit, marks=marks, id=f"{spec.name}-{unit}")
+            )
+    return cases
+
+
+@pytest.mark.parametrize("spec,unit", _gate_cases())
 def test_futures_unit_against_gate(unit: str, spec: GateSpec):
     metrics = load_metrics(unit)
     completed = metrics.get("gates_completed")

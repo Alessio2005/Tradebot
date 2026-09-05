@@ -1,7 +1,8 @@
 # ARCHITECTURAL DECISIONS
 
 > **Geverifieerd tegen de codebase op 2026-09-01** (Phase 7/8, Stage E-3).
-> AD-1 t/m AD-21. GEMETEN: alle 16 testverwijzingen in dit document
+> AD-1 t/m AD-21; AD-22 t/m AD-24 toegevoegd in fase 10, stap 1 (de drie
+> mandaatbesluiten uit `docs/MANDATE.md`). GEMETEN: alle 16 testverwijzingen in dit document
 > wijzen naar een bestaand bestand. Dat die tests groen zijn, blijkt uit
 > de suite; dat zij het JUISTE bewaken, staat per AD in de tekst.
 
@@ -901,3 +902,211 @@ gefitte model onveranderd blijft. Dat dekt niet alleen de scaler maar élke rout
 waarlangs testdata de fit zou kunnen bereiken — een `eval_set` voor early
 stopping bijvoorbeeld, de meest voorkomende manier waarop een 'out-of-sample'
 AUC in-sample wordt doordat het aantal iteraties op de testdata wordt gekozen.
+
+---
+
+## AD-22 — De dagbar is zowel de meet- als de handelsresolutie
+
+**Fase:** 10 (mandaatbesluit B-1, stap 1.2)
+**Status:** actief
+**Bewaakt door:** `docs/MEASUREMENT_CONTRACT.md` §2; daarnaast de
+domeinconsistentiepoort `check_domain_consistency.py`, die stap 2 in `scripts/`
+bouwt en die op dit moment nog niet bestaat
+
+### Besluit
+
+Het programma kent **één** barresolutie: de dagbar. Die resolutie geldt voor de
+meetketen en voor de handelsketen, en zij zijn daarmee dezelfde keten.
+
+`live/feed.py::FeedConfig.bar_seconds` vervalt. Er is geen configuratieveld meer
+waarmee een tweede resolutie kan worden gekozen, want een veld dat er is, wordt
+gebruikt.
+
+Wat dit sluit:
+
+* het resolutieverschil tussen de twee ketens (backtest op dagbars, `live/` op
+  5-secondenbars — zie `reports/phase7_divergence_map.md`);
+* het verschil van 5 tegen 6 namen tussen de twee ketens;
+* exit-criterium D7, dat hiermee voor het eerst *definieerbaar* wordt: pariteit
+  tussen twee ketens is pas een uitspraak wanneer beide op dezelfde klok lopen.
+
+### Waarom
+
+De handelsklok volgt de meetklok, niet andersom. Elke grootheid waarop dit
+programma een besluit neemt, is gemeten op een dagbar; een handelsketen die op
+5 seconden loopt, neemt dus 17.280 besluiten per dag op informatie die één keer
+per dag verandert. Dat is geen fijnere uitvoering van dezelfde strategie maar
+een andere strategie, met een andere kostenstructuur en een ander
+microstructuurregime — en géén van beide is gemeten.
+
+De keuze is bovendien de enige die het meetdomein van AD-23 respecteert: er is
+geen gecertificeerde sub-daagse bron, dus een 5-secondenketen draait per
+constructie op ongecertificeerde data.
+
+### Het afgewezen alternatief
+
+Twee resoluties naast elkaar houden en een adapter bouwen die de dagbar naar de
+livefrequentie vertaalt, met een pariteitstest die bewijst dat beide hetzelfde
+doen.
+
+Afgewezen omdat zo'n pariteitstest **de configuratie meet in plaats van het
+gedrag**. Hij slaagt precies wanneer de adapter de sub-daagse variatie
+wegmiddelt, en faalt wanneer die variatie ergens doorwerkt — dus hij is groen
+zolang de tweede resolutie niets doet, en rood zodra zij iets doet. Een test die
+alleen groen is wanneer de functionaliteit die hij bewaakt inert is, bewaakt
+niets. De adapter zou daarmee de divergentie niet oplossen maar verbergen.
+
+---
+
+## AD-23 — Het meetdomein is een whitelist van drie bronnen op één frequentie
+
+**Fase:** 10 (mandaatbesluit B-2, stap 1.3)
+**Status:** actief
+**Bewaakt door:** de whitelist `measurement_domain.yaml` en de poort
+`check_domain_consistency.py`, beide gebouwd in stap 2 en op dit moment nog niet
+aanwezig, met een negatieve controle die bewijst dat de poort rood kan worden
+
+### Besluit
+
+> Het meetdomein van dit programma bestaat uit precies drie gecertificeerde
+> bronnen in de PIT-store, geobserveerd op precies één frequentie:
+>
+> | Bron | Frequentie | Certificering |
+> |---|---|---|
+> | OHLCV per symbool | **1 bar per dag** | `data/pit_store/`, hash-gecertificeerd |
+> | Funding rate | 8-uurs, geaggregeerd naar dagbar | idem, via `features/microstructure.py` |
+> | Open interest | 1 observatie per dag | idem |
+>
+> Elke grootheid die het programma gebruikt, is een functie van deze drie. Een
+> grootheid die een fijnere waarneming vereist dan één bar per dag, is **geen
+> uitgestelde vraag maar een niet-bestaande vraag**: er is geen bron voor, er
+> komt geen bron voor, en er is geen conditie waaronder zij terugkeert.
+
+De toelaatbaarheidsregel, en dit is de operationele kern van dit besluit:
+
+> Een grootheid is toelaatbaar dan en slechts dan wanneer zij een meetbare
+> functie is van de drie bronnen in de tabel, geobserveerd op één bar per dag.
+> Toelaatbaarheid wordt bewezen door de bron te noemen, niet door de
+> afwezigheid van een verbod.
+
+### Wat er binnen het domein wél mag
+
+Dit is de helft die mensen vergeten, en zonder haar wordt er later een
+domeinconforme module gesloopt omdat haar naam verkeerd klinkt:
+
+* **Range-gebaseerde variantieschatters mogen.** `parkinson`, `garman_klass`,
+  `rogers_satchell` en `squared_return` in `volatility/realized.py` zijn
+  functies van dagelijkse OHLC. Zij blijven, ongewijzigd.
+* **Funding en open interest mogen.** `features/microstructure.py` bevat
+  uitsluitend `FundingRateMean`, `FundingRateZScore` en
+  `OpenInterestLogChange`. Alle vijf features die de authoritative
+  15-feature-registry als "microstructuur" labelt, komen hiervandaan en zijn
+  dagelijkse grootheden. **De naam van dat bestand is misleidend; de inhoud is
+  domeinconform.** Stap 15.3 hernoemt het naar `features/positioning.py` zodat
+  de naam de inhoud niet meer tegenspreekt.
+* **GARCH, EGARCH, GJR en EWMA mogen.** Het zijn dagelijkse modellen op
+  dagelijkse rendementen.
+
+Wat er níet mag, is één ding: een waarneming binnen de dag.
+
+### Waarom
+
+Een verbodslijst is nooit volledig. Zij noemt de vormen die iemand al had
+bedacht, en zij nodigt uit om een variant te bedenken die er niet op staat. Een
+domein is per constructie volledig: wat er niet in zit, zit er niet in,
+ongeacht hoe het heet.
+
+Daaruit volgt de vorm van de poort in stap 2. Zij **whitelist** de drie
+bronnen: een heropeningsconditie in `FALSIFICATION_REGISTER.md` is geldig
+wanneer zij een bron uit de tabel noemt, en ongeldig wanneer zij dat niet doet.
+De poort hoeft niet te weten wat er buiten het domein bestaat — en dat is
+precies de eigenschap die een blacklist mist.
+
+### Het afgewezen alternatief
+
+Een blacklist van verboden termen in de scanner: sub-daagse frequenties,
+orderboektermen, tick- en intradaybegrippen, en wat er verder bedacht is.
+
+Afgewezen om twee redenen die beide fataal zijn. Zij is **niet volledig** —
+elke nieuwe naam voor dezelfde grootheid omzeilt haar, en er is geen manier om
+dat te merken. En zij **houdt de uitgesloten ruimte levend** door haar op te
+sommen: een document dat de sub-daagse waarneming afschaft maar haar in vijftien
+verboden termen blijft beschrijven, maakt haar tot een onderwerp in plaats van
+tot een niet-bestaande vraag.
+
+---
+
+## AD-24 — De hypothese-ledger wordt eenmalig gereset
+
+**Fase:** 10 (mandaatbesluit B-3, stap 1.4)
+**Status:** actief
+**Bewaakt door:** het resetartefact `ledger_reset.json`, dat stap 3 onder
+`artefacts/governance/` schrijft en dat op dit moment nog niet bestaat, en de
+tests van stap 3 op `registry/trial_counter.py`
+
+### Besluit
+
+`M = 2776` is niet langer de trial-teller voor dit programma. De ledger wordt
+**eenmalig** gereset, onder acht regels die samen het protocol zijn:
+
+> **R1** `M_new` is niet nul. Het is het vooraf geregistreerde, bevroren aantal geplande trials.
+>
+> **R2** `FALSIFICATION_REGISTER.md` blijft onverkort bindend, **en dat is de prijs van de reset.** De kennis uit de oude 2776 trials lekt wél door — wie weet dat crypto-XS-momentum faalt, kiest een andere kandidaat dan wie dat niet weet. Dat is selectiedruk en zij verdwijnt niet met de teller. Het register is het geheugen dat haar neutraliseert.
+>
+> **R3** De oude ledger wordt gearchiveerd, niet verwijderd. Een AD-14-amendement (`n_trials = 0`) legt de reset vast.
+>
+> **R4** Wie een oude fit hergebruikt, erft zijn trials. Het CPCV-ensemble draagt **2.400** Optuna-trials (200 × 6 symbolen × 2 zijden).
+>
+> **R5** Eén reset. Een tweede maakt `M` een parameter in plaats van een meting.
+>
+> **R6** `M_new` wordt bevroren vóór de eerste fit.
+>
+> **R7** De vijf poorten blijven ongewijzigd.
+>
+> **R8** De reset is een claim over de *toekomstige* zoekruimte, en die claim is door de reset zelf niet verifieerbaar. Daarom is hij gekoppeld aan het bevroren poortsample uit stap 4B. Een kandidaat die de ontwikkelsample overleeft, wordt exact één keer op het poortsample gemeten; dat is de enige meting in dit programma waarvan `M` per constructie 1 is.
+
+### Waarom
+
+De gemeten grond, en zij is zwakker dan het getal 2776 suggereert.
+
+`seed_total = 2363` is **geen meting maar een reconstructie**, uitgevoerd nadat
+het oorspronkelijke logboek verloren was gegaan. De itemisatie staat verbatim in
+`docs/WAVE_LOG.md` W20 §0.1 en luidt
+`2000 (audit §10/§11) + W14:204 + W15:21 + W16:8 + W17:49 + W18:1 + W19:80 = 2363`.
+`registry/trial_counter.py` noemt haar met zoveel woorden een **ondergrens**
+("M is een ONDERGRENS, geen exacte telling"), en het artefact zelf labelt haar
+als `Conservative floor`. Daarbovenop staan 17 geboekte entries met samen 413
+trials; **2363 + 413 = 2776**.
+
+Een teller die een ondergrens is, kan niet worden verlaagd door beter te tellen,
+en de promotiepoort die eraan hangt is daarmee rekenkundig onbereikbaar: bij
+M = 2776 en `W_FULL` vereist DSR ≥ 0,95 een annualiseerde Sharpe van **2,380**
+(`docs/MEASUREMENT_CONTRACT.md` §2.5), tegen een best gemeten track van
+**0,156**. Er is geen kandidaat denkbaar die dat haalt, en een poort die niets
+kan doorlaten, toetst niets.
+
+De reset lost dat op door de teller opnieuw te definiëren over een **disjuncte**
+zoekruimte: dagbars (AD-22) binnen het meetdomein (AD-23). Dat is de enige grond
+waarop hij verdedigbaar is — niet dat de oude trials niet zijn gedaan, maar dat
+zij in een andere ruimte zijn gedaan.
+
+**De reset geeft geen enkele regel uit F1 t/m F20 vrij.** R2 is geen
+formaliteit maar de dragende regel van dit besluit: de selectiedruk uit 2776
+trials verdwijnt niet met de teller, alleen het boekhoudkundige spoor ervan.
+Het falsificatieregister is wat die druk neutraliseert, en het blijft daarom
+onverkort bindend — inclusief elke heropeningsconditie, die per AD-23 bovendien
+alleen geldig is wanneer zij een bron uit het meetdomein noemt.
+
+### Het afgewezen alternatief
+
+`M` laten staan op 2776 en de DSR-drempel verlagen, of de poort een
+`warn_only`-stand geven zodat een marginaal resultaat alsnog kan promoveren.
+
+Afgewezen omdat dat de poort aanpast aan de uitkomst in plaats van aan de
+familie. De DSR is een correctie voor **selectiebias**, en haar parameter `M`
+is een uitspraak over hoe breed er is gezocht; die uitspraak mag veranderen
+wanneer de zoekruimte verandert, maar de drempel mag niet veranderen omdat het
+antwoord tegenvalt. Het verschil is precies het verschil tussen een reset met
+een grond (R1-R8, met R8 als externe verificatie) en het uithollen van de enige
+poort die dit programma tegen zichzelf beschermt — wat de fences van §7
+uitdrukkelijk verbieden.

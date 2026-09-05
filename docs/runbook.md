@@ -84,13 +84,17 @@ python -m pytest -q -p no:randomly
 ```
 
 De eerste twee geven **exit 0**; de tweede meldt 37 adviezen en 0 blokkerend.
-De suite geeft **exact 4 failures**.
+De suite geeft **0 failed, 4 xfailed, 0 xpassed**.
 
-> **Die vier failures horen rood te staan.** Het zijn de pre-geregistreerde
-> killgates op `cm_carry` en `cm_tsmom` — KG-B1 in-sample, tweemaal KG-B2
-> residual alpha, en KG-B3 out-of-sample. Zijn het er meer, minder, of staan er
-> andere namen: dat is een regressie, geen ruis. Noteer de namen, niet alleen
-> het aantal.
+> **Die vier `xfail`s zijn de pre-geregistreerde killgates** op `cm_carry` en
+> `cm_tsmom` — KG-B1 in-sample, tweemaal KG-B2 residual alpha, en KG-B3
+> out-of-sample. Zijn het er meer, minder, of staan er andere namen: dat is een
+> regressie, geen ruis. Noteer de namen, niet alleen het aantal.
+>
+> Sinds fase 10, stap 1.8 staan zij op `xfail(strict=True)` in plaats van
+> permanent te falen. De suite is daarmee groen, zodat een échte regressie
+> opvalt; en een killgate die begint te **slagen** verschijnt als `xpassed` en
+> maakt de suite rood — dat is de gebeurtenis die je wilt zien.
 
 ### 0.5 Na elke verplaatsing van de werkkopie
 

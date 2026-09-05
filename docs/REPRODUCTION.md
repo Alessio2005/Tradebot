@@ -44,8 +44,10 @@ python apps/doctor.py             # omgevingsdiagnose
 
 # 4 ── de suite, als eerste meting
 python -m pytest tests -q
-#   VERWACHT: exact 4 failures, alle vier killgates op cm_carry / cm_tsmom.
-#   Minder dan vier betekent dat een killgate is uitgeschakeld.
+#   VERWACHT: 0 failed, 4 xfailed, 0 xpassed.
+#   De vier xfails zijn de pre-geregistreerde killgates op cm_carry / cm_tsmom
+#   (fase 10 stap 1.8: xfail(strict=True)). Minder dan vier betekent dat een
+#   killgate is uitgeschakeld; een xpass betekent dat er een is uitgehold.
 
 # 5 ── de authoritative baseline
 python apps/run_phase5_baseline.py
