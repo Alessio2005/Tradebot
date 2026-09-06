@@ -86,12 +86,19 @@ def track_metrics(
 
 
 def run_dsr_gate(
-    result: BaselineResult, *, n_trials: int, dsr_alpha: float
-) -> dict[str, float | bool]:
+    result: BaselineResult, *, n_trials: int, dsr_alpha: float, bars_per_year: float
+) -> dict[str, float | bool | str]:
     """DSR met de EERLIJKE M. Weigert te draaien zonder trial-telling.
 
     Er is geen default voor `n_trials`: ontbreekt hij, dan crasht de gate. Dat
-    is de hele reden dat hij bestaat.
+    is de hele reden dat hij bestaat. Sinds fase 10 stap 4A geldt hetzelfde voor
+    `bars_per_year`: `metrics.py` draagt geen annualisatie-default meer
+    (MEASUREMENT_CONTRACT.md §10.1), en de waarde komt uit
+    `conf/backtest/default.yaml`.
+
+    De variantie van de trial-Sharpes is hier niet beschikbaar — `n_trials` is
+    een telling, geen verdeling. §6 staat de benadering `1/n_obs` toe MITS zij
+    in het artefact staat; vandaar `dsr_approximation` in de teruggave.
     """
     require(
         n_trials > 1,
@@ -106,19 +113,26 @@ def run_dsr_gate(
     net = result.net_returns.to_numpy(dtype="float64")
     clean = net[np.isfinite(net)]
     sr = per_bar_sharpe(clean)
-    probability = float(
-        deflated_sharpe(
-            sr_observed=sr,
-            n_trials=int(n_trials),
-            n_obs=int(clean.size),
-            returns_skew=float(stats.skew(clean)),
-            returns_kurt=float(stats.kurtosis(clean, fisher=False)),
-        )
+    n_obs = int(clean.size)
+    dsr = deflated_sharpe(
+        sr,
+        n_obs=n_obs,
+        n_trials=int(n_trials),
+        sr_variance=1.0 / n_obs,
+        skew=float(stats.skew(clean)),
+        kurtosis=float(stats.kurtosis(clean, fisher=False)),
+        bars_per_year=float(bars_per_year),
+        approximation="normal",
     )
+    probability = float(dsr.dsr)
     return {
         "per_bar_sharpe": sr,
-        "n_obs": float(clean.size),
+        "n_obs": float(n_obs),
         "n_trials": float(n_trials),
+        "bars_per_year": dsr.bars_per_year,
+        "t_years": dsr.t_years,
+        "sr_variance": dsr.sr_variance,
+        "dsr_approximation": dsr.approximation,
         "dsr_probability": probability,
         "dsr_p_value": 1.0 - probability,
         "passes": bool(probability >= 1.0 - dsr_alpha),
@@ -357,7 +371,8 @@ def execute_baseline_wave(
         warmup_bars=max(unit.burn_in_period, cfg["vol"].burn_in_bars),
     )
     metrics = track_metrics(results, bars_per_year=int(cfg["bt"].bars_per_year))
-    dsr = {t: run_dsr_gate(r, n_trials=m_trials, dsr_alpha=cfg["val"].dsr_alpha)
+    dsr = {t: run_dsr_gate(r, n_trials=m_trials, dsr_alpha=cfg["val"].dsr_alpha,
+                           bars_per_year=float(cfg["bt"].bars_per_year))
            for t, r in results.items()}
     spa = run_spa_gate(
         results, benchmark_track=BENCHMARK_TRACK,

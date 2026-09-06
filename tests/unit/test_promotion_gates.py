@@ -177,7 +177,11 @@ class TestDsrGate:
         r = DsrResult(dsr=1.0 - cfg.dsr_alpha, sharpe_observed=0.1, n_obs=100,
                       trial_count=TrialCount(2776, "frozen", "x", 2363, 413),
                       alpha=cfg.dsr_alpha, skew=0.0, kurtosis=3.0,
-                      passed=False, is_marginal=True)
+                      passed=False, is_marginal=True,
+                      # Fase 10 stap 4A: het oordeel draagt sindsdien ook de
+                      # herkomst van V[{SR_m}] en het venster (§6 en §10).
+                      sr_variance=1.0 / 100, approximation="normal",
+                      bars_per_year=365.0, t_years=100 / 365.0)
         assert "NIET significant" in r.verdict
 
 

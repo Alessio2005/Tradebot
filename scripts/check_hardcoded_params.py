@@ -68,7 +68,13 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
     # -- backtest/ --
     "backtest/dd_shape.py": (5, "DI-9  Phase 5"),
     "backtest/evaluation.py": (14, "DI-9  Phase 5"),
-    "backtest/metrics.py": (4, "DI-9  Phase 5"),
+    # Fase 10 stap 4A: de vier literals zaten alle in `bootstrap_ci`
+    # (n_bootstrap=1000, ci=0.95, block_size=50, seed=42). Die routine had nul
+    # aanroepplekken en is verwijderd; het Sharpe-interval woont nu in
+    # `validation/inference.py`, met zijn keuzes in `conf/validation/inference.yaml`.
+    # Gemeten nulstand: 0. Het budget gaat mee omlaag, want een ratchet die op 4
+    # blijft staan, laat er stilzwijgend vier terugkomen.
+    "backtest/metrics.py": (0, "opgeruimd in fase 10 stap 4A"),
     "backtest/pbo.py": (1, "DI-9  Phase 5"),
     "backtest/portfolio.py": (4, "DI-9  Phase 5"),
     "backtest/spa.py": (2, "DI-9  Phase 5"),

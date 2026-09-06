@@ -132,10 +132,15 @@ class TestDsrIsUnaffected:
         """Fase-opdracht §6 punt 3: 'DSR `M` verandert niet'."""
         from tradebot.backtest.metrics import deflated_sharpe
 
-        args = {"sr_observed": 0.10, "n_obs": 2_000}
-        before = deflated_sharpe(n_trials=ledger.total_n_hypotheses(), **args)
+        # Fase 10 stap 4A: de handtekening is die van
+        # MEASUREMENT_CONTRACT.md §6; de momenten hebben geen default meer.
+        args = {
+            "n_obs": 2_000, "sr_variance": 1.0 / 2_000, "skew": 0.0,
+            "kurtosis": 3.0, "bars_per_year": 365.0, "approximation": "normal",
+        }
+        before = deflated_sharpe(0.10, n_trials=ledger.total_n_hypotheses(), **args)
         _register(registry, cfg)
-        after = deflated_sharpe(n_trials=ledger.total_n_hypotheses(), **args)
+        after = deflated_sharpe(0.10, n_trials=ledger.total_n_hypotheses(), **args)
         assert after == before
 
     def test_the_phase_5_relabelling_did_not_move_the_live_ledger(self) -> None:

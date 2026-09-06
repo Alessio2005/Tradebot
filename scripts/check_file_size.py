@@ -43,7 +43,15 @@ LIMIT = 800
 CAPS: dict[str, int] = {
     "src/tradebot/labeling/meta.py": 1185,
     "src/tradebot/train/ensemble.py": 1117,
-    "src/tradebot/schemas/config.py": 1098,
+    # Fase 10, stap 4A: +78 voor `InferenceConfig` en de accessors
+    # `inference_config()` / `backtest_config()`. Bewust verhoogd en niet
+    # gesplitst: de cap-tabel bestaat om zo'n verhoging een gelezen besluit in
+    # een diff te maken, en dit bestand IS het ene configuratiecontract.
+    "src/tradebot/schemas/config.py": 1176,
+    # Fase 10, stap 4A: nieuw. De ene implementatie van de Sharpe-SE, de
+    # Sharpe-verschiltoets en de circulaire blokbootstrap (R-3). De reden dat
+    # hij niet gesplitst is, staat in zijn eigen `# LOC-EXCEPTION:`-regel.
+    "src/tradebot/validation/inference.py": 1044,
     "src/tradebot/features/regime.py": 1060,
     "src/tradebot/backtest/evaluation.py": 1057,
     "src/tradebot/tune/objective.py": 958,

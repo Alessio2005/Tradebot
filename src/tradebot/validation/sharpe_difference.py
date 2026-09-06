@@ -1,6 +1,31 @@
 # src/tradebot/validation/sharpe_difference.py
 """De gepaarde Sharpe-toets van H2, met de controles die haar geldig maken.
 
+.. attention::
+
+   **SUPERSEDED — BEVROREN METHODE. GEEN NIEUWE AANROEPPLEKKEN.**
+
+   De ene Sharpe-verschiltoets van dit programma is sinds fase 10 stap 4A
+   ``validation/inference.py::sharpe_difference_test``: Ledoit-Wolf (2008) met
+   HAC-covariantie van de vier momenten en een gestudentiseerde CIRCULAIRE
+   blokbootstrap, zoals `docs/MEASUREMENT_CONTRACT.md` §4 hem voorschrijft.
+   **Elke nieuwe vergelijking bindt daaraan.**
+
+   Deze module blijft staan en wordt NIET herschreven. Zij is de bevroren
+   METHODE van een AFGESLOTEN, vooraf geregistreerd experiment: H2,
+   pre-registratie ``3d3af28730a6c7f9da48d13139522a05``, met de resultaten in
+   ``artefacts/governance/phase6_h2_regime_benchmark.json``. Zij implementeert
+   Jobson-Korkie/Memmel met een STATIONAIRE bootstrap; dat is een andere toets
+   dan Ledoit-Wolf, niet dezelfde met een andere naam. Haar hier vervangen door
+   de nieuwe kern zou de methode van een gepubliceerd resultaat met terugwerkende
+   kracht veranderen, en daarmee het verslag zelf falsificeren.
+
+   Haar enige consument is ``validation/regime_benchmark.py``, die H2
+   reproduceert en daarom bij deze methode hoort te blijven. R-3 (één
+   implementatie per statistische grootheid) wordt niet geschonden doordat er
+   twee bestanden zijn, maar zou wél worden geschonden zodra een NIEUWE meting
+   hieraan bindt in plaats van aan ``inference.py``.
+
 WAAROM GEPAARD EN NIET TWEE LOSSE SHARPES
 ==========================================
 De twee armen conditioneren HETZELFDE primaire signaal. Hun returnreeksen zijn

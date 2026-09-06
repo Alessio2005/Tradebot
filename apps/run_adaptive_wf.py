@@ -18,7 +18,7 @@ import pandas as pd
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
-from tradebot.alpha.adaptive_wf import AdaptiveWalkForward, AdaptiveWFConfig  # noqa: E402
+from tradebot.alpha.adaptive_wf import AdaptiveWalkForward, AdaptiveWFConfig
 
 
 def main() -> None:
@@ -49,6 +49,11 @@ def main() -> None:
           f"MaxDD = {r['max_drawdown']*100:.0f}%")
     print(f"  Deflated Sharpe (n_trials={r['n_trials']}) = {r['deflated_sharpe']:.3f}   "
           f"PBO = {r['pbo']:.3f}")
+    # MEASUREMENT_CONTRACT.md §6: waar V[{SR_m}] vandaan komt, hoort naast de DSR
+    # te staan en niet alleen in de JSON.
+    print(f"  DSR V[SR_m] = {r['dsr_sr_variance']:.3e} ({r['dsr_approximation']})   "
+          f"n_obs = {r['n_obs']}  bars_per_year = {r['bars_per_year']:.0f}  "
+          f"t_years = {r['t_years']:.3f}")
     print(f"  last 12m: return = {r['last12m_return']*100:+.0f}%   Sharpe = {r['last12m_sharpe']:.2f}")
     print("  forward per-year: " + " ".join(f"{y}:{v*100:+.0f}%" for y, v in r["per_year"].items()))
     print("  recent quarters:  " + " ".join(f"{d}:{v*100:+.0f}%" for d, v in list(r["per_quarter"].items())[-8:]))

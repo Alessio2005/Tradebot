@@ -344,7 +344,23 @@ class AdaptiveWalkForward:
         pbo_val = float(pbo.get("pbo", np.nan))
         main = self.harvest(P)                    # the deployed config (all controls on)
         srd = main.mean() / main.std()
-        dsr = deflated_sharpe(srd, n_trials, len(main))
+        # MEASUREMENT_CONTRACT.md §6. De acht constructievarianten in `mat` ZIJN
+        # de trials, dus hun Sharpes bestaan hier wél en `V[{SR_m}]` wordt
+        # GEMETEN in plaats van benaderd. Dat is de zeldzame plek waar dat kan;
+        # `approximation` legt in het artefact vast dat het hier is gebeurd.
+        trial_sharpes = (mat.mean(axis=0) / mat.std(axis=0)).to_numpy(dtype=float)
+        from scipy import stats as _stats
+
+        dsr = deflated_sharpe(
+            float(srd),
+            n_obs=len(main),
+            n_trials=n_trials,
+            sr_variance=float(np.var(trial_sharpes, ddof=1)),
+            skew=float(_stats.skew(main.to_numpy(dtype=float))),
+            kurtosis=float(_stats.kurtosis(main.to_numpy(dtype=float), fisher=False)),
+            bars_per_year=DAYS,
+            approximation="empirical",
+        )
         per_year = {int(y): float((1 + g).prod() - 1) for y, g in main.groupby(main.index.year)}
         per_q = {str(d.date()): float(v) for d, v in
                  main.resample(f"{cfg.refit_days}D").apply(lambda x: (1 + x).prod() - 1).items()}
@@ -354,9 +370,14 @@ class AdaptiveWalkForward:
             forward_sharpe=float(main.mean() / main.std() * np.sqrt(DAYS)),
             forward_vol=float(main.std() * np.sqrt(DAYS)),
             max_drawdown=float((eq / eq.cummax() - 1).min()),
-            deflated_sharpe=float(dsr), n_trials=n_trials, pbo=pbo_val,
+            deflated_sharpe=float(dsr.dsr), n_trials=n_trials, pbo=pbo_val,
+            dsr_sr_variance=float(dsr.sr_variance),
+            dsr_approximation=dsr.approximation,
+            bars_per_year=float(dsr.bars_per_year),
+            t_years=float(dsr.t_years),
             last12m_return=float((1 + last12).prod() - 1),
             last12m_sharpe=float(last12.mean() / last12.std() * np.sqrt(DAYS)) if last12.std() else 0.0,
+            n_obs=int(len(main)),
             n_refits=len(self.refit_dates_), n_features=len(self.frozen_features_ or []),
             per_year=per_year, per_quarter=per_q, pnl=main,
         )
