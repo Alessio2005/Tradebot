@@ -12,7 +12,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # L-1 — calibrator sign / monotonicity / degeneracy guard
 # ---------------------------------------------------------------------------
@@ -92,10 +91,17 @@ def test_deflated_sharpe_decreases_with_more_hypotheses():
     #
     # De bewaakte eigenschap is ongewijzigd: meer beproefde hypothesen ->
     # lagere DSR, en het effect is materieel.
+    #
+    # PHASE 10, STAP 4A: de handtekening is die van MEASUREMENT_CONTRACT.md §6
+    # geworden. `sr_variance`, `skew`, `kurtosis` en `bars_per_year` hebben geen
+    # default meer, dus zij staan hier expliciet; `1/n_obs` is de
+    # gedocumenteerde normale benadering en zegt dat ook.
     sr = 0.10
     n_obs = 2_000
-    dsr_small = _deflated_sharpe(sr, n_trials=10, n_obs=n_obs)
-    dsr_large = _deflated_sharpe(sr, n_trials=2000, n_obs=n_obs)
+    moments = dict(n_obs=n_obs, sr_variance=1.0 / n_obs, skew=0.0,
+                   kurtosis=3.0, bars_per_year=365.0, approximation="normal")
+    dsr_small = _deflated_sharpe(sr, n_trials=10, **moments).dsr
+    dsr_large = _deflated_sharpe(sr, n_trials=2000, **moments).dsr
     assert dsr_large < dsr_small, (
         "DSR must shrink as the multiple-testing burden grows "
         f"(N=10 => {dsr_small:.3f}, N=2000 => {dsr_large:.3f})"
@@ -109,8 +115,8 @@ def test_deflated_sharpe_decreases_with_more_hypotheses():
 # ---------------------------------------------------------------------------
 import pandas as pd
 
-from tradebot.oms.position_tracker import PositionTracker
 from tradebot.oms.order import Fill, OrderSide
+from tradebot.oms.position_tracker import PositionTracker
 
 
 def _open_long(tracker: PositionTracker, symbol="ETHUSDT", qty=10.0, price=2000.0):

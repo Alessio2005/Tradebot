@@ -11,7 +11,32 @@ import math
 
 import numpy as np
 
+from ..schemas.config import backtest_config
+from .metrics import sharpe_ratio
+
 logger = logging.getLogger(__name__)
+
+
+def _default_metric(returns: np.ndarray) -> float:
+    """De default-metriek van CSCV: de ENE Sharpe-implementatie, op de ENE annualisatie.
+
+    Tot fase 10 stap 4A stond hier een eigen ``_sharpe_ratio(returns,
+    annualization=252.0)`` — handelsdagen. `docs/MEASUREMENT_CONTRACT.md` §10.1
+    telde die als de derde annualisatie in omloop (naast de 8760 van
+    `metrics.py` en de 365 van `conf/`) en merkte hem aan als tegelijk een
+    annualisatiedefect en een R-3-schending: één statistische grootheid, twee
+    implementaties.
+
+    De waarde komt uit `conf/backtest/default.yaml` en wordt hier niet herhaald.
+
+    **De PBO-uitkomst verandert hier NIET door.** CSCV rangschikt strategieën
+    binnen elke IS/OOS-splitsing en werkt met de logit van die RANG; een
+    positieve monotone herschaling (`sqrt(a)` in plaats van `sqrt(b)`) laat elke
+    rang ongemoeid. Dat is precies waarom het defect zo lang kon blijven staan,
+    en waarom het repareren ervan geen enkel gemeten getal verschuift.
+    `tests/unit/test_annualisation_contract.py` legt die invariantie vast.
+    """
+    return sharpe_ratio(returns, bars_per_year=backtest_config().bars_per_year)
 
 
 def compute_pbo(
@@ -33,7 +58,7 @@ def compute_pbo(
             'n_combinations': int — number of IS/OOS sub-period pairs used
     """
     if metric_fn is None:
-        metric_fn = _sharpe_ratio
+        metric_fn = _default_metric
 
     T, S = returns_matrix.shape
     if n_subsets % 2 != 0 or n_subsets < 4:
@@ -100,19 +125,6 @@ def compute_pbo(
         "logit_pbo": avg_logit,
         "n_combinations": len(logit_lambdas),
     }
-
-
-def _sharpe_ratio(returns: np.ndarray, annualization: float = 252.0) -> float:
-    """Annualized Sharpe ratio for 1D returns array."""
-    r = np.asarray(returns, dtype=np.float64)
-    r = r[np.isfinite(r)]
-    if len(r) < 2:
-        return 0.0
-    mean = float(np.mean(r))
-    std = float(np.std(r, ddof=1))
-    if std <= 0.0:
-        return 0.0
-    return float(mean / std * math.sqrt(annualization))
 
 
 def _split_into_blocks(matrix: np.ndarray, n_blocks: int) -> list[np.ndarray]:

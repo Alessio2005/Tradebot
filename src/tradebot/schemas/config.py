@@ -695,6 +695,48 @@ class EconometricsConfig(StrictModel):
 
 
 # --------------------------------------------------------------------------- #
+# L11 - Inferentiekern (Phase 10, stap 4A)
+# --------------------------------------------------------------------------- #
+class InferenceConfig(StrictModel):
+    """Keuzes van de inferentiekern. Zie `conf/validation/inference.yaml`.
+
+    WAAROM DIT BESTAAT
+    ------------------
+    `src/tradebot/validation/` staat in `scripts/check_hardcoded_params.py` op
+    ratchet-budget 0: geen enkele drempel mag daar in een handtekening staan.
+    `validation/inference.py` is de enige implementatie van de Sharpe-SE, de
+    Sharpe-verschiltoets en de blokbootstrap (R-3), en elke keuze die de uitkomst
+    van die toetsen verschuift, staat daarom hier -- gehasht, frozen, auditbaar.
+
+    `bars_per_year` staat hier NIET. Die woont in `conf/backtest/default.yaml` en
+    nergens anders (MEASUREMENT_CONTRACT.md §1); hem hier herhalen zou een
+    vierde annualisatie in omloop brengen.
+    """
+
+    #: Aantal bootstrap-replicaties. MEASUREMENT_CONTRACT.md §4 schrijft 10.000
+    #: voor. Geen nauwkeurigheidsknop: een p-waarde die met het aantal
+    #: replicaties over de drempel wandelt, is geen bevinding.
+    n_boot: PositiveInt = 10_000
+
+    #: De GEREGISTREERDE seed. R-5: gelijke cfg + seed => bit-identieke output.
+    seed: Annotated[int, Field(ge=0)] = 20260905
+
+    #: Bloklengte van de circulaire blokbootstrap; `None` = automatisch
+    #: gekalibreerd uit het autocorrelatieverval van de reeks zelf.
+    block_length: PositiveInt | None = None
+
+    #: Batchgrootte van de bootstraptrekking. Vast, want zij bepaalt de
+    #: trekvolgorde uit de generator en dus de bits.
+    bootstrap_batch_size: PositiveInt = 250
+
+    #: Betrouwbaarheidsniveau van elk gerapporteerd interval.
+    ci_level: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.95
+
+    #: Ondergrens op de steekproef. Daaronder weigert de toets.
+    min_obs: PositiveInt = 30
+
+
+# --------------------------------------------------------------------------- #
 # L3 - Regime engines (Phase 6, deliverables 14 en 15)
 # --------------------------------------------------------------------------- #
 class M0BucketConfig(StrictModel):
@@ -926,6 +968,7 @@ DOMAIN_SCHEMAS: dict[str, type[StrictModel]] = {
     "backtest": BacktestConfig,
     "validation": ValidationConfig,
     "econometrics": EconometricsConfig,
+    "inference": InferenceConfig,
     "adequacy": AdequacyConfig,
     "labeling": LabelingConfig,
     "fracdiff": FracDiffConfig,
@@ -1018,6 +1061,41 @@ def econometrics_config() -> EconometricsConfig:
     andere waarde te zien dan de eerste lezing gaf.
     """
     return load_config(ECONOMETRICS_CONFIG_PATH, EconometricsConfig)
+
+
+INFERENCE_CONFIG_PATH = _REPO_ROOT / "conf" / "validation" / "inference.yaml"
+
+
+@lru_cache(maxsize=1)
+def inference_config() -> InferenceConfig:
+    """De keuzes van de inferentiekern uit `conf/validation/inference.yaml`.
+
+    Zelfde constructie en dezelfde reden als :func:`econometrics_config`. De
+    reden is hier scherper: `validation/` heeft ratchet-budget 0 in
+    `check_hardcoded_params.py`, dus `validation/inference.py` KAN geen enkele
+    drempel in een handtekening zetten. Zonder deze accessor zou de bootstrap
+    zijn seed en zijn replicatie-aantal uit code halen, en dan is R-5
+    (gelijke cfg + seed => bit-identieke output) niet meer controleerbaar: de
+    cfg zou het getal niet dragen.
+    """
+    return load_config(INFERENCE_CONFIG_PATH, InferenceConfig)
+
+
+BACKTEST_CONFIG_PATH = _REPO_ROOT / "conf" / "backtest" / "default.yaml"
+
+
+@lru_cache(maxsize=1)
+def backtest_config() -> BacktestConfig:
+    """Het L10-backtestcontract uit `conf/backtest/default.yaml`.
+
+    Bestaat om ÉÉN reden: `bars_per_year` heeft precies één bron
+    (MEASUREMENT_CONTRACT.md §1) en die bron is dit bestand. Tot fase 10 stap 4A
+    stonden er drie annualisaties naast elkaar in de repository -- 365 hier,
+    8760 als default in `backtest/metrics.py` en 252 in `backtest/pbo.py`. Een
+    aanroeper die de waarde niet kan opvragen, verzint er een; deze accessor
+    haalt dat excuus weg.
+    """
+    return load_config(BACKTEST_CONFIG_PATH, BacktestConfig)
 
 
 ADEQUACY_CONFIG_PATH = _REPO_ROOT / "conf" / "model" / "adequacy.yaml"

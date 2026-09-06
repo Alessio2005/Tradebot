@@ -48,7 +48,7 @@ from .evaluation import (
     resolve_long_short_collision,
     stationary_block_bootstrap_indices,
 )
-from .metrics import bootstrap_ci, calmar_ratio, deflated_sharpe, max_drawdown, sharpe_ratio
+from .metrics import DSRResult, calmar_ratio, deflated_sharpe, max_drawdown, sharpe_ratio
 from .vectorized import (
     NOT_ADMISSIBLE,
     VectorizedResult,
@@ -133,7 +133,7 @@ __all__ = [
     "calmar_ratio",
     "max_drawdown",
     "deflated_sharpe",
-    "bootstrap_ci",
+    "DSRResult",
     # evaluation-hulpbibliotheek
     "count_git_commits",
     "deflated_sharpe_penalty",

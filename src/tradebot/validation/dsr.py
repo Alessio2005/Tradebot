@@ -16,11 +16,21 @@ Wat deze module toevoegt is **handhaving**:
    de toets hoort weg te nemen.
 2. `M` moet BEVROREN zijn voor een rapporteerbaar resultaat. Een live-`M` uit de
    ledger geeft morgen een ander antwoord.
-3. De skew en kurtosis worden GEMETEN, niet aangenomen. De onderliggende functie
-   defaultet naar `skew=0, kurt=3` (Gaussisch); crypto-returns zijn dat niet, en
-   een Gaussische aanname maakt de variantie van de Sharpe-schatter te klein en
-   de toets dus te soepel.
+3. De skew en kurtosis worden GEMETEN, niet aangenomen. Tot fase 10 stap 4A
+   defaultete de onderliggende functie naar `skew=0, kurt=3` (Gaussisch);
+   crypto-returns zijn dat niet, en een Gaussische aanname maakt de variantie
+   van de Sharpe-schatter te klein en de toets dus te soepel. Die defaults
+   bestaan sinds stap 4A niet meer — `metrics.deflated_sharpe` WEIGERT een
+   aanroep zonder momenten (MEASUREMENT_CONTRACT.md §6) — maar het meten
+   gebeurt nog steeds hier.
 4. Het oordeel draagt zijn eigen onzekerheid mee (`M_UNCERTAINTY_NOTE`).
+5. **De variantie van de trial-Sharpes is een GEREGISTREERDE keuze, geen
+   default.** `V[{SR_m}]` zou de empirische spreiding van de M trial-Sharpes
+   moeten zijn. Die reeks bestaat hier niet: de `TrialCount` telt hypothesen,
+   hij bewaart hun Sharpes niet. Deze gate gebruikt daarom de gedocumenteerde
+   benadering `1/n_obs` uit §6 — en zegt dat, met `approximation="normal"`, in
+   elk artefact dat zij produceert. Een benadering die in een JSON staat, is een
+   keuze; een benadering die in een default staat, is een aanname.
 
 WAAROM EEN RANDGEVAL ALS NIET-SIGNIFICANT WORDT GELEZEN
 =======================================================
@@ -42,8 +52,9 @@ import numpy as np
 
 from ..backtest.metrics import deflated_sharpe
 from ..registry.trial_counter import M_UNCERTAINTY_NOTE, TrialCount
-from ..schemas.config import ValidationConfig
+from ..schemas.config import ValidationConfig, backtest_config
 from ..utils.failfast import DataContractError, require
+from .inference import require_sharpe_triple
 
 __all__ = ["DsrResult", "MARGINAL_BAND", "dsr_gate"]
 
@@ -64,6 +75,7 @@ class DsrResult:
     """Een onveranderlijk DSR-oordeel met alles wat nodig is om het te herhalen."""
 
     dsr: float
+    #: De PER-BAR Sharpe waarop de DSR is berekend (Bailey-Lopez de Prado).
     sharpe_observed: float
     n_obs: int
     trial_count: TrialCount
@@ -72,6 +84,15 @@ class DsrResult:
     kurtosis: float
     passed: bool
     is_marginal: bool
+    #: `V[{SR_m}]` zoals aan `metrics.deflated_sharpe` meegegeven.
+    sr_variance: float
+    #: `"normal"` of `"empirical"` — welke herkomst die variantie had (§6).
+    approximation: str
+    #: Het venster waartegen de Sharpe is gemeten (§10). De DSR-formule
+    #: gebruikt de annualisatie niet; het oordeel is zonder haar niet te
+    #: vergelijken met de t-drempel die bij dit venster hoort.
+    bars_per_year: float
+    t_years: float
 
     def as_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -84,8 +105,17 @@ class DsrResult:
             "passed": self.passed,
             "is_marginal": self.is_marginal,
             "verdict": self.verdict,
+            "sr_variance": self.sr_variance,
+            "dsr_approximation": self.approximation,
+            "bars_per_year": self.bars_per_year,
+            "t_years": self.t_years,
         }
         d.update(self.trial_count.as_dict())
+        # MEASUREMENT_CONTRACT.md §10: dit record draagt een Sharpe
+        # (`sharpe_observed`) en mag dus niet zonder zijn drietal naar buiten.
+        # De poort staat in `inference.py` en wordt hier AANGEROEPEN, niet
+        # nagebouwd.
+        require_sharpe_triple(d, where="DsrResult.as_dict")
         return d
 
     @property
@@ -188,21 +218,32 @@ def dsr_gate(
     )
     sr = float(arr.mean() / std) if sharpe_observed is None else float(sharpe_observed)
 
-    # Skew en kurtosis worden GEMETEN. De onderliggende functie defaultet naar
-    # Gaussisch (skew 0, kurt 3); crypto-returns zijn scheef en dikstaartig, en
-    # die aanname maakt var(SR) te klein en de toets dus te soepel.
+    # Skew en kurtosis worden GEMETEN. Crypto-returns zijn scheef en
+    # dikstaartig, en de Gaussische aanname maakt var(SR) te klein en de toets
+    # dus te soepel.
     from scipy import stats as _stats
 
     skew = float(_stats.skew(arr))
     kurt = float(_stats.kurtosis(arr, fisher=False))
 
-    dsr = float(deflated_sharpe(
-        sr_observed=sr,
+    # V[{SR_m}]: de trial-Sharpes zijn hier NIET beschikbaar -- een `TrialCount`
+    # telt hypothesen en bewaart hun Sharpes niet. §6 van het meetcontract staat
+    # dan de benadering `1/n_obs` toe, MITS dat feit in het artefact staat.
+    # Vandaar de expliciete vlag; zij loopt door tot in `as_dict()`.
+    n_obs = int(arr.size)
+    sr_variance = 1.0 / n_obs
+    bars_per_year = float(backtest_config().bars_per_year)
+    result = deflated_sharpe(
+        sr,
+        n_obs=n_obs,
         n_trials=trial_count.value,
-        n_obs=int(arr.size),
-        returns_skew=skew,
-        returns_kurt=kurt,
-    ))
+        sr_variance=sr_variance,
+        skew=skew,
+        kurtosis=kurt,
+        bars_per_year=bars_per_year,
+        approximation="normal",
+    )
+    dsr = float(result.dsr)
 
     # De DSR is een KANS dat de waargenomen Sharpe de expected maximum onder de
     # nul overtreft. Slagen betekent dus dsr > 1 - alpha, niet dsr < alpha.
@@ -213,13 +254,17 @@ def dsr_gate(
     return DsrResult(
         dsr=dsr,
         sharpe_observed=sr,
-        n_obs=int(arr.size),
+        n_obs=n_obs,
         trial_count=trial_count,
         alpha=config.dsr_alpha,
         skew=skew,
         kurtosis=kurt,
         passed=bool(passed and not is_marginal),
         is_marginal=bool(is_marginal),
+        sr_variance=result.sr_variance,
+        approximation=result.approximation,
+        bars_per_year=result.bars_per_year,
+        t_years=result.t_years,
     )
 
 

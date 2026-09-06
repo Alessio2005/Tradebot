@@ -65,6 +65,7 @@ from scipy import stats as _stats
 
 from ..schemas.config import econometrics_config
 from ..utils.failfast import DataContractError, require
+from .inference import newey_west_lags
 
 #: Drempels uit `conf/validation/econometrics.yaml` (Stage A-3). Geen
 #: ingebouwde terugval: ontbreekt de config, dan crasht de import.
@@ -261,9 +262,12 @@ def loss_series(
 # =========================================================================== #
 # Mincer-Zarnowitz
 # =========================================================================== #
-def _newey_west_lags(n: int) -> int:
-    """De automatische bandbreedte van Newey & West (1987): ``4 (n/100)^(2/9)``."""
-    return max(1, int(math.floor(4.0 * (n / 100.0) ** (2.0 / 9.0))))
+# De automatische Newey-West bandbreedte `4 (n/100)^(2/9)` stond hier tot fase 10
+# stap 4A als een eigen `_newey_west_lags`. Zij is nu geïmporteerd uit
+# `validation/inference.py`, waar MEASUREMENT_CONTRACT.md §3 haar ene
+# implementatie plaatst. Twee identieke bandbreedteregels naast elkaar zijn een
+# R-3-defect, ook wanneer zij hetzelfde getal geven: zij kunnen uit elkaar lopen,
+# en dan is niet meer te zeggen welke HAC-correctie een gerapporteerde t droeg.
 
 
 @dataclass(frozen=True)
@@ -339,7 +343,7 @@ def mincer_zarnowitz(
     coef = xtx_inv @ design.T @ y
     resid = y - design @ coef
 
-    lags = _newey_west_lags(n)
+    lags = newey_west_lags(n)
     scores = design * resid[:, None]
     meat = scores.T @ scores
     for lag in range(1, lags + 1):
