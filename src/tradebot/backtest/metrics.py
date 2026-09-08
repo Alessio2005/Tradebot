@@ -370,7 +370,11 @@ def deflated_sharpe(
     approximation
         `"normal"` of `"empirical"`. `None` = afleiden uit `sr_variance`: is zij
         exact `1/n_obs`, dan IS dat de normale benadering. Zo kan de vlag niet
-        worden vergeten.
+        worden vergeten. Wordt hij WEL expliciet meegegeven, dan moet hij het
+        met die afleiding EENS zijn (fixronde 1, item 7): `approximation="normal"`
+        bij een `sr_variance` die niet `1/n_obs` is, raist -- anders zou het
+        label in het artefact een empirische variantie als de gedocumenteerde
+        benadering vermommen, en dat is precies de mislabeling die §6 verbiedt.
 
     Raises
     ------
@@ -435,8 +439,9 @@ def deflated_sharpe(
     )
 
     normal_approximation = abs(variance - 1.0 / obs) <= 1e-12 / obs
+    inferred_label = "normal" if normal_approximation else "empirical"
     if approximation is None:
-        label = "normal" if normal_approximation else "empirical"
+        label = inferred_label
     else:
         label = str(approximation)
         require(
@@ -447,6 +452,27 @@ def deflated_sharpe(
             f"docs/MEASUREMENT_CONTRACT.md §6.",
             DataContractError,
             approximation=label,
+        )
+        # FIXRONDE 1, ITEM 7 (RULING T4A-G): dezelfde tegenspraak-toets die de
+        # AFGELEIDE vlag hierboven al draait (`approximation=None`), nu ook op
+        # het EXPLICIETE pad. Zonder deze toets accepteerde
+        # `deflated_sharpe(..., sr_variance=4.0/n, approximation="normal")` een
+        # empirische variantie onder het label van de gedocumenteerde
+        # benadering -- precies het label-defect in een meetrecord dat §6
+        # verbiedt.
+        require(
+            label == inferred_label,
+            f"approximation={label!r} is in tegenspraak met sr_variance={variance!r}: "
+            f"bij n_obs={obs} is de gedocumenteerde normale benadering exact "
+            f"1/n_obs={1.0 / obs!r}, en sr_variance ligt daar hier "
+            f"{'wel' if inferred_label == 'normal' else 'niet'} op. Een label dat "
+            f"niet bij de meegegeven variantie hoort, is de mislabeling die §6 "
+            f"van docs/MEASUREMENT_CONTRACT.md juist wil voorkomen -- geef "
+            f"approximation={inferred_label!r} mee, of geef de variantie mee die "
+            f"bij {label!r} hoort.",
+            DataContractError,
+            approximation=label, inferred_label=inferred_label,
+            sr_variance=variance, n_obs=obs,
         )
 
     # Het verwachte maximum van M standaardnormalen (Bailey-Lopez de Prado 2014,

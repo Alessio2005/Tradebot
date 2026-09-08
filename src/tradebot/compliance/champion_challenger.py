@@ -16,6 +16,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from ..validation.inference import newey_west_lags
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["DMTestResult", "ChampionChallengerConfig", "ChampionChallenger"]
@@ -173,13 +175,22 @@ class ChampionChallenger:
         autocorrelatie (typisch 20-40 bar vol-clustering) → onderschat var
         en blaast de DM-statistic op, met als gevolg te veel false promotes.
         Andrews-rule: k = 4 × (n/100)^(2/9), clip naar [1, n-2].
+
+        FASE 10, STAP 4A FIXRONDE 1 (RULING T4A-D): de bandbreedte zelf komt nu
+        uit `validation.inference.newey_west_lags` in plaats van een tweede,
+        letterlijk identieke uitdrukking hier. R-3 verbiedt een tweede
+        implementatie van dezelfde bandbreedteregel, ook wanneer zij hetzelfde
+        getal geeft; het importeren verplaatst geen enkel gemeten getal. De
+        clip naar `[1, n-2]` erna is EIGEN aan deze HLN-toets (df-verlies) en
+        blijft hier staan; de Bartlett-HAC-variantieschatter eronder is een
+        ANDERE grootheid dan `inference.hac_variance_ratio` (een DM-teststatistiek
+        tegenover een Sharpe-SE-opslag) en wordt niet geconsolideerd.
         """
         n = len(d)
         if n < 4:
             return float("nan"), 1.0
         mean_d = np.mean(d)
-        # CHIEF AUDIT 2026-05-23 (M14): Andrews-rule bandwidth.
-        k = max(1, int(np.floor(4.0 * (n / 100.0) ** (2.0 / 9.0))))
+        k = newey_west_lags(n)
         k = min(k, max(1, n - 2))
         # Newey-West variance estimate met Andrews-bandbreedte.
         gamma_0 = np.var(d, ddof=1)

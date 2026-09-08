@@ -430,6 +430,20 @@ class SharpeDifference:
     LEESVENSTERS op dezelfde opgeslagen waarden en geen tweede opslag. Twee
     namen voor één getal is verwarrend; twee getallen achter twee namen is een
     defect, en dat laatste is hier per constructie uitgesloten.
+
+    **Bekende ddof-asymmetrie tussen `delta_sharpe` en `sharpe_a - sharpe_b`
+    (fixronde 1, item 9).** `sharpe_a`/`sharpe_b` gebruiken `np.std(..., ddof=1)`
+    (de steekproefcorrectie); `delta_sharpe` komt uit `_lw_delta_and_se`, die op
+    de RUWE momenten (`ddof=0`) staat. Daardoor geldt in het algemeen
+    `delta_sharpe != sharpe_a - sharpe_b`, met een verschil van ongeveer
+    `sqrt(n/(n-1))` per been -- ~0,03 % bij `n = 1615`. Dit is GEEN bug die wordt
+    opgelost: de Ledoit-Wolf-deltamethode-gradiënt is afgeleid VAN de ruwe
+    momenten (zie `_lw_delta_and_se`), dus `delta_sharpe` naar `ddof=1`
+    optrekken zou een geverifieerde schatter breken, en `sharpe_a`/`sharpe_b`
+    naar `ddof=0` terugbrengen zou ze laten afwijken van `sharpe_with_se` (§3),
+    die zelf op `ddof=1` staat. Er is geen keuze die beide kanten verzoent
+    zonder een van de twee geverifieerde formules te wijzigen; vandaar deze
+    aantekening in plaats van een "correctie".
     """
 
     #: `SR(a) - SR(b)`, GEANNUALISEERD.
@@ -587,7 +601,7 @@ def sharpe_difference_test(
     bars_per_year: float,
     n_boot: int | None = None,
     seed: int | None = None,
-    align: AlignMode = "common_valid",
+    align: AlignMode = "common_active",
     block_length: int | None = None,
     nw_lags: int | None = None,
 ) -> SharpeDifference:
@@ -613,8 +627,16 @@ def sharpe_difference_test(
         `None` = de geregistreerde waarde uit `conf/validation/inference.yaml`.
         R-5: gelijke cfg + seed geeft bit-identieke output.
     align
-        `common_valid` (beide eindig) of `common_active` (beide eindig én geen
-        van beide exact nul -- de haltuitlijning van §4 van het meetcontract).
+        Default `common_active` (RULING T4A-C, fixronde 1). §4 van het
+        meetcontract is ONVOORWAARDELIJK: een gepaarde vergelijking loopt
+        *"uitsluitend over bars waarop **beide** ketens actief zijn"*, en het
+        eigen rekenvoorbeeld van §4 (`long_only_equal_weight`) halteert 1559 van
+        de 1743 bars MET een nul-rendement, niet met een NaN. Onder
+        `common_valid` tellen die gehalteerde nullen als waarnemingen mee, en
+        dat is exact het ongepaarde verschil dat §4 verbiedt. `common_valid`
+        (beide eindig, nullen tellen mee) blijft bestaan als EXPLICIETE
+        opt-out voor de aanroeper die weet dat zijn reeksen geen haltketen
+        dragen.
     """
     x, y, n_dropped = _align_pair(a, b, align)
     n = int(x.size)
@@ -904,7 +926,22 @@ def neff_deflation(correlation_matrix: np.ndarray) -> float:
 
 @dataclass(frozen=True)
 class ClusteredMean:
-    """Een gepoold gemiddelde met alle drie de t-lezingen die §5 eist."""
+    """Een gepoold gemiddelde met alle drie de t-lezingen die §5 eist.
+
+    RULING T4A-B (fixronde 1): dit is een GEMIDDELDE, geen Sharpe. Plan §9
+    scoopt het verplichte drietal `(n_obs, bars_per_year, t_years)`
+    uitdrukkelijk tot Sharpes -- *"Elke **Sharpe** draagt
+    (n_obs, bars_per_year, t_years)"* -- en `clustered_mean` levert er geen.
+    `to_dict()` staat daarom BUITEN de §10-serialisatiepoort
+    (`require_sharpe_triple` wordt hier nooit op aangeroepen): de brief mandateert
+    zelf de handtekening `clustered_mean(frame, *, cluster_axis="index")` en de
+    aanroep `clustered_mean(panel)` zonder annualisatie
+    (`tests/unit/test_inference.py:108`), dus het drietal kan hier niet
+    ONVOORWAARDELIJK verplicht zijn. `bars_per_year`/`t_years` zijn in plaats
+    daarvan OPTIONEEL: wanneer de aanroeper `bars_per_year` meegeeft, draagt
+    `to_dict()` het volledige drietal; laat hij het weg, dan is het gedrag exact
+    zoals vóór deze reparatie.
+    """
 
     mean: float
     #: De op de tijdsindex GECLUSTERDE standaardfout.
@@ -924,9 +961,15 @@ class ClusteredMean:
     neff_factor: float
     #: `t_pooled * neff_factor` — de derde lezing die §5 naast de andere twee eist.
     t_stat_neff_deflated: float
+    #: OPTIONEEL (zie klassendocstring). Alleen gezet wanneer de aanroeper hem
+    #: meegeeft; `clustered_mean` is geen Sharpe en draagt daarom geen
+    #: ongevraagde annualisatie.
+    bars_per_year: float | None = None
+    #: `n_obs / bars_per_year`, alleen gezet wanneer `bars_per_year` is gegeven.
+    t_years: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        record: dict[str, Any] = {
             "mean": self.mean,
             "se": self.se,
             "t_stat": self.t_stat,
@@ -940,10 +983,17 @@ class ClusteredMean:
             "neff_factor": self.neff_factor,
             "t_stat_neff_deflated": self.t_stat_neff_deflated,
         }
+        if self.bars_per_year is not None:
+            record["bars_per_year"] = self.bars_per_year
+            record["t_years"] = self.t_years
+        return record
 
 
 def clustered_mean(
-    frame: pd.DataFrame, *, cluster_axis: str = "index"
+    frame: pd.DataFrame,
+    *,
+    cluster_axis: str = "index",
+    bars_per_year: float | None = None,
 ) -> ClusteredMean:
     """Het gepoolde gemiddelde met een op datum GECLUSTERDE standaardfout (§5).
 
@@ -956,6 +1006,17 @@ def clustered_mean(
     Er komen drie lezingen uit, en §5 eist ze alle drie naast elkaar: de
     gepoolde (naïef), de geclusterde (de toets) en de N_eff-gedefleerde. Een
     gepoolde t zonder zijn gedefleerde tegenhanger is geen bevinding (R-8).
+
+    Parameters
+    ----------
+    bars_per_year
+        OPTIONEEL (RULING T4A-B). `clustered_mean` is geen Sharpe, dus §9 scoopt
+        het §10-drietal er niet op af en deze kwarg heeft geen default die iets
+        afdwingt. Meegegeven, dan draagt `to_dict()` `bars_per_year` en
+        `t_years = n_obs / bars_per_year`. Weggelaten (het gedrag van vóór deze
+        reparatie, en van `clustered_mean(panel)` in
+        `tests/unit/test_inference.py:108`), dan draagt `to_dict()` precies wat
+        hij altijd al droeg.
     """
     require(
         cluster_axis in ("index", "columns"),
@@ -967,6 +1028,12 @@ def clustered_mean(
     require(
         isinstance(frame, pd.DataFrame) and frame.shape[0] > 0 and frame.shape[1] > 0,
         "clustered_mean verwacht een niet-leeg paneel (rijen = data, kolommen = namen).",
+        DataContractError,
+    )
+    require(
+        bars_per_year is None or float(bars_per_year) > 0.0,
+        "bars_per_year moet positief zijn wanneer hij is gegeven; annualiseren "
+        "met nul bestaat niet.",
         DataContractError,
     )
     values = frame.to_numpy(dtype=np.float64)
@@ -1041,4 +1108,6 @@ def clustered_mean(
         n_effective=n_eff,
         neff_factor=factor,
         t_stat_neff_deflated=t_pooled * factor,
+        bars_per_year=float(bars_per_year) if bars_per_year is not None else None,
+        t_years=(n_obs / float(bars_per_year)) if bars_per_year is not None else None,
     )
