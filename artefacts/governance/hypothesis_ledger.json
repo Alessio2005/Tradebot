@@ -289,6 +289,21 @@
       },
       "notes": "H3-oordeel: ARCHIVED. Alle zes gepre-registreerde specs zijn gemeten en geen enkele haalt de drempel. De negatieve controle is SCHOON (0.5100 tegen een grens van 0.55), dus de run is geldig; de adequaatheidspoort bindt NIET (442.7 effectieve gepurgede trainevents per fold tegen een eis van 100), dus dit is geen `UNPROVEN - insufficient data` zoals H1 en H2. Er is genoeg data, er is gefit, en er is gemeten. De OOS-AUC's lopen van 0.4768 tot 0.4842 - alle zes ONDER 0,50 - en de hoogste conservatieve ondergrens is 0.4113, ver onder 0.58. Stop-criterium 3 bindt op alle zes en zijn gepre-registreerde actie is `archive`, niet `falsify`: het overschot dat de drempel vraagt (0.08) is KLEINER dan de MDE op de conservatieve steekproefgrootte (0.1029 op 241.6 effectieve waarnemingen), en een toets die haar effect niet kan detecteren, kan het ook niet verwerpen. Economisch: 5 van de 6 verslechteren de netto Sharpe (min -0.5328); catboost-d6-lr0.03 verbetert hem met +0.0449 op een AUC van 0.4795 en wordt dus op de AUC gearchiveerd en niet op de engine. De precision op het werkpunt (max 0.4847) ligt bij alle zes onder de basisrate 0.4961. CatBoost blijft ARCHIVED (audit §24); directionele CatBoost blijft technisch geblokkeerd. GEEN nieuwe trials: M blijft 2776. preregistration_id=56395fa2013768014c0c915edf346770",
       "amends": "56395fa201376801"
+    },
+    {
+      "wave": 31,
+      "unit": "ad24_ledger_reset",
+      "market": "book",
+      "config_hash": "b50313b8a9f10ae1",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "4a64731",
+      "data_hash": "921ad63921a53a3e33eff343ca489072",
+      "preregistration_id": "artefacts/governance/ledger_reset.json",
+      "ts_utc": "2026-09-08T15:13:59.064308+00:00",
+      "metrics": {},
+      "notes": "AD-24-amendement: de hypothese-ledger wordt eenmalig gereset (mandaatbesluit B-3). M=2776 blijft ARCHIVED (R3) -- gearchiveerd, niet gewist -- en is bevroren vastgelegd in artefacts/governance/ledger_reset.json (git_sha=4a64731, frozen_utc=2026-09-08T15:10:40.357902+00:00). Vanaf nu wordt gemeten met M_new=25 via registry.ledger_reset.active_trial_count(); 25 is het vooraf geregistreerde, bevroren aantal geplande trials voor het programma op dagbars (AD-22/AD-23), disjunct van de ruimte waarin de 2776 zijn uitgevoerd -- niet nul (R1). FALSIFICATION_REGISTER.md F1-F20 blijft onverkort bindend (R2); het bevroren poortsample uit stap 4B is de enige externe verificatie (R8). GEEN nieuwe trials: dit amendement draagt n_trials=0 en revideert geen oordeel over reeds geboekte trials. amends wijst naar b08585c4394488eb (phase6_h3_meta_labeling-amendement, de laatste entry vóór deze reset) uitsluitend als append-only ankerpunt in de ketting van de ledger -- het H3-oordeel zelf wordt hierdoor NIET herzien. Het substantiele record van de reset is ledger_reset.json, niet deze entry.",
+      "amends": "b08585c4394488eb"
     }
   ]
 }
