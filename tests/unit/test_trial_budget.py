@@ -42,7 +42,15 @@ def test_a_conditional_branch_counts_as_a_trial(tmp_path: Path) -> None:
     voelt het als hetzelfde experiment.
 
     Een beslisboom met B takken die op de data wordt doorlopen, kost B trials
-    en niet 1. Dit is de rekenregel die revisie 1 ontbrak."""
+    en niet 1. Dit is de rekenregel die revisie 1 ontbrak.
+
+    Deze rekenregel is een instructie aan de AANROEPER, niet een mechanisme in
+    de module: `assert_within_budget` ziet uitsluitend een kaal geheel getal
+    en doet een `require(planned <= budget)`. Zij kan "2 losse trials" niet
+    onderscheiden van "1 beslissing met 2 takken" -- dat onderscheid bestaat
+    alleen in hoe de aanroeper `planned` optelt. Wat deze test verifieert is
+    dus de resulterende integer-vergelijking (2 past bij budget=2, 3 niet),
+    niet een detectie van vertakking die de module bewust niet bouwt."""
     path = _reset(tmp_path, m_new=2)
     assert_within_budget(2, reset_path=path)          # k=3 en k=2, beide geboekt
     with pytest.raises(DataContractError):
