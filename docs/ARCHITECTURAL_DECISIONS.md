@@ -1044,9 +1044,14 @@ tot een niet-bestaande vraag.
 
 **Fase:** 10 (mandaatbesluit B-3, stap 1.4)
 **Status:** actief
-**Bewaakt door:** het resetartefact `ledger_reset.json`, dat stap 3 onder
-`artefacts/governance/` schrijft en dat op dit moment nog niet bestaat, en de
-tests van stap 3 op `registry/trial_counter.py`
+**Bewaakt door:** het bevroren resetartefact
+`artefacts/governance/ledger_reset.json` (`m_new = 25`, geschreven door stap 3)
+en `tests/unit/test_ledger_reset.py` — met name
+`test_the_frozen_reset_artefact_is_pinned_and_linked_to_the_ledger` (pint dat
+het bestand bestaat, `m_new == 25` draagt, en dat zijn hash gelijk is aan de
+`data_hash` op het AD-24-amendement in de ledger) en
+`test_the_reset_does_not_make_the_gate_permissive` (de M-gevoeligheidstoets die
+rood wordt zodra `m_new` wordt verlaagd)
 
 ### Besluit
 

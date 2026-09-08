@@ -157,7 +157,7 @@ bestaat.
 > van M" is berekend op **N = 1615** — verifieerbaar aan haar M = 2776-cel, die
 > 2,47 luidt en daarmee exact de 1615-waarde is. Die tabel moet **op `W_FULL`
 > worden herberekend voordat een latere stap haar gebruikt**: op 1743 bars ligt
-> de M = 2776-drempel op **2,380**, niet op 2,474, en elke andere cel schuift
+> de M = 2776-drempel op **2,3735**, niet op 2,474, en elke andere cel schuift
 > mee. Stap 4A voert die herberekening uit, met de handtekening uit §6.
 
 De DSR-drempel volgt dezelfde regel. Ter referentie, met normale momenten en de
@@ -165,8 +165,14 @@ implementatie van `backtest/metrics.py` zoals zij vóór stap 4A is:
 
 | steekproef | n_obs | vereiste ann. Sharpe voor DSR ≥ 0,95 bij M = 2776 |
 |---|---:|---:|
-| `W_FULL` | 1743 | **2,380** |
+| `W_FULL` | 1743 | **2,3735** |
 | phase3/phase4 OOS-steekproef | 1615 | **2,474** |
+
+Gemeten (ruling T3-H, twee onafhankelijke metingen) met dit fase's eigen
+`backtest.metrics.deflated_sharpe` onder `sr_variance = 1/n_obs` en
+Gaussische momenten (`skew = 0`, `kurtosis = 3`) — die conventie, niet het
+getal zelf, is wat een volgende lezer hoort te controleren. Het oorspronkelijk
+genoteerde **2,380** was fout; R-10 geldt: de meting is het antwoord.
 
 Stap 4A herberekent deze kolom met de expliciete handtekening uit §6 hieronder;
 tot dan zijn dit referentiewaarden onder de normale benadering, en dat feit
