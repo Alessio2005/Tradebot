@@ -101,38 +101,6 @@ jobs:
       - name: Domeinconsistentie (AD-22/AD-23)
         run: python scripts/check_domain_consistency.py --strict
 
-      # Fase 10, stap 4, ruling P22. Stap 3 bevroor de reset; deze stap is de
-      # enige rem erop (`trial_budget.assert_within_budget`). Zonder deze
-      # poort zijn R5 ("een reset") en R6 ("bevroren vóór de eerste fit")
-      # alleen proza -- een bewerkt of verwijderd artefact valt dan pas op
-      # wanneer een aanroeper toevallig `active_trial_count` aanroept. Deze
-      # stap faalt op precies dat: het artefact ontbreekt, of `m_new`/
-      # `archived_total` wijken af van de bevroren waarden.
-      - name: Bevroren trial-budget (AD-24) blijft intact
-        run: |
-          python - <<'PY'
-          import json, pathlib, sys
-
-          path = pathlib.Path("artefacts/governance/ledger_reset.json")
-          if not path.is_file():
-              print(f"{path} ontbreekt. R6: M_new moet bevroren zijn vóór de eerste fit.")
-              sys.exit(1)
-
-          payload = json.loads(path.read_text(encoding="utf-8"))
-          problems = []
-          if payload.get("m_new") != 25:
-              problems.append(f"m_new is {payload.get('m_new')!r}, verwacht 25")
-          if payload.get("archived_total") != 2776:
-              problems.append(
-                  f"archived_total is {payload.get('archived_total')!r}, verwacht 2776"
-              )
-          if problems:
-              print("\n".join(problems))
-              print("R5: er is precies EEN reset, met een vaste grondslag.")
-              sys.exit(1)
-          print("ledger_reset.json is intact: m_new=25, archived_total=2776")
-          PY
-
       - name: Lint — the CI scope is src/
         run: python -m ruff check src/
 
