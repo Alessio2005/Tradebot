@@ -253,6 +253,15 @@ Twee verplichtingen, beide bij **elke** gepoolde grootheid:
 
 Een gepoolde t zonder zijn gedefleerde tegenhanger is geen bevinding (R-8).
 
+**Implementatiedetail (fase 10, stap 4A, fixronde 1 — item 8).**
+`validation/inference.py::neff_deflation` kapt `sqrt(N_eff / N)` af op 1,0. Bij
+een NEGATIEVE gemiddelde correlatie geldt `N_eff > N`, en zonder afkapping zou
+de "deflatie" een t VERGROTEN in plaats van verkleinen. De deflatie corrigeert
+voor te WEINIG onafhankelijke informatie in een paneel; zij is geen mechanisme
+om er meer van te claimen wanneer namen toevallig negatief gecorreleerd zijn.
+Deze afkapping staat niet in de formule hierboven en is een bewuste,
+gedocumenteerde afwijking van de kale wiskunde, niet een stille versoepeling.
+
 ---
 
 ## 6. De DSR-handtekening

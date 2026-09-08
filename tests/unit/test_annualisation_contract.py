@@ -23,6 +23,7 @@ import inspect
 import math
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from tradebot.backtest import metrics, pbo
@@ -123,6 +124,18 @@ def test_vol_metrics_imports_the_bandwidth_instead_of_redefining_it() -> None:
     assert inference.newey_west_lags(1615) == 7
 
 
+def test_champion_challenger_imports_the_same_bandwidth() -> None:
+    """Fixronde 1, ruling T4A-D: `champion_challenger._dm_test` had een tweede,
+    byte-voor-byte identieke `4 (T/100)^(2/9)`-uitdrukking naast (1). Zij is nu
+    geïmporteerd in plaats van herhaald -- dezelfde eigenschap als hierboven,
+    gepind op het TWEEDE aanroeppunt zodat de regel niet stilletjes weer een
+    eigen kopie kan krijgen."""
+    from tradebot.compliance import champion_challenger
+
+    assert champion_challenger.newey_west_lags is inference.newey_west_lags
+    assert not hasattr(champion_challenger, "_newey_west_lags")
+
+
 # =========================================================================== #
 # 4. Eén Sharpe-verschiltoets, en één bevroren voorganger
 # =========================================================================== #
@@ -179,3 +192,35 @@ def test_a_serialised_dsr_carries_the_triple_that_section_10_demands() -> None:
     inference.require_sharpe_triple(record, where="test")
     assert record["t_years"] == pytest.approx(1815 / 365.0)
     assert record["approximation"] == "normal"
+
+
+# =========================================================================== #
+# 6. `clustered_mean`'s optionele drietal (fixronde 1, item 1, ruling T4A-B)
+# =========================================================================== #
+def test_clustered_mean_carries_no_triple_when_bars_per_year_is_omitted() -> None:
+    """De brief mandateert zelf `clustered_mean(panel)` zonder annualisatie
+    (`tests/unit/test_inference.py:108`); dat gedrag moet exact blijven staan."""
+    rng = np.random.default_rng(42)
+    idx = pd.date_range("2024-01-01", periods=40, freq="D", tz="UTC")
+    panel = pd.DataFrame(
+        {f"S{i}": rng.normal(0.001, 0.01, 40) for i in range(4)}, index=idx
+    )
+    record = inference.clustered_mean(panel).to_dict()
+    assert "bars_per_year" not in record
+    assert "t_years" not in record
+
+
+def test_clustered_mean_carries_the_triple_when_bars_per_year_is_given() -> None:
+    """Plan §9 scoopt het verplichte drietal tot Sharpes; `clustered_mean` is
+    er geen, dus het drietal is hier OPTIONEEL. Meegegeven, dan draagt
+    `to_dict()` het volledig, inclusief het afgeleide `t_years`."""
+    rng = np.random.default_rng(43)
+    idx = pd.date_range("2024-01-01", periods=40, freq="D", tz="UTC")
+    panel = pd.DataFrame(
+        {f"S{i}": rng.normal(0.001, 0.01, 40) for i in range(4)}, index=idx
+    )
+    result = inference.clustered_mean(panel, bars_per_year=365.0)
+    record = result.to_dict()
+    assert record["bars_per_year"] == 365.0
+    assert record["n_obs"] == result.n_obs
+    assert record["t_years"] == pytest.approx(result.n_obs / 365.0)

@@ -29,6 +29,7 @@ import math
 import pytest
 
 from tradebot.backtest.metrics import deflated_sharpe
+from tradebot.utils.failfast import DataContractError
 
 # 3-sleeve neutral book baseline: per-day SR=0.0658, 1815 daily obs, 12 trials.
 _SR_DAY = 0.0658
@@ -133,3 +134,33 @@ def test_the_variance_of_the_trial_sharpes_is_recorded_as_measured_or_assumed() 
     # Wider dispersion of the trial Sharpes ⇒ a higher bar (§6, and the whole
     # point of the DSR).
     assert measured.dsr < assumed.dsr
+
+
+def test_an_explicit_mislabel_raises() -> None:
+    """Fixronde 1, item 7 (ruling T4A-G): the explicit path must run the same
+    contradiction check as the inferred one.  ``sr_variance=4/n_obs`` is an
+    empirical variance; labelling it ``"normal"`` would write a wrong label
+    into the measurement artefact -- exactly what §6 exists to prevent."""
+    with pytest.raises(DataContractError):
+        deflated_sharpe(
+            _SR_DAY,
+            n_obs=_N_OBS,
+            n_trials=12,
+            sr_variance=4.0 / _N_OBS,
+            skew=0.0,
+            kurtosis=3.0,
+            bars_per_year=_BARS_PER_YEAR,
+            approximation="normal",
+        )
+    # And the symmetric case: the documented approximation labelled "empirical".
+    with pytest.raises(DataContractError):
+        deflated_sharpe(
+            _SR_DAY,
+            n_obs=_N_OBS,
+            n_trials=12,
+            sr_variance=1.0 / _N_OBS,
+            skew=0.0,
+            kurtosis=3.0,
+            bars_per_year=_BARS_PER_YEAR,
+            approximation="empirical",
+        )

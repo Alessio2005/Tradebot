@@ -51,7 +51,21 @@ CAPS: dict[str, int] = {
     # Fase 10, stap 4A: nieuw. De ene implementatie van de Sharpe-SE, de
     # Sharpe-verschiltoets en de circulaire blokbootstrap (R-3). De reden dat
     # hij niet gesplitst is, staat in zijn eigen `# LOC-EXCEPTION:`-regel.
-    "src/tradebot/validation/inference.py": 1044,
+    #
+    # RULING T4A-F (fixronde 1): plan §9 zegt zelf dat R-4 hier "afgedwongen
+    # [wordt] door scripts/check_file_size.py MET EEN CAP PER BESTAND" — een
+    # per-bestand cap is dus het voorziene mechanisme, geen omzeiling ervan.
+    # De brief eist letterlijk "één module waarin elke standaardfout, elke
+    # toets en elke bootstrap van deze fase woont" (stap-4A-brief.md, regel 3);
+    # splitsen zou die ene-implementatie-eis (R-3) schenden om aan R-4's 800
+    # regels te voldoen. Gemeten UITVOERBARE omvang na fixronde 1 (1113 totaal
+    # − 118 blank − 81 comment − ~286 docstring): ~628 LOC — ruim onder 800.
+    # De overige regels zijn afleiding en valkuildocumentatie per formule, niet
+    # uitvoerbare logica. Cap staat gelijk aan de gemeten omvang (items 1, 2 en
+    # 9 van fixronde 1 voegden regels toe aan `clustered_mean`, `ClusteredMean`,
+    # `sharpe_difference_test` en `SharpeDifference`); dit bestand mag niet
+    # verder groeien zonder dat de cap hier expliciet mee omhoog gaat.
+    "src/tradebot/validation/inference.py": 1113,
     "src/tradebot/features/regime.py": 1060,
     "src/tradebot/backtest/evaluation.py": 1057,
     "src/tradebot/tune/objective.py": 958,
