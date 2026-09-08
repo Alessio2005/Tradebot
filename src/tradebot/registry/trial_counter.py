@@ -78,10 +78,11 @@ M_UNCERTAINTY_NOTE = (
     "Elke DSR in dit platform is daarom een bovengrens op de werkelijke "
     "significantie, en een randgeval (p net onder 0,05) moet als NIET "
     "significant worden gelezen. Sinds AD-24 bestaat er een bevroren "
-    "ledger-reset: de telling die deze module en `live_trial_count()` "
-    "teruggeven is de GEARCHIVEERDE `M` (2.776, R3 -- gearchiveerd, niet "
-    "gewist), niet de `M` waarmee na de reset wordt gemeten. Die post-reset "
-    "`M` komt uitsluitend uit `registry.ledger_reset.active_trial_count()`."
+    "ledger-reset (R3: gearchiveerd, niet gewist). Een `M` kan daardoor de "
+    "gearchiveerde telling van vóór de reset dragen OF de bevroren `M_new` "
+    "van erna -- welke van de twee, staat in `source` en `M_origin` op dit "
+    "`TrialCount`, niet in deze tekst. De post-reset `M` komt uitsluitend uit "
+    "`registry.ledger_reset.active_trial_count()`."
 )
 
 
