@@ -63,17 +63,61 @@ De constructie, gemeten en niet aangenomen:
 | + EWMA-σ̂ gedefinieerd (`burn_in_bars: 60`) | 1773 | 0 | burn-in valt binnen de ragged aanloop |
 | + causale ADV (`rolling(30).shift(1)`) | **1743** | 30 | 30 bars ADV-venster vanaf 2021-10-16 → 2021-11-15 |
 
-### 2.2 Ruimte voor een tweede venster
+### 2.2 De split: ontwikkeling en poort
 
-Stap 4B splitst `W_FULL` in een ontwikkelvenster en een bevroren poortvenster.
-Die splitsing wordt hier toegevoegd als extra rijen; `W_FULL` zelf verandert
-daarbij **niet**, want zij is de unie van de twee.
+Stap 4B splitst `W_FULL` in een ontwikkelvenster en een bevroren poortvenster,
+op de pre-geregistreerde grens `split_utc = 2025-09-05T00:00:00+00:00`
+(`artefacts/governance/holdout_lock.json`). `W_FULL` zelf verandert daarbij
+**niet**, want zij is de unie van de twee: 1390 + 353 = 1743.
 
 | venster-id | period_start | period_end | n_obs | t_years | status |
 |---|---|---|---:|---:|---|
 | `W_FULL` | 2021-11-15 | 2026-08-23 | 1743 | 4,7753 | vastgelegd (dit document) |
-| `W_DEV` | — | — | — | — | **te vullen in stap 4B** |
-| `W_GATE` | — | — | — | — | **te vullen in stap 4B**, bevroren in `holdout_lock.json` |
+| `W_DEV` | 2021-11-15 | 2025-09-04 | 1390 | 3,8082 | vastgelegd, stap 4B |
+| `W_GATE` | 2025-09-05 | 2026-08-23 | 353 | 0,9671 | bevroren in `holdout_lock.json`, stap 4B |
+
+`W_GATE` is **353 dagbars — de laatste ~12 maanden**, niet 1,00 jaar: 353/365
+= 0,9671, en dit contract rondt dat niet af. Elke latere verwijzing naar het
+poortvenster gebruikt "de laatste ~12 maanden (353 dagbars)", nooit "1 jaar".
+
+**Wat de split kost, eerlijk becijferd (ruling P23).** Een eerdere lezing van
+deze stap rekende op `n_obs = 1615` (de legacy purged-WF OOS-steekproef, zie
+§2.4) en kwam op 3,42 ontwikkeljaren, een t=2-drempel van 0,951 → 1,081 en
+"14% zwaardere bewijslast". Die cijfers zijn ingetrokken: `W_DEV` is geen
+1615-steekproef maar een venster van `W_FULL`, en de meting op `W_FULL` geeft
+een ander getal. Gemeten met de conventie van §2.5 hieronder:
+
+| steekproef | n_obs | t_years | t=2-drempel |
+|---|---:|---:|---:|
+| `W_FULL` (ongesplitst) | 1743 | 4,7753 | 0,9152 |
+| `W_DEV` (na de split) | 1390 | 3,8082 | **1,0249** |
+
+0,9152 → 1,0249 is een factor 1,1198 — **12,0% zwaardere bewijslast**, niet
+14%. Dat is de prijs van het poortsample, en de reden dat hij het waard is
+staat in stap 4B: zonder een afgesloten sample is de enige beveiliging op
+`M_new = 25` het woord van de uitvoerder. `W_GATE` draagt geen eigen
+t=2-drempel in dit contract: hij is uitsluitend bedoeld voor de ene,
+geregistreerde meting per hypothese (R7), niet voor een doorlopende toets.
+
+**`holdout_lock.json` is geen bevroren bestand op de manier van
+`ledger_reset.json` (ruling P24).** `ledger_reset.json` verandert nooit meer
+na het schrijven, en zijn hele-bestand-hash is daarom een geldig hek
+(`tests/unit/test_ledger_reset.py`). `holdout_lock.json` MUTEERT met opzet:
+het veld `reads` groeit bij elke `gate_slice`-aanroep, één entry per
+hypothese die het poortsample heeft gelezen. Wat wél vastligt zijn de drie
+velden die `freeze_holdout()` bij het bevriezen schrijft — `split_utc`,
+`git_sha`, `frozen_utc` — en die pint `tests/unit/test_holdout.py` op het
+gecommitte artefact. De `reads`-log zelf is append-only **bij conventie**,
+niet bij constructie: er zit geen handtekening of hash-keten onder, dus wie
+een entry uit `reads` verwijdert, herstelt daarmee een verbruikte lezing, en
+geen enkele test in deze fase merkt dat automatisch op. De bescherming is dat
+zo'n verwijdering een zichtbare regel wordt in een gecommitte diff, niet
+cryptografie — dit programma voegt geen machinerie toe die niemand heeft
+gevraagd (YAGNI).
+
+Elke Sharpe in elk rapport noemt vanaf stap 4B welk van de twee vensters
+eronder ligt: `W_DEV` voor iteratief onderzoek, `W_GATE` voor de ene
+bevroren meting per hypothese.
 
 ### 2.3 Symbolen met kortere historie
 
