@@ -8,7 +8,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from tradebot.utils.failfast import DataContractError
 from tradebot.validation.holdout import (
+    HoldoutAlreadyFrozen,
     HoldoutAlreadyUsed,
     development_slice,
     freeze_holdout,
@@ -64,6 +66,49 @@ def test_every_read_is_logged_with_a_timestamp(tmp_path: Path) -> None:
     payload = json.loads(lock.read_text(encoding="utf-8"))
     assert payload["reads"][0]["hypothesis_id"] == "H-10.1"
     assert payload["reads"][0]["read_utc"]
+
+
+# --- Fix ronde 1, bevinding 1: de vier require()-guards in freeze_holdout -
+#
+# Elk pint zowel het geraiste type ALS dat de boodschap de geschonden
+# aanname noemt (R-5) -- niet alleen dat er uberhaupt iets is geraist.
+def test_freeze_holdout_refuses_an_empty_split_utc(tmp_path: Path) -> None:
+    with pytest.raises(DataContractError) as exc:
+        freeze_holdout(split_utc="   ", out=tmp_path / "holdout_lock.json",
+                       git_sha="deadbee")
+    assert "split_utc" in str(exc.value)
+
+
+def test_freeze_holdout_refuses_a_naive_timestamp(tmp_path: Path) -> None:
+    """Zonder tijdzone is een timestamp niet ondubbelzinnig te vergelijken
+    met een UTC-geindexeerd paneel."""
+    with pytest.raises(DataContractError) as exc:
+        freeze_holdout(split_utc="2025-09-05T00:00:00",
+                       out=tmp_path / "holdout_lock.json", git_sha="deadbee")
+    assert "tijdzone" in str(exc.value)
+
+
+def test_freeze_holdout_refuses_an_empty_git_sha(tmp_path: Path) -> None:
+    with pytest.raises(DataContractError) as exc:
+        freeze_holdout(split_utc="2025-09-05T00:00:00+00:00",
+                       out=tmp_path / "holdout_lock.json", git_sha="  ")
+    assert "git_sha" in str(exc.value)
+
+
+def test_freeze_holdout_refuses_a_second_freeze_of_the_same_path(
+    tmp_path: Path,
+) -> None:
+    """Ruling P29. Dit is een geweigerde HERHAALDE actie op een bestaande
+    STAAT, geen geschonden datacontract -- vandaar een NAMED exceptie,
+    `HoldoutAlreadyFrozen`, net als `registry.ledger_reset.ResetAlreadyExists`
+    voor de ledger-reset, en niet `DataContractError`."""
+    out = tmp_path / "holdout_lock.json"
+    freeze_holdout(split_utc="2025-09-05T00:00:00+00:00", out=out,
+                   git_sha="deadbee")
+    with pytest.raises(HoldoutAlreadyFrozen) as exc:
+        freeze_holdout(split_utc="2025-09-06T00:00:00+00:00", out=out,
+                       git_sha="deadbee")
+    assert str(out) in str(exc.value)
 
 
 # --- Ruling P24: de header is bevroren, het bestand is dat niet -----------
