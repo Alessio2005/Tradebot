@@ -1119,3 +1119,84 @@ antwoord tegenvalt. Het verschil is precies het verschil tussen een reset met
 een grond (R1-R8, met R8 als externe verificatie) en het uithollen van de enige
 poort die dit programma tegen zichzelf beschermt — wat de fences van §7
 uitdrukkelijk verbieden.
+
+---
+
+## AD-25 — Een toestand conditioneert de samenstelling, nooit de schaal
+
+**Fase:** 10 (stap 7)
+**Status:** actief
+**Bewaakt door:** `tests/unit/test_state_mapping.py::test_the_mapping_survives_vol_targeting`
+en `tests/unit/test_state_mapping.py::test_a_uniform_multiplier_would_fail_that_same_test`
+
+### Besluit
+
+REGEL V, in de gepreciseerde vorm van `Prompts-fases/fase_10_herstart_dagbars.md`
+§4.3. Laat `a_t` de exposurevector zijn en `c_t(i)` een toestandsafhankelijke
+factor.
+
+* Is `c_t(i) = c_t` voor alle `i` — cross-sectioneel uniform — dan is de
+  afbeelding **per constructie een lege operatie**: L7 herschaalt naar
+  σ-target en deelt `c_t` er weer uit. Dit is het geval van AD-15 en het is
+  gemeten in AD-16.
+* Varieert `c_t(i)` over `i`, dan raakt de afbeelding de **samenstelling** en
+  is zij niet leeg. Zij kost dan `k − 1` vrije parameters per toestand, en
+  elke daarvan is een trial (R-2).
+* De enige cross-sectioneel gedifferentieerde afbeelding **zonder** vrije
+  parameter is de **poort**: `c_t(i) ∈ {0, 1}`, met de toestandsverzameling
+  die op nul gaat vooraf geregistreerd.
+
+**Bindend gevolg:** een toestand mag uitsluitend via een poort op de exposure
+worden afgebeeld (`regime/state_mapping.py::gate_by_state`), en de poort moet
+aantoonbaar vol-targeting overleven.
+
+### Waarom
+
+De ruwe vorm van REGEL V uit revisie 1 — "elke vermenigvuldiging is redundant"
+— is niet waar, en een AD hoort geen onware bewering te bevatten. AD-16 meet
+specifiek een cross-sectioneel UNIFORME factor: elke exposure met dezelfde
+constante `c` vermenigvuldigen verplaatste, op synthetische data, de
+gemiddelde bruto notional van 8.300 naar 8.283 en de turnover met 0,06 %. Op
+de echte H2-run droeg de M0-arm 0,976× de bruto notional van de
+ongeconditioneerde arm en 1,140× de turnover. Dat is een meting over een
+UNIFORME factor, en zij zegt niets over een GEDIFFERENTIEERDE factor — die
+raakt wél de samenstelling en overleeft de herschaling wél.
+
+Uit dat onderscheid volgt de vorm van de poort. Een multiplier per toestand
+(`c_t(i) = m_{s_t(i)}`) is een gedifferentieerde afbeelding en dus niet leeg —
+maar zij voegt `k − 1` vrije parameters toe (bij drie toestanden: twee), en
+elke daarvan is een trial onder R-2. Zonder vooraf geregistreerde
+trial-kosten zou dit bestand een sizing-experiment worden — precies het
+alternatief dat AD-15 al afwees. De poort is de enige vorm die de
+samenstelling raakt zonder die rekening: `c_t(i) ∈ {0, 1}` heeft geen vrije
+parameter zodra `flat_states` is geregistreerd.
+
+### Het afgewezen alternatief
+
+`a_t(i) × (1 − p_hoog(i))`, de afbeelding die H2 (AD-16) al gebruikte: een
+continue demping op de kans dat symbool `i` in het onrustigste regime zit.
+Deze afbeelding is inderdaad cross-sectioneel gedifferentieerd — `p_hoog`
+verschilt per symbool — en zij is dus geen lege operatie in de zin van AD-16.
+
+Zij is afgewezen omdat zij, ondanks dat, een vrije-parameterkeuze verbergt: de
+vorm van de demping (lineair in `p_hoog`, geen vloer, geen niet-lineariteit)
+is zelf een keuze die net zo goed anders had kunnen zijn, en elke variant
+daarvan is een trial die niet vooraf is geregistreerd voor DEZE fase. Stap 7
+conditioneert op een DISCRETE toestand (`VolState`, drie niveaus) en niet op
+een continue kans — dat is precies waarom de poort met exact nul vrije
+parameters kan: er is geen kansmodel om te dempen, alleen een lidmaatschapstest
+`s_t ∈ flat_states`. Een multiplier per toestand blijft daarmee toegestaan
+noch verboden voor een latere fase die hem vooraf registreert en betaalt
+(§4.3); hij is hier alleen te duur.
+
+### Bewaakt door twee tests, en de tweede is geen bijzaak
+
+`test_the_mapping_survives_vol_targeting` normaliseert het basisboek en het
+gepoorte boek elk op hun eigen bruto exposure — de operatie die L7 uitvoert —
+en eist dat zij dan nog verschillen. `test_a_uniform_multiplier_would_fail_
+that_same_test` is de negatieve controle: hij past dezelfde normalisatie toe
+op een boek dat met een UNIFORME 0,5 is vermenigvuldigd, en eist dat dat boek
+ná normalisatie identiek is aan het origineel. Zonder die tweede test bewijst
+de eerste niets over de POORT specifiek — alleen dat er iets aan het boek is
+veranderd, en een schaalafbeelding verandert ook iets aan het boek totdat L7
+het er weer uitdeelt.
