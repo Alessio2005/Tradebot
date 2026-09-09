@@ -70,6 +70,7 @@ import pandas as pd
 from ..utils.failfast import DataContractError, require
 
 __all__ = [
+    "HoldoutAlreadyFrozen",
     "HoldoutAlreadyUsed",
     "HoldoutLock",
     "development_slice",
@@ -84,6 +85,17 @@ class HoldoutAlreadyUsed(RuntimeError):
     Geen `TradebotContractError`-subklasse: dit is geen geschonden
     datacontract maar een geweigerde HERHAALDE actie, hetzelfde onderscheid
     dat `registry.ledger_reset.ResetAlreadyExists` al maakt voor de reset."""
+
+
+class HoldoutAlreadyFrozen(RuntimeError):
+    """R5 -- er is precies EEN bevroren split (ruling P29).
+
+    Zelfde onderscheid als hierboven bij `HoldoutAlreadyUsed`, en exact het
+    patroon van `registry.ledger_reset.ResetAlreadyExists`: "het pad bestaat
+    al" is een geweigerde HERHAALDE actie op een bestaande STAAT, geen
+    geschonden datacontract op de aangeleverde argumenten. Een aanroeper die
+    `DataContractError` vangt om malvormde invoer af te handelen, mag "de
+    split is al bevroren" daarom niet stilzwijgend meeslikken."""
 
 
 @dataclass(frozen=True)
@@ -139,14 +151,15 @@ def freeze_holdout(*, split_utc: str, out: Path, git_sha: str) -> HoldoutLock:
         f"vergeleken (R5) -- geef expliciet een offset, zoals +00:00.",
         DataContractError,
     )
-    require(
-        not out.exists(),
-        f"{out} bestaat al. Er is precies EEN bevroren split (dezelfde R5 "
-        f"als `registry.ledger_reset.freeze_reset`): een tweede keer "
-        f"bevriezen zou de header kunnen verschuiven nadat er al lezingen "
-        f"tegen de oude grens zijn geregistreerd.",
-        DataContractError, path=str(out),
-    )
+    if out.exists():
+        raise HoldoutAlreadyFrozen(
+            f"{out} bestaat al. Er is precies EEN bevroren split (dezelfde "
+            f"R5 als `registry.ledger_reset.freeze_reset`, die deze exacte "
+            f"'bestaat al'-staat ook als een NAMED `ResetAlreadyExists` "
+            f"raist en niet via een generieke contractfout): een tweede "
+            f"keer bevriezen zou de header kunnen verschuiven nadat er al "
+            f"lezingen tegen de oude grens zijn geregistreerd."
+        )
     require(
         bool(git_sha.strip()),
         "Een split zonder git_sha is niet naar de commit te herleiden die "
@@ -191,7 +204,20 @@ def gate_slice(
     Schrijft de lees-entry naar `lock_path` VOORDAT hij de data teruggeeft
     (zie de moduledocstring, "R7, LETTERLIJK"): de goede kant van deze race
     is een geregistreerde lezing waarvan de uitvoerder de uitkomst nooit
-    heeft gezien, niet een gebruikte uitkomst die nergens staat."""
+    heeft gezien, niet een gebruikte uitkomst die nergens staat.
+
+    De eerlijke grens van deze garantie (twin van ruling P24's append-only
+    caveat): de weigering sleutelt op een DOOR DE AANROEPER OPGEGEVEN
+    `hypothesis_id`, niet op enige onafhankelijk geverifieerde identiteit.
+    "Ten hoogste een lezing" betekent dus precies: ten hoogste een lezing per
+    GEDECLAREERDE `hypothesis_id`. Een aanroeper die `"H-10.1"` herdoopt naar
+    `"H-10.1b"` koopt daarmee een tweede lezing, en deze functie bouwt daar
+    geen machinerie tegen -- geen register van toegestane ids, geen
+    ondertekening (YAGNI, zoals P24 al koos voor de `reads`-log zelf). De
+    mitigatie is zichtbaarheid, niet voorkoming: elke lezing staat met haar
+    eigen `hypothesis_id` in het gecommitte `holdout_lock.json`, dus een
+    hernoeming is zichtbaar in die diff, net zoals een verwijderde entry dat
+    al was onder P24."""
     require(
         bool(hypothesis_id.strip()),
         "Een lezing zonder hypothesis_id is niet aan R7 te toetsen: zonder "

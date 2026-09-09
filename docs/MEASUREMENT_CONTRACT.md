@@ -115,6 +115,14 @@ zo'n verwijdering een zichtbare regel wordt in een gecommitte diff, niet
 cryptografie — dit programma voegt geen machinerie toe die niemand heeft
 gevraagd (YAGNI).
 
+**De twin van die grens (ruling P29, fix ronde 1).** `gate_slice`'s weigering
+sleutelt op een door de aanroeper gedeclareerde `hypothesis_id`: de garantie
+is "ten hoogste één lezing per gedeclareerde `hypothesis_id`", niet per
+onafhankelijk geverifieerde hypothese, dus een hernoeming (`"H-10.1"` →
+`"H-10.1b"`) koopt een nieuwe lezing — en ook hier is de mitigatie
+zichtbaarheid via de gelogde `hypothesis_id` per lezing, niet machinerie die
+dat voorkomt.
+
 Elke Sharpe in elk rapport noemt vanaf stap 4B welk van de twee vensters
 eronder ligt: `W_DEV` voor iteratief onderzoek, `W_GATE` voor de ene
 bevroren meting per hypothese.
