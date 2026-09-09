@@ -105,3 +105,29 @@ regime:
     # oftewel 2,5e-3. De grens ligt daar een orde onder en kan dus geen ECHT
     # regimeverschil afkappen; zij vangt alleen de instorting.
     min_scale_ratio: 1.0e-4
+
+  # VOLSTATE -- HET GENERIEKE TOESTANDSCONTRACT (stap 5)
+  # ==================================================================
+  # `regime/state.py::assign_by_variance` wijst elke bar een LOW/NORMAL/HIGH
+  # toe op EXPANDING kwantielen van gelagde sigma. Dit is geen tweede M0: M0
+  # blijft de specifieke, twee-assige classificatie hierboven; VolState is het
+  # generieke contract waar elke vol-toestandstoewijzer (M0, EWMA-kwantielen,
+  # een HMM) op uitkomt.
+  #
+  # low_q = 0,25 en high_q = 0,75 zijn vrije parameters. Zolang zij vóór elke
+  # meting worden bevroren en nooit op grond van een uitkomst worden
+  # aangepast, kosten zij nul trials. Wordt er ooit een tweede paar
+  # geprobeerd, dan kost dat een trial — en dan is de eerste er retroactief
+  # ook een.
+  state:
+    low_q: 0.25
+    high_q: 0.75
+
+    # Zie m0.zscore_min_periods hierboven voor dezelfde redenering: vóór deze
+    # grens bestaat het expanding kwantiel niet en is de toestand NaN, nooit
+    # NORMAAL bij gebrek aan beter.
+    min_periods: 250
+
+    # De lag is het CONTRACT (zie state.py), geen vrijheid: de toestand van
+    # bar t is een functie van sigma_{t-1} en van kwantielen over bars <= t-1.
+    lag: 1

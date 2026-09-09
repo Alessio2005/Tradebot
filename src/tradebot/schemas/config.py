@@ -929,11 +929,43 @@ class MonitoringConfig(StrictModel):
         return self
 
 
+class VolStateConfig(StrictModel):
+    """Drempels van het generieke `VolState`-contract. Zie `regime/state.py`
+    en `conf/model/regime.yaml`.
+
+    `low_q` en `high_q` zijn vrije parameters die nul trials kosten zolang zij
+    vóór elke meting bevroren zijn en nooit op grond van een uitkomst worden
+    aangepast. Zie het commentaarblok in `conf/model/regime.yaml` voor de
+    volledige tekst van die regel.
+    """
+
+    #: Onder dit expanding kwantiel van gelagde sigma heet de toestand LOW.
+    low_q: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.25
+    #: Boven dit expanding kwantiel heet de toestand HIGH.
+    high_q: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.75
+    #: Observaties voordat het expanding kwantiel bestaat. Daarvoor is de
+    #: toestand NaN -- nooit "normaal bij gebrek aan beter".
+    min_periods: PositiveInt = 250
+    #: Aantal bars waarmee sigma wordt gelagd voordat het kwantiel wordt
+    #: bepaald. `lag=1` is het contract, geen instelling (zie `state.py`).
+    lag: Annotated[int, Field(ge=0)] = 1
+
+    @model_validator(mode="after")
+    def _quantiles_are_ordered(self) -> VolStateConfig:
+        if self.low_q >= self.high_q:
+            raise ValueError(
+                f"low_q ({self.low_q}) moet onder high_q ({self.high_q}) "
+                "liggen; anders kan een bar tegelijk LOW en HIGH zijn."
+            )
+        return self
+
+
 class RegimeConfig(StrictModel):
     """Contract voor de L3 regime-engines. Zie `conf/model/regime.yaml`."""
 
     m0: M0BucketConfig = Field(default_factory=M0BucketConfig)
     m2: M2HmmConfig = Field(default_factory=M2HmmConfig)
+    state: VolStateConfig = Field(default_factory=VolStateConfig)
 
 
 # --------------------------------------------------------------------------- #
