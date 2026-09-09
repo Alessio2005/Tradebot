@@ -103,14 +103,43 @@ class ConcentrationReport:
     getal zonder kwantiel-navigatie wil lezen. `quantiles` draagt de volledige
     50/95/99-tabel (index = het kwantiel, kolommen = de zes reeksen hieronder,
     elk met de suffix `_base` of `_gated`) voor het rapportartefact.
+
+    BEIDE boeken zijn gemeten over HETZELFDE bar-venster: de bars waarop het
+    GEPOORTE boek een bekende toestand draagt op elk symbool (`gated.isna()`
+    is nergens True in de rij). Buiten dat venster (typisch de opstartfase
+    van `assign_by_variance`) is er niets om te vergelijken -- zie
+    `_per_bar_metrics`. Zonder die gedeelde restrictie zou het basisboek over
+    meer bars zijn gemeten dan het gepoorte boek en zou een before/after-
+    vergelijking van twee verschillende steekproeven een vergelijking van
+    dezelfde lijken (fix ronde 1, bevinding P33). `n_bars_compared` en
+    `n_bars_total` maken dat venster zichtbaar in het artefact.
     """
 
     max_weight_base: float
     max_weight_gated: float
     effective_names_base: float
     effective_names_gated: float
+    #: Per-constructie 1,0 zodra het boek op die bar niet leeg en niet
+    #: onbekend is, en NOOIT iets anders -- er is geen sigma-dak in deze
+    #: tweeparametrige handtekening (`exposures`, `gated`) om een echte
+    #: bruto-na-targeting-waarde uit te rekenen (die zou `min(max_leverage,
+    #: sigma_target / sigma_boek) x bruto` zijn, en dus onder de
+    #: hefboomgrens kunnen zakken). Dit veld is daarom een INDICATOR van
+    #: vlak/onbekend, geen gemeten grootheid -- fix ronde 1, bevinding P34.
     gross_after_vol_target_base: float
+    #: Zie `gross_after_vol_target_base`. Dezelfde constructie, op het
+    #: gepoorte boek: 0,0 op een volledig platgepoorte bar (nul namen, dus
+    #: geen enkel target haalbaar), NaN op een onbekende bar (uitgesloten
+    #: door het gedeelde venster hierboven, dus in de praktijk nooit NaN
+    #: binnen dit rapport), anders exact 1,0.
     gross_after_vol_target_gated: float
+    #: Aantal bars waarover de zes velden hierboven en `quantiles` zijn
+    #: berekend -- het gedeelde venster (zie klassedocstring).
+    n_bars_compared: int
+    #: Totaal aantal bars in `exposures`/`gated`, vóór de venster-restrictie.
+    #: `n_bars_compared < n_bars_total` betekent dat er bars zijn uitgesloten
+    #: (typisch opstart-NaN), en dat is zichtbaar in plaats van stilzwijgend.
+    n_bars_total: int
     quantiles: pd.DataFrame
 
 
@@ -159,7 +188,18 @@ def _per_bar_metrics(frame: pd.DataFrame) -> pd.DataFrame:
 def concentration_report(
     exposures: pd.DataFrame, gated: pd.DataFrame,
 ) -> ConcentrationReport:
-    """Meet Q9: hoeveel concentratie introduceert de poort in `gated`?"""
+    """Meet Q9: hoeveel concentratie introduceert de poort in `gated`?
+
+    Het vergelijkingsvenster is het GEPOORTE boek zijn support: de bars
+    waarop `gated` op elk symbool een bekende toestand draagt (geen NaN in de
+    rij). Het basisboek wordt op DEZELFDE bars gemeten, niet op zijn eigen
+    volledige reeks -- anders vergelijkt het rapport een basisboek over ~400
+    bars met een gepoort boek over ~300 en zet het twee verschillende
+    steekproeven naast elkaar als was het een before/after (fix ronde 1,
+    bevinding P33). Bars buiten dat venster (typisch de opstartfase) zijn
+    UITGESLOTEN, niet stilzwijgend als 0 of 1 meegeteld; `n_bars_compared`
+    en `n_bars_total` op het resultaat maken zichtbaar hoeveel dat scheelt.
+    """
     require(
         bool(exposures.index.equals(gated.index)),
         "Het basisboek en het gepoorte boek staan niet op dezelfde tijdas.",
@@ -172,8 +212,17 @@ def concentration_report(
         base=list(exposures.columns), gated=list(gated.columns),
     )
 
-    per_bar = _per_bar_metrics(exposures).add_suffix("_base").join(
-        _per_bar_metrics(gated).add_suffix("_gated"))
+    support = ~gated.isna().any(axis=1)
+    require(
+        bool(support.any()),
+        "Het gepoorte boek heeft geen enkele bar met een bekende toestand op "
+        "elk symbool; er is geen enkele bar om de twee boeken op te "
+        "vergelijken.",
+        DataContractError, n_bars_total=len(gated),
+    )
+
+    per_bar = _per_bar_metrics(exposures.loc[support]).add_suffix("_base").join(
+        _per_bar_metrics(gated.loc[support]).add_suffix("_gated"))
     quantiles = per_bar.quantile([0.5, 0.95, 0.99])
 
     def p50(column: str) -> float:
@@ -186,5 +235,7 @@ def concentration_report(
         effective_names_gated=p50("effective_names_gated"),
         gross_after_vol_target_base=p50("gross_after_vol_target_base"),
         gross_after_vol_target_gated=p50("gross_after_vol_target_gated"),
+        n_bars_compared=int(support.sum()),
+        n_bars_total=len(gated),
         quantiles=quantiles,
     )

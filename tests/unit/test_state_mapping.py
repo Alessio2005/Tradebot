@@ -104,7 +104,7 @@ def test_an_ungated_state_is_passed_through_untouched() -> None:
 def test_gating_every_state_is_refused() -> None:
     """Een afbeelding die alles dichtzet, is geen conditioneerder maar een
     uit-knop, en zij zou een lege reeks als 'resultaat' opleveren."""
-    exposures, assignment, _ = _gated()
+    exposures, assignment = _fixture()
     with pytest.raises(DataContractError):
         gate_by_state(
             exposures, assignment,
@@ -140,3 +140,70 @@ def test_a_fully_gated_bar_is_flat_and_not_infinitely_levered() -> None:
         flat_states=frozenset({VolState.HIGH}),
     )
     assert (gated.iloc[200:].abs().sum(axis=1) == 0.0).all()
+
+
+def test_the_comparison_uses_one_shared_bar_set() -> None:
+    """Fix ronde 1, bevinding P33. `_per_bar_metrics` blanked een hele bar
+    zodra een symbool een onbekende toestand draagt (de conservatieve regel
+    blijft staan). Zonder verdere maatregel zou het basisboek dan over MEER
+    bars zijn gemeten dan het gepoorte boek -- een before/after die twee
+    verschillende steekproeven naast elkaar zet. `concentration_report`
+    moet daarom BEIDE boeken op het venster van het gepoorte boek meten, en
+    dat venster moet zichtbaar zijn op het rapport."""
+    exposures, _, gated = _gated()
+    report = concentration_report(exposures, gated)
+
+    expected_compared = int((~gated.isna().any(axis=1)).sum())
+    assert report.n_bars_total == len(exposures)
+    assert report.n_bars_compared == expected_compared
+    # De opstartfase bestaat in deze fixture (min_periods=100): het venster
+    # is dus een ECHTE deelverzameling en geen no-op-restrictie.
+    assert report.n_bars_compared < report.n_bars_total
+
+
+def test_gross_after_vol_target_is_an_indicator_not_a_measurement() -> None:
+    """Fix ronde 1, bevinding P34. Met een CONSTANTE vol-target is de
+    bruto-verhouding per constructie 1 zodra het boek niet leeg en niet
+    onbekend is -- deze functie kent geen sigma-dak (haar handtekening is
+    `(exposures, gated)`) en kan dus geen echte na-targeting-waarde
+    uitrekenen. Op deze fixture is het gepoorte boek in 20 van de 300
+    vergeleken bars volledig plat (zie de volgende test) en toch is elk van
+    de 50/95/99-kwantielen nog exact 1 -- want 20/300 is minder dan de 5% en
+    1% die respectievelijk p95 en p99 zouden kunnen buigen. Dat de waarde op
+    GEEN van de drie kwantielen ooit tussen 0 en 1 in ligt, is precies het
+    bewijs dat dit een binaire indicator is en geen gemeten grootheid."""
+    exposures, _, gated = _gated()
+    report = concentration_report(exposures, gated)
+
+    assert report.gross_after_vol_target_base == 1.0
+    assert report.gross_after_vol_target_gated == 1.0
+    for quantile in (0.5, 0.95, 0.99):
+        assert report.quantiles.loc[quantile, "gross_after_vol_target_base"] == 1.0
+        assert report.quantiles.loc[quantile, "gross_after_vol_target_gated"] == 1.0
+
+
+def test_a_fully_gated_run_reports_zero_gross_not_nan_or_one() -> None:
+    """Fix ronde 1, bevinding 3. De `is_flat`-tak in `_per_bar_metrics`
+    (bruto exact 0 -> 0,0, niet 1,0 en niet oneindig) wordt hier
+    daadwerkelijk uitgeoefend via de publieke `concentration_report`, en niet
+    alleen via het interne masker. De tweede helft van de reeks is voor
+    BEIDE symbolen tegelijk HOOG, dus het gepoorte boek is daar op elke bar
+    vlak -- de mediaan van `gross_after_vol_target_gated` moet dan 0,0 zijn:
+    0,0 en niet 1,0 (het target zou ten onrechte 'gehaald' lijken) en niet
+    NaN (een vlakke bar is een BESLOTEN bar, geen onbekende -- dat verschil
+    is precies wat `test_burn_in_stays_nan_and_is_not_gated_to_zero` op
+    `gate_by_state` bewaakt en wat dit op `concentration_report` bewaakt)."""
+    exposures, assignment = _fixture()
+    all_high = assignment.states.copy()
+    all_high.iloc[200:] = float(VolState.HIGH)
+    from dataclasses import replace
+    gated = gate_by_state(
+        exposures, replace(assignment, states=all_high),
+        flat_states=frozenset({VolState.HIGH}),
+    )
+
+    report = concentration_report(exposures, gated)
+
+    assert report.gross_after_vol_target_gated == 0.0
+    assert report.gross_after_vol_target_base == 1.0
+    assert np.isfinite(report.quantiles.to_numpy()).all()
