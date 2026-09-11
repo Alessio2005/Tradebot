@@ -92,6 +92,41 @@ adequacy:
     # in plaats van een regime.
     min_state_occupancy_fraction: 0.10
 
+  # --- Fase 10: de GEREALISEERDE bezetting van een VolState-toewijzing --- #
+  # DIT BLOK BESTAAT OMDAT HET `hmm:`-BLOK HIERBOVEN ZIJN WERK NIET DEED.
+  # Dat blok toetst VOOR de fit en kent de bezetting dan nog niet; zonder pilot
+  # rekent het met een uniforme 1/k en noemt dat in het artefact zelf
+  # "uniform (1/k) — optimistisch". Voor hmm_k3 gaf die aanname 165,0
+  # observaties per fold en `adequate: true`, terwijl de fit er 5,0 tot 28,0
+  # opleverde tegen diezelfde eis van 100. De poort keurde dus goed op een
+  # aanname die zij zelf optimistisch noemt. Dat is een defect in de poort en
+  # niet in het model, en het is pas NA de fit gezien.
+  #
+  # EN BARS ALLEEN VOLSTAAN OOK NIET.
+  # Een toestand is persistent. 499 HOOG-bars in twaalf episodes zijn twaalf
+  # observaties en geen 499: bars binnen één episode dragen vrijwel dezelfde
+  # informatie. Een poort die alleen bars telt, keurt een toestand goed die uit
+  # een handvol clusters bestaat en die statistisch niets draagt. Er staan
+  # daarom TWEE eisen; het oordeel gaat over de strengste en over het MINIMUM
+  # over de folds (AD-18), nooit over de mediaan.
+  #
+  # Deze drempels zijn conventies en staan vast VOORDAT er is gemeten. Zij
+  # verlagen tot de poort groen wordt, is hetzelfde defect in nieuwe kleren.
+  vol_state:
+    # Gelijk aan `hmm.min_obs_per_state_per_fold` hierboven: het is dezelfde
+    # grootheid, alleen gemeten in plaats van aangenomen. Twee getallen onder
+    # één eis zouden de vergelijking a priori/gerealiseerd betekenisloos maken.
+    min_obs_per_state_per_fold: 100
+    # 20 en niet 100. De EPISODE is de eenheid waarin een persistente toestand
+    # informatie levert, en er zijn er per definitie veel minder dan bars: een
+    # toestand met een gemiddelde duur van vijf bars levert bij 100 bars twintig
+    # episodes. Onder de twintig wordt elk gemiddelde over die toestand door een
+    # handvol blokken bepaald, en dan meet je die blokken en niet het regime.
+    min_episodes_per_state_per_fold: 20
+    # Zelfde naam en zelfde waarde als `hmm.min_state_occupancy_fraction`:
+    # onder deze bezetting is de toestand een uitschieterdetector en geen regime.
+    min_state_occupancy_fraction: 0.10
+
   # --- Meta-labeling: CatBoost ------------------------------------------- #
   # López de Prado's vuistregel voor een secondary model is enkele honderden
   # events per fold NA purging en embargo. De klassebalans moet daarnaast

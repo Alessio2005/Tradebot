@@ -1,7 +1,7 @@
 # LOC-EXCEPTION: een enkel bestand met alle pydantic-contracten is hier het punt: het configuratiecontract
 # van het platform hoort op EEN plek te staan, zodat een veld niet in twee modellen kan
 # gaan leven.
-# Cap staat op 1094 regels in scripts/check_file_size.py; groeien is rood.
+# Cap staat in scripts/check_file_size.py; groeien is rood.
 """Pydantic v2 configuratiecontracten - Phase 0, deliverable 4.
 
 Elk configuratiedomein heeft hier een model. De regels zijn overal identiek:
@@ -58,6 +58,7 @@ __all__ = [
     "HmmAdequacyConfig",
     "HrpAdequacyConfig",
     "MetaLabelingAdequacyConfig",
+    "VolStateAdequacyConfig",
     "PowerConfig",
     "TradebotConfig",
     "ValidationConfig",
@@ -537,6 +538,21 @@ class HmmAdequacyConfig(StrictModel):
     min_state_occupancy_fraction: Fraction = 0.10
 
 
+class VolStateAdequacyConfig(StrictModel):
+    """Minimumeisen voor de GEREALISEERDE bezetting van een VolState-toewijzing.
+
+    Zie `conf/model/adequacy.yaml`. `HmmAdequacyConfig` hierboven toetst VOOR de
+    fit en kent de bezetting dan nog niet; dit blok toetst de toewijzing zelf en
+    telt daarom ook EPISODES. De sleutel `min_state_occupancy_fraction` heet
+    precies zoals haar buurman: het is dezelfde eis, alleen gemeten in plaats
+    van aangenomen.
+    """
+
+    min_obs_per_state_per_fold: PositiveInt = 100
+    min_episodes_per_state_per_fold: PositiveInt = 20
+    min_state_occupancy_fraction: Fraction = 0.10
+
+
 class MetaLabelingAdequacyConfig(StrictModel):
     """Minimumeisen voor een CatBoost secondary model per fold."""
 
@@ -601,6 +617,8 @@ class AdequacyConfig(StrictModel):
     garch: GarchAdequacyConfig = Field(default_factory=GarchAdequacyConfig)
     har_rv: HarRvAdequacyConfig = Field(default_factory=HarRvAdequacyConfig)
     hmm: HmmAdequacyConfig = Field(default_factory=HmmAdequacyConfig)
+    vol_state: VolStateAdequacyConfig = Field(
+        default_factory=VolStateAdequacyConfig)
     meta_labeling: MetaLabelingAdequacyConfig = Field(
         default_factory=MetaLabelingAdequacyConfig)
     hrp: HrpAdequacyConfig = Field(default_factory=HrpAdequacyConfig)

@@ -1,6 +1,8 @@
-# LOC-EXCEPTION: de poort meet vijf modelklassen tegen dezelfde bevroren drempels uit
-# conf/model/adequacy.yaml; per klasse een bestand zou die drempels vijf keer inlezen.
-# Cap staat op 804 regels in scripts/check_file_size.py; groeien is rood.
+# LOC-EXCEPTION: de poort meet zes modelklassen tegen dezelfde bevroren drempels uit
+# conf/model/adequacy.yaml; per klasse een bestand zou die drempels zes keer inlezen.
+# Fase 10, stap 9 voegde `assert_realised_occupancy` toe -- de GEREALISEERDE tegenhanger
+# van `assess_hmm`, die naast hem hoort te staan omdat beide dezelfde grootheid meten
+# met een andere bron. Cap staat in scripts/check_file_size.py; groeien is rood.
 """Data Adequacy Gate — Phase 6, §3. Meet vóór de fit of de data de vraag draagt.
 
 WAAROM DEZE POORT BESTAAT
@@ -51,8 +53,8 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -66,8 +68,14 @@ _ECONO = econometrics_config()
 
 from ..utils.failfast import DataContractError, require
 
+if TYPE_CHECKING:
+    # Uitsluitend voor de annotatie. `regime/markov.py` importeert DEZE module,
+    # dus een echte import van `regime.state` zou hier een importcyclus sluiten.
+    from ..regime.state import StateAssignment
+
 __all__ = [
     "AdequacyVerdict",
+    "OccupancyVerdict",
     "INSUFFICIENT_DATA",
     "PowerAnalysis",
     "assess_garch",
@@ -75,6 +83,7 @@ __all__ = [
     "assess_hmm",
     "assess_hrp",
     "assess_meta_labeling",
+    "assert_realised_occupancy",
     "auc_minimum_detectable",
     "effective_independent_series",
     "mean_difference_power",
@@ -363,6 +372,174 @@ def assess_hmm(
         },
         shortfall="" if ok else "; ".join(reasons) + ".",
     )
+
+
+# =========================================================================== #
+# De GEREALISEERDE bezetting (fase 10, stap 9)
+# =========================================================================== #
+#: De uitspraak van de bezettingspoort. Dit IS een `AdequacyVerdict` en geen
+#: tweede verdict-contract (R-3): dezelfde velden, dezelfde invarianten uit
+#: `__post_init__`, dezelfde `verdict`-string en dezelfde `as_record()`, zodat
+#: de ledger deze poort niet anders hoeft te lezen dan de vijf ervoor. De naam
+#: bestaat omdat deze poort iets anders MEET, niet omdat zij iets anders ZEGT.
+OccupancyVerdict = AdequacyVerdict
+
+
+def assert_realised_occupancy(
+    assignment: StateAssignment,
+    *,
+    n_folds: int,
+    min_obs_per_state_per_fold: int,
+    min_episodes_per_state_per_fold: int,
+    min_occupancy_fraction: float,
+    raise_on_failure: bool = True,
+) -> OccupancyVerdict:
+    """De bezettingspoort op de TOEWIJZING zelf — in bars EN in episodes.
+
+    WAAROM DEZE POORT NAAST :func:`assess_hmm` STAAT
+    ================================================
+    `assess_hmm` toetst VOOR de fit en kent de bezetting dan nog niet; zonder
+    pilot valt hij terug op `1/k` en noemt dat zelf
+    ``"uniform (1/k) — optimistisch"``. Op H2 gaf dat 165,0 observaties per
+    fold en `adequate: true`, terwijl de fit er 5,0 tot 28,0 opleverde tegen
+    een eis van 100. Deze poort krijgt de toewijzing en telt dus WAT ER IS;
+    `occupancy_source` is daarom `"realised"` en nooit meer de aanname.
+
+    WAAROM BARS ALLEEN NIET VOLSTAAN
+    ================================
+    Een toestand is persistent. 499 HOOG-bars in twaalf episodes zijn twaalf
+    observaties en geen 499: bars binnen één episode dragen vrijwel dezelfde
+    informatie. Een poort die alleen bars telt, keurt een toestand goed die uit
+    een handvol clusters bestaat. Beide grootheden worden daarom gemeten en het
+    oordeel gaat over de strengste.
+
+    HET MINIMUM, NIET DE MEDIAAN (AD-18)
+    ====================================
+    Elke grootheid wordt geminimaliseerd over folds én over toestanden én over
+    symbolen. Een mediaan van 165 met een minimum van 5 is precies de meting
+    die H2 groen liet lijken.
+
+    Over SYMBOLEN, en niet gepoold over het paneel — dat is een besluit. Zes
+    namen met een gemiddelde paarsgewijze correlatie van 0,74 leveren
+    `N_eff = 1,271` (`regime/state_diagnostics.py`, §5): zes symbool-bars op
+    dezelfde datum zijn geen zes observaties. Ze optellen zou de steekproef met
+    ongeveer een factor vijf overdrijven, en dat is dezelfde soort optimisme als
+    de `1/k`-aanname die deze poort corrigeert.
+
+    WAT HIER EEN FOLD IS, EN WAAROM
+    ===============================
+    `n_folds` aaneengesloten, elkaar NIET overlappende blokken van de bars die
+    een toestand dragen. Daar zitten twee besluiten in:
+
+    * de opstartfase van het expanding kwantiel valt eerst weg. Zonder dat zou
+      een fold die volledig in de burn-in ligt nul observaties melden, en dat
+      getal zou over de INDELING gaan in plaats van over de data (R-8).
+    * blokken, en geen rollende train-vensters. Rollende vensters van 500 bars
+      met een stap van 100 tellen elke bar vijf keer; het aantal observaties
+      per fold zou dan met ongeveer die factor worden overdreven.
+
+    De episodetelling van stap 5 begint per blok opnieuw, dus een episode die
+    over een foldgrens loopt, telt in beide helften mee. Dat OVERDRIJFT het
+    aantal episodes met ten hoogste één per toestand per symbool per fold — de
+    optimistische kant, net als de `1/k`-aanname hierboven en om dezelfde
+    reden: een tekort dat een optimistische telling al vindt, is onbetwistbaar.
+
+    Parameters
+    ----------
+    assignment
+        De toewijzing uit `regime/state.py`. Haar `occupancy()`, `episodes()`
+        en de bijbehorende bar-telling komen ONGEWIJZIGD van daar (R-3): deze
+        poort snijdt de toewijzing in folds en telt zelf niets.
+    raise_on_failure
+        `True` is de poort: hij loopt via :func:`require_adequacy` en crasht.
+        `False` geeft het oordeel terug zonder te crashen, voor een aanroeper
+        die het wil REGISTREREN — hetzelfde onderscheid dat
+        :func:`require_adequacy` in zijn eigen docstring maakt.
+    """
+    states = assignment.states.dropna(how="all")
+    require(
+        int(n_folds) >= 1,
+        "Een bezettingspoort zonder folds bestaat niet; de eis is per fold "
+        "geformuleerd.",
+        DataContractError, n_folds=int(n_folds),
+    )
+    require(
+        len(states) >= int(n_folds),
+        "Minder toegewezen bars dan folds: er zou dan een fold zonder enkele "
+        "bar ontstaan en de gemeten nul zou over de indeling gaan in plaats "
+        "van over de data.",
+        DataContractError,
+        n_assigned_bars=int(len(states)), n_folds=int(n_folds),
+    )
+
+    need = {"obs": float(min_obs_per_state_per_fold),
+            "episodes": float(min_episodes_per_state_per_fold),
+            "occupancy": float(min_occupancy_fraction)}
+    label = {"obs": "BARS", "episodes": "EPISODES", "occupancy": "BEZETTING"}
+    per_state: dict[str, dict[str, float]] = {}
+    binding: dict[str, tuple[float, str]] = {}
+    for fold, rows in enumerate(np.array_split(np.arange(len(states)), n_folds), 1):
+        block = replace(assignment, states=states.iloc[rows])
+        occupancy = block.occupancy()
+        for quantity, table in (
+            # `.round()`, want een bar-telling is geheel en `(k/n) * n` is dat in
+            # IEEE754 niet altijd: bij 161 bars in een fold geeft k=100 de waarde
+            # 99,99999999999999 en zou de poort een toestand weigeren die de eis
+            # exact haalt. Afronden herstelt de telling, het verzacht hem niet.
+            ("obs", occupancy.mul(block.states.notna().sum(), axis=0).round()),
+            ("episodes", block.episodes()),
+            ("occupancy", occupancy),
+        ):
+            for state in map(str, table.columns):
+                value, symbol = float(table[state].min()), str(table[state].idxmin())
+                cell = per_state.setdefault(state, {})
+                key = f"min_{quantity}_per_fold"
+                cell[key] = min(value, cell.get(key, value))
+                if value < binding.get(quantity, (float("inf"), ""))[0]:
+                    binding[quantity] = (value, f"{state}, fold {fold}, {symbol}")
+
+    reasons = [
+        f"{label[quantity]} van de zeldzaamste toestand: {value:.4g} in de "
+        f"krapste fold ({where}) tegen een eis van {need[quantity]:g}"
+        for quantity, (value, where) in binding.items() if value < need[quantity]
+    ]
+    verdict = OccupancyVerdict(
+        model_class=f"vol_state_k{len(per_state)}",
+        adequate=not reasons,
+        requirement=(
+            f">= {min_obs_per_state_per_fold} bars EN "
+            f">= {min_episodes_per_state_per_fold} episodes per toestand per "
+            f"fold, bij een bezettingsfractie >= {min_occupancy_fraction:.2f}, "
+            "beoordeeld op het MINIMUM over de folds"
+        ),
+        measured={
+            "n_states": int(len(per_state)),
+            "n_symbols": int(assignment.states.shape[1]),
+            "n_folds": int(n_folds),
+            "n_bars": int(len(assignment.states)),
+            "n_assigned_bars": int(len(states)),
+            # De sleutelnamen volgen `assess_hmm`, zodat een grep de a-priori-
+            # en de gerealiseerde meting naast elkaar vindt. "smallest_fold"
+            # betekent hier: de fold waarin DEZE toestand het krapst zit, niet
+            # de fold met de minste bars.
+            "occupancy_source": "realised",
+            "rarest_state_obs_in_smallest_fold": int(binding["obs"][0]),
+            "rarest_state_obs_at": binding["obs"][1],
+            "rarest_state_episodes_in_smallest_fold": int(binding["episodes"][0]),
+            "rarest_state_episodes_at": binding["episodes"][1],
+            "rarest_state_occupancy_fraction": binding["occupancy"][0],
+            "rarest_state_occupancy_at": binding["occupancy"][1],
+            "required_obs_per_state_per_fold": int(min_obs_per_state_per_fold),
+            "required_episodes_per_state_per_fold": int(
+                min_episodes_per_state_per_fold),
+            "required_occupancy_fraction": float(min_occupancy_fraction),
+            "per_state": {state: dict(cell) for state, cell in per_state.items()},
+        },
+        shortfall="" if not reasons else "; ".join(reasons) + ".",
+    )
+    if raise_on_failure:
+        require_adequacy(verdict)
+    return verdict
 
 
 def assess_meta_labeling(
