@@ -47,7 +47,15 @@ CAPS: dict[str, int] = {
     # `inference_config()` / `backtest_config()`. Bewust verhoogd en niet
     # gesplitst: de cap-tabel bestaat om zo'n verhoging een gelezen besluit in
     # een diff te maken, en dit bestand IS het ene configuratiecontract.
-    "src/tradebot/schemas/config.py": 1176,
+    #
+    # Fase 10, stap 9: 1176 -> 1226. Twee oorzaken, en de eerste is een DEFECT dat
+    # deze stap tegenkwam en niet veroorzaakte: stap 5 (20a0f89, het
+    # VolState-contract) liet dit bestand naar 1208 groeien zonder de cap hier
+    # mee te verhogen, waardoor `scripts/check_file_size.py` en
+    # `tests/unit/test_file_size_ratchet.py` sindsdien ROOD stonden. De tweede
+    # is stap 9 zelf: `VolStateAdequacyConfig`, het contract onder het
+    # `vol_state:`-blok in conf/model/adequacy.yaml.
+    "src/tradebot/schemas/config.py": 1226,
     # Fase 10, stap 4A: nieuw. De ene implementatie van de Sharpe-SE, de
     # Sharpe-verschiltoets en de circulaire blokbootstrap (R-3). De reden dat
     # hij niet gesplitst is, staat in zijn eigen `# LOC-EXCEPTION:`-regel.
@@ -71,7 +79,16 @@ CAPS: dict[str, int] = {
     "src/tradebot/tune/objective.py": 958,
     "src/tradebot/live/engine.py": 917,
     "src/tradebot/portfolio/legacy_sizing.py": 824,
-    "src/tradebot/validation/data_adequacy.py": 807,
+    # Fase 10, stap 9: 807 -> 984 voor `assert_realised_occupancy` en
+    # `OccupancyVerdict` -- de GEREALISEERDE tegenhanger van `assess_hmm`. Bewust
+    # verhoogd en niet gesplitst: beide poorten meten dezelfde grootheid (de
+    # bezetting van de zeldzaamste toestand per fold) tegen dezelfde bevroren
+    # drempels uit `conf/model/adequacy.yaml`, alleen met een andere bron. Ze in
+    # twee bestanden zetten zou die drempels twee keer laten inlezen en de
+    # a-priori-meting van haar correctie scheiden -- precies het defect dat deze
+    # stap repareert. De cap-tabel bestaat om zo'n verhoging een gelezen besluit
+    # in een diff te maken.
+    "src/tradebot/validation/data_adequacy.py": 984,
 }
 
 #: `portfolio/legacy_sizing.py` draagt GEEN `# LOC-EXCEPTION:`-regel, en dat is

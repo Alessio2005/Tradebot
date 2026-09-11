@@ -7,10 +7,21 @@ ongelagde toewijzing van revisie 1. Die tweede is per constructie een lookahead
 en meet UITSLUITEND hoeveel van revisie 1's "separatie" uit gelijktijdigheid
 kwam. Nul trials: er wordt niets uit geselecteerd.
 
-Geen CLI-vlaggen (YAGNI): het uitvoerpad is een DVC-`out` en verschuift niet.
+Een vlag, en zij is additief (fase 10, stap 9, ruling P38). Zonder vlag doet
+deze app exact wat zij deed en schrijft zij exact hetzelfde artefact; de
+DVC-stage draait ongewijzigd. Met `--check-adequacy` legt zij daar de
+bezettingspoort van stap 9 naast, op de GELAGDE toewijzing -- de ongelagde is
+een lookahead en er valt niets over te oordelen. Het uitvoerpad blijft een
+DVC-`out` en verschuift niet.
+
+R-6 (apps <= 80 LOC) wordt hier overschreden. De poort zelf staat in
+`validation/data_adequacy.py`; wat hier bij komt is bedrading en presentatie,
+en die hoort bij de app die hem aanroept. Een module erbij om een `print` te
+huisvesten zou R-3 zwaarder belasten dan R-6 hier wint.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -22,9 +33,11 @@ from tradebot.alpha.momentum import build_cross_sectional_momentum
 from tradebot.backtest.baseline_report import json_safe, load_baseline_configs
 from tradebot.data.phase6_universe import load_phase6_universe
 from tradebot.features.registry import current_git_sha
-from tradebot.regime.state import assign_by_variance
+from tradebot.regime.state import StateAssignment, assign_by_variance
 from tradebot.regime.state_diagnostics import StateDiagnostics, diagnose
-from tradebot.schemas.config import regime_config
+from tradebot.schemas.config import ValidationConfig, adequacy_config, regime_config
+from tradebot.validation.adequacy_report import measure_fold_geometry
+from tradebot.validation.data_adequacy import assert_realised_occupancy
 from tradebot.validation.holdout import development_slice
 
 LOCK = ROOT / "artefacts/governance/holdout_lock.json"
@@ -45,7 +58,44 @@ def _print(label: str, result: StateDiagnostics) -> None:
               f"{ret['t_stat_neff_deflated']:>9.2f}")
 
 
-def main() -> int:
+def _check_adequacy(assignment: StateAssignment, *, n_bars: int,
+                    val: ValidationConfig) -> None:
+    """Stap 9: de bezettingspoort op de ECHTE toewijzing. Meet en rapporteert.
+
+    `raise_on_failure=False` en niet de crashende tak: deze app MEET, en het
+    oordeel is de uitkomst van de meting en niet een fout in de run. Dat is het
+    onderscheid dat `require_adequacy` in zijn eigen docstring maakt -- de
+    runner mag registreren, de fit mag niet uitvoeren. De exitcode blijft dus 0;
+    het oordeel staat in het rapport, niet in `$?`.
+
+    `n_folds` komt uit `measure_fold_geometry`, de ENE plek waar dit project
+    telt hoeveel walk-forward folds een reeks oplevert (R-3). Het is niet het
+    geconfigureerde minimum `n_splits`.
+    """
+    limits = adequacy_config().vol_state
+    verdict = assert_realised_occupancy(
+        assignment,
+        n_folds=measure_fold_geometry(n_bars, val).n_folds,
+        min_obs_per_state_per_fold=limits.min_obs_per_state_per_fold,
+        min_episodes_per_state_per_fold=limits.min_episodes_per_state_per_fold,
+        # RULING P39. De config noemt deze drempel `min_state_occupancy_fraction`,
+        # gelijk aan haar buurman in het `hmm:`-blok; de functie noemt hem
+        # `min_occupancy_fraction`. Deze regel is de ENIGE vertaling tussen beide
+        # namen, zodat er nergens anders twee namen voor een drempel rondgaan.
+        min_occupancy_fraction=float(limits.min_state_occupancy_fraction),
+        raise_on_failure=False,
+    )
+    print("\nbezettingspoort op de GEREALISEERDE bezetting (stap 9)")
+    print(json.dumps(json_safe(verdict.as_record()), indent=2, ensure_ascii=False))
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="stap 6 -- toestandsdiagnose")
+    parser.add_argument(
+        "--check-adequacy", action="store_true",
+        help="draai daarnaast de bezettingspoort van stap 9 op de gelagde toewijzing")
+    args = parser.parse_args(argv)
+
     cfg, state_cfg = load_baseline_configs(ROOT), regime_config().state
     universe = load_phase6_universe(ROOT, cfg,
         build_cross_sectional_momentum(cfg["alpha"]), git_sha=current_git_sha())
@@ -53,13 +103,14 @@ def main() -> int:
     returns = development_slice(universe.log_returns, lock_path=LOCK)
 
     runs: dict[str, StateDiagnostics] = {}
+    assignments: dict[str, StateAssignment] = {}
     for label, lag in (("lagged", int(state_cfg.lag)), ("unlagged_revision_1", 0)):
+        assignments[label] = assign_by_variance(
+            sigma, low_q=float(state_cfg.low_q), high_q=float(state_cfg.high_q),
+            min_periods=int(state_cfg.min_periods),
+            source=f"ewma_lambda_{cfg['vol'].ewma_lambda}", lag=lag)
         runs[label] = diagnose(
-            assign_by_variance(
-                sigma, low_q=float(state_cfg.low_q), high_q=float(state_cfg.high_q),
-                min_periods=int(state_cfg.min_periods),
-                source=f"ewma_lambda_{cfg['vol'].ewma_lambda}", lag=lag),
-            returns, bars_per_year=float(cfg["bt"].bars_per_year))
+            assignments[label], returns, bars_per_year=float(cfg["bt"].bars_per_year))
         _print(label, runs[label])
 
     payload = {
@@ -73,6 +124,9 @@ def main() -> int:
         "runs": {label: result.to_dict() for label, result in runs.items()}}
     (ROOT / OUT).write_text(json.dumps(json_safe(payload), indent=2), encoding="utf-8")
     print(f"\nartefact: {OUT}")
+
+    if args.check_adequacy:
+        _check_adequacy(assignments["lagged"], n_bars=len(sigma), val=cfg["val"])
     return 0
 
 
