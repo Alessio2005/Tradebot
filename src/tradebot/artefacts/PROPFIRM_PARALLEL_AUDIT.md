@@ -1,5 +1,24 @@
 # Propfirm Parallel-Deployment Audit & Optimalisatieplan
 
+> ## ⚠️ ACHTERHAALD — HISTORISCH DOCUMENT
+>
+> **Er wordt niet meer met propfirms gewerkt.** Het accountprofiel waarop dit
+> hele document rust (drie accounts à ~$100k, statische max-DD ~10 % +
+> daily-loss ~5 %) bestaat niet meer, en daarmee vervalt de grond onder elke
+> drempel die het hier voorschrijft — met name de governor-retrofit in §4.
+>
+> **Geldend beleid:** `docs/RISK_MANDATE.md` + `conf/risk/default.yaml`.
+>
+> Dit document blijft staan als HERKOMST: het legt vast waar de oude getallen
+> vandaan kwamen, wat nodig is om te kunnen beoordelen welke drempel
+> propfirm-afgeleid was en welke niet (RISK_MANDATE §1). Lees niets hierin als
+> een geldende eis. Ook de strategie-inhoud is achterhaald: fase 9 §5.1 schrapt
+> alle sleeves, inclusief de FX- en aandelensleeves waarop account C rust.
+>
+> De code die deze audit opleverde — `risk/daily_loss_governor.py` en
+> `monitoring/cross_account.py` — is dormant en opt-in; zie RISK_MANDATE §5.4.
+
+
 **Auteur:** CHIEF (Quantitative Architect / Head of ML)
 **Datum:** 2026-06-14
 **Mandaat:** ≥3 ML-strategieën parallel, 1 per propfirm-account, lage drawdown / hoge return.
