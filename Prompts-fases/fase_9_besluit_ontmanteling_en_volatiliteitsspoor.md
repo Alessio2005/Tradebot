@@ -1,6 +1,7 @@
-# MASTER-PROMPT: VERVOLGBESLUIT — ONTMANTELING & VOLATILITEITSSPOOR
+# MASTER-PROMPT: FASE 9 — BESLUIT: ONTMANTELING & VOLATILITEITSSPOOR
 
-> **Status:** besluitfase, geen bouwfase · **Prioriteit:** P0
+> **Fase:** 9 van 10 · **Status:** besluitfase, geen bouwfase · **Prioriteit:** P0
+> **Opvolger:** `fase_10_uitvoering_ontmanteling_en_volatiliteitsspoor.md` — die fase gaat pas open wanneer §3-V1 hier is beantwoord.
 > **Bindende brondocumenten:** `DOORLICHTING TRADEBOT — repository-scan & levensvatbaarheidsvonnis` (2026-09-12) met Bijlage A t/m D
 > **Nulmeting bij het schrijven van deze prompt:** `origin/main` = `8ad9143`, **98 commits**, laatste commit `2026-08-29 14:24:24 +0200`. **Er zijn geen commits bijgekomen sinds de doorlichting.** Het vonnis is dus onverkort actueel; niets in de repo weerspreekt het.
 > **Opdrachtgever wil:** (1) maximaal opruimen wat overbodig is, (2) **alle sleeves eruit**, (3) verder werken met volatiliteitsmodellen (GARCH-familie) op een professioneler niveau.
