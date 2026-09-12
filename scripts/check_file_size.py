@@ -73,7 +73,17 @@ CAPS: dict[str, int] = {
     # 9 van fixronde 1 voegden regels toe aan `clustered_mean`, `ClusteredMean`,
     # `sharpe_difference_test` en `SharpeDifference`); dit bestand mag niet
     # verder groeien zonder dat de cap hier expliciet mee omhoog gaat.
-    "src/tradebot/validation/inference.py": 1113,
+    #
+    # RULING P47 (fase 10, stap 10): 1113 -> 1162, precies de +49 regels van
+    # `_is_positive_multiple` en de verruimde ontaardingstak in
+    # `sharpe_difference_test`. De tak keek op `np.array_equal(x, y)` terwijl de
+    # analytisch ontaarde verzameling `y = c*x` met `c > 0` is -- Sharpe is
+    # schaal-invariant -- en weigerde daarbuiten met een `DataContractError` een
+    # geval waarvan het antwoord in gesloten vorm bekend is. Geen splitsing: de
+    # reparatie hoort per R-3 in dezelfde ene toets die zij repareert. Het
+    # grootste deel van de +49 is de onderbouwing van de tolerantie, niet
+    # uitvoerbare logica.
+    "src/tradebot/validation/inference.py": 1162,
     "src/tradebot/features/regime.py": 1060,
     "src/tradebot/backtest/evaluation.py": 1057,
     "src/tradebot/tune/objective.py": 958,

@@ -2,10 +2,14 @@
 """Stap 6 -- de toestandsdiagnose op de ONTWIKKELSAMPLE. Selecteert niets.
 
 De wetenschap staat in `regime/state_diagnostics.py`. Deze app draait haar TWEE
-keer op hetzelfde venster: gelagd (het contract van stap 5) en met `lag=0`, de
-ongelagde toewijzing van revisie 1. Die tweede is per constructie een lookahead
-en meet UITSLUITEND hoeveel van revisie 1's "separatie" uit gelijktijdigheid
-kwam. Nul trials: er wordt niets uit geselecteerd.
+keer op hetzelfde venster en met DEZELFDE toewijzingsregel: gelagd (het contract
+van stap 5) en met `lag=0`, dus gelijktijdig. Die tweede is per constructie een
+lookahead en isoleert precies een ding -- hoeveel van de gemeten vol-separatie
+uit gelijktijdigheid komt. Zij is GEEN reproductie van revisie 1 (fixronde 1,
+bevinding I-1): revisie 1 mat met `regime/buckets.py::classify_vol_buckets`,
+vaste +/-0,5-sigma-banden plus een ATR-as, bezetting 16,5/78,7/4,8 %, en niet
+met `assign_by_variance`, bezetting 39,5/48,1/12,4 %. Nul trials: er wordt niets
+uit geselecteerd.
 
 Een vlag, en zij is additief (fase 10, stap 9, ruling P38). Zonder vlag doet
 deze app exact wat zij deed en schrijft zij exact hetzelfde artefact; de
