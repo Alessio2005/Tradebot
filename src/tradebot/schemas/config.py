@@ -275,46 +275,30 @@ class RiskConfig(StrictModel):
     Phase 4 maakt dit de ENIGE bron van waarheid voor elke risicodrempel. Vóór
     deze fase stond `max_gross_leverage` op vijf plaatsen met vier verschillende
     waarden (`reports/phase4_entanglement_map.md` sectie 5); waar die uiteenliepen
-    is toen consequent de STRENGSTE gekozen, conform de faseregel "conservatief
-    bij twijfel".
-
-    MANDAATWIJZIGING (`docs/RISK_MANDATE.md`): die strengste-wint-regel is
-    vervallen, en met haar het propfirm-contract dat de dag- en drawdownlijnen
-    dicteerde. De defaults hieronder volgen `conf/risk/default.yaml`, zodat een
-    weggelaten sleutel niet stilzwijgend het oude propfirm-budget terugzet.
-
-    Deze defaults zijn GEEN risicobeleid en de motivering staat hier bewust niet.
-    Zij bestaan zodat `extra="forbid"` en `frozen=True` hun werk kunnen doen; het
-    beleid staat in `conf/risk/default.yaml` (met de redenering per limiet) en de
-    verantwoording in RISK_MANDATE §1-§2, dat elke drempel labelt als soort A
-    (propfirm-afgeleid), B (interne opruiming) of C (marktfeit, mag NIET
-    verruimen). Eén plaats per feit; wie hier een tweede redenering neerzet,
-    bouwt de volgende tegenstrijdigheid.
+    is TOEN de STRENGSTE gekozen. Die regel is vervallen met het propfirm-mandaat;
+    de grond per drempel (A/B/C) staat in `docs/RISK_MANDATE.md` §1-§2, niet hier.
     """
 
     # -- L7 volatility targeting: w_t = min(max_leverage, sigma_target/sigma_hat) --
-    sigma_target: Fraction = 0.20           # B; mogelijk inert, RISK_MANDATE §2.3
+    sigma_target: Fraction = 0.20                           # B; zie §2.3: inert?
     max_leverage: Annotated[float, Field(gt=0.0)] = 4.0     # B
 
     # -- harde limieten --
-    max_position_pct: Fraction = 0.80       # B; 6 x 0.80 > gross_cap, dus die bindt
-    max_concentration: Fraction = 0.40      # B, BEWUST ONGEWIJZIGD (AD-4)
+    max_position_pct: Fraction = 0.80                       # B; 6x > gross_cap
+    max_concentration: Fraction = 0.40                      # B, ONGEWIJZIGD (AD-4)
     max_cluster_concentration: Fraction = 0.60              # C, vacuous (AD-4)
     gross_cap: Annotated[float, Field(gt=0.0)] = 4.0        # B
     net_cap: Annotated[float, Field(gt=0.0)] = 2.0          # B, 0.50 x gross
-    adv_participation_cap: Fraction = 0.01  # C, MARKTFEIT — niet verruimen
+    adv_participation_cap: Fraction = 0.01                  # C, MARKTFEIT
 
     # -- kill switches --
     drawdown_breaker_levels: tuple[DrawdownTier, ...] = ()
-    #: A. Ruinelijn, van boven begrensd door `risk/stress_test.GAP_DOWN_FRACTION`.
-    max_drawdown_pct: Fraction = 0.25
-    daily_loss_limit: Fraction = 0.10       # A, gap-containment (RISK_MANDATE §2.2)
+    max_drawdown_pct: Fraction = 0.25       # A; plafond = stress_test.GAP_DOWN_FRACTION
+    daily_loss_limit: Fraction = 0.10                       # A, gap-containment
 
     # -- overig --
-    daily_var_limit_pct: Fraction = 0.05    # A, 0.5 x daily_loss_limit
-    #: A, en de limiet met het grootste meetbare gevolg: 48h maakte funding carry
-    #: onmeetbaar (>7 dagen nodig voor de vaste kosten). RISK_MANDATE §4.1.
-    max_position_age_h: PositiveInt = 720
+    daily_var_limit_pct: Fraction = 0.05                    # A, 0.5 x daglimiet
+    max_position_age_h: PositiveInt = 720   # A; 48h maakte funding carry onmeetbaar
 
     #: Symbool -> sector/cluster-label voor de clusterlimiet. Een symbool dat
     #: hier ontbreekt terwijl de clusterlimiet bindt, is een crash en geen
