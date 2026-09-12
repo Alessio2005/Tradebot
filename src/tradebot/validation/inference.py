@@ -594,6 +594,46 @@ def _lw_delta_and_se(
     return delta, se
 
 
+def _is_positive_multiple(x: np.ndarray, y: np.ndarray) -> bool:
+    """Is `y = c*x` met `c > 0`, op floating-pointnauwkeurigheid na?
+
+    Dit is precies de verzameling paren waarvan het Sharpe-VERSCHIL analytisch
+    nul is MET variantie nul. Sharpe is schaal-invariant, dus bij `y = c*x` met
+    `c > 0` geldt `SR(y) = SR(x)` voor ELKE steekproef; de vier momenten
+    `(x, y, x^2, y^2)` zijn dan perfect afhankelijk en `grad' Psi grad` valt in
+    `_lw_delta_and_se` term voor term weg. Daar wordt 0/0 gerekend en komt
+    `se = nan` uit. `np.array_equal` dekt van die verzameling alleen `c = 1`.
+
+    `c < 0` hoort er NIET bij. Bij `y = -x` is het verschil `SR(x) - SR(-x) =
+    2*SR(x)` en dus in het algemeen niet nul, en de covariantie is niet op
+    dezelfde manier ontaard. Het teken van `c` is daarom een HARDE eis en geen
+    tolerantiekwestie: een tak die `y = -x` zou opslokken, geeft geen reparatie
+    maar een fout antwoord.
+
+    WAAROM DEZE TOLERANTIE. Exacte verhoudingsgelijkheid (`y/x` overal
+    identiek) is breekbaar: `fl(c*x_t)/x_t` hoeft in float64 niet voor elke `t`
+    dezelfde bitpatroon-verhouding te geven. De grondslag voor `sqrt(n)*eps`:
+    een paar dat in exacte rekenkunde evenredig is, wijkt per element hooguit
+    een halve ulp af, en die fout is RELATIEF, dus het residu in 2-norm is
+    hooguit van de orde `eps*||y||` -- onafhankelijk van `n`. Wat wel met `n`
+    meegroeit is de fout in `c` zelf, dat uit twee inproducten komt; numpy
+    sommeert paarsgewijs, met een fout van orde `log(n)*eps`. `sqrt(n)*eps`
+    ligt daar ruim boven en tegelijk vele ordes onder elk ECHT verschil tussen
+    twee ketens. Ruimer mag niet: een paar dat slechts BIJNA evenredig is,
+    heeft een kleine maar POSITIEVE standaardfout en hoort door de gewone
+    schatter te gaan; de gesloten vorm hieronder zou die onzekerheid wegpoetsen.
+    """
+    xx = float(np.dot(x, x))
+    if xx <= 0.0:
+        return False  # `x` is identiek nul: geen richting, dus geen evenredigheid.
+    c = float(np.dot(x, y)) / xx
+    if not c > 0.0:
+        return False
+    residual = float(np.linalg.norm(y - c * x))
+    tolerance = math.sqrt(float(x.size)) * float(np.finfo(np.float64).eps)
+    return residual <= tolerance * float(np.linalg.norm(y))
+
+
 def sharpe_difference_test(
     a: pd.Series | np.ndarray,
     b: pd.Series | np.ndarray,
@@ -682,13 +722,20 @@ def sharpe_difference_test(
             align=str(align), n_dropped=n_dropped, ci_level=level,
         )
 
-    # TWEE IDENTIEKE TRACKS. Het verschil is per constructie exact nul en zijn
-    # standaardfout ook: de vier momenten van `a` en `b` zijn dezelfde reeks, dus
-    # `grad' Psi grad` is de variantie van een identiek nulle reeks. Elke
-    # deling zou hier 0/0 geven. Nul verschil met zekerheid is het juiste
-    # antwoord, en dat expliciet opschrijven is beter dan een NaN die door een
-    # rapport wandelt.
-    if np.array_equal(x, y):
+    # TWEE EVENREDIGE TRACKS (`y = c*x`, `c > 0`; `c = 1` is identiek). Het
+    # verschil is per constructie exact nul en zijn standaardfout ook: de vier
+    # momenten van `a` en `b` zijn perfect afhankelijk, dus `grad' Psi grad`
+    # valt term voor term weg. Elke deling zou hier 0/0 geven. Nul verschil met
+    # zekerheid is het juiste antwoord, en dat expliciet opschrijven is beter
+    # dan een NaN die door een rapport wandelt.
+    #
+    # RULING P47 (fase 10, stap 10). Deze tak keek op `np.array_equal(x, y)` --
+    # LETTERLIJKE gelijkheid -- terwijl de ontaarde verzameling groter is: Sharpe
+    # is schaal-invariant. Bij `c != 1` viel de toets daardoor in de `require`
+    # hieronder en weigerde een geval waarvan het antwoord in gesloten vorm
+    # bekend is. `array_equal` blijft als snelle voorwaartse tak staan, zodat het
+    # identiteitsgeval bit-identiek hetzelfde antwoord houdt als voorheen.
+    if np.array_equal(x, y) or _is_positive_multiple(x, y):
         return _build(0.0, 0.0, 0.0, 1.0, 0.0, 0.0)
 
     delta_hat, se_hat = _lw_delta_and_se(x[None, :], y[None, :], lags)
@@ -697,7 +744,9 @@ def sharpe_difference_test(
         "De Ledoit-Wolf-covariantie is gedegenereerd: het verschil of zijn "
         "standaardfout is niet eindig. Dat wijst op een reeks zonder variatie of "
         "op een HAC-schatting die niet positief is; beide zijn een datadefect en "
-        "geen resultaat.",
+        "geen resultaat. De schaal-invariante ontaarding (`b = c*a` met `c > 0`) "
+        "is hierboven al afgevangen, dus wie hier komt, heeft een ANDERE bron van "
+        "0/0 -- typisch een reeks met variantie nul.",
         DataContractError,
         n_effective=n, nw_lags=lags,
     )
