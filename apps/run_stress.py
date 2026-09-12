@@ -56,6 +56,12 @@ def main(argv: list[str] | None = None) -> int:
                          "(de scenario's mogen de live-state niet aanraken).")
     ap.add_argument("--scenarios-only", action="store_true",
                     help="Sla de baseline-overlay over (S1-S4 alleen).")
+    ap.add_argument("--notes", default="Phase 4 stress run.",
+                    help="Motivering die bij de registry-entry wordt opgeslagen. "
+                         "Het register bestaat om een risicoconfiguratie "
+                         "auditbaar te maken (AD-1); een entry met de verkeerde "
+                         "reden erin ondermijnt precies dat, dus geef een echte "
+                         "reden mee wanneer je de config hebt gewijzigd.")
     args = ap.parse_args(argv)
 
     cfg = load_config(ROOT / "conf" / "risk" / "default.yaml", RiskConfig)
@@ -68,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     RiskConfigRegistry(ROOT / "artefacts" / "governance" / "risk_config_registry.json").register(
         config_hash=engine.config_hash, git_sha=git_sha,
         config=cfg.model_dump(mode="json"), audit_header=engine.audit_header(),
-        notes="Phase 4 stress run.",
+        notes=args.notes,
     )
 
     scenarios = [

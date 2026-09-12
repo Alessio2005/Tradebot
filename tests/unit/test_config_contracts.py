@@ -168,11 +168,107 @@ class TestRiskBudgetIsComplete:
         raw = yaml.safe_load((CONF / "risk/default.yaml").read_text(encoding="utf-8"))
         assert key in raw["risk"], f"{key} ontbreekt in conf/risk/default.yaml"
 
-    def test_strictest_of_the_conflicting_values_was_chosen(self) -> None:
-        """Sectie 5 van de entanglement map: 1.5 / 2.0 / 4.0 -> 1.5."""
+    def test_the_own_capital_mandate_values_are_configured(self) -> None:
+        """`docs/RISK_MANDATE.md` §2 — de eigen-kapitaalwaarden staan in conf/.
+
+        VOORGESCHIEDENIS. Deze test heette
+        `test_strictest_of_the_conflicting_values_was_chosen` en eiste
+        `gross_cap == 1.5` en `max_drawdown_pct == 0.08`: de fase-4-regel
+        "strengste wint" (entanglement map §5) bovenop een propfirm-contract dat
+        de drawdownlijn dicteerde. Er wordt niet meer met propfirms gewerkt, dus
+        die grond is weg en de test toetste een mandaat dat niet meer bestaat.
+
+        Zij toetst nu het NIEUWE mandaat, met dezelfde strengheid. Wijzigt
+        iemand een van deze getallen zonder `docs/RISK_MANDATE.md` bij te
+        werken, dan wordt dit rood — dat is het punt van deze test.
+        """
         cfg = load_config(CONF / "risk/default.yaml", RiskConfig)
-        assert cfg.gross_cap == pytest.approx(1.5)
-        assert cfg.max_drawdown_pct == pytest.approx(0.08)
+        assert cfg.gross_cap == pytest.approx(4.0)
+        assert cfg.max_leverage == pytest.approx(4.0)
+        assert cfg.sigma_target == pytest.approx(0.20)
+        assert cfg.net_cap == pytest.approx(2.0)
+        assert cfg.max_drawdown_pct == pytest.approx(0.25)
+        assert cfg.daily_loss_limit == pytest.approx(0.10)
+
+    def test_the_market_fact_limits_were_not_widened(self) -> None:
+        """RISK_MANDATE §1 soort C: liquiditeit is geen risicobereidheid.
+
+        `adv_participation_cap` verruimen is niet moediger worden; het is de
+        backtest laten rekenen met fills die niet bestaan. Omdat
+        `conf/execution/impact.yaml` op IMPACT_UNCALIBRATED staat, vervalst het
+        de kostenkant van ELKE meting — inclusief de 16,3-57,8 bps break-even
+        waaraan elke kandidaat wordt getoetst. Deze cap mag niet meeliften op
+        een mandaatwijziging die over eigen kapitaal gaat.
+        """
+        cfg = load_config(CONF / "risk/default.yaml", RiskConfig)
+        assert cfg.adv_participation_cap == pytest.approx(0.01)
+
+    def test_the_halt_still_trips_on_the_gap_down_scenario(self) -> None:
+        """RISK_MANDATE §2.1: 0.30 is het plafond van `max_drawdown_pct`.
+
+        `risk/stress_test.py` schokt de equity met GAP_DOWN_FRACTION en
+        `tests/integration/test_risk_overrules_alpha.py` eist dat die schok de
+        halt tript. Zet iemand de ruinelijn op of boven die schok, dan wordt het
+        S3-scenario non-bindend en toetst de stress-suite niets meer — zonder
+        dat er ergens een test rood wordt. Deze test is die test.
+        """
+        from tradebot.risk.stress_test import GAP_DOWN_FRACTION
+
+        cfg = load_config(CONF / "risk/default.yaml", RiskConfig)
+        assert cfg.max_drawdown_pct < GAP_DOWN_FRACTION, (
+            f"max_drawdown_pct {cfg.max_drawdown_pct} ligt op of boven "
+            f"GAP_DOWN_FRACTION {GAP_DOWN_FRACTION}; het S3-gap-down-scenario "
+            "tript de halt dan niet meer en de stress-suite toetst niets"
+        )
+
+    def test_one_day_cannot_exceed_the_ruin_line(self) -> None:
+        """RISK_MANDATE §7 regel 5. Een daglimiet boven de harde halt is dood.
+
+        De Daily Loss Governor staat vóór de drawdown-breaker in
+        `constraint_order`. Stond hij ruimer dan de halt, dan zou de halt altijd
+        eerst binden en zou de governor nooit iets doen.
+        """
+        cfg = load_config(CONF / "risk/default.yaml", RiskConfig)
+        assert cfg.daily_loss_limit < cfg.max_drawdown_pct
+
+    def test_the_gross_cap_still_binds_on_this_universe(self) -> None:
+        """RISK_MANDATE §3. Een limiet die niet bindt is documentatie.
+
+        `max_position_pct` clampt per symbool; op zes symbolen is de hoogst
+        haalbare gross dus `6 x max_position_pct`. Ligt die onder `gross_cap`,
+        dan kan de gross-cap per constructie nooit meer binden.
+        """
+        import yaml
+
+        cfg = load_config(CONF / "risk/default.yaml", RiskConfig)
+        raw = yaml.safe_load((CONF / "data/default.yaml").read_text(encoding="utf-8"))
+        n_symbols = len(raw["data"]["symbols"])
+        reachable_gross = n_symbols * cfg.max_position_pct
+        assert reachable_gross > cfg.gross_cap, (
+            f"{n_symbols} symbolen x max_position_pct {cfg.max_position_pct} = "
+            f"{reachable_gross} <= gross_cap {cfg.gross_cap}; de gross-cap kan "
+            "niet meer binden"
+        )
+
+    def test_a_position_may_live_long_enough_to_earn_back_its_costs(self) -> None:
+        """RISK_MANDATE §4.1 — de limiet die kandidaat B onmeetbaar maakte.
+
+        Funding carry op ETH is ~1,95 bps/dag (`reports/diag_funding_short_edge.csv`,
+        all-bucket) tegen 13,0 bps VASTE kosten per round trip
+        (`conf/execution/fees.yaml`). Een positie die eerder gedwongen sluit dan
+        het break-evenpunt, kan die kosten per constructie niet terugverdienen —
+        en dan meet een negatief resultaat de config en niet de markt.
+        """
+        cfg = load_config(CONF / "risk/default.yaml", RiskConfig)
+        fixed_cost_bps = 13.0
+        eth_carry_bps_per_day = 1.95
+        break_even_days = fixed_cost_bps / eth_carry_bps_per_day  # ~6.7
+        assert cfg.max_position_age_h / 24.0 > break_even_days, (
+            f"max_position_age_h {cfg.max_position_age_h}h sluit de positie na "
+            f"{cfg.max_position_age_h / 24.0:.1f} dagen, terwijl de carry "
+            f"{break_even_days:.1f} dagen nodig heeft om alleen de vaste "
+            f"{fixed_cost_bps} bps terug te verdienen"
+        )
 
     def test_degrossing_tiers_stay_below_the_hard_halt(self) -> None:
         """Een trap boven de eindlimiet is dode code."""
