@@ -49,6 +49,22 @@ def state(equity: float = 1.0, hwm: float = 1.0, day: float = 1.0) -> RiskState:
     return RiskState(equity=equity, high_water_mark=hwm, day_start_equity=day)
 
 
+def _equity_breaching(limit: float, *, reference: float = 1.0) -> float:
+    """Equity die `limit` net overschrijdt, AFGELEID uit de config.
+
+    Deze helper bestaat omdat de kill-switch-tests hun scenario's hardcodeerden
+    op de toenmalige drempels (`equity=0.96` voor de 3%-daglimiet, `equity=0.95`
+    voor de 4%-de-grossing-trap). Die getallen waren propfirm-afgeleid, en toen
+    het mandaat wijzigde (`docs/RISK_MANDATE.md`) tripten de scenario's niets
+    meer: de tests werden rood zonder dat het MECHANISME kapot was.
+
+    Een scenario dat uit `conf/risk/` volgt, toetst de kill switch in plaats van
+    het getal waarop hij ooit stond. De marge van 20 % over de drempel houdt het
+    scenario ook bij een volgende mandaatwijziging bindend.
+    """
+    return reference * (1.0 - limit * 1.2)
+
+
 class TestConstraintOrderIsConfiguration:
     def test_the_shipped_order_names_every_implemented_limit(self, cfg: RiskConfig) -> None:
         assert set(cfg.constraint_order) == KNOWN_CONSTRAINTS
@@ -228,7 +244,7 @@ class TestKillSwitchesRunFirst:
         engine = RiskEngine(cfg, halt_store=store)
         d = engine.decide(
             {s: 1.0 for s in symbols}, market(symbols),
-            state(equity=0.96, hwm=1.0, day=1.0),
+            state(equity=_equity_breaching(cfg.daily_loss_limit), hwm=1.0, day=1.0),
         )
         assert d.gross() == pytest.approx(0.0)
         assert d.risk_state_out.halted
@@ -236,11 +252,20 @@ class TestKillSwitchesRunFirst:
         assert ConstraintKind.DAILY_LOSS_GOVERNOR in d.bound_kinds
 
     def test_the_drawdown_breaker_de_grosses_before_it_halts(
-        self, engine: RiskEngine, symbols: list[str]
+        self, cfg: RiskConfig, engine: RiskEngine, symbols: list[str]
     ) -> None:
+        # Scenario afgeleid uit conf/risk/: een drawdown die de EERSTE trap
+        # overschrijdt maar de harde halt niet raakt, bij een dagverlies dat
+        # ruim onder de daglimiet blijft — zodat uitsluitend de breaker bindt.
+        first_tier = cfg.drawdown_breaker_levels[0].drawdown
+        equity = _equity_breaching(first_tier)
+        assert equity > 1.0 - cfg.max_drawdown_pct, (
+            "het scenario raakt de harde halt; dan meet deze test de halt en "
+            "niet de getrapte de-grossing")
         d = engine.decide(
             {s: 1.0 for s in symbols}, market(symbols, sigma=0.001),
-            state(equity=0.95, hwm=1.0, day=0.96),
+            state(equity=equity, hwm=1.0,
+                  day=equity / (1.0 - cfg.daily_loss_limit * 0.5)),
         )
         assert ConstraintKind.DRAWDOWN_BREAKER in d.bound_kinds
         assert not d.risk_state_out.halted
@@ -251,7 +276,8 @@ class TestKillSwitchesRunFirst:
     ) -> None:
         store = HaltStore(tmp_path / "halt.json")
         RiskEngine(cfg, halt_store=store).decide(
-            {s: 1.0 for s in symbols}, market(symbols), state(equity=0.96),
+            {s: 1.0 for s in symbols}, market(symbols),
+            state(equity=_equity_breaching(cfg.daily_loss_limit)),
         )
         # Nieuw proces: verse state, zelfde store.
         restarted = RiskEngine(cfg, halt_store=HaltStore(tmp_path / "halt.json"))

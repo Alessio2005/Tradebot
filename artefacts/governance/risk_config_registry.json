@@ -145,6 +145,79 @@
       "git_sha": "f4352e9",
       "notes": "Phase 5: cluster labels corrected from 5x crypto_l1 + 1x crypto_oracle to a single measured cluster (crypto_perp). Rationale, evidence and impact analysis in reports/phase5_cluster_concentration_audit.md.",
       "registered_at": "2026-08-25T12:05:48.762365+00:00"
+    },
+    {
+      "audit_header": {
+        "asof_ts": null,
+        "config_hash": "9961e1613bc907a5",
+        "constraint_order": [
+          "halted",
+          "daily_loss_governor",
+          "drawdown_breaker",
+          "vol_target",
+          "per_asset_cap",
+          "adv_cap",
+          "concentration_cap",
+          "cluster_cap",
+          "gross_cap",
+          "net_cap"
+        ],
+        "daily_loss_limit": 0.1,
+        "gross_cap": 4.0,
+        "max_drawdown_pct": 0.25,
+        "max_leverage": 4.0,
+        "net_cap": 2.0,
+        "sigma_target": 0.2
+      },
+      "config": {
+        "adv_participation_cap": 0.01,
+        "allocator": "risk_parity",
+        "clusters": {
+          "AVAXUSDT": "crypto_perp",
+          "BTCUSDT": "crypto_perp",
+          "DOTUSDT": "crypto_perp",
+          "ETHUSDT": "crypto_perp",
+          "LINKUSDT": "crypto_perp",
+          "SOLUSDT": "crypto_perp"
+        },
+        "constraint_order": [
+          "halted",
+          "daily_loss_governor",
+          "drawdown_breaker",
+          "vol_target",
+          "per_asset_cap",
+          "adv_cap",
+          "concentration_cap",
+          "cluster_cap",
+          "gross_cap",
+          "net_cap"
+        ],
+        "daily_loss_limit": 0.1,
+        "daily_var_limit_pct": 0.05,
+        "drawdown_breaker_levels": [
+          {
+            "drawdown": 0.12,
+            "gross_multiplier": 0.6
+          },
+          {
+            "drawdown": 0.18,
+            "gross_multiplier": 0.3
+          }
+        ],
+        "gross_cap": 4.0,
+        "max_cluster_concentration": 0.6,
+        "max_concentration": 0.4,
+        "max_drawdown_pct": 0.25,
+        "max_leverage": 4.0,
+        "max_position_age_h": 720,
+        "max_position_pct": 0.8,
+        "net_cap": 2.0,
+        "sigma_target": 0.2
+      },
+      "config_hash": "9961e1613bc907a5",
+      "git_sha": "7f6181d",
+      "notes": "Mandaatwijziging: propfirm-compliance vervangen door een eigen-kapitaalbudget. Per limiet verantwoord in docs/RISK_MANDATE.md; soort-C-limieten (adv_participation_cap, cluster_cap) bewust ongewijzigd.",
+      "registered_at": "2026-09-12T22:06:10.759044+00:00"
     }
   ],
   "schema": "risk_config_registry.v1"
