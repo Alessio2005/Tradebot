@@ -32,8 +32,17 @@ data:
   artefacts_root: artefacts
 
 # Circuit breaker defaults
+#
+# LET OP — DIT IS EEN TWEEDE BRON VAN WAARHEID EN DAT IS EEN BEKEND DEFECT.
+# `conf/risk/default.yaml` is sinds Phase 4 de ENIGE bron voor elke
+# risicodrempel (RISK_CONTRACT §8), maar deze blok draagt zijn eigen kopie voor
+# de live circuit breaker. De waarden hieronder zijn meegetild met de
+# mandaatwijziging naar eigen kapitaal (`docs/RISK_MANDATE.md`) zodat ze het
+# oude propfirm-budget niet stilzwijgend terugzetten op het live-pad — maar de
+# duplicatie zelf hoort te verdwijnen: de breaker moet uit `risk:` lezen.
+# Zie RISK_MANDATE §6 punt 5.
 circuit_breaker:
-  max_drawdown_pct: 0.08
-  max_daily_loss_pct: 0.03
+  max_drawdown_pct: 0.25      # = risk.max_drawdown_pct
+  max_daily_loss_pct: 0.10    # = risk.daily_loss_limit
   feed_timeout_sec: 30
-  max_position_age_h: 48
+  max_position_age_h: 720     # = risk.max_position_age_h

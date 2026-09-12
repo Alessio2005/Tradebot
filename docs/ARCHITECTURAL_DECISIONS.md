@@ -503,3 +503,93 @@ implementatie — DVC aanroepen om DVC te controleren valt met het gereedschap o
 
 Zonder die test zou het manifest een achtergebleven artefact zijn dat niets
 bewaakt. Dat is de klasse die deze fase overal elders opruimt.
+
+---
+
+## AD-13 — Het risicobudget is eigen kapitaal, geen propfirm-compliance
+
+**Fase:** 9 (mandaatwijziging, buiten de fasenummering — exogeen besluit)
+**Status:** actief
+**Bewaakt door:** `tests/unit/test_config_contracts.py::TestRiskBudgetIsComplete`
+(6 tests) · volledige verantwoording in `docs/RISK_MANDATE.md`
+
+### Besluit
+
+Er wordt niet meer met propfirms gewerkt. De drempels in
+`conf/risk/default.yaml` die uitsluitend contractnaleving waren, zijn vervangen
+door een eigen-kapitaalbudget: `max_drawdown_pct` 0,08 → 0,25,
+`daily_loss_limit` 0,03 → 0,10, de de-grossing-trappen 0,04/0,06 → 0,12/0,18,
+`daily_var_limit_pct` 0,02 → 0,05 en `max_position_age_h` 48 → 720.
+
+Daarnaast is de fase-4-regel "waar waarden uiteenliepen is de strengste gekozen"
+vervangen door een expliciet vastgelegde risicobereidheid: `sigma_target`
+0,08 → 0,20, `max_leverage` en `gross_cap` 1,5 → 4,0, `net_cap` 0,60 → 2,0,
+`max_position_pct` 0,25 → 0,80.
+
+### Waarom dit één besluit is en niet twee
+
+Omdat het verleidelijk is er twee van te maken en dan de tweede niet op te
+schrijven. Het propfirm-mandaat gaf een *reden* voor strakke getallen; de
+opruimregel "strengste wint" gaf een *procedure*. Valt de reden weg, dan blijft
+de procedure zonder onderbouwing achter — en een drempel die alleen nog bestaat
+omdat hij ooit de strengste van drie toevallige waarden was, is geen
+risicobeleid. `docs/RISK_MANDATE.md` §1 labelt daarom elke limiet A (propfirm),
+B (interne opruiming) of C (marktfeit), zodat "de propfirm is weg" niet als
+blanco cheque voor het hele bestand kan dienen.
+
+### Wat het NIET is
+
+Geen verruiming omdat een resultaat tegenviel — de zet die fase 9 §9 als enige
+onbeschadigde norm van dit project aanwijst. De grond is exogeen. Ter controle:
+de vier bekende poort-failures (KG-B1/B2/B3 op `cm_carry` en `cm_tsmom`) staan
+na dit besluit onveranderd rood, geen backtest is opnieuw gedraaid en geen
+ledger-entry is aangeraakt.
+
+En het maakt niets verhandelbaar. Break-even is 16,3-57,8 bps per round trip; de
+beste gemeten bruto-edge in deze repo is +4,43 bps. Een negatieve verwachting
+harder inzetten vergroot alleen de verwachte verliezen.
+
+### Afgewezen alternatief 1 — alles verruimen omdat de propfirm weg is
+
+`adv_participation_cap` (0,01) en `max_concentration` (0,40) zijn bewust
+ONGEWIJZIGD. De ADV-cap is liquiditeit, geen bereidheid: boven ~1 % van de ADV
+is de impactterm het hele resultaat, en `conf/execution/impact.yaml` staat op
+`IMPACT_UNCALIBRATED` — hem verruimen vervalst de kostenkant van élke meting,
+inclusief de break-even waaraan elke kandidaat wordt getoetst.
+`max_concentration` was nooit propfirm-afgeleid en is per AD-4 de enige werkzame
+spreidingsbescherming zolang `cluster_cap` vacuous is.
+
+### Afgewezen alternatief 2 — de limieten laten staan tot er een edge is
+
+Dit is de aantrekkelijke zet ("ruimte die je niet gebruikt kan geen schade
+doen") en hij is fout, om één meetbare reden. `max_position_age_h: 48` sloot
+elke positie na twee dagen, terwijl funding carry — de enige
+niet-gefalsificeerde kandidaat uit fase 9 §6.3 — bij ~1,95 bps/dag ruim zeven
+dagen nodig heeft om alleen de 13,0 bps vaste kosten terug te verdienen. Die
+limiet gáf geen ruimte weg: hij garandeerde dat de kandidaat negatief zou meten
+om een reden die niets met de markt te maken heeft. Hetzelfde geldt voor
+`max_drawdown_pct: 0,08` tegen de enige forward-meting in de repo
+(`max_drawdown −0,3817`): die halt beëindigde het pad vóór het venster uit was.
+
+Een limiet die een meting onmogelijk maakt, is geen voorzichtigheid maar een
+meetfout met een risicomotivering. Fase 9 §0 regel 5 zegt het algemeen: een
+niet-uitgevoerde meting is geen negatieve meting.
+
+### Wat de grens van boven zet
+
+`max_drawdown_pct` kan niet hoger dan 0,30. `risk/stress_test.py:68` zet
+`GAP_DOWN_FRACTION = 0.30` en de stress-suite eist dat die schok de halt trípt;
+daarboven is het S3-scenario non-bindend en toetst de suite niets meer. 0,25
+houdt 5 punten marge. Na dit besluit trípt S3 nog steeds zowel de
+`daily_loss_governor` als de `drawdown_breaker` — gecontroleerd met
+`apps/run_stress.py`, uitvoer in `artefacts/risk/phase4_stress.json`.
+
+### Het defect dat dit besluit blootlegt en niet oplost
+
+`sigma_target` verruimen is mogelijk INERT. `reports/vol_target_sweep.csv` laat
+`realized_vol` identiek 0,0742 zien bij target 0,16, 0,24 én 0,35: de vol-target
+bindt daar niet, er zit een andere limiet vóór. Die sweep draaide met
+risicoparameters buiten `conf/` om, dus het getal is geen eigenschap van deze
+config — maar de vraag welke limiet werkelijk bindt, is open. Een risicolaag
+waarvan de primaire schaalparameter niet bindt, is kapot, en dat oordeel staat
+los van hoe ruim de getallen zijn. Zie `docs/RISK_MANDATE.md` §2.3 en DI-18.

@@ -287,13 +287,18 @@ def _build_engine_shadow():
     )
 
     # ── Engine config ─────────────────────────────────────────────────────────
+    # MANDAATWIJZIGING (docs/RISK_MANDATE.md): de drempels hieronder waren
+    # propfirm-afgeleid (8% DD / 3% dag / 48h flatten) en stonden hier HARDCODED,
+    # dus buiten conf/ om — precies wat RISK_CONTRACT §8 verbiedt. Zij volgen nu
+    # `conf/risk/default.yaml`; de hardcoding zelf hoort te verdwijnen
+    # (RISK_MANDATE §6 punt 2).
     cb_cfg = CircuitBreakerConfig(
-        max_drawdown_pct=0.08,
-        max_daily_loss_pct=0.03,
+        max_drawdown_pct=0.25,      # = risk.max_drawdown_pct
+        max_daily_loss_pct=0.10,    # = risk.daily_loss_limit
         feed_timeout_sec=120,       # 120s gap before CB trips (P0-3: allow spot
                                     # WS reconnect delay; engine.run() seeds
                                     # last_feed_ts at start so clock ticks from t=0)
-        max_position_age_h=48,
+        max_position_age_h=720,     # = risk.max_position_age_h
     )
     # CHIEF-1 (2026-05-28) — INERTIA FILTER active.
     #   max_weight_change=0.25  : turnover cap per rebalance (existing)

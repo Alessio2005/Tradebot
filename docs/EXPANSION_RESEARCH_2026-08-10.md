@@ -442,9 +442,19 @@ No tunable harvest layer, no weight optimisation (F12, F11). Book = risk parity 
 universe ever reopens. Add: micros mandatory, CME data subscription budgeted, elective-professional
 status is a separate decision tied only to a (currently dead) equity path.
 
-**4.5 Risk & allocation.** The prompt's "Setup A: max 10% daily loss" contradicts your propfirm
+**4.5 Risk & allocation.** ~~The prompt's "Setup A: max 10% daily loss" contradicts your propfirm
 plan (`project_propfirm_plan`: 5% daily / 10% static DD, with the governor retrofit to 6%/3%).
-Keep the propfirm numbers — they are contractual, not preferences. Allocation: do **not** pre-commit
+Keep the propfirm numbers — they are contractual, not preferences.~~
+
+> **CORRECTIE (mandaatwijziging, zie `docs/RISK_MANDATE.md`).** Doorgehaald.
+> "They are contractual, not preferences" was juist zolang er een contract was;
+> er wordt niet meer met propfirms gewerkt, dus dat argument is vervallen en
+> daarmee ook de reden om de getallen aan te houden. Geldend budget:
+> `conf/risk/default.yaml` (25 % DD-halt, 10 % daglimiet).
+>
+> Merk de ironie op: de "Setup A: max 10 % daily loss" die deze paragraaf
+> afwees, ligt precies op de waarde die nu geldt. De paragraaf was niet fout —
+> zijn premisse is verdwenen. Allocation: do **not** pre-commit
 50/25/25. Setup B gets capital only after KG-P, and then at a weight set by risk parity on measured
 correlations, capped at 25% until it has 3 months of live P&L.
 

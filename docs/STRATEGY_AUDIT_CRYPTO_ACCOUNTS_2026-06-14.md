@@ -1,5 +1,19 @@
 # Strategy Design & Audit — Crypto Propfirm Accounts A & B
 
+> ## ⚠️ ACHTERHAALD — HISTORISCH DOCUMENT
+>
+> **Er wordt niet meer met propfirms gewerkt.** De accountregels die dit
+> document als bindend behandelt ("static 10 % max-DD + 5 % daily", §6.3) zijn
+> geen contract meer. Geldend beleid: `docs/RISK_MANDATE.md` +
+> `conf/risk/default.yaml`.
+>
+> §6.3 ("Propfirm fit") is daarmee in zijn geheel achterhaald, inclusief de
+> claim **"Status: enforced in engine"** — de governor is opt-in en staat
+> default uit (RISK_MANDATE §5.4).
+>
+> Bewaard als herkomst, niet als geldende eis.
+
+
 **Author:** CHIEF (Quantitative Architect / Head of ML)
 **Date:** 2026-06-14
 **Scope:** Concrete strategy specification for the two crypto propfirm accounts

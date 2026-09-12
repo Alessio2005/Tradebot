@@ -1,4 +1,24 @@
-"""risk/daily_loss_governor.py — Propfirm compliance governor.
+"""risk/daily_loss_governor.py — Propfirm compliance governor. DORMANT.
+
+STATUS: er wordt niet meer met propfirms gewerkt. Deze module handhaaft
+regels van een tegenpartij die er niet meer is en heeft daarmee GEEN
+productiefunctie. Zie `docs/RISK_MANDATE.md` voor het besluit en voor de
+eigen-kapitaalbudgetten die de plaats ervan innemen (`conf/risk/default.yaml`).
+
+Zij is opt-in en dus inactief: `live/engine.py` bouwt een ``PropfirmGovernor``
+alleen wanneer ``propfirm_limits`` wordt meegegeven, en dat argument staat
+default op ``None``. De governor is nog nooit op een echte kandidaat gedraaid.
+
+NIET VERWIJDERD, EN DAT IS EEN BESLUIT. Schrappen is ontmantelingswerk en hoort
+achter de annuleerbare tag uit fase 9 §5.3, samen met
+``monitoring/cross_account.py``. Wat hier staat is de MEETBARE
+heropeningsvoorwaarde: deze module mag weer aan zodra er een tegenpartij is die
+een dag- of statische-DD-lijn contractueel oplegt. Zonder zulke tegenpartij is
+elke drempel erin een getal zonder mandaat.
+
+Wat hieronder volgt beschrijft het oude, propfirm-mandaat en is
+ONGEWIJZIGD bewaard als herkomst — niet als geldend beleid.
+
 
 The propfirm parallel-deployment audit (artefacts/PROPFIRM_PARALLEL_AUDIT.md)
 identified two HARD account-killer constraints that the existing peak-based
