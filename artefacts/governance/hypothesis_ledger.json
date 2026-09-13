@@ -304,6 +304,50 @@
       "metrics": {},
       "notes": "AD-24-amendement: de hypothese-ledger wordt eenmalig gereset (mandaatbesluit B-3). M=2776 blijft ARCHIVED (R3) -- gearchiveerd, niet gewist -- en is bevroren vastgelegd in artefacts/governance/ledger_reset.json (git_sha=4a64731, frozen_utc=2026-09-08T15:10:40.357902+00:00). Vanaf nu wordt gemeten met M_new=25 via registry.ledger_reset.active_trial_count(); 25 is het vooraf geregistreerde, bevroren aantal geplande trials voor het programma op dagbars (AD-22/AD-23), disjunct van de ruimte waarin de 2776 zijn uitgevoerd -- niet nul (R1). FALSIFICATION_REGISTER.md F1-F20 blijft onverkort bindend (R2); het bevroren poortsample uit stap 4B is de enige externe verificatie (R8). GEEN nieuwe trials: dit amendement draagt n_trials=0 en revideert geen oordeel over reeds geboekte trials. amends wijst naar b08585c4394488eb (phase6_h3_meta_labeling-amendement, de laatste entry vóór deze reset) uitsluitend als append-only ankerpunt in de ketting van de ledger -- het H3-oordeel zelf wordt hierdoor NIET herzien. Het substantiele record van de reset is ledger_reset.json, niet deze entry.",
       "amends": "b08585c4394488eb"
+    },
+    {
+      "wave": 32,
+      "unit": "phase10_h10_1_decision_frequency",
+      "market": "crypto",
+      "config_hash": "3bf8a8b17f610296",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "8df453b",
+      "data_hash": "af05b4f95d0e282111641f85904c22f9",
+      "preregistration_id": "3bf8a8b17f610296ba488af5376136e9",
+      "ts_utc": "2026-09-13T19:19:43.729984+00:00",
+      "metrics": {
+        "verdict": "UNPROVEN",
+        "planned_trials": 4,
+        "m_new_frozen": 25,
+        "k_grid": [
+          1,
+          2,
+          5,
+          10
+        ],
+        "best_k": 2,
+        "delta_net_sharpe_development_best_k": 0.0,
+        "dsr_development_best_k": 9.879498476265908e-05,
+        "breakeven_cost_bps_development_best_k": null,
+        "ci_high_delta_net_sharpe_development_best_k": 0.0,
+        "sharpe_primary_cell": -0.8054818444080324,
+        "se_primary_cell": 0.4909071564153242,
+        "t_stat_primary_cell": -1.6408028155258085,
+        "n_sovereign_halted_every_k": 1566,
+        "n_unique_decision_rows_primary": 1,
+        "n_bars_moved_by_hold_primary": 0,
+        "turnover_reduction_long_only_risk_parity_k10": 0.5778,
+        "n_sovereign_halted_long_only_risk_parity_every_k": 1566,
+        "n_binding_stop_criteria_measurable": 2,
+        "n_measurable_stop_criteria": 3,
+        "gate_sample_read": false,
+        "n_obs": 1390,
+        "bars_per_year": 365.0,
+        "t_years": 3.808219178082192
+      },
+      "notes": "H-10.1-oordeel: UNPROVEN. De beslisfrequentie k in {1,2,5,10} is gemeten op de vooraf geregistreerde cel long_only_equal_weight/L3_execution (netto Sharpe, 1390 ontwikkelbars = 3,8082 j). Twee van de drie beoordeelbare stop-criteria BINDEN: delta_net_sharpe = 0,0 (eis > 0) en DSR = 9,879e-05 bij het bevroren M_new = 25 (eis >= 0,95; die eis vraagt op N=1390 een geann. Sharpe van 1,8686 en de cel meet -0,8055 met SE 0,4909, t=-1,64). REJECTED is NIET van toepassing: effect_is_demonstrably_negative vraagt ci_high < 0 en ci_high = 0,0 exact. WAAROM HET VERSCHIL EXACT NUL IS, EN NIET BIJ BENADERING: het besluitpaneel van deze track draagt 1 unieke gewichtsrij op 1743 bars -- een gelijkgewogen boek op een universum dat niet van samenstelling verandert IS een constante vector -- en hold_decision beweegt bij elke k > 1 exact 0 bars. Vasthouden is daar de identiteit. DE STERKERE BEVINDING ZIT IN DE DIAGNOSTIEK, op de drie niet-primaire tracks, waaruit niets is geselecteerd: long_only_risk_parity HALTEERT (1566 bars) EN het vasthouden verlaagt daar de omzet met 57,78 % bij k=10 (0,017697 -> 0,007472), en de haltteller blijft desondanks exact 1566 bij elke k. De twee xs_momentum-tracks laten de omzet met 68-69 % dalen en halteren nul bars bij elke k. De haltteller is dus over alle vier tracks volledig ONGEVOELIG voor de beslisfrequentie. Daarmee breekt de causale keten van de hypothese (minder besluiten -> minder omzet -> minder kosten -> minder drawdown -> minder haltes) niet alleen op de eerste schakel maar aantoonbaar ook op de DERDE: een omzetdaling van 58 % op een halterende track beweegt geen enkele halt. De pre-registratie noemt dat vooraf als weerlegging en niet als bevestiging. HET POORTSAMPLE IS NIET GELEZEN, en dat is de pre-geregistreerde handeling: criterium no_improvement_on_development sluit de vraag expliciet af 'voordat de poortsample wordt aangeraakt'. holdout_lock.json draagt nog reads=[]; de ene toegestane lezing (R-7) is dus NIET besteed en blijft beschikbaar. GEEN NIEUWE TRIALS IN DEZE ENTRY: n_trials=0 met amends, omdat active_trial_count() eist dat de lopende ledger-teller gelijk blijft aan de bevroren archived_total=2776 -- een boeking met n_trials=4 tilt hem naar 2780 en laat die functie (en dus elke DSR in fase 10) weigeren; gemeten in een sandbox-kopie. De vier trials van deze hypothese staan als planned_trials=4 in de bevroren pre-registratie 3bf8a8b17f610296ba488af5376136e9, en de poort erop is assert_within_budget(4) tegen het bevroren M_new=25; remaining(booked=4)=21. Dat de repository haar eigen boekingsvorm (wave 30: n_trials=6, result=interim) na AD-24 niet meer kan gebruiken, is als bevinding gerapporteerd en NIET opgelost door de controle te verzwakken. preregistration_id=3bf8a8b17f610296ba488af5376136e9",
+      "amends": "b50313b8a9f10ae1"
     }
   ]
 }

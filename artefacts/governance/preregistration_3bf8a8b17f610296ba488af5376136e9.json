@@ -1,0 +1,143 @@
+{
+  "content": {
+    "data_hashes": [
+      [
+        "crypto/ohlcv/AVAXUSDT/1d",
+        "af05b4f95d0e282111641f85904c22f9"
+      ],
+      [
+        "crypto/ohlcv/BTCUSDT/1d",
+        "4f21f2c7ab071ddc19da5eb3f38172f3"
+      ],
+      [
+        "crypto/ohlcv/DOTUSDT/1d",
+        "17be1f4206997f12fd7e1825f123299b"
+      ],
+      [
+        "crypto/ohlcv/ETHUSDT/1d",
+        "d67c9bb18b2c794ba416067556227a5a"
+      ],
+      [
+        "crypto/ohlcv/LINKUSDT/1d",
+        "8d6a82f316253c2626d016bbbad804d4"
+      ],
+      [
+        "crypto/ohlcv/SOLUSDT/1d",
+        "1d64b001993b575f34ef04ce548616c5"
+      ],
+      [
+        "crypto/open_interest/AVAXUSDT/1d",
+        "5f642bd6e318ad795103682c530dd952"
+      ],
+      [
+        "crypto/open_interest/BTCUSDT/1d",
+        "4fe481c71f8237e9ba2bbd80f0d84e96"
+      ],
+      [
+        "crypto/open_interest/DOTUSDT/1d",
+        "1795c58ed7ab641fd80219a26272b313"
+      ],
+      [
+        "crypto/open_interest/ETHUSDT/1d",
+        "be986e9314c9f28ef3fd147b01bfefd4"
+      ],
+      [
+        "crypto/open_interest/LINKUSDT/1d",
+        "9024d7e536d7ced7e8e23a4dc97eb952"
+      ],
+      [
+        "crypto/open_interest/SOLUSDT/1d",
+        "9267e0accf0055a1cba7c9db1ab5d4e2"
+      ]
+    ],
+    "evaluation_start": "2021-11-15",
+    "granularity": "1d",
+    "hypothesis": "De haltketen halteert het overgrote deel van de bars omdat hij per dag een besluit eist. Wordt het besluit met frequentie k genomen (k in {1, 2, 5, 10} bars) en tussentijds vastgehouden, dan daalt het aantal haltes en de gemiddelde omzet zonder dat het rendement wordt vernietigd: er bestaat een k > 1 waarvoor de netto Sharpe van `long_only_equal_weight` bij `L3_execution` hoger is dan bij k = 1, met een 95 %-interval dat nul uitsluit na deflatie met M = 25, met hetzelfde teken op het poortsample, en met een breakevenkostenniveau onder de kostenaanname die deze repository daadwerkelijk hanteert.",
+    "null_hypothesis": "De beslisfrequentie is niet de oorzaak van de haltes. Onder deze nulhypothese verandert het aantal haltes niet wezenlijk met k, en is het verschil in netto Sharpe tussen k > 1 en k = 1 niet van nul te onderscheiden. Een daling van de omzet die NIET door de haltes of door de netto Sharpe wordt gevolgd, weerlegt de hypothese en bevestigt haar niet: de hypothese stelt een causale keten (minder besluiten -> minder omzet -> minder kosten -> minder drawdown -> minder haltes) en het breken van een schakel daarin is een weerlegging van de keten. Een verschil in netto Sharpe zonder dat de haltes bewegen, is een kostenbevinding en geen bevestiging van DEZE hypothese.",
+    "parameters": {
+      "anchor": "first_bar",
+      "bars_per_year": 365.0,
+      "cost_axis_layer": "L0_vectorized",
+      "cost_per_side_bps": 6.5,
+      "eta": 2.991922,
+      "eta_status": "IMPACT_UNCALIBRATED",
+      "k_grid": [
+        1,
+        2,
+        5,
+        10
+      ],
+      "m_new_frozen": 25,
+      "primary_layer": "L3_execution",
+      "primary_track": "long_only_equal_weight"
+    },
+    "period_end": "2026-08-23",
+    "period_start": "2021-11-15",
+    "planned_trials": 4,
+    "primary_metric": "net_sharpe_l3_long_only_equal_weight",
+    "stop_criteria": [
+      {
+        "action": "archive",
+        "metric": "delta_net_sharpe_development_best_k",
+        "name": "no_improvement_on_development",
+        "operator": "<=",
+        "rationale": "Deel (1) van de beslisregel. Is het beste gemeten verschil tegen k = 1 op de ontwikkelsample niet positief, dan is er niets om naar de poort te brengen en is het oordeel UNPROVEN. Dit criterium kijkt naar het PUNT en niet naar het interval; het interval is criterium twee. Een punt onder nul sluit de vraag af voordat de poortsample wordt aangeraakt, en dat is precies de bedoeling van R-7.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "dsr_development_best_k",
+        "name": "deflated_interval_includes_zero",
+        "operator": "<",
+        "rationale": "Deel (2). De deflated Sharpe ratio bij M = 25 (AD-24, bevroren in `ledger_reset.json`) moet ten minste 0,95 zijn. Bij M = 25 en N = 1390 vraagt dat een geannualiseerde Sharpe van orde 1,74, en de hele vier-lagen-ladder haalt op geen enkele cel de helft daarvan. Dit criterium is daarom vrijwel zeker bindend, en dat is geen reden om het te verzachten: het is de rekenkundige stand van het programma en die hoort in het oordeel te staan in plaats van eromheen.",
+        "threshold": 0.95
+      },
+      {
+        "action": "archive",
+        "metric": "delta_net_sharpe_gate_best_k",
+        "name": "sign_flips_on_gate_sample",
+        "operator": "<=",
+        "rationale": "Deel (3). Hetzelfde teken op het bevroren poortsample (W_GATE, 2025-09-05 t/m 2026-08-23, 353 bars, 0,9671 jaar). Het poortsample wordt precies eenmaal gelezen, uitsluitend voor de k die op de ontwikkelsample het gunstigst is, en die lezing is onherroepelijk (`validation/holdout.py::gate_slice` schrijft de lezing weg VOORDAT hij data teruggeeft). W_GATE draagt bewust geen t = 2-drempel: op 0,9671 jaar is de standaardfout van een Sharpe ongeveer 1,02 en dat venster kan een effect van deze orde niet aantonen. Het is een tekencontrole en geen bewijs.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "breakeven_cost_bps_development_best_k",
+        "name": "breakeven_above_plausible_cost",
+        "operator": ">",
+        "rationale": "Deel (4). De drempel is `taker_fee_bps + assumed_half_spread_bps` = 5,5 + 1,0 = 6,5 bp uit `conf/execution/fees.yaml` -- de enige kosten per eenheid omzet die deze repository daadwerkelijk beweert, en de waarde waarmee de ladder op L0/L1/L2 rekent. Ligt het breakevenniveau BOVEN 6,5 bp, dan betaalt het vasthouden zich pas terug bij kosten die hoger zijn dan wat hier wordt aangenomen, en dan is de winst een gevolg van de kostenaanname en geen eigenschap van het systeem. De drempel staat hier vooraf vast, juist omdat `eta` ongekalibreerd is (AD-2, `IMPACT_UNCALIBRATED`): een drempel die na de meting wordt gekozen, is geen drempel.",
+        "threshold": 6.5
+      },
+      {
+        "action": "falsify",
+        "metric": "ci_high_delta_net_sharpe_development_best_k",
+        "name": "effect_is_demonstrably_negative",
+        "operator": "<",
+        "rationale": "REJECTED is voorbehouden aan een AANTOONBAAR negatief effect, en niet aan een afwezig effect. Dit criterium bindt alleen wanneer de BOVENgrens van het 95 %-interval op het beste verschil onder nul ligt: dan is niet alleen het punt negatief maar sluit het interval nul uit aan de verkeerde kant. Alles daartussen is UNPROVEN.",
+        "threshold": 0.0
+      },
+      {
+        "action": "promote",
+        "metric": "n_binding_stop_criteria",
+        "name": "promotion_requires_all_gates_clear",
+        "operator": "<=",
+        "rationale": "CONFIRMED vereist alle vier delen van de beslisregel tegelijk. Ontbreekt er een, dan is het UNPROVEN. Dit criterium maakt die conjunctie machinaal leesbaar in plaats van iets dat in het rapport moet worden nagelopen.",
+        "threshold": 0.0
+      }
+    ],
+    "title": "H-10.1 — de beslisfrequentie k in {1, 2, 5, 10} bars op de portefeuille-expositie, met de haltketen NA het vasthouden, getoetst op netto Sharpe van `long_only_equal_weight` bij `L3_execution`.",
+    "universe": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "AVAXUSDT",
+      "LINKUSDT",
+      "DOTUSDT"
+    ],
+    "wave": "phase10_h10_1_decision_frequency"
+  },
+  "frozen_utc": "2026-09-13T19:15:17.611313+00:00",
+  "git_sha": "8df453b",
+  "ledger_total_at_freeze": 2776,
+  "preregistration_id": "3bf8a8b17f610296ba488af5376136e9"
+}
