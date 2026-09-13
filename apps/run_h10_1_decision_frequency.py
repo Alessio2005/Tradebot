@@ -63,9 +63,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -131,7 +134,18 @@ RESET = ROOT / "artefacts/governance/ledger_reset.json"
 LEDGER = ROOT / "artefacts/governance/hypothesis_ledger.json"
 
 
-def _ladder_reads(track, k, *, weights, market, usable, risk, cost, params, cfg):
+def _ladder_reads(
+    track: str,
+    k: int,
+    *,
+    weights: pd.DataFrame,
+    market: Mapping[str, Any],
+    usable: pd.Index,
+    risk: RiskConfig,
+    cost: CostModel,
+    params: ImpactParams,
+    cfg: Mapping[str, Any],
+) -> LadderRead:
     """Eén ladderrun bij één k op één track, teruggegeven als `LadderRead`."""
     decision = weights.loc[usable].fillna(0.0)
     held = hold_decision(decision, k=k, anchor=ANCHOR)
