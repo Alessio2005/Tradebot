@@ -18,32 +18,49 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install dev deps
-        run: pip install -e ".[dev]" --no-cache-dir
+      # DE LINTERS ZIJN GEPIND, net als de runtime. `pyproject.toml` zet
+      # `ruff>=0.1.8` en `mypy>=1.7`: ONDERGRENZEN, geen pins. Daarmee bepaalt
+      # de releasedatum van ruff het oordeel van deze poort -- dezelfde
+      # broncode ging van 7 naar 78 bevindingen tussen 0.15.12 en 0.16.4, en
+      # een poort die van mening verandert zonder dat de code verandert,
+      # bewaakt niets. `hygiene.yml` installeert daarom sinds Phase 7/8 Stage
+      # A-2 uit de lockfiles; DEZE job deed dat niet, en dat is de reden dat
+      # hij rood kon worden zonder dat er een commit tussen zat.
+      #
+      # Er komt hier geen TWEEDE pin-mechanisme bij (R-3): dit zijn dezelfde
+      # twee lockfiles, met dezelfde ruff==0.15.12 en mypy==2.3.1.
+      - name: Install from lockfile
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock -r requirements-dev.lock
+          pip install -e . --no-deps
       - name: Ruff
         run: ruff check src/ apps/ tests/
       - name: Mypy
         run: mypy src/tradebot/schemas/ src/tradebot/utils/ apps/ --ignore-missing-imports
 
+  # R-3 (een implementatie per grootheid) geldt ook voor een CI-config. Deze
+  # job hield een TWEEDE LOC-poort bij: een inline shell-lus met een whitelist
+  # van vier namen, waarvan `risk/portfolio.py` sinds Phase 4 niet bestaat en
+  # twee dubbel stonden. De echte poort is `scripts/check_file_size.py`, met
+  # LIMIT = 800 plus een gemeten cap per bestand, en met
+  # `tests/unit/test_file_size_ratchet.py` als bewijs dat hij rood kan worden.
+  #
+  # De twee copieen waren het onderling ONEENS: gemeten op 5dad1ab gaf de
+  # inline lus 7 failures en het script groen. Een poort die met zichzelf van
+  # mening verschilt, meet niets -- en de kopie die rood stond was de kopie
+  # zonder cap-tabel, dus rood op bestanden die een gelezen besluit dragen.
+  # Er blijft nu een implementatie over, en dat is die met de ratchet.
   loc-guard:
     name: LOC Guard (800-line limit)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check no file > 800 LOC
-        # Whitelist: tightly-coupled algorithm files (# LOC-EXCEPTION in each header)
-        run: |
-          LOC_WHITELIST="train/ensemble.py labeling/meta.py risk/portfolio.py tune/objective.py risk/portfolio.py tune/objective.py"
-          find src/ -name "*.py" | while read f; do
-            lines=$(wc -l < "$f")
-            basename=$(echo "$f" | sed 's|src/tradebot/||')
-            exempt=0
-            for w in $LOC_WHITELIST; do [ "$basename" = "$w" ] && exempt=1 && break; done
-            if [ "$lines" -gt 800 ] && [ "$exempt" -eq 0 ]; then
-              echo "FAIL: $f has $lines lines (> 800 limit)"
-              exit 1
-            fi
-          done
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Check no file > 800 LOC (per-file ratchet)
+        run: python scripts/check_file_size.py
 
   test-fast:
     name: Fast tests (not slow, not regression)
@@ -54,8 +71,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install deps
-        run: pip install -e ".[dev]" --no-cache-dir
+      # Zelfde reden als in de lint-job: een testketen op ongepinde deps
+      # meet de releasekalender mee. pandas en numpy staan in
+      # requirements.lock op 2.3.3 en 1.26.4; `.[dev]` zou hier pandas 3.x
+      # binnenhalen, een MAJOR verschil.
+      - name: Install from lockfile
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock -r requirements-dev.lock
+          pip install -e . --no-deps
       - name: Run fast tests
         run: pytest -m "not slow and not regression" --cov=src/tradebot --cov-report=xml -q
       - name: Upload coverage
