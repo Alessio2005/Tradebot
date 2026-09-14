@@ -1,0 +1,235 @@
+{
+  "git_sha": "1abc99c",
+  "preregistration_id": "2c1c51e42dfff1c722476344e52d5b6b",
+  "preregistration_path": "artefacts/governance/preregistration_2c1c51e42dfff1c722476344e52d5b6b.json",
+  "ledger_total_at_freeze": 2776,
+  "m_new_frozen": 25,
+  "universe": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "AVAXUSDT",
+    "LINKUSDT",
+    "DOTUSDT"
+  ],
+  "sample": "development",
+  "growth": {
+    "min_symbols_per_bar": 2,
+    "reference_min_symbols_per_bar": 6,
+    "n_bars": 1749,
+    "n_bars_reference": 1390,
+    "n_bars_added": 359,
+    "growth_fraction": 0.258273381294964,
+    "t_years": 4.791780821917809,
+    "t_years_reference": 3.808219178082192,
+    "t2_hurdle": 0.9136535019115147,
+    "t2_hurdle_reference": 1.0248705831617062,
+    "t2_hurdle_delta": -0.11121708125019147,
+    "se_sharpe": 0.45682675095575737,
+    "se_sharpe_reference": 0.5124352915808531,
+    "first_bar": "2020-11-21",
+    "first_bar_reference": "2021-11-15",
+    "breadth_histogram": {
+      "2": 145,
+      "3": 4,
+      "4": 180,
+      "5": 30,
+      "6": 1390
+    },
+    "breadth_histogram_added": {
+      "2": 145,
+      "3": 4,
+      "4": 180,
+      "5": 30
+    },
+    "mean_breadth": 5.4385363064608345,
+    "mean_breadth_reference": 6.0,
+    "mean_breadth_added": 3.264623955431755,
+    "hurdle_formula": "2/sqrt(t_years)",
+    "hurdle_caveat": "2/sqrt(T) assumes bars of equal information content. The added bars carry a NARROWER cross-section (see breadth_histogram_added), so the measured hurdle reduction overstates the gain in evidence. Report the breadth distribution alongside the hurdle, never the hurdle alone."
+  },
+  "l0_net_sharpe_by_window": {
+    "long_only_equal_weight": {
+      "unbalanced": {
+        "sharpe": 0.7216164476963428,
+        "sharpe_per_bar": 0.037771131165883556,
+        "se": 0.4298307719429117,
+        "se_naive": 0.45682675095575737,
+        "t_stat": 1.6788384983106441,
+        "n_obs": 1749,
+        "bars_per_year": 365.0,
+        "t_years": 4.791780821917809,
+        "skew": -0.24896396411535543,
+        "kurtosis": 6.981589487659993,
+        "nw_lags": 7,
+        "hac_inflation": 0.8752057227999036,
+        "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+        "min_symbols_per_bar": 2
+      },
+      "balanced": {
+        "sharpe": 0.27044613041624527,
+        "sharpe_per_bar": 0.01415579744318156,
+        "se": 0.49447274177514855,
+        "se_naive": 0.5124352915808531,
+        "t_stat": 0.5469384003764258,
+        "n_obs": 1390,
+        "bars_per_year": 365.0,
+        "t_years": 3.808219178082192,
+        "skew": -0.1973072081877802,
+        "kurtosis": 6.219039527258461,
+        "nw_lags": 7,
+        "hac_inflation": 0.9282866779395825,
+        "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+        "min_symbols_per_bar": 6
+      }
+    },
+    "long_only_risk_parity": {
+      "unbalanced": {
+        "sharpe": 0.7271648087423548,
+        "sharpe_per_bar": 0.03806154565614859,
+        "se": 0.4382128771164887,
+        "se_naive": 0.45682675095575737,
+        "t_stat": 1.6593871305818677,
+        "n_obs": 1749,
+        "bars_per_year": 365.0,
+        "t_years": 4.791780821917809,
+        "skew": -0.2970211513259263,
+        "kurtosis": 6.456631580081601,
+        "nw_lags": 7,
+        "hac_inflation": 0.9081073314380436,
+        "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+        "min_symbols_per_bar": 2
+      },
+      "balanced": {
+        "sharpe": 0.22390684628564683,
+        "sharpe_per_bar": 0.011719819977763729,
+        "se": 0.4980760747598652,
+        "se_naive": 0.5124352915808531,
+        "t_stat": 0.4495434686229365,
+        "n_obs": 1390,
+        "bars_per_year": 365.0,
+        "t_years": 3.808219178082192,
+        "skew": -0.264067927751563,
+        "kurtosis": 5.636507447115185,
+        "nw_lags": 7,
+        "hac_inflation": 0.9416779045097525,
+        "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+        "min_symbols_per_bar": 6
+      }
+    },
+    "xs_momentum_equal_weight": {
+      "unbalanced": {
+        "sharpe": 0.06462894269593274,
+        "sharpe_per_bar": 0.003382833469876326,
+        "se": 0.4229570892565869,
+        "se_naive": 0.45682675095575737,
+        "t_stat": 0.152802599454068,
+        "n_obs": 1749,
+        "bars_per_year": 365.0,
+        "t_years": 4.791780821917809,
+        "skew": -0.46382536127875984,
+        "kurtosis": 17.351496178728507,
+        "nw_lags": 7,
+        "hac_inflation": 0.8558317326576298,
+        "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+        "min_symbols_per_bar": 2
+      },
+      "balanced": {
+        "sharpe": 0.12977917824455118,
+        "sharpe_per_bar": 0.00679295265472975,
+        "se": 0.46242869616188215,
+        "se_naive": 0.5124352915808531,
+        "t_stat": 0.2806468960981596,
+        "n_obs": 1390,
+        "bars_per_year": 365.0,
+        "t_years": 3.808219178082192,
+        "skew": -0.5088106885355147,
+        "kurtosis": 18.801397981538475,
+        "nw_lags": 7,
+        "hac_inflation": 0.8113797111050546,
+        "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+        "min_symbols_per_bar": 6
+      }
+    },
+    "xs_momentum_risk_parity": {
+      "unbalanced": {
+        "sharpe": -0.03426146385753043,
+        "sharpe_per_bar": -0.0017933269805991412,
+        "se": 0.4566429103340993,
+        "se_naive": 0.45682675095575737,
+        "t_stat": -0.07502900643407183,
+        "n_obs": 1749,
+        "bars_per_year": 365.0,
+        "t_years": 4.791780821917809,
+        "skew": -0.32985835204572267,
+        "kurtosis": 8.524880639799298,
+        "nw_lags": 7,
+        "hac_inflation": 0.9997806681041778,
+        "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+        "min_symbols_per_bar": 2
+      },
+      "balanced": {
+        "sharpe": -0.1051013083290725,
+        "sharpe_per_bar": -0.005501253907496663,
+        "se": 0.4995914262420228,
+        "se_naive": 0.5124352915808531,
+        "t_stat": -0.21037452367758824,
+        "n_obs": 1390,
+        "bars_per_year": 365.0,
+        "t_years": 3.808219178082192,
+        "skew": -0.34778380223886257,
+        "kurtosis": 8.674439335518544,
+        "nw_lags": 7,
+        "hac_inflation": 0.9522661193383308,
+        "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+        "min_symbols_per_bar": 6
+      }
+    }
+  },
+  "l0_caveat": "The two windows span DIFFERENT market periods. A difference between them is a statement about WHICH bars were added, not about the system. Every record carries its own Sharpe triple; neither supersedes the other.",
+  "ladder_above_l0": {
+    "ran": false,
+    "reason": "RiskEngine refuses a bar without a finite ex-ante vol for EVERY symbol (phase5_baseline.py:170-184 builds sigma_hat over all symbols). Carrying a ragged panel to L1+ requires RiskEngine.decide to accept a per-bar symbol subset: a change in backtest/ plus a risk-contract decision, both outside this step's file list. Filling the vol series to get through is the silent degradation that error forbids."
+  },
+  "stop_criteria": [
+    {
+      "name": "growth_is_not_material",
+      "metric": "development_bars_added",
+      "operator": "<=",
+      "threshold": 0.0,
+      "action": "archive",
+      "measured": 359,
+      "binds": false
+    },
+    {
+      "name": "hurdle_does_not_fall",
+      "metric": "t2_hurdle_delta_development",
+      "operator": ">=",
+      "threshold": 0.0,
+      "action": "archive",
+      "measured": -0.11121708125019147,
+      "binds": false
+    },
+    {
+      "name": "added_bars_are_not_thinner_than_the_existing_ones",
+      "metric": "mean_breadth_added_bars_minus_existing",
+      "operator": "<",
+      "threshold": 0.0,
+      "action": "descope",
+      "measured": -2.735376044568245,
+      "binds": true
+    },
+    {
+      "name": "promotion_requires_all_gates_clear",
+      "metric": "n_binding_stop_criteria",
+      "operator": "<=",
+      "threshold": 0.0,
+      "action": "promote",
+      "measured": 1,
+      "binds": false
+    }
+  ],
+  "n_binding_stop_criteria": 1,
+  "trials": 1,
+  "artefact_path": "artefacts/governance/phase10_h10_2.json"
+}
