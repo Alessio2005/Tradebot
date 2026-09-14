@@ -1,0 +1,87 @@
+{
+  "git_sha": "5dad1ab",
+  "hypothesis": "H-10.3",
+  "verdict": "LAPSED",
+  "verdict_basis": "Stap 13 is conditional on stap 9's realised occupancy and episode gate. The gate returns adequate=false, so the step lapses and that is the answer. No hypothesis was tested, no trial was spent, and the gate sample was not read.",
+  "trials_planned": 1,
+  "trials_spent": 0,
+  "gate_sample_read": false,
+  "sample": "development",
+  "occupancy_gate": {
+    "model_class": "vol_state_k3",
+    "adequate": false,
+    "requirement": ">= 100 bars EN >= 20 episodes per toestand per fold, bij een bezettingsfractie >= 0.10, beoordeeld op het MINIMUM over de folds",
+    "measured": {
+      "n_states": 3,
+      "n_symbols": 6,
+      "n_folds": 8,
+      "n_bars": 1390,
+      "n_assigned_bars": 1140,
+      "occupancy_source": "realised",
+      "rarest_state_obs_in_smallest_fold": 0,
+      "rarest_state_obs_at": "HIGH, fold 2, ETHUSDT",
+      "rarest_state_episodes_in_smallest_fold": 0,
+      "rarest_state_episodes_at": "HIGH, fold 2, ETHUSDT",
+      "rarest_state_occupancy_fraction": 0.0,
+      "rarest_state_occupancy_at": "HIGH, fold 2, ETHUSDT",
+      "required_obs_per_state_per_fold": 100,
+      "required_episodes_per_state_per_fold": 20,
+      "required_occupancy_fraction": 0.1,
+      "per_state": {
+        "LOW": {
+          "min_obs_per_fold": 0.0,
+          "min_episodes_per_fold": 0.0,
+          "min_occupancy_per_fold": 0.0
+        },
+        "NORMAL": {
+          "min_obs_per_fold": 0.0,
+          "min_episodes_per_fold": 0.0,
+          "min_occupancy_per_fold": 0.0
+        },
+        "HIGH": {
+          "min_obs_per_fold": 0.0,
+          "min_episodes_per_fold": 0.0,
+          "min_occupancy_per_fold": 0.0
+        }
+      }
+    },
+    "shortfall": "BARS van de zeldzaamste toestand: 0 in de krapste fold (HIGH, fold 2, ETHUSDT) tegen een eis van 100; EPISODES van de zeldzaamste toestand: 0 in de krapste fold (HIGH, fold 2, ETHUSDT) tegen een eis van 20; BEZETTING van de zeldzaamste toestand: 0 in de krapste fold (HIGH, fold 2, ETHUSDT) tegen een eis van 0.1.",
+    "verdict": "UNPROVEN \u2014 insufficient data"
+  },
+  "fold_geometry": {
+    "n_folds": 8,
+    "n_bars": 1390,
+    "train_sizes": [
+      495,
+      495,
+      495,
+      495,
+      495,
+      495,
+      495,
+      495
+    ],
+    "test_sizes": [
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100,
+      100
+    ]
+  },
+  "gate_satisfiability": {
+    "n_assigned_bars": 1140,
+    "n_states": 3,
+    "bars_per_fold_per_symbol": 142.5,
+    "required_bars_per_fold_per_symbol": 300,
+    "satisfiable": false,
+    "shortfall_factor": 2.1052631578947367,
+    "max_n_folds_that_could_satisfy": 3,
+    "max_threshold_satisfiable_at_this_n_folds": 47.5,
+    "note": "The bars arm of the gate requires min_obs_per_state_per_fold for EACH state, per fold, per symbol. Their sum cannot exceed the fold length. When required_bars_per_fold_per_symbol exceeds bars_per_fold_per_symbol the gate cannot be satisfied by ANY assignment at this fold count -- it then reports a property of the fold geometry, not of the regime. The verdict stands either way (the regime also fails the episode arm by an order of magnitude), but the gate is over-determined here and that is a finding about the gate."
+  },
+  "artefact_path": "artefacts/governance/phase10_h10_3.json"
+}

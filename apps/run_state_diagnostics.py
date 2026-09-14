@@ -91,14 +91,17 @@ def _check_adequacy(assignment: StateAssignment, *, n_bars: int,
     )
     print("\nbezettingspoort op de GEREALISEERDE bezetting (stap 9)")
     print(json.dumps(json_safe(verdict.as_record()), indent=2, ensure_ascii=False))
+    return verdict
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="stap 6 -- toestandsdiagnose")
-    parser.add_argument(
-        "--check-adequacy", action="store_true",
-        help="draai daarnaast de bezettingspoort van stap 9 op de gelagde toewijzing")
-    args = parser.parse_args(argv)
+    # RULING (fase 10, stap 13). De bezettingspoort van stap 9 stond achter een
+    # `--check-adequacy`-vlag met default False, en niemand heeft hem ooit
+    # meegegeven: zijn oordeel over de ECHTE toewijzing was daarmee nergens
+    # vastgelegd, terwijl stap 13 er volledig op rust. De vlag is verwijderd.
+    # Een poort die standaard uit staat is geen poort, en een oordeel dat alleen
+    # in stdout bestaat is geen meting (R-8) -- het gaat nu het artefact in.
+    argparse.ArgumentParser(description="stap 6 -- toestandsdiagnose").parse_args(argv)
 
     cfg, state_cfg = load_baseline_configs(ROOT), regime_config().state
     universe = load_phase6_universe(ROOT, cfg,
@@ -117,8 +120,12 @@ def main(argv: list[str] | None = None) -> int:
             assignments[label], returns, bars_per_year=float(cfg["bt"].bars_per_year))
         _print(label, runs[label])
 
+    occupancy = _check_adequacy(
+        assignments["lagged"], n_bars=len(sigma), val=cfg["val"])
+
     payload = {
         "git_sha": current_git_sha(), "selects_nothing": True, "trials": 0,
+        "occupancy_gate": json_safe(occupancy.as_record()),
         "full_window": universe.as_record(),
         "development_window": {
             "split_utc": json.loads(LOCK.read_text(encoding="utf-8"))["split_utc"],
@@ -129,8 +136,6 @@ def main(argv: list[str] | None = None) -> int:
     (ROOT / OUT).write_text(json.dumps(json_safe(payload), indent=2), encoding="utf-8")
     print(f"\nartefact: {OUT}")
 
-    if args.check_adequacy:
-        _check_adequacy(assignments["lagged"], n_bars=len(sigma), val=cfg["val"])
     return 0
 
 
