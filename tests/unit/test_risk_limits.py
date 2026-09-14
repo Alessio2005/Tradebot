@@ -7,6 +7,7 @@ machineleesbaar in het auditspoor met de configuratiesleutel erbij.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 import pytest
@@ -101,8 +102,8 @@ class TestConcentrationCap:
         g = gross_exposure(out)
         if g > 1e-9:
             assert max(abs(v) for v in out.values()) <= 0.40 * g + 1e-9
-        for s in book:
-            assert abs(out[s]) <= abs(book[s]) + 1e-12
+        for s, before in book.items():
+            assert abs(out[s]) <= abs(before) + 1e-12
 
     def test_measured_explains_the_clip(self) -> None:
         """Het aandeel wordt gemeten tegen de UITEINDELIJKE gross.
@@ -143,7 +144,7 @@ class TestConcentrationCap:
 
 
 class TestClusterCap:
-    LABELS = {"A": "l1", "B": "l1", "C": "oracle"}
+    LABELS: ClassVar[dict[str, str]] = {"A": "l1", "B": "l1", "C": "oracle"}
 
     def test_the_whole_cluster_is_scaled_proportionally(self) -> None:
         out, bound = apply_cluster_cap(
@@ -210,8 +211,8 @@ class TestNetCap:
         """Sectie 5.3: de tegenzijde ophogen zou ook werken, en is verboden."""
         book = {"A": 1.0, "C": -0.2}
         out, _ = apply_net_cap(book, cap=0.6)
-        for s in book:
-            assert abs(out[s]) <= abs(book[s]) + 1e-12
+        for s, before in book.items():
+            assert abs(out[s]) <= abs(before) + 1e-12
 
     def test_a_market_neutral_book_does_not_bind(self) -> None:
         out, bound = apply_net_cap({"A": 1.0, "B": -1.0}, cap=0.6)
@@ -222,7 +223,7 @@ class TestNetCap:
 class TestSharedInvariants:
     """Wat elke limiet moet doen, ongeacht welke het is."""
 
-    BOOKS = [
+    BOOKS: ClassVar[list[dict[str, float]]] = [
         {"A": 1.0, "B": -1.0, "C": 0.5},
         {"A": 0.9, "B": 0.05, "C": -0.05},
         {"A": 0.0, "B": 0.0, "C": 0.0},

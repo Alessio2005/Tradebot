@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # train.quant_arch — SymmetricQuantileScaler
 # ---------------------------------------------------------------------------
@@ -141,6 +140,10 @@ class TestFeatureSchemaGuard:
         from tradebot.train.schema_guard import FeatureSchemaGuard
         guard = FeatureSchemaGuard()
         fp = guard.stamp(["feat_a", "feat_b"])
+        # `stamp()` geeft de fingerprint terug DIE hij opslaat; dat die twee
+        # hetzelfde object zijn, was de helft van deze test die nooit is
+        # nagekeken -- `fp` werd toegekend en weggegooid.
+        assert guard.stamped is fp
         assert guard.stamped is not None
         assert guard.stamped.feature_count == 2
 
@@ -167,9 +170,15 @@ class TestFeatureSchemaGuard:
             guard.check(["feat_b", "feat_a"])
 
     def test_check_before_stamp_raises(self) -> None:
-        from tradebot.train.schema_guard import FeatureSchemaGuard
+        from tradebot.train.schema_guard import (
+            FeatureSchemaGuard,
+            SchemaMismatchError,
+        )
         guard = FeatureSchemaGuard()
-        with pytest.raises(Exception):
+        # Gemeten, niet geraden: `check()` zonder `stamp()` gooit
+        # SchemaMismatchError. `Exception` zou hier ook groen blijven bij een
+        # AttributeError door een hernoemde methode.
+        with pytest.raises(SchemaMismatchError):
             guard.check(["feat_x"])
 
 
@@ -257,7 +266,7 @@ class TestKalmanImpactObserver:
 
 class TestNetAlphaReward:
     def test_compute_returns_netalpharesult(self) -> None:
-        from tradebot.train.reward import NetAlphaReward, NetAlphaResult
+        from tradebot.train.reward import NetAlphaResult, NetAlphaReward
         reward = NetAlphaReward(fee_bps=4.0)
         result = reward.compute(
             price_entry=100.0,

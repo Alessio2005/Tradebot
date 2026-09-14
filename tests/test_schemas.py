@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from pandera.errors import SchemaErrors
 
 
 def _make_bar_frame(n: int = 200, *, with_index: bool = True) -> pd.DataFrame:
@@ -49,7 +50,10 @@ def test_validate_or_die_reraises_on_bad_dtype() -> None:
 
     df = _make_bar_frame()
     df["close"] = df["close"].astype(object)  # wreck dtype
-    with pytest.raises(Exception):
+    # `pytest.raises(Exception)` stond hier: die slaagt ook op een typefout in
+    # de testregel zelf. Gemeten welke uitzondering er valt: pandera's
+    # SchemaErrors (meervoud, want lazy=True verzamelt).
+    with pytest.raises(SchemaErrors):
         validate_or_die(df, BarSchema, lazy=True)
 
 

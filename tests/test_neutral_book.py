@@ -16,7 +16,7 @@ import pytest
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
-from tradebot.alpha.neutral_book import NeutralBook, NeutralBookConfig
+from tradebot.alpha.neutral_book import NeutralBook
 
 CACHE = _ROOT / "artefacts" / "broad_perp_daily_close.parquet"
 

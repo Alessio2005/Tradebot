@@ -61,6 +61,12 @@ _ALLOWED_ROOT_FILES = frozenset({
     ".env",
     ".gitattributes",
     ".gitignore",
+    #: De config die `.github/workflows/docs.yml` aan markdownlint-cli2
+    #: meegeeft (`config: ".markdownlint.json"`). Hij MOET in de root staan:
+    #: dat is het pad dat de workflow noemt en de plek waar cli2 hem zelf
+    #: vindt. Voor deze commit bestond hij niet en faalde de check 6 van de
+    #: 6 keer op "config not found".
+    ".markdownlint.json",
     ".pre-commit-config.yaml",
     "CHANGELOG.md",
     "CLAUDE.md",

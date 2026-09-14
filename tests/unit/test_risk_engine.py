@@ -59,7 +59,7 @@ class TestConstraintOrderIsConfiguration:
         assert order[-2:] == ["gross_cap", "net_cap"]
 
     def test_halted_comes_first(self, cfg: RiskConfig) -> None:
-        assert list(cfg.constraint_order)[0] == "halted"
+        assert next(iter(cfg.constraint_order)) == "halted"
 
     def test_an_unknown_limit_name_crashes(self, cfg: RiskConfig) -> None:
         bad = cfg.model_copy(update={"constraint_order": (*cfg.constraint_order, "typo")})

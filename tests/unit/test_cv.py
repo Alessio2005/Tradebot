@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tradebot.cv import get_sequential_bootstrap_indices, WalkForwardCV
+from tradebot.cv import WalkForwardCV, get_sequential_bootstrap_indices
 
 
 def test_sb_output_shape() -> None:

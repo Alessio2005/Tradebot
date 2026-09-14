@@ -16,16 +16,10 @@ Covers:
 """
 from __future__ import annotations
 
-import asyncio
-import json
-from pathlib import Path
-
-import numpy as np
 import pandas as pd
 import pytest
 
 # ─── utils ────────────────────────────────────────────────────────────────────
-
 from tradebot.utils.hashing import (
     hash_config,
     hash_content,
@@ -163,7 +157,7 @@ class TestOrderDataclasses:
 
 # ─── AuditLog ─────────────────────────────────────────────────────────────────
 
-from tradebot.oms.audit_log import AuditLog, _REQUIRED_FIELDS
+from tradebot.oms.audit_log import _REQUIRED_FIELDS, AuditLog
 
 
 class TestAuditLog:
