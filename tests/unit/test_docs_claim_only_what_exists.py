@@ -56,6 +56,14 @@ KNOWN_ABSENT: dict[str, str] = {
         "wordt pas aangemaakt bij het eerste datagat; DATA_REGISTER.md zegt dat",
     "artefacts/governance/sign_off_log.jsonl":
         "nog niet in gebruik; model_risk_policy.md markeert dat expliciet",
+    # Configuratie die geen checkout ooit ziet. `.gitignore` regel 34 (`env/`,
+    # geschreven voor virtualenvs) sluit ook de Hydra-`env`-groep uit die
+    # `conf/config.yaml` in zijn `defaults:` noemt. Het pad corrigeren zou
+    # liegen -- er is geen tweede locatie -- en het bestand aanmaken zou een
+    # prod-profiel verzinnen dat niemand heeft gemeten.
+    "conf/env/prod.yaml":
+        "niet getrackt: .gitignore `env/` sluit de Hydra-env-groep uit; "
+        "model_risk_policy.md par. 2 legt die afwezigheid expliciet uit",
     # Onjuiste paden die als correctie worden geciteerd.
     "artefacts/tca/coefficients.yaml":
         "tca_methodology.md citeert dit pad om de correctie te tonen",
