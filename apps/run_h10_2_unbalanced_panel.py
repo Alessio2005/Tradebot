@@ -42,7 +42,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
+
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -77,13 +81,22 @@ RESET = ROOT / "artefacts/governance/ledger_reset.json"
 LEDGER = ROOT / "artefacts/governance/hypothesis_ledger.json"
 
 
-def _l0_sharpe(weights, prices, *, idx, m, cost, cfg):
+def _l0_sharpe(
+    weights: pd.DataFrame,
+    prices: pd.DataFrame,
+    *,
+    idx: pd.Index,
+    m: int,
+    cost: CostModel,
+    cfg: Mapping[str, Any],
+) -> dict[str, Any]:
     """De L0-Sharpe op één venster, met zijn triple. NOOIT toelaatbaar bewijs."""
     w = normalise_weights(weights.loc[idx], min_symbols_per_bar=m).fillna(0.0)
     vec = run_vectorized(w, prices.loc[idx], cost_per_side=cost.per_side,
                          initial_equity=cfg["bt"].initial_equity)
     dev = development_slice(vec.returns.to_frame("r"), lock_path=LOCK)["r"]
-    record = sharpe_with_se(dev, bars_per_year=cfg["bt"].bars_per_year).to_dict()
+    record: dict[str, Any] = sharpe_with_se(
+        dev, bars_per_year=cfg["bt"].bars_per_year).to_dict()
     record["evidence_class"] = NOT_ADMISSIBLE
     record["min_symbols_per_bar"] = int(m)
     return record
