@@ -195,6 +195,24 @@ ignore = [
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.mypy]
 python_version       = "3.10"
+# `apps/` IS GEEN PACKAGE -- geen `__init__.py`, en
+# [tool.setuptools.packages.find] pakt alleen `tradebot*`. Maar
+# `apps/paper_multi_sleeve.py:35` doet `from apps.paper_neutral_trader import
+# PaperBroker`. Daardoor zag mypy datzelfde bestand onder TWEE namen,
+# `paper_neutral_trader` en `apps.paper_neutral_trader`, meldde "Source file
+# found twice under different module names" en stopte met "errors prevented
+# further checking".
+#
+# Gevolg: de Mypy-stap in ci.yml stond rood op EEN melding en had op dat
+# moment NUL bestanden getypecheckt. Een poort die niets meet en toch rood
+# staat, verbergt precies wat hij hoort te laten zien.
+#
+# Deze twee regels geven mypy de wortel die de `apps.*`-override hieronder al
+# aanneemt. Gemeten: `hygiene.yml`s `mypy --strict
+# src/tradebot/schemas/config.py src/tradebot/utils/failfast.py` blijft groen,
+# en de ci.yml-stap controleert nu 64 bestanden in plaats van nul.
+explicit_package_bases = true
+mypy_path              = "src:."
 warn_unused_configs  = true
 warn_redundant_casts = true
 warn_unused_ignores  = true
