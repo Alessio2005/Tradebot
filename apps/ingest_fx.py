@@ -44,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
                 df = fetch_series(sid, lag_for(spec), start_year=start_for[name])
                 frames.append(df)
                 print(f"{name} {ccy:4s} {sid:18s} {len(df):6d} rows")
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 fails[sid] = str(exc)
                 print(f"{name} {ccy:4s} {sid:18s} FAIL: {exc}")
         if not frames:

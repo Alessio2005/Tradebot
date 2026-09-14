@@ -18,13 +18,13 @@ import sys
 def main(argv: list[str] | None = None) -> int:
     import pandas as pd
 
+    from tradebot.data.sources.base import write_market_parquet
     from tradebot.data.sources.eia import (
         ARCHIVE_LAST_BAR,
         PRODUCTS,
         assert_archive_bounds,
         fetch_term_structure,
     )
-    from tradebot.data.sources.base import write_market_parquet
 
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--products", default=",".join(PRODUCTS))

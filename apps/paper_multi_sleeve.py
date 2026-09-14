@@ -30,9 +30,10 @@ import pandas as pd
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
 
-from tradebot.alpha.multi_sleeve_book import MultiSleeveBook, MultiSleeveConfig
-from tradebot.data.perp_feed import build_or_update_panel, fetch_recent_funding
 from apps.paper_neutral_trader import PaperBroker  # reuse the validated broker
+
+from tradebot.alpha.multi_sleeve_book import MultiSleeveBook, MultiSleeveConfig
+from tradebot.data.perp_feed import build_or_update_panel
 
 CACHE = _ROOT / "artefacts" / "broad_perp_daily_close.parquet"
 DVOL_CACHE = _ROOT / "artefacts" / "dvol_btc.parquet"
@@ -53,7 +54,7 @@ def _get(u):
 
 def fetch_dvol_update() -> pd.Series:
     existing = pd.read_parquet(DVOL_CACHE)["dvol"] if DVOL_CACHE.exists() else None
-    start = int((existing.index.max().timestamp() * 1000)) if existing is not None and len(existing) else int(pd.Timestamp("2021-01-01", tz="UTC").timestamp() * 1000)
+    start = int(existing.index.max().timestamp() * 1000) if existing is not None and len(existing) else int(pd.Timestamp("2021-01-01", tz="UTC").timestamp() * 1000)
     end = int(pd.Timestamp.now(tz="UTC").timestamp() * 1000); cs = start; rows = []
     while cs < end:
         ce = min(cs + 200 * 86400000, end)

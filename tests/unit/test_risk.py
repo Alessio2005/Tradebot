@@ -2,22 +2,19 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from tradebot.risk import (
-    kelly_fraction,
-    gap_risk_kelly_size,
-    meta_label_kelly,
-    historical_var,
-    historical_cvar,
-    compute_current_drawdown,
-    DrawdownConfig,
-    DrawdownBreaker,
     BreakerState,
+    DrawdownBreaker,
+    DrawdownConfig,
     PositionLimits,
     check_position_limits,
+    gap_risk_kelly_size,
+    historical_cvar,
+    historical_var,
+    kelly_fraction,
+    meta_label_kelly,
 )
-
 
 # ── Kelly ─────────────────────────────────────────────────────────────────────
 

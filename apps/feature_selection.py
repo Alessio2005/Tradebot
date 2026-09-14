@@ -45,7 +45,6 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import hydra
 import numpy as np
@@ -60,8 +59,8 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tradebot.schemas.config import ValidationConfig, load_config
+from tradebot.selection.mda import filter_by_mda
 from tradebot.selection.sfi import rank_features_by_sfi
-from tradebot.selection.mda import filter_by_mda, causal_mda
 from tradebot.validation.walk_forward import purged_walk_forward
 
 logger = logging.getLogger(__name__)
@@ -74,10 +73,10 @@ logger = logging.getLogger(__name__)
 def _compute_cfi(
     X: np.ndarray,
     y: np.ndarray,
-    feature_names: List[str],
+    feature_names: list[str],
     n_clusters: int = 10,
     seed: int = 42,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Clustered Feature Importance via CatBoost + hierarchical clustering.
 
     Groups features by Spearman correlation, then computes mean feature
@@ -86,10 +85,10 @@ def _compute_cfi(
     Falls back to unclustered SHAP importance if scipy / sklearn are missing.
     """
     try:
+        import scipy.spatial.distance as ssd
         from catboost import CatBoostClassifier
         from scipy.cluster.hierarchy import fcluster, linkage
         from scipy.stats import spearmanr
-        import scipy.spatial.distance as ssd
     except ImportError as e:
         logger.warning("CFI: missing dependency (%s) — using raw importance.", e)
         return _raw_feature_importance(X, y, feature_names, seed)
@@ -132,7 +131,7 @@ def _compute_cfi(
     # niet vergelijkbaar zonder de aanroep ernaast te leggen.
     validation_cfg = load_config(
         _ROOT / "conf" / "validation" / "default.yaml", ValidationConfig)
-    importances_list: List[np.ndarray] = []
+    importances_list: list[np.ndarray] = []
 
     for fold in purged_walk_forward(len(X), validation_cfg):
         tr_idx = fold.train_idx
@@ -155,12 +154,12 @@ def _compute_cfi(
     avg_importance = np.mean(importances_list, axis=0)
 
     # ── Step 3: Cluster-mean importance ──────────────────────────────────────
-    cluster_mean: Dict[int, float] = {}
+    cluster_mean: dict[int, float] = {}
     for c in np.unique(cluster_ids):
         members = np.where(cluster_ids == c)[0]
         cluster_mean[int(c)] = float(np.mean(avg_importance[members]))
 
-    cfi: Dict[str, float] = {}
+    cfi: dict[str, float] = {}
     for i, fn in enumerate(feature_names):
         cfi[fn] = cluster_mean.get(int(cluster_ids[i]), 0.0)
     return cfi
@@ -169,9 +168,9 @@ def _compute_cfi(
 def _raw_feature_importance(
     X: np.ndarray,
     y: np.ndarray,
-    feature_names: List[str],
+    feature_names: list[str],
     seed: int,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Fallback: plain CatBoost feature importance without clustering."""
     try:
         from catboost import CatBoostClassifier
@@ -197,12 +196,12 @@ def run_feature_selection(
     artefacts_dir: Path,
     X: np.ndarray,
     y: np.ndarray,
-    feature_names: List[str],
+    feature_names: list[str],
     min_auc_sfi: float = 0.52,
     min_tstat_mda: float = 2.0,
     cfi_keep_frac: float = 0.70,
     seed: int = 42,
-) -> List[str]:
+) -> list[str]:
     """Full SFI + MDA + CFI feature selection for one asset-side.
 
     Parameters
@@ -315,7 +314,7 @@ def _load_features_and_labels(
     sym: str,
     side: str,
     artefacts_dir: Path,
-) -> Optional[tuple]:
+) -> tuple | None:
     """Load OOS probs and feature matrix from artefacts.
 
     Returns (X, y, feature_names) or None if artefacts are missing.
@@ -394,9 +393,9 @@ def main(cfg: DictConfig) -> None:
         out_path = sym_artefacts / "selected_features.json"
 
         # Combine LONG + SHORT events for a joint feature selection
-        all_X: List[np.ndarray] = []
-        all_y: List[np.ndarray] = []
-        feat_names_union: Optional[List[str]] = None
+        all_X: list[np.ndarray] = []
+        all_y: list[np.ndarray] = []
+        feat_names_union: list[str] | None = None
 
         for side in ("LONG", "SHORT"):
             result = _load_features_and_labels(sym, side, artefacts_dir)

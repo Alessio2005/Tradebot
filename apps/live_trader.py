@@ -54,11 +54,10 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 import hydra
 import pandas as pd
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from tradebot.live.engine import LiveEngine, LiveEngineConfig
 from tradebot.live.feature_updater import FeatureUpdater, FeatureUpdaterConfig
@@ -164,7 +163,7 @@ def _load_feature_names(symbols: list[str]) -> dict[str, list[str]]:
 # Historical buffer pre-population
 # ---------------------------------------------------------------------------
 
-def _load_5s_history(sym: str, warmup_bars: int = _WARMUP_BARS) -> Optional[pd.DataFrame]:
+def _load_5s_history(sym: str, warmup_bars: int = _WARMUP_BARS) -> pd.DataFrame | None:
     """Load raw 5s-bar parquets DIRECTLY — NO resampling.
 
     Returns the last ``warmup_bars`` rows from the local

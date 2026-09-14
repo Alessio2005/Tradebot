@@ -91,9 +91,18 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+
+# `_normalise_frame` annoteert met "pd.DataFrame", maar deze module importeert
+# pandas nergens. Onder `from __future__ import annotations` is die annotatie
+# lui, dus het DRAAIDE -- de naam bestond alleen niet, en
+# `typing.get_type_hints()` erop zou stuklopen. Hier vastgelegd zonder een
+# runtime-import toe te voegen.
+if TYPE_CHECKING:
+    import pandas as pd
 
 # Ensure the project src/ is on the path when run as a module.
 _SRC = Path(__file__).resolve().parent.parent / "src"
@@ -106,14 +115,14 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tradebot.data.ingestion import ingest_raw
-from tradebot.data.macro import update_macro, merge_macro
+from tradebot.data.macro import merge_macro, update_macro
 from tradebot.features.pipeline import build_features
 from tradebot.features.stationarity_gate import check_feature_stationarity
 from tradebot.labeling.cusum import get_cusum_events
-from tradebot.utils.parquet_io import write_validated_parquet
 from tradebot.schemas.bars import BarSchema
-from tradebot.schemas.features import FeatureBlockSchema
 from tradebot.schemas.events import EventSchema
+from tradebot.schemas.features import FeatureBlockSchema
+from tradebot.utils.parquet_io import write_validated_parquet
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +233,7 @@ async def _run_symbol(cfg: DictConfig, sym: str, artefacts_dir: Path) -> None:
     # Normalise df_full + df_events:
     #  • schemas require 'volume'; data may use 'tick_volume'
     #  • index.name required by downstream label-join
-    def _normalise_frame(df: "pd.DataFrame") -> "pd.DataFrame":
+    def _normalise_frame(df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
         if "volume" not in df.columns:
             for _proxy in ("real_volume", "tick_volume"):

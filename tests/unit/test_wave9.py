@@ -10,14 +10,11 @@ Covers:
 from __future__ import annotations
 
 import math
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 
 # ─── ShadowTrader ─────────────────────────────────────────────────────────────
-
 from tradebot.compliance.shadow_trader import ShadowRecord, ShadowTrader
 
 
@@ -50,8 +47,11 @@ class TestShadowTrader:
                        champion_signal=float(i) * 0.1,
                        challenger_signal=float(i) * 0.1 + 0.05,
                        close_price=40000.0 + i * 100, champion_pnl=50.0)
-        # Only observation count changes — no fills, no positions
-        assert st.n_observations == 5
+        # Only observation count changes — no fills, no positions.
+        # `initial_state` werd vastgelegd en nooit vergeleken: de test heette
+        # "no orders placed" maar toetste geen VERSCHIL. Nu wel.
+        assert initial_state == 0
+        assert st.n_observations == initial_state + 5
 
     def test_save_creates_parquet(self, tmp_path):
         st = ShadowTrader("v1.0.0", "v1.1.0", output_root=tmp_path)
@@ -88,7 +88,6 @@ class TestShadowTrader:
 from tradebot.compliance.champion_challenger import (
     ChampionChallenger,
     ChampionChallengerConfig,
-    DMTestResult,
 )
 
 

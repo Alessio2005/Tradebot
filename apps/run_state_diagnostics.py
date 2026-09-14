@@ -41,7 +41,10 @@ from tradebot.regime.state import StateAssignment, assign_by_variance
 from tradebot.regime.state_diagnostics import StateDiagnostics, diagnose
 from tradebot.schemas.config import ValidationConfig, adequacy_config, regime_config
 from tradebot.validation.adequacy_report import measure_fold_geometry
-from tradebot.validation.data_adequacy import assert_realised_occupancy
+from tradebot.validation.data_adequacy import (
+    OccupancyVerdict,
+    assert_realised_occupancy,
+)
 from tradebot.validation.holdout import development_slice
 
 LOCK = ROOT / "artefacts/governance/holdout_lock.json"
@@ -63,7 +66,7 @@ def _print(label: str, result: StateDiagnostics) -> None:
 
 
 def _check_adequacy(assignment: StateAssignment, *, n_bars: int,
-                    val: ValidationConfig) -> None:
+                    val: ValidationConfig) -> OccupancyVerdict:
     """Stap 9: de bezettingspoort op de ECHTE toewijzing. Meet en rapporteert.
 
     `raise_on_failure=False` en niet de crashende tak: deze app MEET, en het

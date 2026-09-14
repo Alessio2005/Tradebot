@@ -5,13 +5,15 @@ All tests use synthetic in-memory data — no I/O dependencies.
 """
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 import pytest
 
+if TYPE_CHECKING:
+    from tradebot.data.orderbook import OrderBookSnapshot
 
 # ============================================================================
 # Fixtures
@@ -201,7 +203,7 @@ class TestOFISignal:
 class TestICWeightedCombiner:
 
     def test_fit_predict(self, ohlcv_df: pd.DataFrame) -> None:
-        from tradebot.alpha import ICWeightedCombiner, TSMomentum, OUMeanReversion
+        from tradebot.alpha import ICWeightedCombiner
 
         signals_df = pd.DataFrame({
             "ts_mom": np.random.default_rng(0).normal(0, 0.3, len(ohlcv_df)),
@@ -253,7 +255,7 @@ class TestMacroRegimeOverlay:
 
 class TestOrderBook:
 
-    def _make_snapshot(self) -> "OrderBookSnapshot":  # type: ignore[name-defined]
+    def _make_snapshot(self) -> OrderBookSnapshot:
         from tradebot.data.orderbook import OrderBookSnapshot
 
         bids = np.array([[30_000.0, 1.5], [29_990.0, 2.0], [29_980.0, 3.0]])
@@ -314,6 +316,9 @@ class TestExperimentTracker:
 
         df = tracker.load_runs()
         assert len(df) == 1
+        # `run_id` werd toegekend en weggegooid: dat de geladen run DEZELFDE
+        # run is die `start_run` teruggaf, werd nooit getoetst.
+        assert df.iloc[0]["run_id"] == run_id
         assert df.iloc[0]["experiment_name"] == "test_exp"
 
     def test_best_run(self, tmp_path: Path) -> None:

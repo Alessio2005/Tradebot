@@ -146,6 +146,10 @@ def _get_git_sha() -> str:
             capture_output=True,
             text=True,
             timeout=5,
+            # Expliciet: deze aanroep MAG falen. De regel hieronder leest
+            # `returncode` zelf en valt terug op "unknown"; `check=True` zou
+            # die tak onbereikbaar maken.
+            check=False,
         )
         return result.stdout.strip() if result.returncode == 0 else "unknown"
     except Exception:
@@ -357,7 +361,7 @@ def main() -> None:
     approved = report_dict.get("approved_by", "")
     if approved:
         print(f"  Approved by : {approved}")
-        print(f"  Status      : [SIGNED] Eligible for production")
+        print("  Status      : [SIGNED] Eligible for production")
     else:
         print("  Status      : [UNSIGNED] Shadow trade >=14 days first, then sign")
     print("=" * 70)

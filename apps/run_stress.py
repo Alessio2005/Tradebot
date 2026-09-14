@@ -18,13 +18,13 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from tradebot.backtest.baseline_report import risk_overlay_wave  # noqa: E402
-from tradebot.features.registry import current_git_sha  # noqa: E402
-from tradebot.registry.risk_registry import RiskConfigRegistry  # noqa: E402
-from tradebot.risk.engine import RiskEngine  # noqa: E402
-from tradebot.risk.kill_switches import HaltStore  # noqa: E402
-from tradebot.risk.stress_test import BaseBook, RiskStressHarness  # noqa: E402
-from tradebot.schemas.config import RiskConfig, load_config  # noqa: E402
+from tradebot.backtest.baseline_report import risk_overlay_wave
+from tradebot.features.registry import current_git_sha
+from tradebot.registry.risk_registry import RiskConfigRegistry
+from tradebot.risk.engine import RiskEngine
+from tradebot.risk.kill_switches import HaltStore
+from tradebot.risk.stress_test import BaseBook, RiskStressHarness
+from tradebot.schemas.config import RiskConfig, load_config
 
 #: De gemeten uitgangssituatie van dit platform: 72,4% geannualiseerde vol op
 #: de Phase 3 1/N-track (reports/BASELINE_BENCHMARK.md sectie 3.1). De

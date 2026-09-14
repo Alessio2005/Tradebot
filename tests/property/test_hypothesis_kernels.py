@@ -4,6 +4,7 @@ Tests that mathematical invariants hold for arbitrary inputs.
 Requires: pip install hypothesis
 """
 from __future__ import annotations
+
 import numpy as np
 import pytest
 

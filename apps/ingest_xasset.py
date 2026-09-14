@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from tradebot.data.xasset_proxy import XASSET_UNIVERSE, fetch_panel
 from tradebot.data.sources.base import write_market_parquet
+from tradebot.data.xasset_proxy import XASSET_UNIVERSE, fetch_panel
 
 _MIN_ROWS = 50_000  # staleness/truncation guard (FRED incident, R-8)
 

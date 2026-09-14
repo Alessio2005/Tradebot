@@ -108,7 +108,7 @@ verandert een `passed` in een `error`.
 
 ## Klasse E — onbereikbaar, en toch behouden
 
-De bereikbaarheidsscanner meet imports. Deze twee modules worden door geen
+De bereikbaarheidsscanner meet imports. Deze drie modules worden door geen
 enkele import bereikt en dragen tóch een contract: een test die hun BESTAAN
 asserteert. `scripts/reachability_map.py --strict` kent ze als geregistreerde
 uitzondering; elke andere klasse-E-module laat de poort rood worden.
@@ -117,6 +117,7 @@ uitzondering; elke andere klasse-E-module laat de poort rood worden.
 |---|---:|---|
 | `portfolio/legacy_sizing.py` | 824 | bestaansassertie in `test_risk_alpha_decoupling.py` (Phase 4 exit-criterium 3), DI-10, ratchetpost in `check_hardcoded_params.py` |
 | `portfolio/covariance.py` | 194 | bestaansassertie in `test_risk_alpha_decoupling.py` (Phase 4 exit-criterium 3), DI-10 |
+| `data/funding.py` | 129 | bestaansassertie in `test_imports.py`, die `importlib.import_module` over een lijst van STRINGS doet -- geen importrand die de graaf ziet. Leek eerder bereikbaar via een import in `test_chaos.py::test_funding_searchsorted_causality`, maar het lichaam van die test is onvoorwaardelijk `pytest.skip()`: nooit geschreven, import nooit gebruikt. `features/funding_carry.py` noemt `load_per_bar_funding_rate` alleen in zijn docstring |
 
 ## De ratchet — klasse A en B onder de drempel
 

@@ -28,7 +28,8 @@ def main(cfg: DictConfig) -> None:
     logging.basicConfig(level=logging.INFO)
     import numpy as np
     import pandas as pd
-    from tradebot.monitoring import check_feature_drift, send_alert, AlertSeverity
+
+    from tradebot.monitoring import AlertSeverity, check_feature_drift, send_alert
 
     baseline_path = Path(cfg.baseline_path)
     current_path  = Path(cfg.current_path)

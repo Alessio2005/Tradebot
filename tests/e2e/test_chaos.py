@@ -6,9 +6,10 @@ Tests production resilience under fault injection:
 - Model exception
 """
 from __future__ import annotations
-import asyncio
+
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.mark.asyncio
@@ -57,9 +58,9 @@ def test_circuit_breaker_persists_state(tmp_path, monkeypatch):
 
 def test_cpcv_fallback_raises_value_error():
     """CPCV fallback concatenation must raise ValueError (not silent concat)."""
-    from tradebot.cv.cpcv import build_cpcv_return_paths
     import pandas as pd
-    import numpy as np
+
+    from tradebot.cv.cpcv import build_cpcv_return_paths
 
     # n_groups=5, k=2 → 5 % 2 != 0 → should raise ValueError
     fold_returns = {
@@ -72,8 +73,9 @@ def test_cpcv_fallback_raises_value_error():
 
 def test_trend_scan_label_removed():
     """TrendScanningLabeler.label() should raise NotImplementedError (P0-8)."""
-    from tradebot.labeling.trend_scanning import TrendScanningLabeler
     import pandas as pd
+
+    from tradebot.labeling.trend_scanning import TrendScanningLabeler
     labeler = TrendScanningLabeler()
     df = pd.DataFrame({"close": [1.0, 1.1, 1.2]})
     with pytest.raises(NotImplementedError):
@@ -82,8 +84,6 @@ def test_trend_scan_label_removed():
 
 def test_funding_searchsorted_causality():
     """Funding rate searchsorted must NOT place rate on next bar at exact match."""
-    import numpy as np
-    from tradebot.data.funding import load_per_bar_funding_rate
     # Test that at exact timestamp match, rate lands on SAME bar (side="right" behavior)
     # This is a unit test to verify causality
     pytest.skip("Requires mock parquet data — add in Wave 20 sprint")

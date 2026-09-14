@@ -41,7 +41,7 @@ import os
 import random
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple  # noqa: F401
+from typing import Any
 
 import hydra
 import joblib
@@ -62,13 +62,13 @@ from tradebot.cv.uniqueness import (
     get_average_uniqueness_per_fold,
     get_sample_weights,
 )
-from tradebot.labeling.trend_scanning import TrendScanningLabeler
-from tradebot.labeling.cusum import get_cusum_events_for_short
 from tradebot.features.blocks import stack_feats
-from tradebot.utils.arrays import validate_or_die
+from tradebot.labeling.cusum import get_cusum_events_for_short
+from tradebot.labeling.trend_scanning import TrendScanningLabeler
 from tradebot.schemas.events import EventSchema
 from tradebot.schemas.features import FeatureBlockSchema
 from tradebot.train.adapter import CatBoostModelAdapter
+from tradebot.utils.arrays import validate_or_die
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ def get_early_stop_split(
     weights: np.ndarray,
     embargo_bars: int = 10,
     val_frac: float = 0.15,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Return a purged train/val split for CPCV-safe early stopping.
 
     Carves a validation window from the *end* of the training partition with an
@@ -134,10 +134,10 @@ def _train_xgb_fold(
     w_tr: np.ndarray,
     X_es_val: np.ndarray,
     y_es_val: np.ndarray,
-    hparams: Dict[str, Any],
+    hparams: dict[str, Any],
     fold_seed: int,
     embargo_bars: int,
-) -> Optional[Any]:
+) -> Any | None:
     """Train one XGBoost fold.
 
     Returns the fitted XGBClassifier or None on failure.
@@ -166,7 +166,7 @@ def _train_xgb_fold(
             params["early_stopping_rounds"] = 50
         model = xgb.XGBClassifier(**params)
 
-        fit_kwargs: Dict[str, Any] = dict(sample_weight=w_tr)
+        fit_kwargs: dict[str, Any] = dict(sample_weight=w_tr)
         if _use_es:
             fit_kwargs["eval_set"] = [(X_es_val, y_es_val)]
             fit_kwargs["verbose"] = False
@@ -188,10 +188,10 @@ def _train_lgb_fold(
     w_tr: np.ndarray,
     X_es_val: np.ndarray,
     y_es_val: np.ndarray,
-    hparams: Dict[str, Any],
+    hparams: dict[str, Any],
     fold_seed: int,
     embargo_bars: int,
-) -> Optional[Any]:
+) -> Any | None:
     """Train one LightGBM fold.
 
     Returns the fitted LGBMClassifier or None on failure.
@@ -215,7 +215,7 @@ def _train_lgb_fold(
         )
         model = lgb.LGBMClassifier(**params)
 
-        fit_kwargs: Dict[str, Any] = dict(sample_weight=w_tr)
+        fit_kwargs: dict[str, Any] = dict(sample_weight=w_tr)
         if len(y_es_val) >= 10 and len(np.unique(y_es_val)) >= 2:
             callbacks = [lgb.early_stopping(stopping_rounds=50, verbose=False),
                          lgb.log_evaluation(period=-1)]
@@ -263,7 +263,7 @@ def _platt_calibrate(
     Returns:
         Calibrated probability array of shape (n_val,).
     """
-    from sklearn.calibration import CalibratedClassifierCV as _CCV  # noqa
+    from sklearn.calibration import CalibratedClassifierCV as _CCV
     try:
         from sklearn.frozen import FrozenEstimator as _FE  # sklearn ≥1.6
     except ImportError:
@@ -302,7 +302,7 @@ def _platt_calibrate(
 # I/O helpers
 # =============================================================================
 
-def _load_hparams(hparam_dir: Path, sym: str, side: str) -> Dict[str, Any]:
+def _load_hparams(hparam_dir: Path, sym: str, side: str) -> dict[str, Any]:
     pair_key   = f"{sym}_{side}"
     hparam_path = hparam_dir / f"{pair_key}.json"
     if not hparam_path.exists():
@@ -344,8 +344,8 @@ def train_pair(
     """Run full CPCV training for one (symbol, side) pair."""
     import catboost as cb
 
-    from tradebot.train.ensemble import ContextualBanditEnsemble
     from tradebot.train.calibration import PathSpecificPlattCalibrator
+    from tradebot.train.ensemble import ContextualBanditEnsemble
     from tradebot.train.quant_arch import dynamic_embargo_bars
     _quant_available = True
 
@@ -524,7 +524,11 @@ def train_pair(
     # fit zelf gebruikt per-fold gewichten.
     # LEGACY (alleen voor calibrator): geen aanpassing nodig.
     uniq = get_average_uniqueness(df_features.index, r_t1)
-    w    = get_sample_weights(ts_dev, uniq, r_ret.to_numpy())
+    # `_w` wordt berekend en NIET gelezen. Het commentaar hierboven zegt dat
+    # de calibrator hem nodig heeft; dat is niet meer zo -- niets in deze
+    # functie leest hem. Onderstreept in plaats van verwijderd, zodat de
+    # aanroep blijft staan voor wie de calibrator opnieuw aansluit.
+    _w   = get_sample_weights(ts_dev, uniq, r_ret.to_numpy())
     y    = r_lbl.values.astype(np.int32)
     r    = r_ret.values.astype(np.float64)
 
@@ -557,12 +561,12 @@ def train_pair(
     min_conf     = float(hparams.get("min_conf",     0.50))
 
     # ── CPCV training loop (single pass — collect probs + y in lockstep) ─────
-    fold_models:    List[Any] = []
-    oos_probs_list: List[np.ndarray]   = []
-    oos_raw_probs_list: List[np.ndarray] = []   # L-1 fix: raw scores live feeds
-    oos_y_list:     List[np.ndarray]   = []
-    oos_ts_list:    List[pd.DatetimeIndex] = []
-    fold_id_list:   List[np.ndarray]   = []
+    fold_models:    list[Any] = []
+    oos_probs_list: list[np.ndarray]   = []
+    oos_raw_probs_list: list[np.ndarray] = []   # L-1 fix: raw scores live feeds
+    oos_y_list:     list[np.ndarray]   = []
+    oos_ts_list:    list[pd.DatetimeIndex] = []
+    fold_id_list:   list[np.ndarray]   = []
 
     X_full = stack_feats(X1, X4, Xd)
     t1_pd  = pd.Series(r_t1_event, index=event_ts)
@@ -729,12 +733,12 @@ def train_pair(
             xgb_probs_raw: np.ndarray = (
                 xgb_raw[:, 1] if xgb_raw.shape[1] > 1 else np.zeros(len(X_val))
             )
-            xgb_probs = _platt_calibrate(
+            _xgb_probs = _platt_calibrate(
                 xgb_model, xgb_probs_raw, X_full_fold, y, train_idx, X_val,
                 sym, side, fold_idx, "XGBoost",
             )
         else:
-            xgb_probs = cb_probs  # fallback: CatBoost probs tellen dubbel
+            _xgb_probs = cb_probs  # fallback: CatBoost probs tellen dubbel
 
         # ── 3. LightGBM (early stopping op purged ES-val, nooit op test fold) ─────
         lgb_model = _train_lgb_fold(
@@ -746,14 +750,17 @@ def train_pair(
             lgb_probs_raw: np.ndarray = (
                 lgb_raw[:, 1] if lgb_raw.shape[1] > 1 else np.zeros(len(X_val))
             )
-            lgb_probs = _platt_calibrate(
+            _lgb_probs = _platt_calibrate(
                 lgb_model, lgb_probs_raw, X_full_fold, y, train_idx, X_val,
                 sym, side, fold_idx, "LightGBM",
             )
         else:
-            lgb_probs = cb_probs  # fallback: CatBoost probs tellen dubbel
+            _lgb_probs = cb_probs  # fallback: CatBoost probs tellen dubbel
 
         # ── 4. Ensemble: CatBoost-only (XGB/LGB tijdelijk uitgeschakeld) ──────────
+        # De twee `_`-prefixen hierboven zijn geen slordigheid: XGB en LGB
+        # worden nog GETRAIND en gekalibreerd, maar hun probs gaan sinds de
+        # revert hieronder nergens heen.
         # ENSEMBLE-REVERT (2026-05-22): CB+XGB+LGB gemiddelde trok probs naar 0.5
         # door XGB/LGB met CB-hparams (architectureel verkeerd) → Optuna koos
         # min_conf=0.405 → overtrading → Sharpe-degradatie van 1.39→1.24.
@@ -773,11 +780,11 @@ def train_pair(
         # See train_regime.py:2498 — base_model.models[0].min_conf_short >= 0.99.
         # NOTE: threshold is set on cb_model only; the ensemble adapter wraps it.
         if side == "LONG":
-            setattr(cb_model, "min_conf_long",  min_conf)
-            setattr(cb_model, "min_conf_short", 0.99)
+            cb_model.min_conf_long = min_conf
+            cb_model.min_conf_short = 0.99
         else:
-            setattr(cb_model, "min_conf_long",  0.99)
-            setattr(cb_model, "min_conf_short", min_conf)
+            cb_model.min_conf_long = 0.99
+            cb_model.min_conf_short = min_conf
 
         fold_models.append(CatBoostModelAdapter(cb_model))
         oos_probs_list.append(np.asarray(prob_win, dtype=np.float64))
@@ -824,7 +831,7 @@ def train_pair(
     # clean OOS estimate is unchanged.
     sigma_full = float(np.std(r[r != 0])) if np.any(r != 0) else 1.0
     sigma_arr  = np.full(len(all_probs), sigma_full, dtype=np.float64)
-    calibrator: Optional[Any] = None
+    calibrator: Any | None = None
 
     if _quant_available and PathSpecificPlattCalibrator is not None and len(all_raw_probs) > 10:
         try:

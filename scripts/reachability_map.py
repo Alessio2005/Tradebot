@@ -97,6 +97,16 @@ REGISTERED_UNREACHABLE: dict[str, str] = {
     "tradebot.portfolio.covariance":
         "bestaansassertie in tests/unit/test_risk_alpha_decoupling.py (Phase 4 "
         "exit-criterium 3); DI-10 noemt `_safe_corr` expliciet",
+    "tradebot.data.funding":
+        "bestaansassertie in tests/test_imports.py: die test doet "
+        "importlib.import_module over een LIJST VAN STRINGS, en een string is "
+        "geen importstatement -- de graaf ziet die rand niet. Tot 2026-09-14 "
+        "leek de module bereikbaar via een import in "
+        "tests/e2e/test_chaos.py::test_funding_searchsorted_causality, maar het "
+        "lichaam van die test is onvoorwaardelijk pytest.skip(): de test is "
+        "nooit geschreven en de import werd nooit gebruikt. Toen ruff die dode "
+        "import opruimde, werd de ECHTE status zichtbaar. features/funding_carry.py "
+        "noemt load_per_bar_funding_rate alleen in zijn docstring",
 }
 
 

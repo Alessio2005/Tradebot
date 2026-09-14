@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -112,19 +111,20 @@ def _clear_state_files() -> None:
 
 def _build_engine_shadow():
     """Build LiveEngine in shadow mode with JudgeGate and state writes."""
-    from tradebot.live.circuit_breaker import CircuitBreakerConfig
-    from tradebot.live.execution_controller import ExecutionControllerConfig
-    from tradebot.live.portfolio_controller import PortfolioControllerConfig  # CHIEF-3
-    from tradebot.live.engine import LiveEngine, LiveEngineConfig
-    from tradebot.live.feature_updater import FeatureUpdater, FeatureUpdaterConfig
-    from tradebot.live.feed import Feed, FeedConfig
-    from tradebot.live.model_signal import ModelSignal, ModelSignalConfig
-    from tradebot.live.signal_runner import SignalRunner, SignalRunnerConfig
-    from tradebot.schemas.config import RiskConfig, load_config
     import json
 
     # Load Hydra config without @hydra.main decorator
     from hydra.core.global_hydra import GlobalHydra
+
+    from tradebot.live.circuit_breaker import CircuitBreakerConfig
+    from tradebot.live.engine import LiveEngine, LiveEngineConfig
+    from tradebot.live.execution_controller import ExecutionControllerConfig
+    from tradebot.live.feature_updater import FeatureUpdaterConfig
+    from tradebot.live.feed import Feed, FeedConfig
+    from tradebot.live.model_signal import ModelSignal, ModelSignalConfig
+    from tradebot.live.portfolio_controller import PortfolioControllerConfig  # CHIEF-3
+    from tradebot.live.signal_runner import SignalRunner, SignalRunnerConfig
+    from tradebot.schemas.config import RiskConfig, load_config
     GlobalHydra.instance().clear()
     initialize_config_dir(config_dir=_CONF_DIR, version_base=None)
     cfg = compose(
@@ -360,7 +360,8 @@ def _build_engine_shadow():
     # (~45 min at 5s cadence).  Output to drift_report.jsonl for offline review.
     try:
         from tradebot.monitoring.live_drift_monitor import (
-            LiveDriftMonitor, LiveDriftMonitorConfig,
+            LiveDriftMonitor,
+            LiveDriftMonitorConfig,
         )
         drift_cfg = LiveDriftMonitorConfig(
             artefacts_dir=_ARTEFACTS,
@@ -464,7 +465,7 @@ def _build_engine_shadow():
     # predict_on_event() on the warm feature cache.  The winner per symbol (by
     # |conf − 0.5|) feeds the initial pending_rebalance.  When the model is
     # genuinely flat we fall back to a LONG prior (crypto convention).
-    from tradebot.alpha.base import SignalResult as _SR  # noqa: PLC0415
+    from tradebot.alpha.base import SignalResult as _SR
 
     _init_ts = pd.Timestamp.now(tz="UTC")
     per_symbol: dict[str, _SR] = {}
@@ -520,7 +521,7 @@ def _build_engine_shadow():
     return engine
 
 
-def _load_5s_history(sym: str, warmup_bars: int) -> "pd.DataFrame | None":
+def _load_5s_history(sym: str, warmup_bars: int) -> pd.DataFrame | None:
     """Load last ``warmup_bars`` rows from market_data_parquet/{sym}/*.parquet.
 
     W-2 (2026-05-27): ``warmup_bars`` is now per-symbol (``_WARMUP_BARS_PER_SYMBOL``).

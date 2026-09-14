@@ -14,8 +14,8 @@ import pandas as pd
 import pytest
 
 from tradebot.regime.state import StateAssignment, assign_by_variance
-from tradebot.validation.data_adequacy import assert_realised_occupancy
 from tradebot.utils.failfast import DataContractError
+from tradebot.validation.data_adequacy import assert_realised_occupancy
 
 IDX = pd.date_range("2020-01-01", periods=1200, freq="D", tz="UTC")
 LIMITS = dict(min_obs_per_state_per_fold=50,

@@ -26,7 +26,7 @@ import random
 import sys
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import hydra
 import numpy as np
@@ -43,13 +43,13 @@ if str(_ROOT) not in sys.path:
 
 from tradebot.cv.cpcv import CombinatorialPurgedCV
 from tradebot.cv.uniqueness import get_average_uniqueness, get_sample_weights
-from tradebot.labeling.cusum import get_cusum_events, get_cusum_events_for_short
+from tradebot.labeling.cusum import get_cusum_events_for_short
 from tradebot.labeling.trend_scanning import TrendScanningLabeler
+from tradebot.schemas.events import EventSchema
+from tradebot.schemas.features import FeatureBlockSchema
 from tradebot.tune.objective import optuna_objective_binary
 from tradebot.tune.pruning import create_median_pruner
 from tradebot.utils.arrays import validate_or_die
-from tradebot.schemas.events import EventSchema
-from tradebot.schemas.features import FeatureBlockSchema
 
 logger = logging.getLogger(__name__)
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -93,10 +93,10 @@ def _build_target_store(
     df_features: pd.DataFrame,
     event_timestamps: pd.DatetimeIndex,
     side: str,
-    horizons: List[int],
+    horizons: list[int],
     cfg: DictConfig,
     sym: str = "",
-) -> Dict[int, tuple]:
+) -> dict[int, tuple]:
     """Mirror train_regime.py lines 4194-4216 — TrendScanningLabeler per horizon.
 
     Returns dict mapping horizon → (y_array, w_array, ret_array, t1_event_space).
@@ -146,7 +146,7 @@ def _build_target_store(
     ts_dev = event_timestamps.to_series()
     event_idx_dev = df_features.index.get_indexer(event_timestamps)
 
-    target_store: Dict[int, tuple] = {}
+    target_store: dict[int, tuple] = {}
 
     for h in horizons:
         try:
@@ -191,7 +191,7 @@ def tune_pair(
     sym: str,
     side: str,
     artefacts_dir: Path,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run Optuna study for one (symbol, side) pair."""
     seed = int(OmegaConf.select(cfg, "training.random_seed", default=42))
     random.seed(seed); np.random.seed(seed)

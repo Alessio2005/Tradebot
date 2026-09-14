@@ -17,24 +17,23 @@ import importlib
 import logging
 import sys
 from pathlib import Path
-from typing import List, Tuple
 
 logger = logging.getLogger(__name__)
 
-_REQUIRED_PACKAGES: List[str] = [
+_REQUIRED_PACKAGES: list[str] = [
     "numpy", "pandas", "scipy", "numba", "catboost", "sklearn",
     "optuna", "joblib", "pyarrow", "hydra", "pandera",
 ]
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _check_python_version() -> Tuple[bool, str]:
+def _check_python_version() -> tuple[bool, str]:
     maj, min_ = sys.version_info[:2]
     ok = (maj, min_) >= (3, 10)
     return ok, f"Python {maj}.{min_} {'✓' if ok else '✗ (need >= 3.10)'}"
 
 
-def _check_imports() -> List[Tuple[bool, str]]:
+def _check_imports() -> list[tuple[bool, str]]:
     results = []
     for pkg in _REQUIRED_PACKAGES:
         try:
@@ -45,7 +44,7 @@ def _check_imports() -> List[Tuple[bool, str]]:
     return results
 
 
-def _check_tradebot() -> Tuple[bool, str]:
+def _check_tradebot() -> tuple[bool, str]:
     try:
         import tradebot
         return True, f"  tradebot {tradebot.__version__}  ✓"
@@ -53,7 +52,7 @@ def _check_tradebot() -> Tuple[bool, str]:
         return False, f"  tradebot import FAILED: {exc}"
 
 
-def _check_artefacts() -> List[Tuple[bool, str]]:
+def _check_artefacts() -> list[tuple[bool, str]]:
     expected = [
         "market_data_parquet/",
         "artefacts/bars/",
@@ -71,11 +70,12 @@ def _check_artefacts() -> List[Tuple[bool, str]]:
     return results
 
 
-def _smoke_test_bars() -> Tuple[bool, str]:
+def _smoke_test_bars() -> tuple[bool, str]:
     try:
         import numpy as np
-        from tradebot.volatility import get_garman_klass_volatility
         import pandas as pd
+
+        from tradebot.volatility import get_garman_klass_volatility
         rng = np.random.default_rng(0)
         n = 50
         close = 30_000 * np.cumprod(1 + rng.normal(0, 0.01, n))

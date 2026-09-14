@@ -15,11 +15,9 @@ change is intentional.
 from __future__ import annotations
 
 import logging
-import sys
 from pathlib import Path
 
 import numpy as np
-import joblib
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +46,9 @@ def _generate_smoke_data() -> dict:
 def regenerate() -> None:
     """Regenerate all baseline artefacts and report changes."""
     import pandas as pd
-    from tradebot.volatility import get_garman_klass_volatility
+
     from tradebot.cv.bootstrap import get_sequential_bootstrap_indices
+    from tradebot.volatility import get_garman_klass_volatility
 
     logging.basicConfig(level=logging.INFO)
     _BASELINES_DIR.mkdir(parents=True, exist_ok=True)

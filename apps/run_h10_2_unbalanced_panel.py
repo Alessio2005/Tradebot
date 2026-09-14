@@ -158,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         "mean_breadth_added_bars_minus_existing":
             growth.mean_breadth_added - growth.mean_breadth_reference,
     }
-    criteria = []
+    criteria: list[dict[str, Any]] = []
     for c in prereg.stop_criteria:
         value = metrics.get(c.metric)
         binds = None if value is None else bool(
@@ -168,10 +168,13 @@ def main(argv: list[str] | None = None) -> int:
                          "threshold": c.threshold, "action": c.action,
                          "measured": value, "binds": binds})
     n_binding = sum(1 for c in criteria if c["binds"])
-    for c in criteria:
-        if c["metric"] == "n_binding_stop_criteria":
-            c["measured"] = n_binding
-            c["binds"] = n_binding <= c["threshold"]
+    # Aparte lusnaam: `c` hierboven is een StopCriterion, hier een dict. Een
+    # hergebruikte lusnaam met twee typen is voor mypy een herdefinitie en
+    # voor een lezer een valstrik.
+    for record in criteria:
+        if record["metric"] == "n_binding_stop_criteria":
+            record["measured"] = n_binding
+            record["binds"] = n_binding <= record["threshold"]
 
     payload = {"git_sha": current_git_sha(),
                "preregistration_id": prereg.preregistration_id,

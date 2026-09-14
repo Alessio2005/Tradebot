@@ -26,8 +26,9 @@ def test_gk_volatility_bitequivalence() -> None:
     if not baseline_path.exists():
         pytest.skip("Baseline not generated yet — run apps/regenerate_baseline.py first.")
 
-    from tradebot.volatility import get_garman_klass_volatility
     import pandas as pd
+
+    from tradebot.volatility import get_garman_klass_volatility
 
     rng = np.random.default_rng(42)
     n = 500

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -120,7 +121,7 @@ class TestBookVolatilityIsTheComonotoneUpperBound:
 
 
 class TestApplyToTheBook:
-    SIG = {"A": 0.72, "B": 0.72}
+    SIG: ClassVar[dict[str, float]] = {"A": 0.72, "B": 0.72}
 
     def test_the_whole_book_is_scaled_by_one_scalar(self) -> None:
         permitted, binding = apply_volatility_target(

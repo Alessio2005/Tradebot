@@ -16,7 +16,7 @@ def _random_returns(n: int, seed: int) -> np.ndarray:
 @pytest.mark.parametrize("seed", range(5))
 def test_var_leq_cvar(seed: int) -> None:
     """CVaR must always be >= VaR for the same confidence level."""
-    from tradebot.risk import historical_var, historical_cvar
+    from tradebot.risk import historical_cvar, historical_var
     r = _random_returns(500, seed)
     var  = historical_var(r, confidence=0.95)
     cvar = historical_cvar(r, confidence=0.95)
@@ -27,6 +27,7 @@ def test_var_leq_cvar(seed: int) -> None:
 def test_gk_nonnegative(seed: int) -> None:
     """GK volatility must be non-negative for any OHLCV input."""
     import pandas as pd
+
     from tradebot.volatility import get_garman_klass_volatility
     rng = np.random.default_rng(seed)
     n = 100

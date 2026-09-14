@@ -345,7 +345,7 @@ ARCHIVED_EQUITY_UNITS = {
 
 
 @pytest.mark.parametrize(
-    "unit,net_sharpe", sorted(ARCHIVED_EQUITY_UNITS.items()), ids=lambda v: str(v)
+    "unit,net_sharpe", sorted(ARCHIVED_EQUITY_UNITS.items()), ids=str
 )
 def test_archived_units_still_fail_kg_b1(unit: str, net_sharpe: float):
     failures = evaluate({"net_sharpe": net_sharpe}, GateSpec(

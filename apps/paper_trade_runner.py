@@ -23,13 +23,11 @@ as the backtest — zero feature distribution shift.
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import logging
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -38,17 +36,19 @@ import pandas as pd
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "src"))
 
+from tradebot.alpha.base import SignalResult
+from tradebot.live.execution_controller import ExecutionController, ExecutionControllerConfig
 from tradebot.live.model_signal import ModelSignal, ModelSignalConfig
 from tradebot.live.portfolio_controller import PortfolioController, PortfolioControllerConfig
-from tradebot.live.execution_controller import ExecutionController, ExecutionControllerConfig
 from tradebot.live.signal_runner import SignalRunner, SignalRunnerConfig
-from tradebot.oms.paper_oms import PaperOMS
 from tradebot.oms.audit_log import AuditLog
-from tradebot.alpha.base import SignalResult
+from tradebot.oms.paper_oms import PaperOMS
 from tradebot.schemas.config import RiskConfig, load_config
 
 try:
-    from catboost import CatBoostClassifier, Pool as CatPool
+    # `Pool` werd hier geimporteerd en nergens gebruikt; deze probe heeft
+    # alleen `CatBoostClassifier` nodig om `_CB_OK` te zetten.
+    from catboost import CatBoostClassifier
     _CB_OK = True
 except ImportError:
     _CB_OK = False
@@ -82,7 +82,7 @@ class JudgeGate:
     def __init__(self, sym: str, side: str, judge_dir: Path) -> None:
         self._sym = sym
         self._side = side
-        self._model: Optional[CatBoostClassifier] = None
+        self._model: CatBoostClassifier | None = None
         self._n_feat: int = 0
         self._tau = _JUDGE_TAU_LONG if side == "LONG" else _JUDGE_TAU_SHORT
 
@@ -174,9 +174,9 @@ def _load_features(sym: str, days: int) -> pd.DataFrame:
 _JUDGE_DIR = _ARTEFACTS / "judge_models"
 
 
-def _build_judge_gates(symbols: List[str]) -> Dict[str, Dict[str, JudgeGate]]:
+def _build_judge_gates(symbols: list[str]) -> dict[str, dict[str, JudgeGate]]:
     """Load JudgeGate for each (symbol, side)."""
-    gates: Dict[str, Dict[str, JudgeGate]] = {}
+    gates: dict[str, dict[str, JudgeGate]] = {}
     for sym in symbols:
         gates[sym] = {}
         for side in ("LONG", "SHORT"):
@@ -184,9 +184,9 @@ def _build_judge_gates(symbols: List[str]) -> Dict[str, Dict[str, JudgeGate]]:
     return gates
 
 
-def _build_signals(symbols: List[str]) -> Dict[str, Dict[str, ModelSignal]]:
+def _build_signals(symbols: list[str]) -> dict[str, dict[str, ModelSignal]]:
     """Return {sym: {"LONG": sig, "SHORT": sig}} for all loadable signals."""
-    signals: Dict[str, Dict[str, ModelSignal]] = {}
+    signals: dict[str, dict[str, ModelSignal]] = {}
     for sym in symbols:
         signals[sym] = {}
         mult = _CUSUM_MULT.get(sym, 2.0)
@@ -212,15 +212,15 @@ def _write_state(
     out_dir: Path,
     equity: float,
     peak: float,
-    positions: Dict[str, float],
-    prices: Dict[str, float],
+    positions: dict[str, float],
+    prices: dict[str, float],
     n_bars: int,
     n_trades: int,
-    equity_history: List[float],
+    equity_history: list[float],
     cb_active: bool,
     start_ts: str,
     current_ts: str,
-    symbols: List[str],
+    symbols: list[str],
 ) -> None:
     """Atomic write of state.json for the Streamlit monitor."""
     # Rolling Sharpe on equity curve (last 30 obs = ~1 month)
@@ -280,7 +280,7 @@ def _append_equity(
 # ── Main replay loop ───────────────────────────────────────────────────────────
 
 def _run_replay(
-    symbols: List[str],
+    symbols: list[str],
     days: int,
     delay: float,
 ) -> None:
@@ -294,7 +294,7 @@ def _run_replay(
     audit_log = AuditLog(_OUT_DIR / "audit.jsonl")
 
     # Load features per symbol
-    feat: Dict[str, pd.DataFrame] = {}
+    feat: dict[str, pd.DataFrame] = {}
     for sym in symbols:
         try:
             feat[sym] = _load_features(sym, days)
@@ -358,20 +358,20 @@ def _run_replay(
     )
 
     # Merge all feature rows into one timeline, sorted by timestamp
-    all_bars: List[tuple] = []
+    all_bars: list[tuple] = []
     for sym, df in feat.items():
         for ts, row in df.iterrows():
             all_bars.append((ts, sym, row))
     all_bars.sort(key=lambda x: x[0])
     logger.info("Total bars to replay: %d across %d symbols", len(all_bars), len(symbols))
 
-    equity_history: List[float] = [_INITIAL_EQUITY]
+    equity_history: list[float] = [_INITIAL_EQUITY]
     peak_equity = _INITIAL_EQUITY
-    prices: Dict[str, float] = {}
+    prices: dict[str, float] = {}
     n_bars = 0
     n_trades = 0
     start_ts = pd.Timestamp.now(tz="UTC").isoformat()
-    last_signals: Dict[str, Optional[SignalResult]] = {s: None for s in symbols}
+    last_signals: dict[str, SignalResult | None] = {s: None for s in symbols}
 
     logger.info("Paper trade replay starting — %d days, delay=%.1fs", days, delay)
     t_run_start = time.monotonic()
@@ -415,7 +415,7 @@ def _run_replay(
 
             # Current weights
             eq = oms.tracker.equity
-            current_weights: Dict[str, float] = {}
+            current_weights: dict[str, float] = {}
             if eq > 0:
                 for s, pos in oms.tracker.get_all_positions().items():
                     current_weights[s] = pos.notional / eq

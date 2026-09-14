@@ -16,10 +16,9 @@ import sys
 def main(argv: list[str] | None = None) -> int:
     import pandas as pd
 
-    from tradebot.alpha import eq_lowvol, eq_strev, eq_xsmom
+    from tradebot.alpha import eq_lowvol, eq_strev, eq_xsmom, factor_residual_alpha
     from tradebot.data.equity_universe import load_price_panel
     from tradebot.registry import HypothesisLedger, LedgerEntry
-    from tradebot.alpha import factor_residual_alpha
 
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--root", default="market_data_parquet")

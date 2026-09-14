@@ -30,6 +30,7 @@ def large_ohlcv():
 def test_gk_kernel_speed(large_ohlcv, benchmark=None) -> None:
     """GK volatility on 5k bars should complete < 500 ms."""
     import time
+
     from tradebot.volatility import get_garman_klass_volatility
 
     # Warm up JIT
@@ -56,6 +57,7 @@ def test_gk_kernel_speed(large_ohlcv, benchmark=None) -> None:
 def test_sb_kernel_speed(benchmark=None) -> None:
     """Sequential bootstrap on 1k samples should complete < 2 s."""
     import time
+
     from tradebot.cv import get_sequential_bootstrap_indices
 
     t0_arr = np.arange(1_000, dtype=np.int64)
