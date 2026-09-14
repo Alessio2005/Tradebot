@@ -63,8 +63,15 @@ research ──► staging ──► production
 > `registry/lifecycle.py` (`PAPER → CHAMPION`), met negatieve controles op 59
 > dagen en op p = 0,06.
 
-The `live.mode=live` flag in `conf/env/prod.yaml` is locked off until
-the MRM report exists and `approved_by` is populated.
+The `live.mode=live` flag is locked off until the MRM report exists and
+`approved_by` is populated. The repository default is `live.mode: paper` in
+`conf/config.yaml`; the profile that would raise it, `conf/env/prod.yaml`, is
+NOT in the repository. `.gitignore` excludes `env/` -- a rule written for
+virtualenvs that also swallows the Hydra `env` config group named by
+`conf/config.yaml`'s `defaults:`. Dus: op een verse checkout bestaat het
+prod-profiel niet, en de enige `live.mode` die de code kan lezen is `paper`.
+Die afwezigheid is de reden dat de vlag hier wordt genoemd zonder dat het pad
+oplost; zie `KNOWN_ABSENT` in `tests/unit/test_docs_claim_only_what_exists.py`.
 
 ## 3. MRM report — nine mandatory sections
 

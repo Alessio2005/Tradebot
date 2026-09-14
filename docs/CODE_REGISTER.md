@@ -7,7 +7,7 @@
 > en wil weten wat hij mag aanraken.
 >
 > Bereikbaarheid komt uit `scripts/reachability_map.py`, dekking uit
-> `pytest-cov` 7.1.0 op de referentie-interpreter uit `docs/RUNBOOK.md` par. 0.
+> `pytest-cov` 7.1.0 op de referentie-interpreter uit `docs/runbook.md` par. 0.
 > Beide zijn gemeten, niet beweerd.
 
 ## De regel die dit register afdwingt
