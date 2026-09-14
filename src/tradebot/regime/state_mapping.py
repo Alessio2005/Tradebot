@@ -170,7 +170,16 @@ def _per_bar_metrics(frame: pd.DataFrame) -> pd.DataFrame:
     safe_gross = gross.where(~undefined, 1.0)
     normalised = absolute.div(safe_gross, axis=0)
 
-    max_weight = normalised.max(axis=1).where(~undefined, np.nan)
+    # De lokale naam is NIET `max_weight`, en dat is opzet. `max_weight` is in
+    # dit platform een SOEVEREINE LIMIET: `portfolio/constraints.py` noemt hem
+    # in `sovereign_fields`. Wat hier wordt berekend is het tegenovergestelde
+    # -- een METING van het grootste waargenomen gewicht per bar, geen cap die
+    # iets begrenst. Met de limietnaam ernaast kan een lezer die twee niet
+    # onderscheiden, en `tests/integration/test_sovereign_wiring.py` stond er
+    # terecht rood op: zijn AST-scan kan alleen de NAAM zien, niet de
+    # bedoeling. De uitvoerkolom blijft `max_weight` -- die naam draagt via
+    # `add_suffix` de velden van `ConcentrationReport` en staat in artefacten.
+    largest_weight = normalised.max(axis=1).where(~undefined, np.nan)
     effective_names = (1.0 / normalised.pow(2).sum(axis=1)).where(
         ~undefined, np.nan)
     gross_after_vol_target = pd.Series(
@@ -179,7 +188,7 @@ def _per_bar_metrics(frame: pd.DataFrame) -> pd.DataFrame:
     )
 
     return pd.DataFrame({
-        "max_weight": max_weight,
+        "max_weight": largest_weight,
         "effective_names": effective_names,
         "gross_after_vol_target": gross_after_vol_target,
     })
