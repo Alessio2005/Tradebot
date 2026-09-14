@@ -415,6 +415,7 @@ positive.** A genuine market-neutral sleeve.
 | LOWVOL | 0.87 | −0.29 |
 | STATARB | 0.05 | +0.09 |
 | TSMOM | 0.20 | −0.12 |
+
 Combined risk-parity (MN) **Sharpe 0.86, +29% CAGR**, β −0.11, but **−46% in 2021**
 (bull mania) and **+131% in 2022**. Combining did NOT beat the best single sleeve —
 only 2 of 4 sleeves are strong and they partly overlap.
@@ -499,6 +500,7 @@ annual returns, P(year>60%)=0.95 needs μ − 1.645σ > 0.60. With μ = S·σ:
 | 2.0 | only at vol 169% (ruinous) | 169% |
 | 3.0 | yes | 44% (mean 133%) |
 | 4.0 | yes | 25% (mean 102%) |
+
 Below Sharpe ~1.65 the worst year **cannot** be held above 60% at *any* leverage —
 raising vol raises the mean but raises the downside faster. So "**>60% every year**"
 is **mathematically equivalent to (slightly stricter than) the Sharpe ≈ 3 / 100%-CAGR

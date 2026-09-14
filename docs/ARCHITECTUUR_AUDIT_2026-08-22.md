@@ -646,7 +646,7 @@ Your Markdown file is ready
 
 MD-icoon
 ARCHITECTUUR_AUDIT_2026-08-22
- MD 
+ MD
 Openen
 Belangrijkste doorgevoerde verbeteringen:
 Hiërarchische Structuur: Koppen, subkoppen en document-metadata zijn logisch en consistent opgebouwd.
@@ -758,8 +758,7 @@ LEGACY DEPENDENCY FLOW (PROBLEMATISCH)
 | **D-7** | `architecture.md` R-6: Applications $\le$ 80 LOC. | 17 van 30 apps zijn groter (tot ~1350 LOC). | **P2** |
 | **D-8** | `architecture.md` DAG: `artefacts/features/`, `models/`, `tracks/`. | Geen van deze mappen bestaat in de repository. | **P0** |
 | **D-9** | `model_risk_policy.md`: Elk MRM-rapport bevat een valide `git_sha`. | Geen werkende `.git` repository in de hoofdmap. | **P0** |
-| **D-10** | `DATA_REGISTER.md`: HMM-regimes via `hmmlearn`. | `hmmlearn` ontbreekt in `pyproject.toml` $
-ightarrow$ stille fallback naar EMA-crossover. | **P0** |
+| **D-10** | `DATA_REGISTER.md`: HMM-regimes via `hmmlearn`. | `hmmlearn` ontbreekt in `pyproject.toml` $\rightarrow$ stille fallback naar EMA-crossover. | **P0** |
 
 ### 5.2 Stille Degradatie (Silent Fallbacks)
 Er zijn 12 plekken in `src/` geïdentificeerd waar statistische of modelleringsfouten worden opgevangen via `try/except ImportError` of brede exceptions, waarna het systeem stilzwijgend terugvalt op een naïeve baseline:
@@ -784,8 +783,7 @@ Een cruciale fout in eerdere evaluaties was het gelijkstellen van onbewezen comp
 
 ## 7. Data Architecture
 
-> **CORE AXIOM:** *"Geen betrouwbare data $
-ightarrow$ geen betrouwbare quant research."*  
+> **CORE AXIOM:** *"Geen betrouwbare data $\rightarrow$ geen betrouwbare quant research."*  
 > Data is het fundament van het gehele platform. Onvolledige, niet-point-in-time of gecorrumpeerde data maakt elke statistische toets en backtest waardeloos.
 
 ```
@@ -871,17 +869,16 @@ VOLATILITY RESEARCH HIERARCHY
 
 | Model | Aannames | Databehoefte | Forecast Horizon | Primaire Toepassing |
 |---|---|---|---|---|
-| **EWMA ($\lambda=0.94$)** | Parameter-vrij IGARCH(1,1) relict; gelijke decay. | Daily OHLCV | $\sigma^2_{t+1 ert t}$ | Baseline position sizing & risk limits. |
-| **GARCH(1,1)** | Symmetrische respons op schokken; stationaire variantie. | Daily Close | $\sigma^2_{t+h ert t}$ | Ex-ante risicoforecasting op middellange termijn. |
-| **GJR-GARCH** | Asymmetrie (leverage-effect: negatieve schokken verhogen vol meer). | Daily OHLCV | $\sigma^2_{t+h ert t}$ | Equities & Crypto crash-risk modelling. |
-| **EGARCH** | Logaritmische variantie; geen positiveringsrestricties vereist. | Daily Close | $\sigma^2_{t+h ert t}$ | Zware staartverdelingen en extreme asymmetrie. |
-| **HAR-RV** | Heterogene markt-hypothese (dagelijks, wekelijks, maandelijks geheugen). | 5-min Intraday Bars | $\sigma^2_{t+1 ert t}$ t/m $\sigma^2_{t+5 ert t}$ | High-frequency volatiliteitstargeting. |
+| **EWMA ($\lambda=0.94$)** | Parameter-vrij IGARCH(1,1) relict; gelijke decay. | Daily OHLCV | $\sigma^2_{t+1\vert t}$ | Baseline position sizing & risk limits. |
+| **GARCH(1,1)** | Symmetrische respons op schokken; stationaire variantie. | Daily Close | $\sigma^2_{t+h\vert t}$ | Ex-ante risicoforecasting op middellange termijn. |
+| **GJR-GARCH** | Asymmetrie (leverage-effect: negatieve schokken verhogen vol meer). | Daily OHLCV | $\sigma^2_{t+h\vert t}$ | Equities & Crypto crash-risk modelling. |
+| **EGARCH** | Logaritmische variantie; geen positiveringsrestricties vereist. | Daily Close | $\sigma^2_{t+h\vert t}$ | Zware staartverdelingen en extreme asymmetrie. |
+| **HAR-RV** | Heterogene markt-hypothese (dagelijks, wekelijks, maandelijks geheugen). | 5-min Intraday Bars | $\sigma^2_{t+1\vert t}$ t/m $\sigma^2_{t+5\vert t}$ | High-frequency volatiliteitstargeting. |
 
 ### 9.3 Validatie & Evaluatiemetrics voor Volatieliteit
 GARCH- en volatiliteitsmodellen worden OOS geëvalueerd tegen een zuivere proxy (Realized Volatility op minuut-basis of Parkinsons/Garman-Klass vol op daily basis) met de volgende metrics:
 - **QLIKE (Quasi-Likelihood Loss):** De enige loss-functie die robuust is tegen ruis in de volatiliteitsproxy.
-  $$	ext{QLIKE} = rac{RV_t}{\hat{\sigma}^2_t} - \ln\left(rac{RV_t}{\hat{\sigma}^2_t}
-ight) - 1$$
+  $$\text{QLIKE} = \frac{RV_t}{\hat{\sigma}^2_t} - \ln\left(\frac{RV_t}{\hat{\sigma}^2_t}\right) - 1$$
 - **Variance Forecast Error (MSE-SD / MAE-SD).**
 - **Mincer-Zarnowitz Regressie:** Test op zuiverheid en efficiëntie van de forecast ($\hat{RV}_t =  lpha +  eta \hat{\sigma}^2_t + \epsilon_t$).
 - **Parameterstabiliteit:** Diebold-Mariano test met Harvey-Leybourne-Newbold correctie om te bepalen of GARCH significant beter presteert dan EWMA OOS.
@@ -902,8 +899,8 @@ Regime-modellering dient om macro- en markttoestanden te identificeren en strate
 | **M3: Markov-Switching GARCH** | Endogene tijdreeks + vol | Latente variantie-regimes | Extreem hoog | Zeer laag (parameter drift) | Exclusief Theoretisch |
 
 ### 10.2 De Strikte Filtered-vs-Smoothed Regel
-- **Smoothed Probabilities ($P(S_t  ert \mathcal{F}_T)$):** Gebruiken de gehele dataset van $t=1$ tot $T$ (Baum-Welch). **GEBRUIK IN BACKTESTS IS STRENG VERBODEN** vanwege fatale lookahead bias (kijken in de toekomst).
-- **Filtered Probabilities ($P(S_t  ert \mathcal{F}_t)$):** Gebruiken uitsluitend informatie tot en met tijdstip $t$ (Forward algoritme). Alleen gefilterde waarschijnlijkheden mogen gebruikt worden in causale backtests.
+- **Smoothed Probabilities ($P(S_t \vert \mathcal{F}_T)$):** Gebruiken de gehele dataset van $t=1$ tot $T$ (Baum-Welch). **GEBRUIK IN BACKTESTS IS STRENG VERBODEN** vanwege fatale lookahead bias (kijken in de toekomst).
+- **Filtered Probabilities ($P(S_t \vert \mathcal{F}_t)$):** Gebruiken uitsluitend informatie tot en met tijdstip $t$ (Forward algoritme). Alleen gefilterde waarschijnlijkheden mogen gebruikt worden in causale backtests.
 
 > **Acceptatiecriterium voor Productie:** Een regime-model mag pas naar productie gepromoveerd worden als het aantoont dat conditionering van alpha of risico op basis van de filtered probabilities een superieure OOS Sharpe-verbetering na transactiekosten oplevert ten opzichte van M0 (Causal Vol-Buckets).
 
@@ -975,8 +972,7 @@ Risicobeheer is het soevereine controle-orgaan van het handelssysteem. **Risico 
 
 ### 14.1 Risico-Lagen
 - **Unconditional Volatility Targeting:** De positiegrootte wordt dynamisch geschaald op basis van het verschil tussen de ex-ante volatiliteit en de doelvolatielheid:
-  $$w_t = \min\left(	ext{MaxLeverage}, rac{\sigma_{	ext{target}}}{\hat{\sigma}_{t+1 ert t}}
-ight)$$
+  $$w_t = \min\left(\text{MaxLeverage}, \frac{\sigma_{\text{target}}}{\hat{\sigma}_{t+1\vert t}}\right)$$
 - **Ex-Ante Volatility Estimation:** Gedreven door EWMA ($\lambda=0.94$) in productie en GARCH/HAR-RV in research.
 - **Hard Limits:**
   - **Max Concentration Cap:** Maximale allocatie per asset/sector.
@@ -993,7 +989,7 @@ Een backtest die geen rekening houdt met marktimpact, bid-ask spread en latentie
 ### 15.1 Componenten van de Executie-Laag
 - **Spread & Slippage:** Dynamische modelleringslaag gebaseerd op de actuele bid-ask spread en marktvolatieliteit.
 - **Markt-Impact Model ($\eta, \kappa_d$):** Geijkte Square-Root Law voor marktimpact:
-  $$	ext{Impact} = \eta \cdot \sigma_{	ext{daily}} \cdot \sqrt{rac{	ext{Order Size}}{	ext{Daily Volume}}}$$
+  $$\text{Impact} = \eta \cdot \sigma_{\text{daily}} \cdot \sqrt{\frac{\text{Order Size}}{\text{Daily Volume}}}$$
 - **Order Lifecycle & Partial Fills:** Simulatie van limit order queues, time-to-fill, en kans op gedeeltelijke uitvoering op basis van orderboekdiepte.
 - **Post-Trade Transaction Cost Analysis (TCA):** Continue vergelijking tussen de verwachte executieprijs (*arrival price*) en de daadwerkelijke opbrengst.
 

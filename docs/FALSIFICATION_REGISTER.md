@@ -62,7 +62,7 @@ meer constructen op deze 190 namen (F10-logica).
 
 | # | Gefalsifieerde hypothese | Bewijs | Heropening alleen als… |
 |---|--------------------------|--------|------------------------|
-| F19 | Crypto intraday klok-seizoenaliteit (uur-van-dag/dag-van-week/funding-venster 00-08-16 UTC) als netto unit op 6 USDT-perps (1h-bars uit 5s-data, 2021-06–2026-05) | W26: beste uur t=2.11 (max over 24 → NS na multiple-comparison), DOW max |t|=1.67, funding-venster t≈−0.5; beste aaneengesloten venster (in-sample max over 288) +7.4 bps/dag bruto < 20 bps/dag taker-round-trip (`research/w26_seasonality_diag.py`, `w26_diag.log`; ledger W26, n_trials=321) | maker-execution aantoonbaar haalbaar (zelfde conditie als F2); óf veel breder perp-universum met cross-sectionele klok-effecten (≥50 namen) — buiten het meetdomein (AD-23) |
+| F19 | Crypto intraday klok-seizoenaliteit (uur-van-dag/dag-van-week/funding-venster 00-08-16 UTC) als netto unit op 6 USDT-perps (1h-bars uit 5s-data, 2021-06–2026-05) | W26: beste uur t=2.11 (max over 24 → NS na multiple-comparison), DOW max \|t\|=1.67, funding-venster t≈−0.5; beste aaneengesloten venster (in-sample max over 288) +7.4 bps/dag bruto < 20 bps/dag taker-round-trip (`research/w26_seasonality_diag.py`, `w26_diag.log`; ledger W26, n_trials=321) | maker-execution aantoonbaar haalbaar (zelfde conditie als F2); óf veel breder perp-universum met cross-sectionele klok-effecten (≥50 namen) — buiten het meetdomein (AD-23) |
 
 | # | Gefalsifieerde hypothese | Bewijs | Heropening alleen als… |
 |---|--------------------------|--------|------------------------|

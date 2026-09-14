@@ -41,8 +41,8 @@ Alle waarden uit `conf/risk/default.yaml`, gehasht als `47821e47fe2cec30`.
 | `max_position_pct` | 0,25 | absolute exposure per asset |
 | `max_concentration` | 0,40 | aandeel van de gross in één asset |
 | `max_cluster_concentration` | 0,60 | aandeel van de gross in één cluster |
-| `gross_cap` | 1,5 | `Σ|w_i|` |
-| `net_cap` | 0,60 | `|Σ w_i|` |
+| `gross_cap` | 1,5 | `Σ\|w_i\|` |
+| `net_cap` | 0,60 | `\|Σ w_i\|` |
 | `adv_participation_cap` | 0,01 | fractie van ADV per asset |
 | `drawdown_breaker_levels` | 4 % → 0,50 · 6 % → 0,25 | getrapte de-grossing |
 | `max_drawdown_pct` | 0,08 | harde HALT op de High-Water Mark |

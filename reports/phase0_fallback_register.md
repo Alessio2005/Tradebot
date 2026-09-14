@@ -27,7 +27,7 @@ die een bijna-singuliere covariantiematrix regulariseert is numerieke hygiene, g
 stille degradatie van een model naar een naievere benadering. Elke advies-bevinding
 is stuk voor stuk beoordeeld; wie wel een modelwissel bleek, is gerepareerd.
 
-De audit noemt in sectie 5.2 *12 locaties*. Deze scan meet **35**. 
+De audit noemt in sectie 5.2 *12 locaties*. Deze scan meet **35**.
 De audittelling was een steekproef; deze AST-scan is uitputtend.
 
 ---

@@ -219,6 +219,7 @@ G8-bewijs in `universe_coverage.json`; stress verplicht vóór unit-acceptatie.
 | eq_xsmom_12_1 | −0.34 | −0.27 | premium zelf zwak/afwezig in large-caps post-2000 óf constructie-issue → G4-regressie op MOM beslist (hoge MOM-loading + α≈0 = getrouwe bouw, zwak premium → archiveren; lage loading = bouwfout) |
 | eq_strev_1m | **+0.39** | 0.56 | reëel signaal, kosten eten 30%; nét onder de 0.40-lat — beslissing na G4 (let op: 0.39 ≠ 0.40, geen afronding naar "goed genoeg") |
 | eq_lowvol v1 | −0.82 | −0.79 | **constructie-misspecificatie**: $-neutraal vol-rank = structureel short-beta in stijgende markt; FP2014 vereist beta-genivelleerde legs. Falsifieert het premium NIET |
+
 Correlaties (gezond na datafix): xsmom↔strev −0.18, xsmom↔lowvol +0.44,
 strev↔lowvol −0.27.
 
@@ -242,6 +243,7 @@ lowvol-v2.
 | eq_strev_1m | +0.39 | α +0.9%/jr, t=0.77 — geen residual alpha | **ARCHIVED** (lat 0.40 én t(α)≥2 gemist; heropening: residual/industry-adjusted reversal, DLS2014) |
 | eq_lowvol v2 | −0.12 | restbèta +0.075 → lever werkte; α −2%/jr t=−1.1 | **ARCHIVED → F14** (premium afwezig, geen artifact) |
 | eq_overnight_1m | −0.60 | α −3.0%/jr t=−3.01 (signif. negatief) | **ARCHIVED → F15** (sign-flip verboden, §1.3) |
+
 Ledger: **total_n_hypotheses = 2378** (incl. W23c-merge). Sandbox-compute
 werkt; alle evals hierboven door de agent zelf gedraaid. Sandbox-EGRESS is
 volledig geblokkeerd → netwerk-ingests blijven één user-commando.

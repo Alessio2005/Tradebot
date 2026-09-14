@@ -77,7 +77,7 @@ Classificatie per fase-opdracht §14: `identiek gedrag` · `feature` ·
 | Balansidentiteit gecontroleerd | **nee** | **nee** | **nee** | **nee** | **legacy bug** — §10 van de fase-opdracht eist `assets == liabilities + equity` |
 | Funding | via `mtm` helper | via `mtm` helper | expliciet, mét ±2 % cap en Δt-correctie | **niet gemodelleerd** | **accounting difference** |
 | Fees | `rebalance_cost_bps`, default **0.0** | idem, default **0.0** | `AssetTrack.cost_bps`, default **5.0** | `taker_fee_bps` uit `conf/` | **legacy bug** — een default van 0.0 is de nul-fee fallback die §23 verbiedt |
-| Herbalanceerkosten | op MTM-delta | op MTM-delta | op `|Δ signed leverage|` | op turnover | **accounting difference** |
+| Herbalanceerkosten | op MTM-delta | op MTM-delta | op `\|Δ signed leverage\|` | op turnover | **accounting difference** |
 
 ### 1.3 Executieregime
 

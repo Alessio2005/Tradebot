@@ -125,7 +125,7 @@ Schema: `tradebot.schemas.oos_predictions.OOSPredictionSchema`.
 |-------------------|-------------|----------------------------------------------|
 | `ts`              | datetime64  | Bar timestamp.                               |
 | `equity`          | float64     | NAV after MTM, fees, funding.                |
-| `gross_leverage`  | float64     | Σ |weights|.                                 |
+| `gross_leverage`  | float64     | Σ \|weights\|.                                 |
 | `net_exposure`    | float64     | Σ weights (signed).                          |
 | `daily_pnl_pct`   | float64     | Day-rolled PnL fraction.                     |
 | `drawdown`        | float64     | (equity_peak − equity) / equity_peak.        |

@@ -16,7 +16,7 @@ Je werkt uitsluitend binnen de kaders van het bindende auditdocument `ARCHITECTU
 
 | Laag | Naam | Rol in deze fase |
 |---|---|---|
-| **L2** | Volatility Engines (EWMA / GARCH / HAR) | Levert de ex-ante `σ̂_{t+1|t}`; in productie EWMA (λ=0.94) |
+| **L2** | Volatility Engines (EWMA / GARCH / HAR) | Levert de ex-ante `σ̂_{t+1\|t}`; in productie EWMA (λ=0.94) |
 | **L4** | Alpha Generation | **Wordt ontkoppeld.** Alpha levert alleen `a_t`, verder niets |
 | **L7** | Independent Risk & Volatility Targeting | **Primaire laag.** Volledig te bouwen als soevereine module |
 | **L8** | Portfolio Construction & Sizing | Consument van de door risk toegestane exposure |

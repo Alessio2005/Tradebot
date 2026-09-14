@@ -1,0 +1,116 @@
+{
+  // .markdownlint.json -- de configuratie die `.github/workflows/docs.yml`
+  // sinds zijn eerste run noemt en die niet bestond. Gevolg: de Markdown
+  // Lint-check faalde 6 van de 6 keer op "config not found", en niemand wist
+  // hoeveel bevindingen er onder zaten. Gemeten op 727c648 met
+  // markdownlint-cli2 0.13.0 -- de versie die
+  // DavidAnson/markdownlint-cli2-action@v16 exact pint (zie zijn package.json,
+  // "markdownlint-cli2": "0.13.0"; die pin is nagekeken, niet aangenomen):
+  // 5270 bevindingen over 22 regels, in 87 bestanden.
+  //
+  // Dat pinnen is hier de reden dat dit bestand betekenis heeft. Met de
+  // NIEUWSTE cli2 (0.23.2) staan er 3917 MD060-bevindingen bij, van een regel
+  // die in 0.13.0 nog niet bestond. Een config die tegen de verkeerde versie
+  // is gemeten, meet niets; deze is gemeten tegen de versie die draait.
+  //
+  // DE KEUZE DIE HIER IS GEMAAKT
+  // ============================
+  // Niet: alles uitzetten tot de poort groen is -- dat is een poort die niets
+  // meet, en dit bestand zou dan documentatie zijn in plaats van een gate.
+  // Ook niet: alles aanzetten en 87 documenten herschrijven als bijvangst van
+  // een CI-reparatie -- dat is precies de bijvangst die `.gitattributes` bij
+  // de regeleindes weigert (DI-17).
+  //
+  // Wel: elke regel die deze repository AL haalt, staat aan en is vanaf nu
+  // bindend op nieuw werk; dat zijn ~30 regels die nu op nul staan. Elke regel
+  // die hij niet haalt, staat hieronder UIT met zijn gemeten aantal en de
+  // reden. Wie er een aanzet, weet wat het kost.
+  //
+  // De bevindingen die WEL zijn gerepareerd in plaats van uitgezet (34 stuks:
+  // 22x MD056, 7x MD010, 2x MD038, 2x MD009, 1x MD047)
+  // waren echte renderdefecten, geen typografie: onontsnapte `|` in
+  // tabelcellen (GFM knipt de cel en de rest van de rij verdwijnt), proza dat
+  // zonder lege regel op een tabel volgt (GFM slikt de alinea op als één cel),
+  // en in `docs/ARCHITECTUUR_AUDIT_2026-08-22.md` LaTeX-commando's die als
+  // letterlijk TAB / FORM FEED / CR / spatie in het bestand stonden.
+  //
+  // Die laatste is de reden dat MD010 hieronder NIET uitstaat. Dat document
+  // heeft zijn hele romp TWEE KEER (95,4% van de tweede kopie is regel voor
+  // regel gelijk aan de eerste); de eerste kopie is schoon, de tweede ging
+  // door een laag die Python-escapes heeft uitgevoerd. Zo werd `\text` een
+  // TAB, `\frac` een FORM FEED, `\right` een CR die de formule over twee
+  // regels brak, en `\vert` een spatie -- commando's waarvan het volgende
+  // teken geen escape is (`\hat`, `\sigma`, `\ln`, `\min`, `\left`, `\cdot`,
+  // `\sqrt`) kwamen ongeschonden door, en dat is precies de vingerafdruk van
+  // escape-verwerking. 23 plekken, alle 23 hersteld tegen de schone kopie als
+  // grondwaarheid, niet op gok: de drie formules lezen daarna als QLIKE,
+  // vol-targeting en de square-root impactwet. De 7 TAB's waren de 7
+  // MD010-bevindingen, dus dit is geen bijvangst maar de poort zelf.
+  //
+  // De VERDUBBELING zelf is hier NIET gerepareerd. 496 regels uit een
+  // governance-auditdocument verwijderen is een redactioneel besluit voor de
+  // eigenaar, geen bijvangst van een CI-fix.
+
+  // --- Typografie die deze repo bewust anders doet -------------------------
+
+  // 4330x. De audit- en rapportdocumenten schrijven één alinea per regel
+  // (mediaan van de overtredingen: 222 tekens, langste 752) en dragen brede
+  // meettabellen. Een limiet die 4330x afgaat, meet de schrijfstijl, niet een
+  // defect. Ook op 120 met tabellen en code vrijgesteld blijven er 950 over.
+  "MD013": false,
+
+  // 126x. De fences in dit project zijn GEEN code: ASCII-architectuurplaten,
+  // directory-bomen, CI-transcripten, formuleblokken. `text` eraan hangen voegt
+  // geen informatie toe, en een verkeerd taalmerk maakt de highlighting
+  // slechter dan geen merk. Gecontroleerd op een steekproef van 16.
+  "MD040": false,
+
+  // 21x. `Prompts-fases/*.md` gebruiken `# 1.`, `# 2.` als genummerde
+  // hoofdsecties; dat is de vorm van die documenten, niet een fout.
+  "MD025": false,
+
+  // 1x. `docs/ARCHITECTUUR_AUDIT_2026-08-22.md` opent met een ASCII-plaat
+  // vóór zijn kop. Bewust.
+  "MD041": false,
+
+  // --- Witruimte en opsommingstekens: drift, geen stijl -------------------
+  //
+  // Deze zes zijn NIET bewuste stijl -- het is drift, ontstaan doordat deze
+  // poort nooit heeft gedraaid. Ze staan uit omdat repareren 622 bevindingen in 40
+  // documenten raakt, en dat hoort een eigen, gelezen commit te zijn in plaats
+  // van bijvangst van een CI-fix. Geen van de vier verandert wat GitHub
+  // rendert; CommonMark heeft de lege regels die ze eisen niet nodig.
+  "MD004": false,  // 254x: `-` en `*` door elkaar, binnen 5 bestanden
+  "MD032": false,  // 161x: lijst zonder lege regel eromheen, 22 bestanden
+  "MD022": false,  // 118x: kop zonder lege regel eronder, 10 bestanden
+  "MD031": false,  // 41x: fence zonder lege regel eromheen, 8 bestanden
+  "MD012": false,  // 22x: twee lege regels achter elkaar, 12 bestanden
+  "MD055": false,  // 26x: tabelrij zonder leidende/sluitende pijp, 3 bestanden
+
+  // --- Koppen en blockquotes: cosmetisch, met een prijs -------------------
+  //
+  // Een kop herschrijven verandert zijn anchor, en dit project linkt intern
+  // naar paragrafen (`#### 9.3`-stijl verwijzingen, zie MEASUREMENT_CONTRACT).
+  // Acht dubbele punten weghalen om een lintregel te plezieren kan een
+  // bestaande link stilletjes breken. Dat is de verkeerde ruil.
+  "MD026": false,  // 8x: kop eindigt op '.' of ':'
+  "MD001": false,  // 4x: h1 -> h3 in één promptdocument
+  "MD003": false,  // 2x: setext- tussen atx-koppen
+  "MD036": false,  // 1x: vetgedrukte regel als kop gebruikt
+  "MD046": false,  // 1x: geindenteerd codeblok tussen fences
+  "MD028": false,  // 11x: lege regel tussen twee blockquote-blokken
+
+  // --- Wat bewust AAN blijft ----------------------------------------------
+
+  // 109x, en alle 109 zijn koppen met dezelfde naam in VERSCHILLENDE secties
+  // ("Bevinding", "Reparatie" per genummerd item). Dat is leesbaar en geen
+  // defect. `siblings_only` houdt de regel bindend waar hij wél iets zegt:
+  // twee identieke koppen NAAST elkaar onder dezelfde ouder.
+  "MD024": { "siblings_only": true }
+
+  // MD033 (inline HTML) staat expliciet NIET uit: hij gaat nul keer af, dus
+  // uitzetten zou een gate weggeven die deze repo gratis haalt. Datzelfde
+  // geldt voor MD005, MD007, MD009, MD010, MD011, MD018-MD021, MD023, MD027,
+  // MD029, MD030, MD034, MD035, MD037-MD039, MD042, MD044, MD045, MD047-MD054
+  // en MD056-MD058: die staan aan en zijn groen.
+}
