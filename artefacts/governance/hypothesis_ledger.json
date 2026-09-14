@@ -348,6 +348,47 @@
       },
       "notes": "H-10.1-oordeel: UNPROVEN. De beslisfrequentie k in {1,2,5,10} is gemeten op de vooraf geregistreerde cel long_only_equal_weight/L3_execution (netto Sharpe, 1390 ontwikkelbars = 3,8082 j). Twee van de drie beoordeelbare stop-criteria BINDEN: delta_net_sharpe = 0,0 (eis > 0) en DSR = 9,879e-05 bij het bevroren M_new = 25 (eis >= 0,95; die eis vraagt op N=1390 een geann. Sharpe van 1,8686 en de cel meet -0,8055 met SE 0,4909, t=-1,64). REJECTED is NIET van toepassing: effect_is_demonstrably_negative vraagt ci_high < 0 en ci_high = 0,0 exact. WAAROM HET VERSCHIL EXACT NUL IS, EN NIET BIJ BENADERING: het besluitpaneel van deze track draagt 1 unieke gewichtsrij op 1743 bars -- een gelijkgewogen boek op een universum dat niet van samenstelling verandert IS een constante vector -- en hold_decision beweegt bij elke k > 1 exact 0 bars. Vasthouden is daar de identiteit. DE STERKERE BEVINDING ZIT IN DE DIAGNOSTIEK, op de drie niet-primaire tracks, waaruit niets is geselecteerd: long_only_risk_parity HALTEERT (1566 bars) EN het vasthouden verlaagt daar de omzet met 57,78 % bij k=10 (0,017697 -> 0,007472), en de haltteller blijft desondanks exact 1566 bij elke k. De twee xs_momentum-tracks laten de omzet met 68-69 % dalen en halteren nul bars bij elke k. De haltteller is dus over alle vier tracks volledig ONGEVOELIG voor de beslisfrequentie. Daarmee breekt de causale keten van de hypothese (minder besluiten -> minder omzet -> minder kosten -> minder drawdown -> minder haltes) niet alleen op de eerste schakel maar aantoonbaar ook op de DERDE: een omzetdaling van 58 % op een halterende track beweegt geen enkele halt. De pre-registratie noemt dat vooraf als weerlegging en niet als bevestiging. HET POORTSAMPLE IS NIET GELEZEN, en dat is de pre-geregistreerde handeling: criterium no_improvement_on_development sluit de vraag expliciet af 'voordat de poortsample wordt aangeraakt'. holdout_lock.json draagt nog reads=[]; de ene toegestane lezing (R-7) is dus NIET besteed en blijft beschikbaar. GEEN NIEUWE TRIALS IN DEZE ENTRY: n_trials=0 met amends, omdat active_trial_count() eist dat de lopende ledger-teller gelijk blijft aan de bevroren archived_total=2776 -- een boeking met n_trials=4 tilt hem naar 2780 en laat die functie (en dus elke DSR in fase 10) weigeren; gemeten in een sandbox-kopie. De vier trials van deze hypothese staan als planned_trials=4 in de bevroren pre-registratie 3bf8a8b17f610296ba488af5376136e9, en de poort erop is assert_within_budget(4) tegen het bevroren M_new=25; remaining(booked=4)=21. Dat de repository haar eigen boekingsvorm (wave 30: n_trials=6, result=interim) na AD-24 niet meer kan gebruiken, is als bevinding gerapporteerd en NIET opgelost door de controle te verzwakken. preregistration_id=3bf8a8b17f610296ba488af5376136e9",
       "amends": "b50313b8a9f10ae1"
+    },
+    {
+      "wave": 33,
+      "unit": "phase10_h10_2_unbalanced_panel",
+      "market": "crypto",
+      "config_hash": "2c1c51e42dfff1c7",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "1abc99c",
+      "data_hash": "af05b4f95d0e282111641f85904c22f9",
+      "preregistration_id": "2c1c51e42dfff1c722476344e52d5b6b",
+      "ts_utc": "2026-09-14T15:14:00.086830+00:00",
+      "metrics": {
+        "verdict": "DESCOPED",
+        "planned_trials": 1,
+        "m_new_frozen": 25,
+        "min_symbols_per_bar": 2,
+        "reference_min_symbols_per_bar": 6,
+        "development_bars": 1749,
+        "development_bars_reference": 1390,
+        "development_bars_added": 359,
+        "growth_fraction": 0.258273381294964,
+        "t_years": 4.791780821917809,
+        "t_years_reference": 3.808219178082192,
+        "t2_hurdle": 0.9136535019115147,
+        "t2_hurdle_reference": 1.0248705831617062,
+        "t2_hurdle_delta": -0.11121708125019147,
+        "se_sharpe": 0.45682675095575737,
+        "se_sharpe_reference": 0.5124352915808531,
+        "mean_breadth": 5.4385363064608345,
+        "mean_breadth_reference": 6.0,
+        "mean_breadth_added": 3.264623955431755,
+        "n_binding_stop_criteria": 1,
+        "ladder_above_l0_remeasured": false,
+        "phase5_revaluation_marked_superseded": false,
+        "n_obs": 1749,
+        "bars_per_year": 365.0,
+        "t_years_sharpe_triple": 4.791780821917809
+      },
+      "notes": "H-10.2-oordeel: DESCOPED — het mechanisme WERKT, de claim eromheen niet volledig. Dit is de eerste hypothese in fase 10 die niet wordt weerlegd. Gemeten op de ontwikkelsample met min_symbols_per_bar=2 tegen de gebalanceerde eis (alle 6): het venster groeit van 1.390 naar 1.749 bars (+359, +25,83 %), begint op 2020-11-21 in plaats van 2021-11-15, en de t=2-drempel zakt van 1,0249 naar 0,9137 (-0,1112); de SE van een Sharpe zakt van 0,5124 naar 0,4568. Twee van de vier stop-criteria binden NIET (er komen bars bij; de drempel daalt). Bindend is het derde: de toegevoegde bars zijn SMALLER. Hun breedteverdeling is 145 bars met 2 namen, 4 met 3, 180 met 4 en 30 met 5 — gemiddelde breedte 3,265 tegen 6,000 op het bestaande venster, en over het hele nieuwe venster zakt de gemiddelde breedte naar 5,439. Omdat 2/sqrt(T) bars van GELIJKE informatie-inhoud veronderstelt, is de gemeten drempeldaling een overschatting van de gewonnen bewijskracht. Vooraf geregistreerde actie bij dit criterium: descope, niet archive — de drempeldaling is echt en bruikbaar, maar mag niet als volle bewijswinst worden gepresenteerd. DRIE CORRECTIES OP DE PREMISSE VAN DE STAPOPDRACHT (R-10), alle drie vooraf in de pre-registratie vastgelegd: de groei is +25,83 % en niet 'ordegrootte 30 %'; de nieuwe drempel is 0,9137 en niet 'ongeveer 0,95' (die 0,95 hoort bij min_symbols_per_bar=3, gemeten 0,9541); en het gebalanceerde ontwikkelvenster is 3,8082 jaar met drempel 1,0249, niet de '3,42-jarige ontwikkelsample' met 1,081. De per-symbool-getallen die de stapopdracht noemt, kloppen wel: BTC 6,42 (opgegeven 6,41), LINK 5,84 (5,83), ETH 5,44 (5,44), en het derde symbool begint op 2021-03-16 tegen de opgegeven 2021-03-15. DE LADDER IS NIET BOVEN L0 HERMETEN, en dat is een gemeten blokkade en geen keuze. run_all_layers op het ragged venster faalt met een DataContractError uit de risicolaag: phase5_baseline.py:170-184 bouwt sigma_hat over ALLE symbolen op elke bar, en RiskEngine weigert een ontbrekende ex-ante vol expliciet zonder terugval. Ragged tot L1 doorvoeren vraagt dat RiskEngine.decide een per-bar subset aanvaardt: een wijziging in backtest/ plus een besluit over het risicocontract, beide buiten de bestandenlijst van deze stap. De vol-reeks opvullen om er toch door te komen is de stille degradatie die die foutmelding verbiedt. Bijkomend gemeten: equal_weight.py:104 zet afwezigheid al met np.nan_to_num(nan=0.0) op nul VOORDAT normalise_weights het paneel ziet, dus de gebalanceerde aanname zit stroomopwaarts ingebakken. DE L0-SHARPES STAAN IN HET ARTEFACT NAAST ELKAAR EN NIET ALS VERBETERING, want de stapopdracht waarschuwt daar zelf voor en de meting bevestigt de waarschuwing: long_only_equal_weight gaat van +0,2704 (t=0,547) naar +0,7216 (t=1,679) en long_only_risk_parity van +0,2239 naar +0,7272, terwijl de twee xs_momentum-tracks nauwelijks bewegen of dalen (+0,1298 -> +0,0646). Dat patroon — long-only wint sterk, cross-sectioneel niet — is een uitspraak over WELKE bars zijn toegevoegd (een richtingsperiode) en niet over het systeem. Zelfs op de LAGERE drempel blijft de beste track met t=1,679 onder 2, dus de groei maakt geen enkele track significant. phase5_revaluation.json is daarom NIET als superseded gemarkeerd: de oude waarden worden niet vervangen maar zouden half-en-half naast nieuwe L0-waarden komen te staan terwijl L1/L2/L3 niet hermeetbaar zijn, en dat maakt het artefact intern inconsistent. GEEN NIEUWE TRIALS IN DEZE ENTRY: n_trials=0 met amends, om dezelfde reden als bij H-10.1 — active_trial_count() eist dat de lopende ledger-teller gelijk blijft aan de bevroren archived_total=2776. De ene trial staat als planned_trials=1 in de bevroren pre-registratie 2c1c51e42dfff1c722476344e52d5b6b; de poort is assert_within_budget(5) tegen M_new=25 en remaining(booked=5)=20. Stage C heeft nu 5 van de 25 trials geclaimd. preregistration_id=2c1c51e42dfff1c722476344e52d5b6b",
+      "amends": "3bf8a8b17f610296"
     }
   ]
 }
