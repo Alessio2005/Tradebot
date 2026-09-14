@@ -57,14 +57,29 @@ jobs:
         run: |
           python - <<'PY'
           import re, subprocess, sys, pathlib
+          # packaging staat gepind in requirements.lock (regel 246), dus dit is
+          # geen extra dependency maar een pakket dat deze stap al heeft.
+          from packaging.requirements import Requirement
           def norm(n): return re.sub(r"[-_.]+", "-", n).lower()
           def parse(text):
               d = {}
               for raw in text.splitlines():
                   line = raw.split("#")[0].strip()
-                  if line and "==" in line:
-                      name, ver = line.split("==", 1)
-                      d[norm(name.strip())] = ver.strip().split()[0]
+                  if not line or "==" not in line:
+                      continue
+                  # Een environment-marker hoort GEEVALUEERD te worden, niet
+                  # weggeknipt. requirements.lock:341 pint
+                  # `pywin32==312 ; sys_platform == "win32"`; zonder deze regel
+                  # eiste deze stap dat Windows-only wheel op een Ubuntu-runner.
+                  # Die eis is onvervulbaar, dus stond de poort rood op een
+                  # lockfile die juist KLOPT -- en een poort die altijd rood
+                  # staat, meet niets meer.
+                  if ";" in line:
+                      req = Requirement(line)
+                      if req.marker is not None and not req.marker.evaluate():
+                          continue
+                  name, ver = line.split("==", 1)
+                  d[norm(name.strip())] = ver.strip().split()[0]
               return d
           have = parse(subprocess.run([sys.executable, "-m", "pip", "freeze"],
                                       capture_output=True, text=True, check=True).stdout)
