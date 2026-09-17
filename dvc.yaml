@@ -54,7 +54,7 @@ stages:
       cmd: python -m apps.build_features symbol=${item}
       deps:
         - apps/build_features.py
-        - src/tradebot/data/ingestion.py
+        - src/tradebot/data/ingestion/
         - src/tradebot/data/macro.py
         - src/tradebot/features/pipeline.py
         - src/tradebot/labeling/cusum.py

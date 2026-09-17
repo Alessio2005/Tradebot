@@ -201,3 +201,83 @@ def test_the_artefact_guard_would_catch_each_suffix(suffix: str, tmp_path) -> No
     Een test die niet rood kan worden, bewijst niets (faseregel §10).
     """
     assert (tmp_path / f"leak{suffix}").with_suffix(suffix).suffix in _ARTEFACT_SUFFIXES
+
+
+# --------------------------------------------------------------------------- #
+# DE DERDE KLASSE — een pijplijnpad dat naar iets wijst dat niet meer bestaat
+#
+# `dvc.yaml:57` noemde `src/tradebot/data/ingestion.py` als dependency van
+# `build_features`, de stage die bars, features en events bouwt. Dat bestand is
+# in commit `be94079` een PAKKET geworden (`ingestion/__init__.py` en vier
+# modules ernaast). De import in `apps/build_features.py:117` bleef werken --
+# die noemt het pakket, niet het bestand -- en `tests/test_imports.py:51` dekte
+# hem af. De testsuite kon dit dus niet zien.
+#
+# DVC wel: `dvc repro build_features` viel om met `[Errno 2] No such file or
+# directory`. Stage 1 van de pijplijn was daarmee onreproduceerbaar, en de enige
+# poort die het had kunnen zien werd niet in CI gedraaid.
+#
+# Deze test stelt de vraag die geen van beide stelde: bestaat elk pad dat
+# `dvc.yaml` declareert? Zie `docs/CHAIN_A_STATUS.md`, fase 10 stap 14.3.
+# --------------------------------------------------------------------------- #
+def _declared_dvc_paths(document: dict) -> list[tuple[str, str]]:
+    """Elk letterlijk `deps`/`outs`-pad in een dvc-document, met zijn stage.
+
+    Getemplatiseerde paden (`${item}`) worden overgeslagen: zij bestaan pas na
+    expansie over `foreach`, en de expansie is DVC's werk en niet dat van deze
+    poort. Wat overblijft is precies de verzameling paden die op schijf hoort te
+    staan zoals zij er staat.
+    """
+    found: list[tuple[str, str]] = []
+    for stage, body in (document.get("stages") or {}).items():
+        blocks = [body.get("do", body)] if isinstance(body, dict) else []
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            for key in ("deps", "outs"):
+                for entry in block.get(key) or []:
+                    path = next(iter(entry)) if isinstance(entry, dict) else entry
+                    if isinstance(path, str) and "${" not in path:
+                        found.append((stage, path))
+    return found
+
+
+def test_every_path_declared_in_dvc_yaml_exists() -> None:
+    """Een dependency die niet bestaat maakt zijn stage onreproduceerbaar."""
+    yaml = pytest.importorskip("yaml")
+    document = yaml.safe_load((_REPO_ROOT / "dvc.yaml").read_text(encoding="utf-8"))
+    missing = [
+        (stage, path)
+        for stage, path in _declared_dvc_paths(document)
+        if not (_REPO_ROOT / path).exists()
+    ]
+    assert not missing, (
+        "`dvc.yaml` declareert paden die niet bestaan. Elk daarvan maakt zijn "
+        "stage onreproduceerbaar, en geen enkele import-test ziet dat, want een "
+        "import noemt een MODULE en deze declaratie noemt een PAD:\n  "
+        + "\n  ".join(f"{stage}: {path}" for stage, path in missing)
+    )
+
+
+def test_the_dvc_path_guard_would_catch_a_deleted_dependency() -> None:
+    """De negatieve controle: kan deze poort rood worden? (R-1)
+
+    Zonder deze test bewijst de test hierboven alleen dat `dvc.yaml` vandaag
+    klopt -- niet dat hij een verdwenen pad zou opmerken. Het document hieronder
+    is de echte `build_features`-stage zoals hij vóór de reparatie was.
+    """
+    yaml = pytest.importorskip("yaml")
+    broken = yaml.safe_load(
+        "stages:\n"
+        "  build_features:\n"
+        "    foreach: ${symbols}\n"
+        "    do:\n"
+        "      cmd: python -m apps.build_features symbol=${item}\n"
+        "      deps:\n"
+        "        - src/tradebot/data/ingestion.py\n"
+        "        - conf/conf_config.yaml\n"
+    )
+    declared = _declared_dvc_paths(broken)
+    assert ("build_features", "src/tradebot/data/ingestion.py") in declared
+    assert not (_REPO_ROOT / "src/tradebot/data/ingestion.py").exists()
+    assert (_REPO_ROOT / "src/tradebot/data/ingestion").is_dir()
