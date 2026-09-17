@@ -45,8 +45,8 @@ from ..schemas.config import FeatureConfig
 from ..utils.failfast import DataContractError, require
 from ..utils.hashing import DATA_HASH_LENGTH, hash_config
 from .base import BaseFeature, FeaturePipeline
-from .microstructure import FundingRateMean, FundingRateZScore, OpenInterestLogChange
 from .momentum import EwmaReturnSpread, RollingLogReturn
+from .positioning import FundingRateMean, FundingRateZScore, OpenInterestLogChange
 from .volatility import (
     EwmaVolatility,
     ExpandingVolatility,

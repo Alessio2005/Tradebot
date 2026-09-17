@@ -45,7 +45,7 @@ import pytest
 
 from tradebot.data.pit_store import PitStore
 from tradebot.features.base import BaseFeature, CertifiedFrame, DataRegister, InputSpec
-from tradebot.features.microstructure import build_certified_micro_frame
+from tradebot.features.positioning import build_certified_micro_frame
 from tradebot.features.volatility import log_returns
 from tradebot.schemas.config import DataConfig, FeatureConfig, load_config
 

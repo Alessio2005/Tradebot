@@ -173,9 +173,18 @@ volgorde waarin het bijschrijven van dekking het meeste oplevert.
 | 44 | `backtest/metrics.py` | A | 289 | 41.4 % | apps/run_data_adequacy.py | Research |
 | 45 | `cv/bootstrap.py` | A | 232 | 31.1 % | apps/build_features.py | Research |
 | 46 | `backtest/phase5_baseline.py` | A | 304 | 48.0 % | apps/run_meta_labeling.py | Research |
-| 47 | `features/microstructure.py` | A | 474 | 66.9 % | apps/run_data_adequacy.py | Research |
+| 47a | `features/positioning.py` | A | 340 | zie noot | apps/run_data_adequacy.py | Research |
+| 47b | `features/microstructure.py` | A | 181 | zie noot | apps/run_data_adequacy.py | Research |
 | 48 | `data/equity_universe.py` | B | 157 | 0.0 % | apps/build_equity_universe.py | Engineering |
 | 49 | `bars/imbalance.py` | A | 175 | 11.4 % | apps/build_features.py | Engineering |
+
+> **Noot bij 47a/47b (fase 10, stap 15.3).** `features/microstructure.py` was
+> een bestand van 474 regels met 66,9 % dekking en met TWEE meetdomeinen erin.
+> Stap 15.3 heeft het gesplitst; de LOC hierboven zijn nagemeten, de dekking
+> bewust niet. Een dekkingsgetal per helft is pas zinvol na stap 15.4, want
+> die archiveert 47b en haalt hem daarmee uit deze tabel. Een cijfer invullen
+> dat een week later vervalt, is precies het soort bewering dat dit register
+> hoort te weren.
 | 50 | `data/sources/stooq.py` | B | 155 | 0.0 % | apps/build_equity_universe.py | Engineering |
 | 51 | `data/macro.py` | A | 239 | 35.8 % | apps/build_features.py | Engineering |
 | 52 | `validation/regime_benchmark.py` | A | 489 | 69.7 % | apps/run_regime_benchmark.py | Research |

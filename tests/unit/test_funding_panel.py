@@ -7,7 +7,7 @@ PRECIES EEN KEER per bar op de notional (`accounting.py::apply_funding`,
 het paneel moet de SOM van de afrekeningen binnen die bar dragen, niet de
 laatst bekende rate — dat laatste is wat `asof_join(direction="backward")` zou
 opleveren (correct voor een feature, verkeerd voor een boeking; zie
-`features/microstructure.py::build_certified_micro_frame`).
+`features/positioning.py::build_certified_micro_frame`).
 
 Elke test hieronder bewijst een eigenschap door haar te falsifieren: waar een
 implementatie de valkuil (asof/last-known in plaats van som) zou nemen, moet

@@ -34,7 +34,7 @@ from tradebot.data.pit_store import PitStore
 from tradebot.execution.impact_model import ImpactParams, ImpactStatus
 from tradebot.execution.order_router import VenueSpec
 from tradebot.features.base import DataRegister, load_certified_close_panel
-from tradebot.features.microstructure import build_certified_micro_frame
+from tradebot.features.positioning import build_certified_micro_frame
 from tradebot.features.registry import build_default_registry, current_git_sha
 from tradebot.labeling.phase6_barriers import label_triple_barrier
 from tradebot.reporting.phase6_meta_labeling import (

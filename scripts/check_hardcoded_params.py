@@ -37,7 +37,7 @@ SKIP_PARTS = {"__pycache__"}
 # Rekenkundige feiten, geen beleidskeuzes.
 BENIGN: set[float] = {
     0, 1, 2, 3, 4, -1, -2,
-    0.0, 1.0, 2.0, -1.0,
+    2.0, -1.0,
     0.5,            # kansdrempel bij een binaire classificatie
     100, 100.0,     # percentagenoemer
     10, 12, 24, 60, 252, 365,  # kalender / annualisatie
@@ -114,8 +114,13 @@ ALLOWLIST: dict[str, tuple[int, str]] = {
     "features/fracdiff.py": (8, "DI-12 Phase 3"),
     "features/funding_carry.py": (1, "DI-12 Phase 3"),
     "features/macro.py": (4, "DI-12 Phase 3"),
-    "features/microstructure.py": (6, "DI-12 Phase 3"),
+    # Stap 15.3 splitste dit bestand. Het budget van 6 splitst mee, het groeit
+    # niet: 5 literals blijven bij de order-flow-helft (die in 15.4 wordt
+    # gearchiveerd, waarna deze regel vervalt) en 1 verhuist met
+    # `amihud_illiquidity` mee naar `positioning.py`.
+    "features/microstructure.py": (5, "DI-12 Phase 3"),
     "features/open_interest.py": (1, "DI-12 Phase 3"),
+    "features/positioning.py": (1, "DI-12 Phase 3"),   # amihud window=20
     "features/orthogonalize.py": (4, "DI-12 Phase 3"),
     "features/regime.py": (10, "DI-12 Phase 3"),
     "features/stationarity_gate.py": (1, "DI-12 Phase 3"),
