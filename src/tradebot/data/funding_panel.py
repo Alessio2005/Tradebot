@@ -10,7 +10,7 @@ engine één-op-één als per-bar rate consumeert.
 
 WAAROM GEEN `asof_join`
 ========================
-`features/microstructure.py::build_certified_micro_frame` koppelt dezelfde
+`features/positioning.py::build_certified_micro_frame` koppelt dezelfde
 8h-reeks al aan de dagbar, met `utils.time.asof_join(direction="backward")`.
 Dat levert de LAATST BEKENDE rate op het beslismoment op — het juiste antwoord
 voor een FEATURE (`FundingRateMean`, `FundingRateZScore`), en het VERKEERDE

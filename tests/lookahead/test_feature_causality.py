@@ -32,7 +32,7 @@ import pandas as pd
 import pytest
 
 from tradebot.features.base import BaseFeature, DataRegister, InputSpec
-from tradebot.features.microstructure import build_certified_micro_frame
+from tradebot.features.positioning import build_certified_micro_frame
 from tradebot.features.registry import build_default_registry
 from tradebot.features.volatility import causal_expanding_std, log_returns
 from tradebot.utils.failfast import CausalityViolationError

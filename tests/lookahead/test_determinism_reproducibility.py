@@ -116,7 +116,7 @@ _MATRIX_HASH_SCRIPT = """
     from pathlib import Path
     from tradebot.data.pit_store import PitStore
     from tradebot.features.base import DataRegister
-    from tradebot.features.microstructure import build_certified_micro_frame
+    from tradebot.features.positioning import build_certified_micro_frame
     from tradebot.features.registry import build_default_registry, current_git_sha
     from tradebot.schemas.config import DataConfig, FeatureConfig, load_config
 
