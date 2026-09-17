@@ -47,7 +47,7 @@ uitgerekend.
 | `execution/spread.py::corwin_schultz_spread` | 60 | uitsluitend `high` en `low` van de dagbar | **`RETAINED`** | n.v.t. — hij BESTAAT omdat er geen quotes zijn |
 | `data/orderbook.py` | 150 | L2-snapshots (`[prijs, hoeveelheid]`-lijsten), boekimbalans | **`ARCHIVED`** | een gecertificeerde L2-boekbron |
 | `live/` (13 modules) | — | een besluitcyclus die niet de dagbar is | **zie stap 16** | zie stap 16 |
-| `execution/impact.py` (`eta = 2.991922`) | — | ongekalibreerd; kalibratie vereist uitvoeringsdata | **`RETAINED`** met harde limiet | zie stap 17; AD-2 blijft van kracht |
+| `execution/impact_model.py` (eta uit `conf/execution/impact.yaml`) | — | ongekalibreerd; kalibratie vereist uitvoeringsdata | **`RETAINED`** met harde limiet | zie stap 17; AD-2 blijft van kracht |
 | `volatility/realized.py` | — | range-estimators op de OHLC van de DAGBAR | **`RETAINED`, ongewijzigd** | n.v.t. — expliciet beschermd |
 | `volatility/yang_zhang.py`, `rogers_satchell.py`, `garman_klass.py` | — | idem: open/high/low/close van de dagbar | **`RETAINED`, ongewijzigd** | n.v.t. |
 | `data/crypto.py`, `data/ingestion/` | 501 + | leest het Bybit-publieke archief (trades) om de dagbar te MAKEN | **`RETAINED`** | n.v.t. — dit is de bron, niet een grootheid erop |
@@ -215,6 +215,41 @@ dit bestand niet naar `archive/` kan.
 > exit-criterium 2 eist **één** `bars_per_year` en er zijn er twee. Dit is een
 > meetcontract-kwestie, geen domeinkwestie, en zij verandert opgeslagen
 > backtestgetallen; daarom hier vastgelegd en niet hier gerepareerd.
+
+## Correctie op dit document zelf, en de poort die haar niet zag
+
+De eerste versie van de tabel hierboven noemde `execution/impact.py`. **Dat
+bestand bestaat niet.** De stapopdracht noemt het zo
+(`Prompts-fases/fase_10_herstart_dagbars.md:2957`) en ik heb dat pad overgenomen
+zonder het te controleren — dezelfde fout als bij de bereikbaarheidsmeting, en
+in hetzelfde document.
+
+Wat er wel is:
+
+| wat | waar |
+|---|---|
+| het bindende impactmodel (L9) | `execution/impact_model.py` |
+| `eta = 2.991922` | `conf/execution/impact.yaml`, regel 27 — een CONFIGWAARDE, geen code |
+| een tweede implementatie van dezelfde formule | `execution/market_impact.py::square_root_impact`, met `eta: float = 0.142` als DEFAULT-argument |
+
+> **De documentenpoort heeft dit niet gezien, en dat is een bevinding op zich.**
+> `tests/unit/test_docs_claim_only_what_exists.py` controleert of elk pad in een
+> document bestaat. Zijn `_resolves()` kent de pakket-relatieve schrijfwijze
+> (`execution/impact_model.py` -> `src/tradebot/execution/impact_model.py`) wel,
+> maar zijn `PATH_REF`-regex haalt zulke verwijzingen NOOIT uit de tekst: die
+> matcht alleen paden die met een van tien TOPNIVEAU-mappen beginnen
+> (`src|tests|apps|conf|docs|reports|artefacts|scripts|infra|data`).
+>
+> Gemeten over `docs/`: **186 pakket-relatieve verwijzingen** ontsnappen zo aan
+> de poort. Zou de regex worden verbreed, dan vallen **elf documenten** om op
+> dertien dode paden — waaronder `risk/portfolio.py`, dat in VIER documenten
+> staat en in Phase 4 is verwijderd.
+>
+> Dat is dezelfde maskering als overal op deze branch: de poort meldt schoon
+> omdat zij de vraag niet stelt. De verbreding zelf staat hier NIET in: zij
+> raakt negen documenten die ik niet heb geschreven, en elk van die dertien
+> paden vraagt een oordeel (corrigeren, of met reden in `KNOWN_ABSENT`). Dat is
+> werk met een eigen commit, geen bijvangst van een tabelcorrectie.
 
 ## Wat dit document NIET vaststelt
 

@@ -118,7 +118,7 @@ dvc.yaml:57   deps: - src/tradebot/data/ingestion.py     <- bestaat niet
 ```
 
 `src/tradebot/data/ingestion` is in commit `be94079` van een MODULE een PAKKET
-geworden (`ingestion/__init__.py`, `bybit.py`, `contract.py`, `crypto_sources.py`,
+geworden (`data/ingestion/__init__.py`, `bybit.py`, `contract.py`, `crypto_sources.py`,
 `legacy.py`), maar `dvc.yaml` bleef naar het oude `.py`-pad wijzen. De import in
 `apps/build_features.py:117` werkt gewoon — die noemt het pakket, niet het
 bestand — en `tests/test_imports.py:51` dekt hem af, dus niets in de testsuite
