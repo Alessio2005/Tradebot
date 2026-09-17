@@ -40,12 +40,42 @@ def _pair(n: int = 1200, rho: float = 0.95, seed: int = 4):
 
 
 class TestStatistic:
-    def test_an_identical_pair_gives_no_difference(self) -> None:
+    @pytest.mark.parametrize("multiplier", [1.000001, 0.5, 2.0, 3.0, 10.0, 100.0])
+    def test_a_scalar_multiple_is_the_same_track_and_cannot_be_tested(
+        self, multiplier: float
+    ) -> None:
+        """Herschalen verandert de Sharpe niet, dus er valt niets te toetsen.
+
+        Dit is AD-16/REGEL V op een rendementsreeks in plaats van op een
+        exposure: `mean/std` deelt een uniforme factor er weer uit, dus `a` en
+        `c * a` zijn hetzelfde spoor met dezelfde Sharpe en correlatie exact 1.
+        De asymptotische variantie van Memmel is daar per constructie NUL.
+
+        Deze test is de negatieve controle op de degeneratiepoort (R-1): hij
+        bewijst dat zij rood kan worden. Zonder hem was de poort afhankelijk
+        van afrondingsgeluk -- zie de docstring van `jobson_korkie_memmel`.
+        """
         a, _ = _pair()
-        result = jobson_korkie_memmel(
-            a, a * 1.000001, bars_per_year=BARS, alpha=ALPHA)
-        assert abs(result.difference) < 1e-6
-        assert result.p_value > 0.99
+        with pytest.raises(DataContractError, match="niet positief"):
+            jobson_korkie_memmel(
+                a, a * multiplier, bars_per_year=BARS, alpha=ALPHA)
+
+    def test_a_minimally_perturbed_pair_gives_no_significant_difference(
+        self,
+    ) -> None:
+        """Een spoor dat ECHT een haartje verschilt, is wel toetsbaar.
+
+        Het verschil met de test hierboven is het soort verstoring: additief in
+        plaats van multiplicatief. Een additieve verstoring beweegt het gemiddelde
+        los van de spreiding en verandert de Sharpe dus wel -- zij het hier met
+        een verwaarloosbaar bedrag, en de toets hoort dat als 'geen significant
+        verschil' te rapporteren in plaats van als een degeneratie.
+        """
+        a, _ = _pair()
+        b = a + np.random.default_rng(99).normal(0.0, 1e-6, a.size)
+        result = jobson_korkie_memmel(a, b, bars_per_year=BARS, alpha=ALPHA)
+        assert abs(result.difference) < 1e-4
+        assert result.p_value > ALPHA
         assert result.significant is False
 
     def test_a_large_injected_effect_is_detected(self) -> None:

@@ -94,6 +94,43 @@ __all__ = [
 #: nergens op slaat.
 _MIN_OBS = 30
 
+#: Ondergrens voor de asymptotische variantie, RELATIEF aan haar eigen leidende
+#: term. Memmel eq. 5 is een verschil van termen van orde `sd_a^2 * sd_b^2 / n`.
+#: Zijn de twee armen HETZELFDE spoor -- correlatie exact 1 en proportionele
+#: momenten, zoals bij `a` tegen `c * a` -- dan vallen die termen per constructie
+#: volledig tegen elkaar weg en is de echte variantie NUL. Wat overblijft is
+#: afrondingsruis met een willekeurig teken, dus een toets `variance > 0` beslist
+#: dan op afrondingsgeluk in plaats van op de data.
+#:
+#: GEMETEN (780 identieke-spoor-vergelijkingen, 60 seeds x 13 multipliers):
+#: `variance > 0` weigerde 48,1% en liet 51,9% door. De doorgelaten gevallen
+#: gaven een ONSCHULDIG oordeel (grootste |z| = 0,0000, kleinste p = 0,999995,
+#: nooit significant), dus er is nooit een vals positief uit voortgekomen -- het
+#: defect is dat dezelfde invoer twee verschillende gedragingen kreeg.
+#:
+#: De drempel ligt op 1e-12 maal de leidende term, ~4.500x de machineprecisie.
+#: Gemeten scheiding: identiek spoor komt niet boven 1,5e-16 uit, terwijl het
+#: minst gescheiden ECHTE paar (rho = 0,999999) op 8,8e-7 zit -- zes ordes
+#: speling. De phase-10-vergelijkingen (rho 0,8 tot 0,99) liggen op 1e-2 tot 1e-3.
+#:
+#: Dit is GEEN onderzoeksparameter in de zin van R-2 en kost dus geen trial: de
+#: drempel kan alleen een vergelijking WEIGEREN, nooit een gunstiger uitkomst
+#: produceren. Een weigering is geen resultaat.
+#:
+#: WAAROM DEZE TAK ANDERS ANTWOORDT DAN DE LEDOIT-WOLF-TAK. Dezelfde ontaarding
+#: is eerder gevonden en gerepareerd in `validation/inference.py`, RULING P47:
+#: `sharpe_difference_test` vangt haar af met `_is_positive_multiple` en geeft de
+#: GESLOTEN VORM terug (verschil 0, se 0, p = 1) in plaats van te weigeren. Die
+#: reparatie is toen NIET op deze tweede implementatie toegepast; dit is dat
+#: gemis, en niets meer. De twee antwoorden blijven met opzet verschillend:
+#: Ledoit-Wolf kent het antwoord in gesloten vorm en schrijft het op, terwijl
+#: Memmel eq. 5 hier een 0/0 rekent en de aanroeper hoort te dwingen zelf te
+#: beslissen wat "hetzelfde spoor" in ZIJN context betekent. Dat is precies wat
+#: `phase10_decision_frequency.py::_delta_block` doet: het zet `test_was_called`
+#: op False met een reden, in plaats van een p-waarde te rapporteren voor een
+#: vergelijking die nooit een vergelijking was.
+_DEGENERATE_VARIANCE_REL_TOL = 1e-12
+
 
 @dataclass(frozen=True)
 class SharpeDifferenceResult:
@@ -182,12 +219,18 @@ def jobson_korkie_memmel(
         + 0.5 * mu_b**2 * sd_a**2
         - (mu_a * mu_b / (sd_a * sd_b)) * covariance**2
     ) / n
+    leading_term = 2.0 * sd_a**2 * sd_b**2 / n
     require(
-        variance > 0.0,
-        "De asymptotische variantie van het Sharpe-verschil is niet positief. "
-        "Dat gebeurt bij een correlatie van exact 1 en identieke momenten; er "
-        "valt dan niets te toetsen.",
+        variance > _DEGENERATE_VARIANCE_REL_TOL * leading_term,
+        "De asymptotische variantie van het Sharpe-verschil is niet positief "
+        "op de schaal van haar eigen leidende term. Dat gebeurt wanneer de twee "
+        "armen HETZELFDE spoor zijn -- correlatie exact 1 en proportionele "
+        "momenten, bijvoorbeeld een reeks tegen een veelvoud van zichzelf. Een "
+        "uniforme factor deelt weg tegen de noemer van de Sharpe, dus er is geen "
+        "verschil om te toetsen.",
         DataContractError, variance=variance, correlation=correlation,
+        leading_term=leading_term,
+        relative_variance=variance / leading_term if leading_term > 0.0 else float("nan"),
     )
     standard_error = math.sqrt(variance)
     z = theta / standard_error
