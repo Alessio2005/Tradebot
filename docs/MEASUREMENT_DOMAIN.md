@@ -136,28 +136,68 @@ verdict dat het mandaat voorschrijft.
 `volume` en is daarmee domein-conform, ongeacht in welk hoofdstuk van AFML hij
 staat. Dat is val 1, binnen één bestand.
 
-## Wat de archivering kost — gemeten, niet geschat
+## Wat de archivering kost — GECORRIGEERD, en de eerste meting was fout
 
-Geen enkel gearchiveerd symbool wordt genoemd in `apps/`, `scripts/`, `conf/`
-of `dvc.yaml`. Referentietelling op `8b31005`:
+**Correctie op de eerste versie van dit document.** Die telde per publiek
+symbool hoe vaak het in `apps/`, `scripts/`, `conf/` en `dvc.yaml` voorkomt, vond
+overal nul, en concludeerde dat 1.069 LOC "niets actiefs bereikt". Die telling
+was juist en de conclusie fout: zij meet of een naam ergens LETTERLIJK staat, en
+niet of de module TRANSITIEF bereikbaar is. `docs/CODE_REGISTER.md` had het
+antwoord al in zijn kolom "Bereikt via" staan.
 
-| symbool | refs in `src/` | refs in `tests/` | refs in `apps`+`scripts`+`conf`+`dvc` |
-|---|---:|---:|---:|
-| `generate_runs_bars` | 3 | 0 | **0** |
-| `generate_imbalance_bars` | 4 | 0 | **0** |
-| `generate_dollar_bars` | 1 | 1 | **0** |
-| `detect_spread` | 1 | 0 | **0** |
-| `compute_dynamic_spread_arr` | 2 | 0 | **0** |
-| `corwin_schultz_spread` | 1 | 0 | **0** |
-| `OrderBookSnapshot` | 1 | 1 | **0** |
-| `compute_book_imbalance` | 1 | 1 | **0** |
-| `rolling_book_features` | 1 | 1 | **0** |
-| `OFISignal` | 2 | 1 | **0** |
+`scripts/reachability_map.py` beslist dit, en na de splitsing van stap 15.3
+luidt het oordeel:
 
-De `src/`-referenties zijn vrijwel allemaal her-exports in de `__init__.py` van
-het eigen pakket. Dit is dode oppervlakte: **1.069 LOC** die niets actiefs
-bereikt (214 + 103 + 254 + 175 + 173 + 150). `execution/spread.py` telt niet
-mee: dat bestand wordt gedemoveerd, niet gearchiveerd.
+| module | klasse | LOC | betekenis |
+|---|:---:|---:|---|
+| `features/positioning.py` | **A** | 339 | bereikbaar vanuit een entrypoint |
+| `features/microstructure.py` | **D** | 180 | test-only — dit is wat 15.3 opleverde |
+| `alpha/microstructure.py` | **A** | 103 | bereikbaar |
+| `bars/runs.py` | **A** | 254 | bereikbaar via `apps/build_features.py` |
+| `bars/imbalance.py` | **A** | 175 | bereikbaar via `apps/build_features.py` |
+| `bars/dollar.py` | **D** | 173 | geen afnemer |
+| `execution/spread.py` | **A** | 314 | bereikbaar via `apps/tune_hparams.py` |
+| `data/orderbook.py` | **D** | 150 | geen afnemer |
+
+Vier van de zes kandidaten zijn klasse A. **Zij kunnen niet worden
+gearchiveerd**: archiveren breekt een actief pad. Dat stap 15.3 de order-flow-helft
+van klasse A naar klasse D bracht, is de enige archiveerbare winst die deze
+stage tot nu toe heeft opgeleverd — en zij is meetbaar: 180 LOC.
+
+Werkelijk onbereikbaar is 180 + 173 + 150 = **503 LOC**, en van die drie dragen
+er twee een eerdere uitspraak in `CODE_REGISTER.md` dat verplaatsen tests breekt.
+
+## De grootste domeinschending staat niet in de tabel hierboven
+
+De reden dat `bars/runs.py` klasse A is, is belangrijker dan de module zelf:
+
+```text
+dvc.yaml::build_features
+  -> apps/build_features.py:150   ingest_raw(sym_cfg, sym)  -> df_micro
+  -> apps/build_features.py:153   build_features(...)
+  -> features/pipeline.py:100     from .regime import FeaturePipeline
+  -> features/regime.py:733       bar_fn = generate_runs_bars if use_runs
+                                           else generate_imbalance_bars
+  -> features/regime.py:741-743   df_micro / df_meso / df_macro
+```
+
+`features/regime.py:730` leest `feature_pipeline.target_micro_bars` met default
+**30**, en bouwt daaruit een piramide van micro- (30 per dag), meso- (6) en
+macrobars. `AD-23` schrijft `bars_per_day: 1`.
+
+**Dit is een levende DVC-stage die dertig bars per dag genereert.** Niet een
+module die dat zou kunnen, maar de eerste stage van de pijplijn — dezelfde stage
+waarvan stap 14 de dependency repareerde. Het is de grootste schending van het
+meetdomein in deze repository, en zij is geen kwestie van twee modules
+archiveren: `regime.py` (1.060 LOC, klasse A), `features/pipeline.py`,
+`apps/build_features.py` en beide barmodules vormen één keten.
+
+> **Dit verdict wordt hier NIET geveld.** Stap 15 archiveert modules die buiten
+> het domein vallen; deze keten is de actieve featurepijplijn van fasen 1 tot en
+> met 3 en draagt de baseline waartegen alles is gemeten. Hem archiveren is geen
+> opruiming maar het buiten gebruik stellen van de bestaande pijplijn, en dat is
+> een besluit van de eigenaar. Vastgelegd als bevinding, met de keten erbij,
+> zodat het besluit op de meting rust en niet op een naam.
 
 ## De vreemde eend in `execution/spread.py`
 
