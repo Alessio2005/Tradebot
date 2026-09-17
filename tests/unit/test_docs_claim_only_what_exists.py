@@ -64,6 +64,15 @@ KNOWN_ABSENT: dict[str, str] = {
     "conf/env/prod.yaml":
         "niet getrackt: .gitignore `env/` sluit de Hydra-env-groep uit; "
         "model_risk_policy.md par. 2 legt die afwezigheid expliciet uit",
+    # Een deliverable die niet kan bestaan. CHAIN_A_STATUS.md stelt vast dat
+    # "keten A" nooit heeft bestaan -- geen `CHAIN_A_STATUS.md` in enige
+    # branch, geen `momentum_alpha` in enige commit behalve de commit die de
+    # masterprompt zelf schreef. D19 vraagt om een SCORE van die keten; er valt
+    # niets te scoren. Het pad corrigeren kan niet (er is geen tweede locatie)
+    # en het rapport schrijven zou een meting verzinnen.
+    "reports/phase10_chain_a_score.md":
+        "kan niet bestaan: CHAIN_A_STATUS.md bewijst dat keten A nooit heeft "
+        "bestaan, dus D19 heeft geen onderwerp",
     # Onjuiste paden die als correctie worden geciteerd.
     "artefacts/tca/coefficients.yaml":
         "tca_methodology.md citeert dit pad om de correctie te tonen",

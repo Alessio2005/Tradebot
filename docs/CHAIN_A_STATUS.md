@@ -1,7 +1,8 @@
 # KETEN A — STATUS
 
 > **Verdict: `CLOSED — premisse niet aangetroffen`.**
-> Vastgesteld 2026-09-17, fase 10 stap 14, op commit `21158dd`.
+> **Geverifieerd tegen de codebase op 2026-09-17**, fase 10 stap 14, op commit
+> `21158dd`.
 > **Trialrekening: 0.** Er is niets gepromoveerd, niets gedraaid en niets
 > gekozen, want er is niets om te promoveren.
 

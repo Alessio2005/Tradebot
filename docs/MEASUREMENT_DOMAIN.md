@@ -1,7 +1,7 @@
 # MEETDOMEIN — het verdict per module
 
 > **Fase 10, stap 15.** Exit-criterium 26.
-> Vastgesteld 2026-09-17 op commit `8b31005`.
+> **Geverifieerd tegen de codebase op 2026-09-17**, op commit `8b31005`.
 > Dit document voert AD-23 uit: elke module die een observatie fijner dan de
 > dagbar veronderstelt, krijgt één van drie verdicts.
 
