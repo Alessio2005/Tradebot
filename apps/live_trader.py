@@ -53,6 +53,7 @@ import asyncio
 import json
 import logging
 import os
+from collections.abc import Sequence
 from pathlib import Path
 
 import hydra
@@ -61,7 +62,7 @@ from omegaconf import DictConfig
 
 from tradebot.live.engine import LiveEngine, LiveEngineConfig
 from tradebot.live.feature_updater import FeatureUpdater, FeatureUpdaterConfig
-from tradebot.live.feed import Feed, FeedConfig
+from tradebot.live.feed import BarEvent, Feed, FeedConfig
 from tradebot.live.model_signal import ModelSignal, ModelSignalConfig
 from tradebot.live.signal_runner import SignalRunner, SignalRunnerConfig
 
@@ -116,7 +117,7 @@ def _check_credentials(mode: str) -> None:
 # Signal loading
 # ---------------------------------------------------------------------------
 
-def _build_signals(symbols: list[str], sides: list[str] = ("LONG", "SHORT")) -> list[ModelSignal]:
+def _build_signals(symbols: list[str], sides: Sequence[str] = ("LONG", "SHORT")) -> list[ModelSignal]:
     """Instantiate one ModelSignal per (symbol, side) pair.
 
     Skips pairs for which the ensemble model or calibrator artefacts are
@@ -293,7 +294,7 @@ def _build_engine(cfg: DictConfig) -> tuple[LiveEngine, Feed]:
         bar_seconds=bar_seconds,
         paper_mode=(mode not in ("live", "shadow")),
     )
-    queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
+    queue: asyncio.Queue[BarEvent | None] = asyncio.Queue(maxsize=1000)
     feed = Feed(config=feed_cfg, queue=queue)
 
     # ── Model signals (one LONG + one SHORT per symbol) ───────────────────────

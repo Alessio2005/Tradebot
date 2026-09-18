@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -32,12 +33,13 @@ REFRESH_INTERVAL = 3  # seconds
 
 # ── Load helpers ──────────────────────────────────────────────────────────────
 
-def _load_state() -> dict | None:
+def _load_state() -> dict[str, Any] | None:
     p = _OUT / "state.json"
     if not p.exists():
         return None
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        state: dict[str, Any] = json.loads(p.read_text(encoding="utf-8"))
+        return state
     except Exception:
         return None
 

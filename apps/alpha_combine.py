@@ -75,8 +75,14 @@ def combine(symbol: str, lookback: int = 252) -> None:
             logger.warning("Insufficient overlap — using equal weights.")
             combined = signals.mean(axis=1)
         else:
-            combiner = ICWeightedCombiner()
-            combiner.fit(signals.loc[common], returns.loc[common], lookback=lookback)
+            # `lookback` hoort in de constructor, niet in `fit`. Zoals het hier
+            # stond gooide ICWeightedCombiner() `TypeError: missing 1 required
+            # positional argument: 'signal_names'` -- deze tak heeft nooit
+            # gedraaid en viel altijd door naar de except eronder.
+            combiner = ICWeightedCombiner(
+                signal_names=list(signals.columns), lookback=lookback,
+            )
+            combiner.fit(signals.loc[common], returns.loc[common])
             combined = combiner.predict(signals)
             ic_tbl = combiner.ic_table()
             logger.info("IC table:\n%s", ic_tbl.to_string())

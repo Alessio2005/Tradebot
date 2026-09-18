@@ -24,6 +24,12 @@ import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    # pandas wordt per functie lazy geimporteerd (koude start); voor de
+    # annotaties is de naam op moduleniveau nodig.
+    import pandas as pd
 
 import joblib
 import numpy as np
@@ -58,7 +64,7 @@ STRESS_PERIODS = {
 CB_TRIGGER_PCT = 0.08  # live circuit-breaker threshold
 
 
-def _load_portfolio_metrics() -> dict:
+def _load_portfolio_metrics() -> dict[str, Any]:
     metrics_path = _ROOT / "reports" / "portfolio_metrics.json"
     if not metrics_path.exists():
         logger.warning("portfolio_metrics.json not found — using placeholder values.")
@@ -69,10 +75,11 @@ def _load_portfolio_metrics() -> dict:
             "realized_vol": 0.0654, "n_dd_breaker_bars": 0, "n_assets": 5,
         }
     with open(metrics_path, encoding="utf-8") as fh:
-        return json.load(fh)
+        metrics: dict[str, Any] = json.load(fh)
+    return metrics
 
 
-def _load_tracks() -> dict:
+def _load_tracks() -> dict[str, pd.Series]:
     """Load AssetTrack joblibs and build per-asset daily return series."""
     import pandas as pd
     tracks = {}
@@ -92,12 +99,12 @@ def _load_tracks() -> dict:
     return tracks
 
 
-def _run_stress_tests(tracks: dict) -> dict:
+def _run_stress_tests(tracks: dict[str, pd.Series]) -> dict[str, dict[str, Any]]:
     """Run stress tests and return per-scenario results."""
     import pandas as pd
 
     if not tracks:
-        return {"status": "no_tracks_available"}
+        return {"portfolio": {"status": "no_tracks_available"}}
 
     daily_df = (
         pd.DataFrame({s: t["daily"] for s, t in tracks.items()})
@@ -105,7 +112,7 @@ def _run_stress_tests(tracks: dict) -> dict:
     )
     port_daily = daily_df.mean(axis=1)
 
-    results = {}
+    results: dict[str, dict[str, Any]] = {}
     for name, (start, end) in STRESS_PERIODS.items():
         window = port_daily.loc[start:end]
         if window.empty:
@@ -178,7 +185,7 @@ def _compute_feature_hash() -> str:
     return hasher.hexdigest()[:16]
 
 
-def _n_bars_per_symbol() -> dict:
+def _n_bars_per_symbol() -> dict[str, int]:
     try:
         import pandas as pd
         result = {}

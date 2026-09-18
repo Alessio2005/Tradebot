@@ -45,9 +45,11 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 import hydra
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
@@ -59,7 +61,6 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tradebot.schemas.config import ValidationConfig, load_config
-from tradebot.selection.mda import filter_by_mda
 from tradebot.selection.sfi import rank_features_by_sfi
 from tradebot.validation.walk_forward import purged_walk_forward
 
@@ -71,8 +72,8 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 def _compute_cfi(
-    X: np.ndarray,
-    y: np.ndarray,
+    X: npt.NDArray[np.floating[Any]],
+    y: npt.NDArray[np.integer[Any]],
     feature_names: list[str],
     n_clusters: int = 10,
     seed: int = 42,
@@ -131,7 +132,7 @@ def _compute_cfi(
     # niet vergelijkbaar zonder de aanroep ernaast te leggen.
     validation_cfg = load_config(
         _ROOT / "conf" / "validation" / "default.yaml", ValidationConfig)
-    importances_list: list[np.ndarray] = []
+    importances_list: list[npt.NDArray[np.floating[Any]]] = []
 
     for fold in purged_walk_forward(len(X), validation_cfg):
         tr_idx = fold.train_idx
@@ -166,8 +167,8 @@ def _compute_cfi(
 
 
 def _raw_feature_importance(
-    X: np.ndarray,
-    y: np.ndarray,
+    X: npt.NDArray[np.floating[Any]],
+    y: npt.NDArray[np.integer[Any]],
     feature_names: list[str],
     seed: int,
 ) -> dict[str, float]:
@@ -194,8 +195,8 @@ def _raw_feature_importance(
 def run_feature_selection(
     sym: str,
     artefacts_dir: Path,
-    X: np.ndarray,
-    y: np.ndarray,
+    X: npt.NDArray[np.floating[Any]],
+    y: npt.NDArray[np.integer[Any]],
     feature_names: list[str],
     min_auc_sfi: float = 0.52,
     min_tstat_mda: float = 2.0,
@@ -260,17 +261,33 @@ def run_feature_selection(
     X_sfi = X[:, sfi_mask]
     sfi_names = [fn for fn, keep in zip(feature_names, sfi_mask) if keep]
 
-    # ── Stage 2: Causal MDA ───────────────────────────────────────────────────
-    logger.info("[%s] Stage 2: Causal MDA (min_tstat=%.1f) ...", sym, min_tstat_mda)
-    try:
-        mda_features = filter_by_mda(
-            X=X_sfi, y=y, feature_names=sfi_names,
-            min_tstat=min_tstat_mda, n_repeats=10, seed=seed,
-        )
-        logger.info("[%s] MDA: %d -> %d features.", sym, len(sfi_names), len(mda_features))
-    except Exception as exc:
-        logger.warning("[%s] MDA failed (%s) — using SFI features.", sym, exc)
-        mda_features = sfi_names
+    # ── Stage 2: Causal MDA — NIET BEDRAAD, zie DI-23 ────────────────────────
+    #
+    # Hier stond een aanroep `filter_by_mda(X=..., y=..., feature_names=...,
+    # min_tstat=..., n_repeats=..., seed=...)`. Die signatuur bestaat niet:
+    # `selection/mda.py::filter_by_mda(X, mda_result)` neemt twee argumenten en
+    # filtert een AL BEREKEND MDA-resultaat. De aanroep gooide dus bij elke run
+    # `TypeError`, en de `except Exception` eronder ving dat op als
+    # "MDA failed ... — using SFI features".
+    #
+    # GEVOLG: stage 2 heeft nooit gedraaid. Niet één keer. De geselecteerde
+    # features van dit script zijn altijd de SFI-overlevenden geweest, en de
+    # log meldde een mislukking waar een programmeerfout zat.
+    #
+    # Het BEREKENEN van MDA is `causal_mda(model, X, y, feature_names, ...)` en
+    # dat vraagt een getraind classifier met `predict_proba` op deze plek. Die
+    # is hier niet beschikbaar. Hem alsnog optuigen is een ontwerpbesluit over
+    # een selectiepijplijn, geen bijvangst van een CI-reparatie; daarom staat
+    # het als DI-23 in docs/DEFERRED_ISSUES.md.
+    #
+    # Wat hier nu staat, is wat er feitelijk gebeurde -- expliciet in plaats van
+    # als opgevangen uitzondering. `tests/unit/test_app_call_sites.py` bewaakt
+    # dat een herbedrading de signatuur wél respecteert.
+    logger.warning(
+        "[%s] Stage 2: Causal MDA is NIET bedraad (DI-23) — de SFI-selectie "
+        "gaat ongewijzigd door naar stage 3.", sym,
+    )
+    mda_features = sfi_names
 
     if not mda_features:
         logger.warning("[%s] MDA removed all features — keeping SFI features.", sym)
@@ -314,7 +331,7 @@ def _load_features_and_labels(
     sym: str,
     side: str,
     artefacts_dir: Path,
-) -> tuple | None:
+) -> tuple[npt.NDArray[np.floating[Any]], npt.NDArray[np.integer[Any]], list[str]] | None:
     """Load OOS probs and feature matrix from artefacts.
 
     Returns (X, y, feature_names) or None if artefacts are missing.
@@ -393,8 +410,8 @@ def main(cfg: DictConfig) -> None:
         out_path = sym_artefacts / "selected_features.json"
 
         # Combine LONG + SHORT events for a joint feature selection
-        all_X: list[np.ndarray] = []
-        all_y: list[np.ndarray] = []
+        all_X: list[npt.NDArray[np.floating[Any]]] = []
+        all_y: list[npt.NDArray[np.integer[Any]]] = []
         feat_names_union: list[str] | None = None
 
         for side in ("LONG", "SHORT"):

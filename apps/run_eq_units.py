@@ -24,9 +24,23 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--root", default="market_data_parquet")
     p.add_argument("--factors", default="", help="parquet with Ken French + BAB daily")
     p.add_argument("--stage", default="", help="ledger staging file (wave close merges)")
+    # Verplicht zodra er wordt gestaged, en niet met een lege default:
+    # `LedgerEntry` weigert een entry zonder herkomst (audit par. 26).
+    # Tot 2026-09-18 gaf deze aanroep deze drie velden NIET door en gooide
+    # `--stage` dus altijd `TypeError: missing 3 required positional
+    # arguments`. Er is nooit een entry uit dit script in de ledger beland.
+    # De waarden hier verzinnen zou precies DI-20 herhalen: een
+    # provenance-veld dat niet te herleiden is, is geen provenance. Ze
+    # worden daarom gevraagd, zoals `apps/ledger_append.py` dat ook doet.
+    p.add_argument("--git-sha", default="")
+    p.add_argument("--data-hash", default="")
+    p.add_argument("--preregistration-id", default="")
     p.add_argument("--start", default="2000-01-01",
                    help="evaluation window start (membership reliable ~2000+)")
     args = p.parse_args(argv)
+    if args.stage and not (args.git_sha and args.data_hash and args.preregistration_id):
+        p.error("--stage vereist --git-sha, --data-hash en --preregistration-id; "
+                "een ledger-entry zonder herkomst wordt door LedgerEntry geweigerd")
 
     panel, calendar = load_price_panel(root=args.root)
     print(f"panel {panel.shape}, avg names/day {calendar.sum(axis=1).mean():.0f}, "
@@ -54,6 +68,9 @@ def main(argv: list[str] | None = None) -> int:
             HypothesisLedger.append_to_staging(args.stage, LedgerEntry.from_config(
                 wave=22, unit=res.unit, market="equities",
                 config={**res.config, "eval_start": args.start, "price_adjust": "yf_auto_adjust"},
+                git_sha=args.git_sha,
+                data_hash=args.data_hash,
+                preregistration_id=args.preregistration_id,
                 metrics={"net_sharpe": s["net_sharpe"], "net_cagr": s["net_cagr"]},
                 notes=mod.PRIOR,
             ))

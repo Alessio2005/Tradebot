@@ -30,6 +30,7 @@ from typing import Any
 
 import hydra
 import numpy as np
+import numpy.typing as npt
 import optuna
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
@@ -52,6 +53,16 @@ from tradebot.tune.pruning import create_median_pruner
 from tradebot.utils.arrays import validate_or_die
 
 logger = logging.getLogger(__name__)
+
+# Wat `_build_label_targets` per horizon teruggeeft: labels, gewichten,
+# rendementen en de t1-index in event-ruimte. Als kale `tuple` zei de
+# annotatie niets over de vier elementen.
+_LabelTarget = tuple[
+    npt.NDArray[np.integer[Any]],
+    npt.NDArray[np.floating[Any]],
+    npt.NDArray[np.floating[Any]],
+    npt.NDArray[np.integer[Any]],
+]
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
@@ -59,7 +70,9 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 # I/O helpers
 # =============================================================================
 
-def _load_artefacts(artefacts_dir: Path, sym: str):
+def _load_artefacts(
+    artefacts_dir: Path, sym: str
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     """Load Stage-1 outputs and validate against schemas."""
     feat_path   = artefacts_dir / "features" / f"{sym}.parquet"
     events_path = artefacts_dir / "events"   / f"{sym}.parquet"
@@ -96,7 +109,7 @@ def _build_target_store(
     horizons: list[int],
     cfg: DictConfig,
     sym: str = "",
-) -> dict[int, tuple]:
+) -> dict[int, _LabelTarget]:
     """Mirror train_regime.py lines 4194-4216 — TrendScanningLabeler per horizon.
 
     Returns dict mapping horizon → (y_array, w_array, ret_array, t1_event_space).
@@ -125,7 +138,7 @@ def _build_target_store(
             _sym_path = Path(__file__).resolve().parent.parent / "conf" / "symbols" / f"{sym}.yaml"
             if _sym_path.exists():
                 with open(_sym_path, encoding="utf-8") as _fh:
-                    _sym_cfg: dict = _yaml.safe_load(_fh) or {}
+                    _sym_cfg: dict[str, Any] = _yaml.safe_load(_fh) or {}
                 if "label_pt_width_short" in _sym_cfg:
                     pt_width_short = float(_sym_cfg["label_pt_width_short"])
                 if "label_sl_width_short" in _sym_cfg:
@@ -146,7 +159,7 @@ def _build_target_store(
     ts_dev = event_timestamps.to_series()
     event_idx_dev = df_features.index.get_indexer(event_timestamps)
 
-    target_store: dict[int, tuple] = {}
+    target_store: dict[int, _LabelTarget] = {}
 
     for h in horizons:
         try:
@@ -216,7 +229,7 @@ def tune_pair(
         try:
             import yaml as _yaml_cusum_tune
             _cusum_tune_path = Path(__file__).resolve().parent.parent / "conf" / "symbols" / f"{sym}.yaml"
-            _cusum_tune_cfg: dict = {}
+            _cusum_tune_cfg: dict[str, Any] = {}
             if _cusum_tune_path.exists():
                 with open(_cusum_tune_path, encoding="utf-8") as _fh_ct:
                     _cusum_tune_cfg = _yaml_cusum_tune.safe_load(_fh_ct) or {}
@@ -315,7 +328,7 @@ def tune_pair(
         try:
             import yaml as _yaml
             _sym_path = Path(__file__).resolve().parent.parent / "conf" / "symbols" / f"{sym}.yaml"
-            _sym_cfg_tune: dict = {}
+            _sym_cfg_tune: dict[str, Any] = {}
             if _sym_path.exists():
                 with open(_sym_path, encoding="utf-8") as _fh:
                     _sym_cfg_tune = _yaml.safe_load(_fh) or {}

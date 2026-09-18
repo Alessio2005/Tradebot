@@ -25,10 +25,17 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
 from hydra import compose, initialize_config_dir
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
+
+if TYPE_CHECKING:
+    # Deze twee worden binnen de functies lazy geimporteerd (koude start);
+    # voor de annotaties is de naam op moduleniveau nodig.
+    from tradebot.live.engine import LiveEngine
+    from tradebot.live.feature_updater import FeatureUpdater
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 _ROOT = Path(__file__).resolve().parent.parent
@@ -109,7 +116,7 @@ def _clear_state_files() -> None:
     logger.info("Cleared previous state files.")
 
 
-def _build_engine_shadow():
+def _build_engine_shadow() -> LiveEngine:
     """Build LiveEngine in shadow mode with JudgeGate and state writes."""
     import json
 
@@ -120,10 +127,11 @@ def _build_engine_shadow():
     from tradebot.live.engine import LiveEngine, LiveEngineConfig
     from tradebot.live.execution_controller import ExecutionControllerConfig
     from tradebot.live.feature_updater import FeatureUpdaterConfig
-    from tradebot.live.feed import Feed, FeedConfig
+    from tradebot.live.feed import BarEvent, Feed, FeedConfig
     from tradebot.live.model_signal import ModelSignal, ModelSignalConfig
     from tradebot.live.portfolio_controller import PortfolioControllerConfig  # CHIEF-3
     from tradebot.live.signal_runner import SignalRunner, SignalRunnerConfig
+    from tradebot.portfolio.constraints import PortfolioConstraints
     from tradebot.schemas.config import RiskConfig, load_config
     GlobalHydra.instance().clear()
     initialize_config_dir(config_dir=_CONF_DIR, version_base=None)
@@ -161,7 +169,13 @@ def _build_engine_shadow():
             {k: v for k, v in train_cfg.items() if k != "defaults"}
         )
     OmegaConf.set_struct(cfg, False)
-    cfg = OmegaConf.merge(cfg, train_cfg)
+    _merged = OmegaConf.merge(cfg, train_cfg)
+    if not isinstance(_merged, DictConfig):
+        raise TypeError(
+            f"merge van live- en train-config levert {type(_merged).__name__}, "
+            "geen mapping"
+        )
+    cfg = _merged
     OmegaConf.set_struct(cfg, True)
 
     # Hard assert — must NEVER boot with a missing feature_pipeline block.
@@ -184,7 +198,7 @@ def _build_engine_shadow():
     )
 
     # ── Feed (real Bybit publicTrade WebSocket) ────────────────────────────────
-    queue: asyncio.Queue = asyncio.Queue(maxsize=2000)
+    queue: asyncio.Queue[BarEvent | None] = asyncio.Queue(maxsize=2000)
     feed_cfg = FeedConfig(
         symbols=_SYMBOLS,
         bar_seconds=5,
@@ -326,10 +340,14 @@ def _build_engine_shadow():
     # bij een mislukte solve terug op inverse volatility, de baseline waartegen
     # HRP zich nog moet bewijzen. De tilt-overlay werkt ongewijzigd: hij zit in
     # PortfolioController, niet in de allocator.
+    # `constraints` heeft bewust GEEN default (portfolio_controller.py:100):
+    # een L13-component mag zijn eigen risicodrempel niet kiezen. Zonder dit
+    # argument gooide deze regel `TypeError` -- de app startte dus nooit.
     pc_cfg = PortfolioControllerConfig(
         method="erc",
         min_history_bars=60,
         signal_tilt_strength=0.30,
+        constraints=PortfolioConstraints.from_risk_config(risk_policy),
     )
 
     engine_cfg = LiveEngineConfig(
@@ -574,7 +592,7 @@ def _load_5s_history(sym: str, warmup_bars: int) -> pd.DataFrame | None:
     return loaded
 
 
-def _prepopulate_buffers(fu, symbols: list[str]) -> None:
+def _prepopulate_buffers(fu: FeatureUpdater, symbols: list[str]) -> None:
     """Pre-fill FeatureUpdater buffers with per-symbol historical 5s bars.
 
     W-2 (2026-05-27): uses ``_WARMUP_BARS_PER_SYMBOL`` so each symbol loads

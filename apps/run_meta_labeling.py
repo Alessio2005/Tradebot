@@ -16,6 +16,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -68,11 +69,14 @@ TRACK = "xs_momentum_risk_parity"
 CURVE = (0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65)
 
 
-def _load(path: str) -> dict:
-    return json.loads((ROOT / path).read_text(encoding="utf-8"))
+def _load(path: str) -> dict[str, Any]:
+    data: dict[str, Any] = json.loads((ROOT / path).read_text(encoding="utf-8"))
+    return data
 
 
-def _feature_matrices(root: Path, cfg: dict, index: pd.Index) -> dict:
+def _feature_matrices(
+    root: Path, cfg: dict[str, Any], index: pd.Index
+) -> dict[str, pd.DataFrame]:
     """De gecertificeerde Phase 2-featurematrix per symbool, op één tijdas."""
     features = load_config(root / "conf/features/default.yaml", FeatureConfig)
     pipeline = build_default_registry(features).pipeline()

@@ -11,6 +11,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -26,7 +27,9 @@ from tradebot.schemas.config import DataConfig, VolatilityConfig, load_config
 from tradebot.volatility.ewma import ewma_volatility
 
 
-def load_panels(root: Path) -> tuple[dict, dict, dict, list[str]]:
+def load_panels(
+    root: Path,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[str]]:
     """OHLC, causale dagvolatiliteit en `data_hash` per symbool."""
     data = load_config(root / "conf/data/default.yaml", DataConfig)
     vol = load_config(root / "conf/model/volatility.yaml", VolatilityConfig)

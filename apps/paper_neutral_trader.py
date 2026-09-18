@@ -24,6 +24,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -50,10 +51,10 @@ class PaperBroker:
         self.equity = float(equity)
         self.qty: dict[str, float] = {}
         self.last_px: dict[str, float] = {}
-        self.records: list[dict] = []
+        self.records: list[dict[str, Any]] = []
 
     def step(self, ts: pd.Timestamp, prices: pd.Series, target_w: pd.Series,
-             funding: pd.Series | None, gross_lev: float, cost_bps: float) -> dict:
+             funding: pd.Series | None, gross_lev: float, cost_bps: float) -> dict[str, Any]:
         prices = prices.dropna()
         # 1) mark-to-market the PREVIOUS book on the move into `prices`
         mtm = 0.0
@@ -101,7 +102,7 @@ class PaperBroker:
         return rec
 
 
-def _persist(broker: PaperBroker, target_w: pd.Series):
+def _persist(broker: PaperBroker, target_w: pd.Series) -> None:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     with open(STATE_DIR / "equity_curve.jsonl", "w", encoding="utf-8") as f:
         for r in broker.records:
@@ -113,7 +114,7 @@ def _persist(broker: PaperBroker, target_w: pd.Series):
     (STATE_DIR / "state.json").write_text(json.dumps(state, indent=2))
 
 
-def run_replay(panel: pd.DataFrame, with_carry: bool = False):
+def run_replay(panel: pd.DataFrame, with_carry: bool = False) -> None:
     nb = NeutralBook(NeutralBookConfig())
     combined, pnls = nb.weight_history(panel, funding=None)
     broker = PaperBroker()
@@ -138,7 +139,7 @@ def run_replay(panel: pd.DataFrame, with_carry: bool = False):
           f"n_pos={broker.records[-1]['n_pos']}  -> state in {STATE_DIR}")
 
 
-def run_step(panel: pd.DataFrame, with_carry: bool):
+def run_step(panel: pd.DataFrame, with_carry: bool) -> None:
     # use data through the last COMPLETE daily bar (drop today's partial bar)
     panel = panel.iloc[:-1] if len(panel) > 1 else panel
     nb = NeutralBook(NeutralBookConfig())
@@ -171,7 +172,7 @@ def run_step(panel: pd.DataFrame, with_carry: bool):
     print("  longs :", {k: round(v, 3) for k, v in top.tail(3).items()})
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--replay", action="store_true")
     ap.add_argument("--step", action="store_true")

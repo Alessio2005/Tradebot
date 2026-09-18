@@ -16,6 +16,7 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -31,7 +32,12 @@ def main(cfg: DictConfig) -> None:
 
     from tradebot.data.crypto import CryptoIngestionEngine
 
-    cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+    _container = OmegaConf.to_container(cfg, resolve=True)
+    if not isinstance(_container, dict):
+        raise TypeError(
+            f"conf-root moet een mapping zijn, kreeg {type(_container).__name__}"
+        )
+    cfg_dict = cast("dict[str, Any]", _container)
 
     # Support single-symbol override: python -m apps.data_sync sync_symbol=AVAXUSDT
     symbol_override: str | None = cfg_dict.get("sync_symbol", None)

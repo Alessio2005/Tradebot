@@ -17,6 +17,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -53,8 +54,9 @@ PREREG = f"{GOV}/preregistration_cef1a3b9a6811d7bde1afc92a2a9503f.json"
 LEDGER_UNIT = "phase6_h1_garch_vs_ewma"
 
 
-def _load(path: str) -> dict:
-    return json.loads((ROOT / path).read_text(encoding="utf-8"))
+def _load(path: str) -> dict[str, Any]:
+    data: dict[str, Any] = json.loads((ROOT / path).read_text(encoding="utf-8"))
+    return data
 
 
 def main(argv: list[str] | None = None) -> int:

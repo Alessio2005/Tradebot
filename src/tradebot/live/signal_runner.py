@@ -7,6 +7,7 @@ ICWeightedCombiner to produce a single combined signal per symbol.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 
 import pandas as pd
 
@@ -80,7 +81,7 @@ class SignalRunner:
 
     def __init__(
         self,
-        signals: list[AlphaSignal],
+        signals: Sequence[AlphaSignal],
         config: SignalRunnerConfig | None = None,
     ) -> None:
         self._signals = signals

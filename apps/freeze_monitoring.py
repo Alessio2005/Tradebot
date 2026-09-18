@@ -26,8 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from tradebot.features.registry import current_git_sha
-from tradebot.registry.hypothesis_ledger import hash_config
 from tradebot.schemas.config import monitoring_config
+from tradebot.utils.hashing import hash_config
 
 ARTEFACT = ROOT / "artefacts" / "governance" / "monitoring_config_hash.json"
 

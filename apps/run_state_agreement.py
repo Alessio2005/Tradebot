@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -40,6 +41,19 @@ from tradebot.data.phase6_universe import load_phase6_universe
 from tradebot.features.registry import current_git_sha
 from tradebot.regime.state import VolState, assign_by_variance
 from tradebot.regime.state_agreement import AgreementReport, agreement
+
+
+class _StateRule(TypedDict):
+    """De vier drempels die beide modellen op hun EIGEN verdeling leggen.
+
+    Als losse `dict` werd dit `dict[str, float]` en botsten `min_periods`
+    en `lag` bij het uitpakken op hun `int`-parameter.
+    """
+
+    low_q: float
+    high_q: float
+    min_periods: int
+    lag: int
 from tradebot.schemas.config import (
     ValidationConfig,
     adequacy_config,
@@ -124,7 +138,7 @@ def _print(
           f"{report.bars_compared[-1].date()}  "
           f"(waarover elke barbreuk hieronder loopt)")
 
-    pooled = sum(report.confusion.values())
+    pooled = np.sum(list(report.confusion.values()), axis=0)
     print("\nVERWARRING gepoold (rijen EWMA, kolommen GARCH, VolState-volgorde)")
     print("           " + "".join(f"{s.name:>9}" for s in VolState) + "   totaal")
     for state in VolState:
@@ -185,8 +199,10 @@ def main() -> int:
     # `low_q`, `high_q`, `min_periods` en `lag`, elk model tegen zijn eigen
     # verdeling. Een niveaudrempel van het ene model op het andere leggen zou
     # een schaalverschil als toestandsverschil rapporteren.
-    rule = {"low_q": float(state_cfg.low_q), "high_q": float(state_cfg.high_q),
-            "min_periods": int(state_cfg.min_periods), "lag": int(state_cfg.lag)}
+    rule: _StateRule = {
+        "low_q": float(state_cfg.low_q), "high_q": float(state_cfg.high_q),
+        "min_periods": int(state_cfg.min_periods), "lag": int(state_cfg.lag),
+    }
     report = agreement(
         assign_by_variance(
             sigma_ewma, source=f"ewma_lambda_{cfg['vol'].ewma_lambda}", **rule),

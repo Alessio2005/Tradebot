@@ -23,6 +23,7 @@ import sys
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -47,9 +48,16 @@ GROSS_CAP = 1.0          # hard cap on gross exposure (max fully-invested).
 COST_BPS = 6.0
 
 
-def _get(u):
+def _get(u: str) -> Any:
+    if not u.startswith("https://"):
+        raise ValueError(
+            f"alleen https is toegestaan, kreeg: {u!r}. "
+            "Zonder deze controle accepteert uopen ook file:/ en "
+            "custom schemes (bandit B310)."
+        )
     r = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
-    return json.load(urllib.request.urlopen(r, timeout=25))
+    # nosec B310 -- het schema is drie regels hierboven op https vastgezet.
+    return json.load(urllib.request.urlopen(r, timeout=25))  # nosec B310
 
 
 def fetch_dvol_update() -> pd.Series:
@@ -80,7 +88,7 @@ def scaled_targets(combined_row: pd.Series) -> pd.Series:
     return w
 
 
-def _persist(broker, tw):
+def _persist(broker: Any, tw: pd.Series) -> None:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     with open(STATE_DIR / "equity_curve.jsonl", "w", encoding="utf-8") as f:
         for r in broker.records:
@@ -92,7 +100,7 @@ def _persist(broker, tw):
     }, indent=2))
 
 
-def run_replay(panel, dvol, funding):
+def run_replay(panel: pd.DataFrame, dvol: pd.Series, funding: pd.DataFrame) -> None:
     nb = MultiSleeveBook(MultiSleeveConfig())
     combined, _ = nb.weight_history(panel, dvol=dvol, funding=funding)
     broker = PaperBroker(INITIAL_EQUITY)
@@ -113,7 +121,7 @@ def run_replay(panel, dvol, funding):
     print(f"latest gross_lev={broker.records[-1]['gross_lev']} net_lev={broker.records[-1]['net_lev']} n_pos={broker.records[-1]['n_pos']}")
 
 
-def run_step(panel, dvol, funding):
+def run_step(panel: pd.DataFrame, dvol: pd.Series, funding: pd.DataFrame) -> None:
     panel = panel.iloc[:-1] if len(panel) > 1 else panel       # last COMPLETE bar
     nb = MultiSleeveBook(MultiSleeveConfig())
     tw = scaled_targets(nb.target_weights(panel, dvol=dvol, funding=funding))
@@ -138,7 +146,7 @@ def run_step(panel, dvol, funding):
     print("  longs :", {k: round(v, 3) for k, v in t.tail(3).items()})
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--replay", action="store_true"); ap.add_argument("--step", action="store_true")
     ap.add_argument("--update-data", action="store_true"); ap.add_argument("--no-fetch", action="store_true")

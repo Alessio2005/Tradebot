@@ -37,6 +37,7 @@ import json
 import math
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -143,7 +144,7 @@ _CAVEAT: dict[str, str] = {
 }
 
 
-def load_market(root: Path, cfg: dict) -> dict:
+def load_market(root: Path, cfg: dict[str, Any]) -> dict[str, Any]:
     """Prijzen, volatiliteit, causale ADV, bar-volume en funding."""
     store = PitStore(root / cfg["data"].pit_store_root)
     register = DataRegister(root / "artefacts/governance/data_hashes.json")
@@ -202,7 +203,7 @@ def _audit(rows: list[LayerResult], track: str, layer: str, key: str) -> object:
     return None
 
 
-def _verdict(res, hurdle: float, t_years: float, analytic: list[float]) -> str:
+def _verdict(res: Any, hurdle: float, t_years: float, analytic: list[float]) -> str:
     """De uitspraak, GEGENEREERD uit de gemeten getallen en niet met de hand.
 
     Een met de hand geschreven `note` kan de getallen naast zich tegenspreken
@@ -246,7 +247,7 @@ def _verdict(res, hurdle: float, t_years: float, analytic: list[float]) -> str:
 
 
 def _transition_block(name: str, rows: list[LayerResult], *,
-                      bars_per_year: float) -> dict:
+                      bars_per_year: float) -> dict[str, Any]:
     """Eén laagovergang, met alles wat stap 10.4 verplicht stelt."""
     (t_van, l_van), (t_naar, l_naar), question = TRANSITIONS[name]
     by = {(r.track, r.layer): r for r in rows}
@@ -376,7 +377,7 @@ def main(argv: list[str] | None = None) -> int:
     # Ruling P43(b): de per-bar reeksen staan NIET in het artefact maar wel hier
     # in `rows`. De overgangen worden daarom VOOR het samenvatten gerekend; de
     # ruwe reeksen zelf worden bewust niet weggeschreven.
-    payload: dict = {}
+    payload: dict[str, Any] = {}
     if args.with_transitions:
         payload["layer_transitions"] = {
             name: _transition_block(name, rows,

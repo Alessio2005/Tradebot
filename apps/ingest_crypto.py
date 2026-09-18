@@ -15,7 +15,7 @@ from pathlib import Path
 import pandas as pd
 
 from tradebot.data.ingestion import BybitV5Client, run_ingestion
-from tradebot.data.ingestion.contract import IngestionSpec
+from tradebot.data.ingestion.contract import IngestionSource, IngestionSpec
 from tradebot.data.ingestion.crypto_sources import (
     FundingSource,
     OhlcvSource,
@@ -68,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
             extra_meta={"venue": cfg.venue, "kind": args.kind,
                         "launch_ms": start_ms},
         )
+        src: IngestionSource
         if args.kind == "ohlcv":
             src = OhlcvSource(client, start_ms, end_ms)
         elif args.kind == "funding":

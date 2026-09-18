@@ -16,6 +16,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -64,8 +65,9 @@ TRACK = "xs_momentum_risk_parity"
 SPREAD_SWEEP = (1.0, 2.0, 3.0, 5.0, 10.0)
 
 
-def _load(path: str) -> dict:
-    return json.loads((ROOT / path).read_text(encoding="utf-8"))
+def _load(path: str) -> dict[str, Any]:
+    data: dict[str, Any] = json.loads((ROOT / path).read_text(encoding="utf-8"))
+    return data
 
 
 def main(argv: list[str] | None = None) -> int:

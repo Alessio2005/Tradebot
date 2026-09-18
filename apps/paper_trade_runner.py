@@ -43,6 +43,7 @@ from tradebot.live.portfolio_controller import PortfolioController, PortfolioCon
 from tradebot.live.signal_runner import SignalRunner, SignalRunnerConfig
 from tradebot.oms.audit_log import AuditLog
 from tradebot.oms.paper_oms import PaperOMS
+from tradebot.portfolio.constraints import PortfolioConstraints
 from tradebot.schemas.config import RiskConfig, load_config
 
 try:
@@ -339,12 +340,19 @@ def _run_replay(
     # dit pakket en valt bij een mislukte solve terug op inverse volatility -
     # exact de baseline waartegen HRP zich nog moet bewijzen. Dit is dus geen
     # willekeurige vervanger maar de referentie zelf.
+    # Een policy, twee gebruikers. `constraints` heeft bewust geen default
+    # (portfolio_controller.py:100); zonder dit argument gooide de regel
+    # hieronder `TypeError` en draaide deze replay nooit.
+    risk_policy = load_config(_ROOT / "conf" / "risk" / "default.yaml", RiskConfig)
     pc = PortfolioController(
-        PortfolioControllerConfig(method="erc", min_history_bars=30),
+        PortfolioControllerConfig(
+            method="erc", min_history_bars=30,
+            constraints=PortfolioConstraints.from_risk_config(risk_policy),
+        ),
         symbols=symbols,
     )
     ec = ExecutionController(ExecutionControllerConfig(
-        risk=load_config(_ROOT / "conf" / "risk" / "default.yaml", RiskConfig),
+        risk=risk_policy,
         max_weight_change=0.25))
     # Disable fat-finger for paper replay — no manual override risk
     for sym in symbols:
@@ -358,7 +366,7 @@ def _run_replay(
     )
 
     # Merge all feature rows into one timeline, sorted by timestamp
-    all_bars: list[tuple] = []
+    all_bars: list[tuple[pd.Timestamp, str, pd.Series]] = []
     for sym, df in feat.items():
         for ts, row in df.iterrows():
             all_bars.append((ts, sym, row))

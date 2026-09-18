@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -36,7 +38,9 @@ def main(argv: list[str] | None = None) -> int:
     # fetch. Rates keep full history (USD DTB3 back to 1971).
     start_for = {"rates": 1971, "spots": 1990}
 
-    def leg(name: str, series: dict, lag_for) -> None:
+    def leg(
+        name: str, series: dict[str, Any], lag_for: Callable[[Any], pd.Timedelta]
+    ) -> None:
         frames = []
         for ccy, spec in series.items():
             sid = spec[0]

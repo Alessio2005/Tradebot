@@ -36,6 +36,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -132,7 +133,7 @@ class ScenarioOutcome:
     def binding(self) -> tuple[BindingConstraint, ...]:
         return self.decision.binding_constraints
 
-    def as_record(self) -> dict[str, object]:
+    def as_record(self) -> dict[str, Any]:
         return {
             "scenario": self.name,
             "description": self.description,

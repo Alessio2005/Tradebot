@@ -46,6 +46,7 @@ from typing import Any
 import hydra
 import joblib
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 
@@ -83,12 +84,18 @@ if not os.environ.get("TRADEBOT_STRICT_CAUSAL"):
 # =============================================================================
 
 def get_early_stop_split(
-    X_train: np.ndarray,
-    y_train: np.ndarray,
-    weights: np.ndarray,
+    X_train: npt.NDArray[np.floating[Any]],
+    y_train: npt.NDArray[np.integer[Any]],
+    weights: npt.NDArray[np.floating[Any]],
     embargo_bars: int = 10,
     val_frac: float = 0.15,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[
+    npt.NDArray[np.floating[Any]],
+    npt.NDArray[np.integer[Any]],
+    npt.NDArray[np.floating[Any]],
+    npt.NDArray[np.floating[Any]],
+    npt.NDArray[np.integer[Any]],
+]:
     """Return a purged train/val split for CPCV-safe early stopping.
 
     Carves a validation window from the *end* of the training partition with an
@@ -129,11 +136,11 @@ def get_early_stop_split(
 # =============================================================================
 
 def _train_xgb_fold(
-    X_tr: np.ndarray,
-    y_tr: np.ndarray,
-    w_tr: np.ndarray,
-    X_es_val: np.ndarray,
-    y_es_val: np.ndarray,
+    X_tr: npt.NDArray[np.floating[Any]],
+    y_tr: npt.NDArray[np.integer[Any]],
+    w_tr: npt.NDArray[np.floating[Any]],
+    X_es_val: npt.NDArray[np.floating[Any]],
+    y_es_val: npt.NDArray[np.integer[Any]],
     hparams: dict[str, Any],
     fold_seed: int,
     embargo_bars: int,
@@ -183,11 +190,11 @@ def _train_xgb_fold(
 # =============================================================================
 
 def _train_lgb_fold(
-    X_tr: np.ndarray,
-    y_tr: np.ndarray,
-    w_tr: np.ndarray,
-    X_es_val: np.ndarray,
-    y_es_val: np.ndarray,
+    X_tr: npt.NDArray[np.floating[Any]],
+    y_tr: npt.NDArray[np.integer[Any]],
+    w_tr: npt.NDArray[np.floating[Any]],
+    X_es_val: npt.NDArray[np.floating[Any]],
+    y_es_val: npt.NDArray[np.integer[Any]],
     hparams: dict[str, Any],
     fold_seed: int,
     embargo_bars: int,
@@ -235,16 +242,16 @@ def _train_lgb_fold(
 
 def _platt_calibrate(
     base_model: Any,
-    raw_probs: np.ndarray,
-    X_full: np.ndarray,
-    y: np.ndarray,
-    train_idx: np.ndarray,
-    X_val: np.ndarray,
+    raw_probs: npt.NDArray[np.floating[Any]],
+    X_full: npt.NDArray[np.floating[Any]],
+    y: npt.NDArray[np.integer[Any]],
+    train_idx: npt.NDArray[np.integer[Any]],
+    X_val: npt.NDArray[np.floating[Any]],
     sym: str,
     side: str,
     fold_idx: int,
     learner_name: str,
-) -> np.ndarray:
+) -> npt.NDArray[np.floating[Any]]:
     """Apply per-fold sklearn Platt calibration to a base learner.
 
     Fits a CalibratedClassifierCV(cv="prefit", method="sigmoid") on the last 20%
@@ -267,7 +274,7 @@ def _platt_calibrate(
     try:
         from sklearn.frozen import FrozenEstimator as _FE  # sklearn ≥1.6
     except ImportError:
-        _FE = None  # type: ignore[assignment,misc]
+        _FE = None
 
     _n_platt = max(10, int(len(train_idx) * 0.20))
     _platt_fit_idx = train_idx[-_n_platt:]
@@ -307,10 +314,13 @@ def _load_hparams(hparam_dir: Path, sym: str, side: str) -> dict[str, Any]:
     hparam_path = hparam_dir / f"{pair_key}.json"
     if not hparam_path.exists():
         raise FileNotFoundError(f"HParams not found for {pair_key}: {hparam_path}")
-    return json.loads(hparam_path.read_text())
+    hparams: dict[str, Any] = json.loads(hparam_path.read_text())
+    return hparams
 
 
-def _load_artefacts(artefacts_dir: Path, sym: str):
+def _load_artefacts(
+    artefacts_dir: Path, sym: str
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     feat_path   = artefacts_dir / "features" / f"{sym}.parquet"
     events_path = artefacts_dir / "events"   / f"{sym}.parquet"
     map_path    = artefacts_dir / f"feature_map_{sym}.json"
@@ -376,7 +386,7 @@ def train_pair(
         try:
             import yaml as _yaml_cusum
             _cusum_sym_path = Path(__file__).resolve().parent.parent / "conf" / "symbols" / f"{sym}.yaml"
-            _cusum_sym_cfg: dict = {}
+            _cusum_sym_cfg: dict[str, Any] = {}
             if _cusum_sym_path.exists():
                 with open(_cusum_sym_path, encoding="utf-8") as _fh_cu:
                     _cusum_sym_cfg = _yaml_cusum.safe_load(_fh_cu) or {}
@@ -486,7 +496,7 @@ def train_pair(
             _sym_cfg_path = Path(__file__).resolve().parent.parent / "conf" / "symbols" / f"{sym}.yaml"
             if _sym_cfg_path.exists():
                 with open(_sym_cfg_path, encoding="utf-8") as _fh_cpcv:
-                    _sym_cfg_cpcv: dict = _yaml_cpcv.safe_load(_fh_cpcv) or {}
+                    _sym_cfg_cpcv: dict[str, Any] = _yaml_cpcv.safe_load(_fh_cpcv) or {}
                 if "label_pt_width_short" in _sym_cfg_cpcv:
                     pt_w_short = float(_sym_cfg_cpcv["label_pt_width_short"])
                 if "label_sl_width_short" in _sym_cfg_cpcv:
@@ -562,11 +572,11 @@ def train_pair(
 
     # ── CPCV training loop (single pass — collect probs + y in lockstep) ─────
     fold_models:    list[Any] = []
-    oos_probs_list: list[np.ndarray]   = []
-    oos_raw_probs_list: list[np.ndarray] = []   # L-1 fix: raw scores live feeds
-    oos_y_list:     list[np.ndarray]   = []
+    oos_probs_list: list[npt.NDArray[np.floating[Any]]]   = []
+    oos_raw_probs_list: list[npt.NDArray[np.floating[Any]]] = []   # L-1 fix: raw scores live feeds
+    oos_y_list:     list[npt.NDArray[np.integer[Any]]]   = []
     oos_ts_list:    list[pd.DatetimeIndex] = []
-    fold_id_list:   list[np.ndarray]   = []
+    fold_id_list:   list[npt.NDArray[np.integer[Any]]]   = []
 
     X_full = stack_feats(X1, X4, Xd)
     t1_pd  = pd.Series(r_t1_event, index=event_ts)
@@ -715,7 +725,7 @@ def train_pair(
             eval_set=(X_val, y_val), early_stopping_rounds=50,
         )
         cb_raw = cb_model.predict_proba(X_val)
-        cb_probs_raw: np.ndarray = (
+        cb_probs_raw: npt.NDArray[np.floating[Any]] = (
             cb_raw[:, 1] if cb_raw.shape[1] > 1 else np.zeros(len(X_val))
         )
         cb_probs = _platt_calibrate(
@@ -730,7 +740,7 @@ def train_pair(
         )
         if xgb_model is not None:
             xgb_raw = xgb_model.predict_proba(X_val)
-            xgb_probs_raw: np.ndarray = (
+            xgb_probs_raw: npt.NDArray[np.floating[Any]] = (
                 xgb_raw[:, 1] if xgb_raw.shape[1] > 1 else np.zeros(len(X_val))
             )
             _xgb_probs = _platt_calibrate(
@@ -747,7 +757,7 @@ def train_pair(
         )
         if lgb_model is not None:
             lgb_raw = lgb_model.predict_proba(X_val)
-            lgb_probs_raw: np.ndarray = (
+            lgb_probs_raw: npt.NDArray[np.floating[Any]] = (
                 lgb_raw[:, 1] if lgb_raw.shape[1] > 1 else np.zeros(len(X_val))
             )
             _lgb_probs = _platt_calibrate(

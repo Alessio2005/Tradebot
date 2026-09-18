@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -27,7 +28,7 @@ _N_BARS = 500
 _BASELINES_DIR = Path(__file__).resolve().parents[1] / "tests" / "regression" / "baselines"
 
 
-def _generate_smoke_data() -> dict:
+def _generate_smoke_data() -> dict[str, Any]:
     """Generate minimal deterministic smoke data for baseline generation.
 
     Uses the SAME construction as tests/regression/test_bitequivalence.py

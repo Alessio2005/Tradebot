@@ -16,6 +16,8 @@ Tier-based suffix convention (enforced by dataframe_check):
 """
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame, Series
@@ -48,15 +50,18 @@ class FeatureBlockSchema(pa.DataFrameModel):
         ordered = False
 
     @pa.dataframe_check
-    def index_monotonic_increasing(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_monotonic_increasing(cls, df: DataFrame[Any]) -> bool:
         return bool(df.index.is_monotonic_increasing)
 
     @pa.dataframe_check
-    def index_is_datetime(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_is_datetime(cls, df: DataFrame[Any]) -> bool:
         return isinstance(df.index, pd.DatetimeIndex)
 
     @pa.dataframe_check
-    def feat_columns_have_valid_tier_suffix(cls, df: DataFrame) -> bool:
+    @classmethod
+    def feat_columns_have_valid_tier_suffix(cls, df: DataFrame[Any]) -> bool:
         """feat_* columns (excl. feat_vol_gk) must end with _micro/_meso/_macro,
         start with feat_macro_, OR have no tier suffix (micro-level by convention).
 
@@ -81,7 +86,8 @@ class FeatureBlockSchema(pa.DataFrameModel):
         return True
 
     @pa.dataframe_check
-    def no_all_nan_columns(cls, df: DataFrame) -> bool:
+    @classmethod
+    def no_all_nan_columns(cls, df: DataFrame[Any]) -> bool:
         """No column may be entirely NaN — indicates upstream feature failure."""
         return bool(~df.isna().all(axis=0).any())
 

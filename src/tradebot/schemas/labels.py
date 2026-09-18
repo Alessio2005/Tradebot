@@ -15,6 +15,8 @@ _calc_non_overlapping_stats (noted as SK-candidate in session summary).
 """
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import pandera.pandas as pa
@@ -61,24 +63,28 @@ class LabelSchema(pa.DataFrameModel):
         ordered = True
 
     @pa.dataframe_check
-    def index_monotonic_increasing(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_monotonic_increasing(cls, df: DataFrame[Any]) -> bool:
         return bool(df.index.is_monotonic_increasing)
 
     @pa.dataframe_check
-    def index_is_utc(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_is_utc(cls, df: DataFrame[Any]) -> bool:
         """P0-23: All DatetimeIndex must be UTC-aware."""
         if not isinstance(df.index, pd.DatetimeIndex):
             return True  # let pandera's Index[pa.DateTime] catch this
         return df.index.tz is not None and str(df.index.tz) in {"UTC", "tzutc()", "UTC+00:00"}
 
     @pa.dataframe_check
-    def t1_ge_t0(cls, df: DataFrame) -> bool:
+    @classmethod
+    def t1_ge_t0(cls, df: DataFrame[Any]) -> bool:
         """t1_idx must be ≥ event bar index (no backward barriers)."""
         t0_pos = df.index.get_indexer(df.index)   # 0,1,2,...
         return bool((df["t1_idx"].to_numpy() >= t0_pos).all())
 
     @pa.dataframe_check
-    def realized_ret_finite(cls, df: DataFrame) -> bool:
+    @classmethod
+    def realized_ret_finite(cls, df: DataFrame[Any]) -> bool:
         return bool(np.isfinite(df["realized_ret"].to_numpy()).all())
 
 

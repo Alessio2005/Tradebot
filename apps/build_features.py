@@ -139,7 +139,13 @@ async def _run_symbol(cfg: DictConfig, sym: str, artefacts_dir: Path) -> None:
         # Convert to plain dict first so symbol YAML keys (e.g. asset_class)
         # are not rejected by Hydra's struct-mode validation.
         base_dict = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=False)
-        sym_cfg = OmegaConf.merge(OmegaConf.create(base_dict), OmegaConf.load(sym_override))
+        _merged = OmegaConf.merge(OmegaConf.create(base_dict), OmegaConf.load(sym_override))
+        if not isinstance(_merged, DictConfig):
+            raise TypeError(
+                f"symbool-override {sym_override} levert geen mapping maar "
+                f"{type(_merged).__name__}"
+            )
+        sym_cfg = _merged
         logger.debug("[%s] Per-asset override loaded from %s.", sym, sym_override)
     else:
         sym_cfg = cfg
