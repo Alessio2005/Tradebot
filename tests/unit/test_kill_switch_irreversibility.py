@@ -76,8 +76,16 @@ class TestTheHaltDoesNotRecoverOnItsOwn:
     def test_a_full_equity_recovery_does_not_lift_the_halt(
         self, store: HaltStore, cfg: RiskConfig
     ) -> None:
-        """De markt herstelt volledig; het boek blijft gehalt."""
-        crashed = RiskState(equity=0.90, high_water_mark=1.0, day_start_equity=1.0)
+        """De markt herstelt volledig; het boek blijft gehalt.
+
+        De crash-equity volgt uit `conf/risk/` en niet uit een literal: bij een
+        vaste 0.90 hing deze test aan de toenmalige halt van 8 % en tripte zij
+        niets meer toen het mandaat wijzigde (`docs/RISK_MANDATE.md`).
+        """
+        crashed = RiskState(
+            equity=1.0 - cfg.max_drawdown_pct * 1.2,
+            high_water_mark=1.0, day_start_equity=1.0,
+        )
         _, bound, halted = apply_drawdown_breaker(
             BOOK, crashed, levels=cfg.drawdown_breaker_levels,
             max_drawdown_pct=cfg.max_drawdown_pct, store=store, asof_ts=TS,
@@ -204,27 +212,49 @@ class TestCorruptStateIsNotReadAsPermissionToTrade:
 
 class TestTieredDegrossingBelowTheHardLimit:
     def test_the_deepest_reached_tier_wins(self, cfg: RiskConfig) -> None:
-        state = RiskState(equity=0.935, high_water_mark=1.0, day_start_equity=1.0)
-        assert state.drawdown == pytest.approx(0.065)
+        """Trap en drawdown komen uit `conf/risk/`, niet uit literals.
+
+        Stond hier 0.935 met `threshold == 0.06`, en dat bond aan de
+        propfirm-trappen 0.04/0.06. Afgeleid van de config toetst deze test het
+        MECHANISME — de diepste geraakte trap wint — bij elke kalibratie.
+        """
+        deepest = cfg.drawdown_breaker_levels[-1]
+        # Tussen de diepste trap en de harde halt: alle trappen geraakt, geen halt.
+        drawdown = (deepest.drawdown + cfg.max_drawdown_pct) / 2.0
+        state = RiskState(
+            equity=1.0 - drawdown, high_water_mark=1.0, day_start_equity=1.0)
+        assert deepest.drawdown < state.drawdown < cfg.max_drawdown_pct
         out, bound, new_state = apply_drawdown_breaker(
             BOOK, state, levels=cfg.drawdown_breaker_levels,
             max_drawdown_pct=cfg.max_drawdown_pct,
         )
-        assert out["A"] == pytest.approx(0.25)  # 0.25x, de diepste geraakte trap
-        assert bound[0].threshold == pytest.approx(0.06)
+        assert out["A"] == pytest.approx(deepest.gross_multiplier)
+        assert bound[0].threshold == pytest.approx(deepest.drawdown)
         assert not new_state.halted, "een trap is de-grossing, geen halt"
 
-    def test_the_shallow_tier_only_halves(self, cfg: RiskConfig) -> None:
-        state = RiskState(equity=0.95, high_water_mark=1.0, day_start_equity=1.0)
+    def test_the_shallow_tier_de_grosses_less_than_the_deep_one(
+        self, cfg: RiskConfig
+    ) -> None:
+        """De eerste trap knijpt minder hard dan de laatste — getrapt, niet binair."""
+        shallow, deepest = (
+            cfg.drawdown_breaker_levels[0], cfg.drawdown_breaker_levels[-1])
+        # Tussen de eerste en de tweede trap: alleen de eerste is geraakt.
+        drawdown = (shallow.drawdown + deepest.drawdown) / 2.0
+        state = RiskState(
+            equity=1.0 - drawdown, high_water_mark=1.0, day_start_equity=1.0)
         out, bound, _ = apply_drawdown_breaker(
             BOOK, state, levels=cfg.drawdown_breaker_levels,
             max_drawdown_pct=cfg.max_drawdown_pct,
         )
-        assert out["A"] == pytest.approx(0.5)
+        assert out["A"] == pytest.approx(shallow.gross_multiplier)
+        assert shallow.gross_multiplier > deepest.gross_multiplier
         assert bound[0].config_key == "risk.drawdown_breaker_levels"
 
     def test_a_shallow_drawdown_does_not_bind(self, cfg: RiskConfig) -> None:
-        state = RiskState(equity=0.99, high_water_mark=1.0, day_start_equity=1.0)
+        # Ruim boven de eerste trap, afgeleid uit de config.
+        equity = 1.0 - cfg.drawdown_breaker_levels[0].drawdown * 0.5
+        state = RiskState(
+            equity=equity, high_water_mark=1.0, day_start_equity=1.0)
         out, bound, new_state = apply_drawdown_breaker(
             BOOK, state, levels=cfg.drawdown_breaker_levels,
             max_drawdown_pct=cfg.max_drawdown_pct,

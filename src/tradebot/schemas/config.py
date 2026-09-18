@@ -294,30 +294,30 @@ class RiskConfig(StrictModel):
     Phase 4 maakt dit de ENIGE bron van waarheid voor elke risicodrempel. Vóór
     deze fase stond `max_gross_leverage` op vijf plaatsen met vier verschillende
     waarden (`reports/phase4_entanglement_map.md` sectie 5); waar die uiteenliepen
-    is hier consequent de STRENGSTE gekozen, conform de faseregel "conservatief
-    bij twijfel" - de kosten van een te ruime limiet zijn asymmetrisch.
+    is TOEN de STRENGSTE gekozen. Die regel is vervallen met het propfirm-mandaat;
+    de grond per drempel (A/B/C) staat in `docs/RISK_MANDATE.md` §1-§2, niet hier.
     """
 
     # -- L7 volatility targeting: w_t = min(max_leverage, sigma_target/sigma_hat) --
-    sigma_target: Fraction = 0.08
-    max_leverage: Annotated[float, Field(gt=0.0)] = 1.5
+    sigma_target: Fraction = 0.20                           # B; zie §2.3: inert?
+    max_leverage: Annotated[float, Field(gt=0.0)] = 4.0     # B
 
     # -- harde limieten --
-    max_position_pct: Fraction = 0.25
-    max_concentration: Fraction = 0.40
-    max_cluster_concentration: Fraction = 0.60
-    gross_cap: Annotated[float, Field(gt=0.0)] = 1.5
-    net_cap: Annotated[float, Field(gt=0.0)] = 0.60
-    adv_participation_cap: Fraction = 0.01
+    max_position_pct: Fraction = 0.80                       # B; 6x > gross_cap
+    max_concentration: Fraction = 0.40                      # B, ONGEWIJZIGD (AD-4)
+    max_cluster_concentration: Fraction = 0.60              # C, vacuous (AD-4)
+    gross_cap: Annotated[float, Field(gt=0.0)] = 4.0        # B
+    net_cap: Annotated[float, Field(gt=0.0)] = 2.0          # B, 0.50 x gross
+    adv_participation_cap: Fraction = 0.01                  # C, MARKTFEIT
 
     # -- kill switches --
     drawdown_breaker_levels: tuple[DrawdownTier, ...] = ()
-    max_drawdown_pct: Fraction = 0.08
-    daily_loss_limit: Fraction = 0.03
+    max_drawdown_pct: Fraction = 0.25       # A; plafond = stress_test.GAP_DOWN_FRACTION
+    daily_loss_limit: Fraction = 0.10                       # A, gap-containment
 
     # -- overig --
-    daily_var_limit_pct: Fraction = 0.02
-    max_position_age_h: PositiveInt = 48
+    daily_var_limit_pct: Fraction = 0.05                    # A, 0.5 x daglimiet
+    max_position_age_h: PositiveInt = 720   # A; 48h maakte funding carry onmeetbaar
 
     #: Symbool -> sector/cluster-label voor de clusterlimiet. Een symbool dat
     #: hier ontbreekt terwijl de clusterlimiet bindt, is een crash en geen

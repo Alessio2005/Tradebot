@@ -68,12 +68,30 @@ pytestmark = pytest.mark.integration
 
 ROOT = Path(__file__).resolve().parents[2]
 
-#: Residu op de juiste lag, als per-bar RMSE in bp. Dit is de
-#: kwantiteit-versus-gewicht-drift: de engine houdt tussen fills een vast AANTAL
-#: stuks, waarvan het gewicht meebeweegt met de prijs en met de equity, plus de
-#: partial fills en de dust-drempel. Een gewichtenbacktest herweegt per
-#: constructie elke bar gratis en kent geen van beide. Gemeten op 1,0-1,3 bp.
-DRIFT_RMSE_TOLERANCE_BPS = 3.0
+#: Residu op de juiste lag, als per-bar RMSE in bp PER EENHEID BRUTO-EXPOSURE.
+#: Dit is de kwantiteit-versus-gewicht-drift: de engine houdt tussen fills een
+#: vast AANTAL stuks, waarvan het gewicht meebeweegt met de prijs en met de
+#: equity, plus de partial fills en de dust-drempel. Een gewichtenbacktest
+#: herweegt per constructie elke bar gratis en kent geen van beide.
+#:
+#: WAAROM GENORMALISEERD EN NIET ABSOLUUT. Deze drempel stond op een absolute
+#: 3,0 bp, gemeten op een boek dat door het PROPFIRM-risicobudget op een gross
+#: van ~0,08 werd gehouden. Toen dat mandaat verviel (`docs/RISK_MANDATE.md`) en
+#: `sigma_target` van 0,08 naar 0,20 ging, schaalde de gross met exact 2,5x mee
+#: en het residu daarmee ook — de test werd rood zonder dat de engine of de
+#: shift(2)-conventie was veranderd.
+#:
+#: Gemeten over drie seeds x {60, 120} bars, in beide risicoregimes:
+#:
+#:   regime            gross        rmse2/gross     rmse1/gross
+#:   propfirm          0,082-0,088  11,7 - 13,0     226 - 260
+#:   eigen kapitaal    0,204-0,221  13,6 - 15,0     225 - 260
+#:
+#: De genormaliseerde grootheid is stabiel over een factor 2,5 aan boekgrootte;
+#: de absolute was dat per constructie niet. 25,0 laat ~67% marge boven de
+#: slechtste waarneming en blijft ~9x onder het lag-1-residu, dus de test
+#: onderscheidt de juiste lag nog even scherp.
+DRIFT_RMSE_TOLERANCE_BPS_PER_GROSS = 25.0
 
 #: Minimale scheiding tussen de juiste lag en zijn buren. Zakt die eronder, dan
 #: is de latency niet meer effectief en toetst de suite niets.
@@ -125,6 +143,29 @@ def _rmse_by_lag(result, weights, prices) -> dict[int, float]:
     return {lag: _rmse_bps(result, weights, prices, lag=lag) for lag in (1, 2, 3)}
 
 
+def _mean_gross(result) -> float:
+    """Gemiddelde bruto-exposure over het pad, uit de besluiten zelf.
+
+    De normalisator van `DRIFT_RMSE_TOLERANCE_BPS_PER_GROSS`. Gemiddeld en niet
+    laatste-bar, omdat `_rmse_bps` een RMSE over het hele pad is; een
+    eindbar-gross zou een pad met wisselende exposure verkeerd normaliseren.
+    """
+    grosses = [
+        sum(abs(v) for v in d.permitted_exposure.values()) for d in result.decisions
+    ]
+    assert grosses, "geen besluiten; er is niets te normaliseren"
+    mean = sum(grosses) / len(grosses)
+    assert mean > 0.0, (
+        "het boek draagt nul bruto-exposure; de drift-tolerantie is dan niet "
+        "genormaliseerd te toetsen en de test zou alles doorlaten"
+    )
+    return mean
+
+
+def _drift_tolerance_bps(result) -> float:
+    return DRIFT_RMSE_TOLERANCE_BPS_PER_GROSS * _mean_gross(result)
+
+
 @pytest.fixture(scope="module")
 def setup():
     replay = make_replay(n_bars=60, varying_exposure=True)
@@ -149,9 +190,12 @@ class TestExecutionTimingParity:
     def test_the_residual_at_lag_two_is_only_the_drift(self, setup) -> None:
         replay, result, weights, _ = setup
         rmse = _rmse_bps(result, weights, replay.prices, lag=2)
-        assert rmse < DRIFT_RMSE_TOLERANCE_BPS, (
+        tolerance = _drift_tolerance_bps(result)
+        assert rmse < tolerance, (
             f"residu {rmse:.3f} bp overschrijdt de kwantiteit-versus-gewicht-"
-            f"drift van {DRIFT_RMSE_TOLERANCE_BPS} bp"
+            f"drift van {tolerance:.3f} bp "
+            f"({DRIFT_RMSE_TOLERANCE_BPS_PER_GROSS} bp x gemiddelde gross "
+            f"{_mean_gross(result):.4f})"
         )
 
     def test_the_execution_timing_actually_costs_something(self, setup) -> None:
@@ -226,7 +270,8 @@ class TestTheProofIsReproducible:
         weights = _weights_from_decisions(result, replay)
         rmse = _rmse_by_lag(result, weights, replay.prices)
         assert min(rmse, key=lambda k: rmse[k]) == 2, f"rmse={rmse}"
-        assert rmse[2] < DRIFT_RMSE_TOLERANCE_BPS
+        assert rmse[2] < _drift_tolerance_bps(result), (
+            f"rmse={rmse}, gemiddelde gross={_mean_gross(result):.4f}")
         assert rmse[1] / rmse[2] > MIN_LAG_SEPARATION
 
 

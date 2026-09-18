@@ -52,9 +52,21 @@ def _config(tmp_path: Path, **overrides: object) -> CircuitBreakerConfig:
 
 
 def _tripped(tmp_path: Path) -> tuple[CircuitBreaker, SystemState]:
-    """Een breaker die zojuist op de levenslange drawdown is afgegaan."""
-    state = SystemState(equity=88_000.0, equity_peak=100_000.0)
-    state.daily_pnl_open = 100_000.0
+    """Een breaker die zojuist op de levenslange drawdown is afgegaan.
+
+    De drawdown wordt AFGELEID van de soevereine policy en niet hardgecodeerd.
+    Hier stond `equity=88_000` tegen een piek van 100_000: 12 %, wat trippte
+    zolang `max_drawdown_pct` 0,08 was. Bij de mandaatwijziging naar 0,25
+    (AD-26) trippte hij niet meer en vielen zeven tests om -- op de OPZET, niet
+    op wat zij beweren. Wat zij beweren is dat een halt onherroepelijk is, en
+    dat is onafhankelijk van waar de drempel ligt. Hem afleiden houdt deze
+    fixture waar bij elke volgende mandaatwijziging, en het is dezelfde regel
+    als die `TestTheThresholdsComeFromTheSovereignPolicy` hierboven bewaakt.
+    """
+    peak = 100_000.0
+    equity = peak * (1.0 - RISK.max_drawdown_pct * 1.5)
+    state = SystemState(equity=equity, equity_peak=peak)
+    state.daily_pnl_open = peak
     breaker = CircuitBreaker(_config(tmp_path), state)
     now = pd.Timestamp.now(tz="UTC")
     state.last_feed_ts = now

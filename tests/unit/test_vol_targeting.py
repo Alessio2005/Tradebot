@@ -184,11 +184,30 @@ class TestApplyToTheBook:
 
 
 class TestAgainstTheShippedConfig:
-    def test_the_phase3_baseline_vol_is_de_grossed_hard(self) -> None:
-        """72% geannualiseerde vol tegen sigma_target=0.08 uit conf/risk/."""
+    BASELINE_ANNUALISED_VOL = 0.72  # reports/BASELINE_BENCHMARK.md, 1/N ongehefboomd
+
+    def test_the_phase3_baseline_vol_is_de_grossed(self) -> None:
+        """72% geannualiseerde vol tegen `sigma_target` uit conf/risk/.
+
+        De drempel is AFGELEID uit de config en niet hardgecodeerd. Zij stond op
+        `0.08 / 0.72` met een absolute bovengrens van 0.2; toen de
+        mandaatwijziging (`docs/RISK_MANDATE.md`) `sigma_target` op 0.20 zette,
+        toetste die literal een mandaat dat niet meer bestond.
+
+        Wat de test WEL vasthoudt: de vol-target moet de baseline nog steeds
+        de-grossen. Zou hij dat niet doen, dan is de kalibratie zo ruim dat de
+        vol-targeting op dit universum niets meer bindt — precies het defect dat
+        RISK_MANDATE §2.3 openzet.
+        """
         cfg = load_config(CONF / "risk/default.yaml", RiskConfig)
         w = volatility_scalar(
-            sigma_hat=0.72, sigma_target=cfg.sigma_target, max_leverage=cfg.max_leverage
+            sigma_hat=self.BASELINE_ANNUALISED_VOL,
+            sigma_target=cfg.sigma_target,
+            max_leverage=cfg.max_leverage,
         )
-        assert w == pytest.approx(0.08 / 0.72, rel=1e-9)
-        assert w < 0.2, "de baseline-vol hoort fors te de-grossen; anders is de kalibratie te ruim"
+        assert w == pytest.approx(
+            cfg.sigma_target / self.BASELINE_ANNUALISED_VOL, rel=1e-9)
+        assert w < 1.0, (
+            "de baseline-vol wordt niet ge-de-grossed; sigma_target ligt op of "
+            f"boven de gemeten baselinevol van {self.BASELINE_ANNUALISED_VOL} "
+            "en de vol-targeting bindt dan niet meer")

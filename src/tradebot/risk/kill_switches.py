@@ -7,8 +7,11 @@ Phase 4, deliverable 3 / stap 5. Twee mechanismen met verschillende aard:
   harde grens is hij een multiplier, geen schakelaar. Een breaker die pas bij
   de eindlimiet iets doet, doet niets in het traject waarin ingrijpen nog
   goedkoop is.
-* **Daily Loss Governor** als ONMIDDELLIJKE kill switch. Geen trappen: dit is
-  een propfirm-lijn en die is binair.
+* **Daily Loss Governor** als ONMIDDELLIJKE kill switch. Geen trappen: de
+  governor is binair van aard. Hij WAS een propfirm-lijn; sinds de
+  mandaatwijziging (`docs/RISK_MANDATE.md`) is hij een gap-containmentlijn op
+  eigen kapitaal. De aard verandert niet mee: binair blijft binair, want een
+  getrapte reactie op een sprong is te laat.
 
 DE HALTED-TOESTAND IS EEN EENRICHTINGSDEUR
 ------------------------------------------

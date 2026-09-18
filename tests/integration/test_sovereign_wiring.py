@@ -223,7 +223,18 @@ class TestALimitChangeReachesTheOutput:
         assert tight_gross <= base_gross + 1e-12
 
     def test_a_looser_limit_lets_more_exposure_through(self, replay) -> None:
-        loose_cfg = risk_config().model_copy(update={"sigma_target": 0.16})
+        # De waarde moet RUIMER zijn dan `conf/risk/default.yaml`, niet een vast
+        # getal: de mandaatwijziging (docs/RISK_MANDATE.md) tilde `sigma_target`
+        # van 0.08 naar 0.20, waardoor de oude literal 0.16 stilzwijgend een
+        # STRENGERE config werd en deze test het omgekeerde ging meten van wat
+        # haar naam belooft. Afgeleid van de config bindt hij niet aan een
+        # mandaat.
+        base_cfg = risk_config()
+        loose_cfg = base_cfg.model_copy(
+            update={"sigma_target": min(1.0, base_cfg.sigma_target * 2.0)})
+        assert loose_cfg.sigma_target > base_cfg.sigma_target, (
+            "de 'ruimere' config is niet ruimer; sigma_target zit op zijn "
+            "bovengrens en deze test meet niets")
         loose_engine = RiskEngine(loose_cfg)
         loose = EventDrivenEngine(
             risk_engine=loose_engine, router=make_router(loose_engine),
