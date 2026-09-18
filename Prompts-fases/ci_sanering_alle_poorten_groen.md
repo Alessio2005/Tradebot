@@ -86,7 +86,7 @@ D:/venv/tradebot/Scripts/python -c "import scripts; print(getattr(scripts,'__pat
 | `pytest` | 9.0.2 | **9.1.1** |
 | `ruff` | 0.15.12 | 0.15.12 |
 
-Mypy 1.17 en 2.3.1 geven een andere foutverzameling op identieke broncode (gemeten: 188 tegen 187, met een andere verdeling over codes). Dit is dezelfde klasse als **DI-16** en het is de reden dat stap 5 bestaat.
+Mypy 1.17 en 2.3.1 geven een andere foutverzameling op identieke broncode (gemeten: 188 tegen 187, met een andere verdeling over codes). Dit is dezelfde klasse als **DI-16** en het is de reden dat stap 4 bestaat.
 
 ---
 
@@ -99,7 +99,7 @@ Mypy 1.17 en 2.3.1 geven een andere foutverzameling op identieke broncode (gemet
 | `ci.yml` | lint → `ruff check src/ apps/ tests/` | **GROEN** | `All checks passed!` |
 | `ci.yml` | lint → `mypy schemas/ utils/ apps/` | **ROOD** | **187 fouten in 34 bestanden** (64 gecontroleerd) |
 | `ci.yml` | `loc-guard` | **ROOD** | `FAIL: src/tradebot/backtest/evaluation.py has 1057 lines`, exit 1 |
-| `ci.yml` | `test-fast` (pytest + `--cov`) | **ROOD** | 1 failure + dekkingsdrempel; exit 1 |
+| `ci.yml` | `test-fast` (pytest + `--cov`) | **ROOD** | dekkingsdrempel; exit 1. 0 FAILED op een verse checkout |
 | `hygiene.yml` | dependency-contract (21 harde deps) | GROEN | alle 21 aanwezig |
 | `hygiene.yml` | `git_sha` resolvable | GROEN | `371755e`, `git cat-file -e` OK |
 | `hygiene.yml` | `audit_fallbacks.py --strict` | GROEN | exit 0; 39 bevindingen, **0 blokkerend** |
@@ -108,7 +108,7 @@ Mypy 1.17 en 2.3.1 geven een andere foutverzameling op identieke broncode (gemet
 | `hygiene.yml` | DAG-mappen + `README.md` | GROEN | 3/3 aanwezig |
 | `hygiene.yml` | `ruff` (src + 5 bestanden) | GROEN | `All checks passed!` |
 | `hygiene.yml` | `mypy --strict config.py failfast.py` | GROEN | `Success: no issues found in 2 source files` |
-| `hygiene.yml` | `pytest tests/unit -q` | **ROOD** | bevat de failure uit §2.2 D4 |
+| `hygiene.yml` | `pytest tests/unit -q` | GROEN | groen op een verse checkout; lokaal 1 failure, zie §2.3 val 3 |
 | `inventory.yml` | omgeving == beide lockfiles | GROEN | **0 afwijkingen** |
 | `inventory.yml` | `reachability_map.py --strict` | GROEN | exit 0; 3 geregistreerd onbereikbaar |
 | `inventory.yml` | `check_file_size.py` | GROEN | exit 0; 10 gecapte bestanden, geen boven zijn cap |
@@ -128,7 +128,7 @@ Mypy 1.17 en 2.3.1 geven een andere foutverzameling op identieke broncode (gemet
 | `nightly-regression.yml` | slow + regression tests | ONGEMETEN | buiten de snelle selectie |
 | `paper-trade-ci.yml` | 7-daagse paper-trade smoke | ONGEMETEN | vereist `dvc repro` + artefactcache |
 
-### 2.2 De vier echte defecten
+### 2.2 De drie echte defecten
 
 **D1 — mypy: 187 fouten in 34 bestanden.** Dit is de `lint`-job van `ci.yml`, en daarmee blokkeert het `test-fast` (die `needs: lint` heeft). Verdeling over foutcodes:
 
@@ -182,7 +182,15 @@ Het raakt **twee** jobs, niet één:
 
 Zie §4 — dit is de enige post in deze opdracht waarvoor jij geen mandaat hebt.
 
-**D4 — één falende test, en het is een poort die correct afgaat.**
+De rest van de suite: 1 FAILED (lokaal; zie §2.3 val 3 — op een verse checkout 0), 4 XFAIL (de pre-geregistreerde killgates, exact de verwachte vier), ~23 SKIPPED (ontbrekende datacaches en nog niet geëvalueerde kill-gate-artefacten), 0 ERROR.
+
+### 2.3 De drie schijnfouten
+
+Geen van drieën hoort in de foutentelling. Rapporteer ze als meetartefact, niet als defect.
+
+**Val 1 en 2** staan in §1.2 en §1.3: de `scripts.*`-importfouten (verkeerde interpreter) en de 59 markdownlint-bevindingen (ongetrackte bestanden).
+
+**Val 3 — de falende test die op CI niet faalt.** Lokaal geeft de suite:
 
 ```
 FAILED tests/unit/test_docs_claim_only_what_exists.py::TestEveryReferenceResolves::test_the_exception_list_does_not_rot
@@ -190,13 +198,21 @@ AssertionError: Deze paden staan als 'bewust afwezig' maar bestaan inmiddels:
 ['conf/env/prod.yaml']. Haal ze uit KNOWN_ABSENT.
 ```
 
-`conf/env/prod.yaml` stond op de lijst van bewust ontbrekende paden en bestaat nu. De test doet precies waarvoor hij is geschreven: een uitzonderingslijst die niet meeloopt met de werkelijkheid, is verrot. De reparatie is één regel — het pad uit `KNOWN_ABSENT` halen — maar controleer eerst **waarom** het bestand er is gekomen en of er documentatie bij hoort die er nog niet is. Dit is tevens de reden dat de `hygiene.yml`-stap `pytest tests/unit` rood staat.
+Dat leest als een poort die correct afgaat, en dat is het niet. `conf/env/` is **niet getrackt** — `.gitignore` regel 33 (`env/`, geschreven voor virtualenvs) sluit de hele Hydra-`env`-groep uit, en geen van de vier bestanden erin zit in de boom. Het bestand bestaat alleen op deze machine.
 
-De rest van de suite: 4 XFAIL (de pre-geregistreerde killgates, exact de verwachte vier), ~23 SKIPPED (ontbrekende datacaches en nog niet geëvalueerde kill-gate-artefacten), 0 ERROR.
+Bewijs, en voer dit uit voordat je er iets aan doet:
 
-### 2.3 De twee schijnfouten
+```bash
+git clone --single-branch --branch <branch> . /tmp/fresh
+cd /tmp/fresh && ls conf/env/          # bestaat niet
+pytest tests/unit/test_docs_claim_only_what_exists.py -q   # 9 passed
+```
 
-Beide zijn in §1 uitgewerkt en horen **niet** in de foutentelling: de `scripts.*`-importfouten (verkeerde interpreter) en de 59 markdownlint-bevindingen (ongetrackte bestanden). Rapporteer ze als meetartefact, niet als defect. Wat er wél uit volgt is stap 4: de suite hoort niet stil te vallen op de interpreter waarop hij toevallig draait.
+Gemeten 2026-09-18: in de verse checkout slagen alle negen tests. De `KNOWN_ABSENT`-regel is dus **juist** en het pad eruit halen zou CI kapotmaken, niet repareren.
+
+Wat er wél onder zit, is kleiner en van een andere orde: `_resolves()` oordeelt op bestaan in het bestandssysteem, dus een ongetrackt lokaal bestand kantelt het oordeel van deze poort. Vandaag is dat precies één pad. Dat is dezelfde klasse als val 2 en het hoort geregistreerd te worden — maar de semantiek van een governance-test wijzigen is géén bijvangst van een CI-sanering. Zie §6.
+
+Wat er uit val 1 en 3 samen volgt is stap 3: de suite hoort hetzelfde te zeggen op elke interpreter en in elke werkboom, of expliciet te vermelden dat hij dat niet doet.
 
 ### 2.4 De poorten die niets meten
 
@@ -235,18 +251,10 @@ Elke stap: eerst meten, dan wijzigen, dan opnieuw meten, dan committen met beide
 - [ ] Verifieer de interpreter (§1.1). Een `C:`-pad = stoppen.
 - [ ] Draai het volledige verificatieblok uit §5.2 en leg de uitkomst vast in `reports/ci_sanering_nulmeting.md`.
 - [ ] Wijkt een regel af van §2.1, dan is **§2 verouderd, niet jouw meting**. Noteer het verschil expliciet voordat je verdergaat.
-- [ ] Noteer per commando de **exitcode**. `docs/runbook.md` §0.3 noemt `1253 passed, 1 skipped` voor `pytest tests/unit`; die referentie klopt niet meer sinds D4 — meet hem opnieuw.
+- [ ] Noteer per commando de **exitcode**. `docs/runbook.md` §0.3 noemt `1253 passed, 1 skipped` voor `pytest tests/unit` — meet of die referentie nog klopt.
+- [ ] Draai elke rode uitkomst **ook in een verse kloon** voordat je hem een defect noemt. Drie van de vier bevindingen in de eerste meetronde van 2026-09-18 waren dat niet (§2.3).
 
-### Stap 1 — de falende test (D4)
-
-Begin hier, niet bij mypy: dit is de goedkoopste reparatie en hij maakt twee stappen in twee workflows groen.
-
-- [ ] Zoek uit waarom `conf/env/prod.yaml` bestaat: welke commit voegde hem toe, en hoort er documentatie bij die nog ontbreekt.
-- [ ] Haal het pad uit `KNOWN_ABSENT` in `tests/unit/test_docs_claim_only_what_exists.py`.
-- [ ] Controleer of de rest van `KNOWN_ABSENT` nog klopt — als één regel is verrot, is dat een aanwijzing over de hele lijst, geen toeval.
-- [ ] **Meet:** `pytest tests/unit -q -p no:randomly` → 0 failures.
-
-### Stap 2 — mypy naar nul (D1)
+### Stap 1 — mypy naar nul (D1)
 
 - [ ] Splits de 187 fouten in twee stapels: **mechanisch** (`type-arg`, `no-untyped-def`, `no-untyped-call`, `no-any-return`) en **verdacht** (`call-arg`, `arg-type`, `assignment`, `union-attr`, `operator`, `dict-item`, `misc`).
 - [ ] Werk de mechanische stapel per bestand af, grootste eerst. Echte annotaties — `dict[str, float]`, niet `dict[Any, Any]`; `Queue[Task]`, niet `Queue[Any]`. Een `Any` die je zelf toevoegt om een fout te laten verdwijnen, valt onder V3.
@@ -255,7 +263,7 @@ Begin hier, niet bij mypy: dit is de goedkoopste reparatie en hij maakt twee sta
 - [ ] **Meet:** `mypy src/tradebot/schemas/ src/tradebot/utils/ apps/ --ignore-missing-imports` → `Success`. `mypy --strict src/tradebot/schemas/config.py src/tradebot/utils/failfast.py` blijft groen.
 - [ ] Draai de volledige suite opnieuw. Een annotatie die gedrag wijzigt, is geen annotatie.
 
-### Stap 3 — `loc-guard` vervangen door de ratchet die al bestaat (D2)
+### Stap 2 — `loc-guard` vervangen door de ratchet die al bestaat (D2)
 
 - [ ] Vervang de `loc-guard`-job in `ci.yml` door `python scripts/check_file_size.py`.
 - [ ] Schrijf in de workflow, in commentaar, dezelfde redenering die bij `make loc-check` staat: de shell-lus hanteerde een whitelist die een niet-bestaand bestand noemde en zeven bestaande overtreders miste, en de ratchet toetst hetzelfde begrip strenger én is zelf getest.
@@ -263,7 +271,7 @@ Begin hier, niet bij mypy: dit is de goedkoopste reparatie en hij maakt twee sta
 - [ ] **Meet:** de oude shellstap geeft exit 1; `scripts/check_file_size.py` geeft exit 0; `tests/unit/test_file_size_ratchet.py` blijft groen.
 - [ ] De tien bestanden boven 800 regels zijn **DI-3** en blijven waar ze zijn. Splitsen valt buiten deze opdracht (§6).
 
-### Stap 4 — de testsuite interpreter-onafhankelijk maken (§1.2)
+### Stap 3 — de testsuite interpreter-onafhankelijk maken (§1.2)
 
 - [ ] Bewijs eerst de diagnose: laat `scripts.__path__` zien op beide interpreters.
 - [ ] Kies een reparatie en motiveer hem. De voor de hand liggende is `scripts/__init__.py` toevoegen, waardoor `D:\Tradebot\scripts` een reguliere package wordt en de `sys.path.insert(0, ...)` uit `tests/conftest.py` weer beslissend is.
@@ -271,7 +279,7 @@ Begin hier, niet bij mypy: dit is de goedkoopste reparatie en hij maakt twee sta
 - [ ] **Meet:** de collectie is schoon op *beide* interpreters, en alle zes de poortscripts geven nog steeds exit 0.
 - [ ] Breekt de reparatie iets dat zwaarder weegt: niet doorduwen. Registreer hem als DI met de meting erbij.
 
-### Stap 5 — één omgeving, één oordeel (§2.5, sluit DI-16)
+### Stap 4 — één omgeving, één oordeel (§2.5, sluit DI-16)
 
 - [ ] Zet `ci.yml`, `nightly-regression.yml` en `paper-trade-ci.yml` op Python 3.13 en op installatie uit beide lockfiles + `pip install -e . --no-deps`, gelijk aan `hygiene.yml` / `inventory.yml` / `research_gates.yml`.
 - [ ] Werkt dat voor `paper-trade-ci.yml` niet (de `ingestion`-extra staat niet in de lockfiles), los dat expliciet op — extra toevoegen aan de lock, of de workflow documenteren als bewust afwijkend. Niet stilzwijgend laten staan.
@@ -279,7 +287,7 @@ Begin hier, niet bij mypy: dit is de goedkoopste reparatie en hij maakt twee sta
 - [ ] **Meet:** `ruff --version` en `mypy --version` zijn in elke workflow gelijk aan de lockfile-pins (`ruff==0.15.12`, `mypy==2.3.1`).
 - [ ] Werk de DI-16-regel in `docs/DEFERRED_ISSUES.md` bij: gesloten, met de commit erbij.
 
-### Stap 6 — de poorten die niets meten laten meten (§2.4)
+### Stap 5 — de poorten die niets meten laten meten (§2.4)
 
 - [ ] `pip-audit`: haal `|| true` weg, haal `--require-hashes --disable-pip` weg, en richt hem op de lockfiles: `pip-audit -r requirements.lock -r requirements-dev.lock`. Pin `pip-audit` in `requirements-dev.lock`.
 - [ ] Draai hem één keer en lees de uitkomst. Vindt hij CVE's, dan is dat een **bevinding, geen blokkade voor deze stap**: registreer elke CVE met versie en oordeel in `docs/DEFERRED_ISSUES.md` en laat de stap rood staan als hij rood hoort te staan. Onderdruk niets.
@@ -287,9 +295,9 @@ Begin hier, niet bij mypy: dit is de goedkoopste reparatie en hij maakt twee sta
 - [ ] `regenerate_baseline.py || true` in `nightly-regression.yml`: maak expliciet wat de bedoeling is. Óf de stap mag falen en dan hoort er een conditie bij die zegt wanneer, óf hij mag niet falen en dan gaat `|| true` eruit. Een derde optie is er niet.
 - [ ] **Meet:** laat elke aangepaste stap één keer bewust rood worden (tijdelijk, lokaal) om te bewijzen dat hij dat kán. Zonder dat bewijs is de reparatie niet af — dat is de standaard uit `docs/PROJECT_STATE.md`.
 
-### Stap 7 — de dekking (D3) — meten en voorleggen, niet oplossen
+### Stap 6 — de dekking (D3) — meten en voorleggen, niet oplossen
 
-- [ ] Hermeet de dekking na stap 1 t/m 6; die stappen verplaatsen het cijfer.
+- [ ] Hermeet de dekking na stap 1 t/m 5; die stappen verplaatsen het cijfer.
 - [ ] Maak de opsplitsing per pakket: welke modules dragen de 41 % ongedekt, en hoeveel van de 10.219 gemiste statements zitten in de tien grootste ongedekte bestanden.
 - [ ] Schrijf `reports/ci_dekkingsplan.md`: het gemeten cijfer, de afstand tot 70, en drie opties met hun kosten — (a) tests schrijven tot 70 %, (b) een dekkingsratchet op het gemeten niveau met 70 als staand doel, (c) de drempel accepteren als permanent rode poort met geregistreerde motivering.
 - [ ] **Neem optie (b) of (c) niet zelf.** Beide verlagen feitelijk de eis; dat is een mandaatbesluit (V1, V8). Leg de drie opties voor en stop daar.
@@ -301,7 +309,7 @@ Begin hier, niet bij mypy: dit is de goedkoopste reparatie en hij maakt twee sta
 
 De opdracht luidt: de hele repo clean en 100 % valide. Dat is haalbaar voor alles behalve één post, en die uitzondering hoort in de opdracht te staan, niet in een voetnoot.
 
-**Wel haalbaar, volledig, in deze opdracht:** de falende test (D4), mypy naar nul (D1), `loc-guard` gerepareerd (D2), drie niet-metende poorten die weer meten (§2.4), één omgeving over alle workflows (§2.5), een testsuite die op elke interpreter collecteert (§1.2). Na stap 6 is elke poort in de repository óf groen, óf rood om een geregistreerde, gemeten reden.
+**Wel haalbaar, volledig, in deze opdracht:** mypy naar nul (D1), `loc-guard` gerepareerd (D2), drie niet-metende poorten die weer meten (§2.4), één omgeving over alle workflows (§2.5), een testsuite die op elke interpreter collecteert (§1.2). Na stap 5 is elke poort in de repository óf groen, óf rood om een geregistreerde, gemeten reden.
 
 **Niet haalbaar zonder besluit van de eigenaar:** de dekkingsdrempel (D3). 59,10 % naar 70 % is ~2.723 statements aan nieuwe tests. Dat is geen sanering maar een fase op zichzelf.
 
@@ -321,7 +329,7 @@ Een eindrapport dat zegt "alles groen" terwijl D3 is weggepoetst, is een mislukt
 | E2 | `mypy --strict` op `config.py` + `failfast.py` blijft groen | idem |
 | E3 | `ruff check src/ apps/ tests/` groen, **zonder** nieuwe regel in `ignore` | `git diff pyproject.toml` toont geen uitbreiding van `[tool.ruff.lint] ignore` |
 | E4 | Alle zes de poortscripts geven exit 0 | exitcodes in het rapport |
-| E5 | 0 FAILED in `pytest -m "not slow and not regression"`, en 0 in `pytest tests/unit` | beide uitvoeren |
+| E5 | 0 FAILED in `pytest -m "not slow and not regression"` en in `pytest tests/unit`, **gemeten in een verse kloon** | beide uitvoeren, in `/tmp/fresh` |
 | E6 | De vier pre-geregistreerde killgates staan XFAILED, identiek, 0 XPASS, 0 FAILED | de guard uit `inventory.yml` |
 | E7 | `apps/run_gates.py` geeft exit 0 op vier poorten | artefact `research_gates.json` |
 | E8 | De LOC-poort in `ci.yml` is de ratchet, en `tests/unit/test_file_size_ratchet.py` is groen | `git diff .github/workflows/ci.yml` |
@@ -375,6 +383,7 @@ Noteer van elk commando de **exitcode**, niet alleen de laatste regel uitvoer. E
 | Elk statistisch contract, elke poortdrempel, elke preregistratie | Dit is een infrastructuuropdracht. Raakt je wijziging een getal waarop een hypothese is beoordeeld, dan doe je het verkeerde |
 | `artefacts/governance/*.json` | Append-only ledger; zie DI-20 |
 | De 39 `SWALLOWED_EXCEPT`-adviezen van `audit_fallbacks.py` | 0 daarvan zijn blokkerend; de poort staat groen. Ze aanpakken is een aparte, inhoudelijke opdracht |
+| De semantiek van `test_docs_claim_only_what_exists.py` | §2.3 val 3: `_resolves()` oordeelt op het bestandssysteem, niet op de git-boom, dus een ongetrackt lokaal bestand kantelt het oordeel. CI is groen. Dit herschrijven raakt een governance-poort en vraagt een eigen afweging — registreer het als DI |
 
 Raakt een reparatie uit §3 een fence, stop en meld het. Niet doorwerken.
 
@@ -400,5 +409,5 @@ Rapporteer daarna, vóór je stap 1 begint, in maximaal één scherm:
 
 1. welke regels uit §2.1 zijn veranderd sinds 2026-09-18, met het nieuwe getal;
 2. het gemeten resultaat van `pytest tests/unit` en de gemeten dekking;
-3. in welke volgorde je stap 1 t/m 7 doet, en waarom die volgorde;
+3. in welke volgorde je stap 1 t/m 6 doet, en waarom die volgorde;
 4. elk punt waarop je denkt dat §0.1 je in de weg zit — dát is het moment om het te zeggen, niet achteraf.
