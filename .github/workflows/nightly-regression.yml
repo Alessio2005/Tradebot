@@ -5,15 +5,22 @@ on:
     - cron: "0 2 * * *"    # 02:00 UTC nightly
   workflow_dispatch:
 
+# 3.13 is de interpreter waarop `docs/runbook.md` par. 0 een meting geldig
+# verklaart, en waarop hygiene/inventory/research-gates al draaien. 3.11
+# maakte hiervan een TWEEDE omgeving: dezelfde pins, een andere resolutie.
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.13"
 
 permissions:
   contents: read
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 1: regression + slow tests — bit-equivalence vs DVC-tracked baselines
+  # Job 1: regression + slow tests — bit-equivalence tegen BEVROREN baselines.
+  #
+  # "DVC-tracked" stond hier en het was niet waar: er is geen .dvc-bestand en
+  # geen dvc.yaml-stage voor tests/regression/baselines/, en `.gitignore`
+  # regel 65 (`*.npy`) houdt ze uit de boom. Zie DI-25.
   # ---------------------------------------------------------------------------
   regression:
     name: Regression (bit-equivalence + slow tests)
@@ -26,11 +33,47 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Install deps
-        run: pip install -e ".[dev]" --no-cache-dir
-      - name: Regenerate baselines (first run only)
-        run: python apps/regenerate_baseline.py || true
+          cache-dependency-path: |
+            requirements.lock
+            requirements-dev.lock
+      # Gepind, net als de vier andere workflows. `.[dev]` zet ONDERGRENZEN
+      # (mypy>=1.7, ruff>=0.1.8, pytest>=7.4), en dan bepaalt de
+      # releasedatum het oordeel -- DI-16, gemeten: ruff 0.15.12 gaf 7
+      # bevindingen, 0.16.4 gaf er 78 op identieke broncode.
+      - name: Install from lockfile
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock -r requirements-dev.lock
+          pip install -e . --no-deps
+      # HIER STOND `python apps/regenerate_baseline.py || true`, en dat maakte
+      # deze job betekenisloos. De keten:
+      #
+      #   .gitignore:65 (`*.npy`)  -> de baselines zitten niet in de checkout
+      #   geen .dvc / geen stage   -> niets haalt ze ergens vandaan
+      #   regenerate_baseline.py   -> schrijft ze ONVOORWAARDELIJK (np.save
+      #                               staat buiten de `if ...exists()`), uit de
+      #                               code die daarna wordt getoetst
+      #   test_bitequivalence.py   -> `pytest.skip` als ze ontbreken
+      #
+      # Met de stap vergeleek de bit-equivalentietest de code met zichzelf en
+      # slaagde per constructie; zonder de stap sloeg hij over. Er was geen
+      # derde uitkomst. Een regeneratiehulpmiddel dat de MEETLAT herschrijft,
+      # hoort niet in de job die tegen die meetlat toetst -- het hoort met de
+      # hand te draaien en het resultaat hoort te worden vastgelegd.
+      #
+      # Deze stap staat er nu in plaats daarvan, en hij staat ROOD tot de
+      # baselines ergens vandaan komen. Waar ze horen te wonen -- git, DVC of
+      # een release-artefact -- is een besluit van de eigenaar: DI-25.
+      - name: De bevroren baselines moeten er zijn (DI-25)
+        run: |
+          missing=0
+          for f in gk_volatility.npy sequential_bootstrap_indices.npy; do
+            [ -f "tests/regression/baselines/$f" ] || { echo "::error::ontbreekt: $f"; missing=1; }
+          done
+          if [ "$missing" -eq 1 ]; then
+            echo "::error::De bit-equivalentietest heeft geen meetlat. Zie DI-25."
+            exit 1
+          fi
       - name: Run slow + regression tests
         run: pytest -m "slow or regression" -q --tb=short --maxfail=10
       - name: Archive baseline artefacts
@@ -54,8 +97,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-      - name: Install deps
-        run: pip install -e ".[dev]" --no-cache-dir
+      # Gepind (DI-16), zie de eerste job.
+      - name: Install from lockfile
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock -r requirements-dev.lock
+          pip install -e . --no-deps
       - name: Benchmark
         run: pytest -m benchmark -q --tb=short -o log_cli=true
       - name: Upload benchmark results
@@ -81,10 +128,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install deps
-        run: pip install -e ".[dev]" --no-cache-dir
+      # Gepind (DI-16), zie de eerste job.
+      - name: Install from lockfile
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock -r requirements-dev.lock
+          pip install -e . --no-deps
       - name: Drift check (PSI > 0.20 = alert)
-        run: python -m apps.monitor_drift || true
+        # `|| true` stond hier. `apps/monitor_drift.py:71` doet `raise
+        # SystemExit(1)` zodra een feature PSI > 0.20 overschrijdt -- dat IS
+        # het alarm, en het masker zette het uit. Een driftmonitor die niet
+        # rood mag worden, monitort niets.
+        run: python -m apps.monitor_drift
       - name: Upload drift report
         uses: actions/upload-artifact@v4
         if: always()
@@ -106,8 +161,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install deps
-        run: pip install -e ".[dev]" --no-cache-dir
+      # Gepind (DI-16), zie de eerste job.
+      - name: Install from lockfile
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock -r requirements-dev.lock
+          pip install -e . --no-deps
       - name: TCA integration tests
         run: pytest tests/integration/test_tca_roundtrip.py -q --tb=short
       - name: TCA daily summary
@@ -117,6 +176,10 @@ jobs:
                      out = pathlib.Path('reports/tca'); out.mkdir(parents=True, exist_ok=True); \
                      generate_tca_summary(state_dir='${{ runner.workspace }}/.tradebot_state', \
                                           output_dir=str(out))" || true
+        # Bewust gemaskeerd: dit is een RAPPORTgenerator, geen poort. De
+        # upload eronder staat op `if: always()` en de TCA-poort zelf is de
+        # stap erboven (`pytest tests/integration/test_tca_roundtrip.py`),
+        # die niet gemaskeerd is.
       - name: Upload TCA report
         uses: actions/upload-artifact@v4
         if: always()

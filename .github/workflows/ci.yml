@@ -6,8 +6,13 @@ on:
   pull_request:
     branches: ["main", "develop"]
 
+# De lockfiles zijn op 3.13 opgelost en de vier poortworkflows draaien op
+# 3.13. Diezelfde pins op 3.11 installeren is geen pin-probleem maar een
+# tweede omgeving: een andere minor geeft een andere resolutie.
+# `requires-python = ">=3.10"` in pyproject.toml is daarmee een claim die
+# door geen enkele job wordt getoetst; zie DI-24.
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.13"
 
 jobs:
   lint:

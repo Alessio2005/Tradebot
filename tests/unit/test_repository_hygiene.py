@@ -80,6 +80,12 @@ _ALLOWED_ROOT_FILES = frozenset({
     "pyproject.toml",
     "pytest.ini",
     "requirements-dev.lock",
+    #: De SAST- en CVE-scanners, gepind. Een DERDE lockfile en geen tweede
+    #: pin-mechanisme: zelfde vorm als de twee hierboven, eigen scope.
+    #: `security-scan.yml` installeert alleen deze, zodat de vijftien
+    #: pakketten van bandit en pip-audit niet in elke andere job belanden.
+    #: Waarom niet in requirements-dev.lock: zie de kop van dat bestand.
+    "requirements-security.lock",
     "requirements.lock",
     "requirements.txt",
     "setup.cfg",

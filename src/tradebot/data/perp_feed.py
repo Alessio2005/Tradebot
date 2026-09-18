@@ -29,8 +29,15 @@ CATEGORY = "linear"
 
 
 def _get(url: str, timeout: int = 30):
+    if not url.startswith("https://"):
+        raise ValueError(
+            f"alleen https is toegestaan, kreeg: {url!r}. "
+            "Zonder deze controle accepteert urlopen ook file:/ en "
+            "custom schemes (bandit B310)."
+        )
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    return json.load(urllib.request.urlopen(req, timeout=timeout))
+    # nosec B310 -- het schema is hierboven op https vastgezet.
+    return json.load(urllib.request.urlopen(req, timeout=timeout))  # nosec B310
 
 
 def _get_v5(endpoint: str, params: dict, timeout: int = 30) -> dict:

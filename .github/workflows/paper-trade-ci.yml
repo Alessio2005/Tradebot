@@ -20,7 +20,7 @@ on:
       - ".github/workflows/paper-trade-ci.yml"
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.13"
   TRADEBOT_LIVE_STATE_DIR: ${{ github.workspace }}/.tradebot_state
   NUMBA_CACHE_DIR:         ${{ github.workspace }}/.numba_cache
 
@@ -47,13 +47,20 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            requirements.lock
+            requirements-dev.lock
 
       - name: Install runtime deps
+        # Gepind (DI-16). De `ingestion`-extra staat hier NIET meer: hij levert
+        # alleen ccxt, en `grep -rn "import ccxt" src/ apps/ tests/ scripts/`
+        # geeft nul treffers -- pyproject.toml regel 76 zegt ook met zoveel
+        # woorden dat geen ingestion-pad ervan afhangt. dvc zit al in
+        # requirements.lock als harde dependency.
         run: |
           python -m pip install --upgrade pip wheel
-          pip install -e ".[dev,ingestion]" --no-cache-dir
-          pip install dvc>=3.30
+          pip install -r requirements.lock -r requirements-dev.lock
+          pip install -e . --no-deps
 
       - name: Restore artefact cache
         uses: actions/cache@v4
@@ -86,6 +93,10 @@ jobs:
           pytest -m e2e tests/e2e/test_paper_trade_smoke.py -q --tb=short \
             --timeout=3600 -o log_cli=true -o log_cli_level=INFO
 
+      # Bewust gemaskeerd: dit is een RAPPORTgenerator, geen poort. De poort is
+      # de stap eronder (`Verify circuit-breaker not triggered`) en de smoke-test
+      # erboven; beide zijn ongemaskeerd. Het rapport draait op `if: always()`
+      # zodat het er ook is als de smoke rood staat -- juist dan is het nuttig.
       - name: Generate post-trade report
         if: always()
         run: |

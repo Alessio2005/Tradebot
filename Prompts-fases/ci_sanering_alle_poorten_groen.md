@@ -86,7 +86,7 @@ D:/venv/tradebot/Scripts/python -c "import scripts; print(getattr(scripts,'__pat
 | `pytest` | 9.0.2 | **9.1.1** |
 | `ruff` | 0.15.12 | 0.15.12 |
 
-Mypy 1.17 en 2.3.1 geven een andere foutverzameling op identieke broncode (gemeten: 188 tegen 187, met een andere verdeling over codes). Dit is dezelfde klasse als **DI-16** en het is de reden dat stap 4 bestaat.
+Mypy 1.17 en 2.3.1 geven een andere foutverzameling op identieke broncode (gemeten: 188 tegen 187, met een andere verdeling over codes). Dit is dezelfde klasse als **DI-16** en het is de reden dat stap 3 bestaat.
 
 ---
 
@@ -96,9 +96,9 @@ Mypy 1.17 en 2.3.1 geven een andere foutverzameling op identieke broncode (gemet
 
 | Workflow | Job / stap | Status | Gemeten |
 |---|---|---|---|
-| `ci.yml` | lint → `ruff check src/ apps/ tests/` | **GROEN** | `All checks passed!` |
+| `ci.yml` | lint → `ruff check src/ apps/ tests/` | **GROEN** | `All checks passed!` (installeert sinds deze branch uit beide lockfiles) |
 | `ci.yml` | lint → `mypy schemas/ utils/ apps/` | **ROOD** | **187 fouten in 34 bestanden** (64 gecontroleerd) |
-| `ci.yml` | `loc-guard` | **ROOD** | `FAIL: src/tradebot/backtest/evaluation.py has 1057 lines`, exit 1 |
+| `ci.yml` | `loc-guard` (= `check_file_size.py`) | GROEN | exit 0; deze branch verving de inline shell-lus al door de ratchet |
 | `ci.yml` | `test-fast` (pytest + `--cov`) | **ROOD** | dekkingsdrempel; exit 1. 0 FAILED op een verse checkout |
 | `hygiene.yml` | dependency-contract (21 harde deps) | GROEN | alle 21 aanwezig |
 | `hygiene.yml` | `git_sha` resolvable | GROEN | `371755e`, `git cat-file -e` OK |
@@ -128,7 +128,7 @@ Mypy 1.17 en 2.3.1 geven een andere foutverzameling op identieke broncode (gemet
 | `nightly-regression.yml` | slow + regression tests | ONGEMETEN | buiten de snelle selectie |
 | `paper-trade-ci.yml` | 7-daagse paper-trade smoke | ONGEMETEN | vereist `dvc repro` + artefactcache |
 
-### 2.2 De drie echte defecten
+### 2.2 De twee echte defecten
 
 **D1 — mypy: 187 fouten in 34 bestanden.** Dit is de `lint`-job van `ci.yml`, en daarmee blokkeert het `test-fast` (die `needs: lint` heeft). Verdeling over foutcodes:
 
@@ -149,24 +149,7 @@ Mypy meldt daarnaast `pyproject.toml: note: unused section(s): module = ['ccxt.*
 
 Waarom `apps/` zo zwaar weegt: `[[tool.mypy.overrides]] module = ["tradebot.schemas.*", "tradebot.utils.arrays", "apps.*"]` zet `strict = true` op precies die scope. Dat is een bewuste keuze. **`apps.*` uit die lijst halen is geen reparatie maar V2 in een andere vorm.**
 
-**D2 — `loc-guard` in `ci.yml` is rood, en de poort zelf is verouderd.** Tien bestanden in `src/` staan boven 800 regels:
-
-| regels | bestand | in de `ci.yml`-whitelist? |
-|---|---|---|
-| 1226 | `schemas/config.py` | nee |
-| 1185 | `labeling/meta.py` | ja |
-| 1162 | `validation/inference.py` | nee |
-| 1117 | `train/ensemble.py` | ja |
-| 1060 | `features/regime.py` | nee |
-| 1057 | `backtest/evaluation.py` | nee |
-| 984 | `validation/data_adequacy.py` | nee |
-| 958 | `tune/objective.py` | ja |
-| 917 | `live/engine.py` | nee |
-| 824 | `portfolio/legacy_sizing.py` | nee |
-
-De whitelist in de workflow noemt bovendien `risk/portfolio.py`, dat sinds Phase 4 niet bestaat. Een whitelist die zijn eigen scope niet kent, bewaakt niets — dat is exact de constatering die al in de `Makefile` bij `loc-check` staat, en die daar heeft geleid tot de vervanger: **`scripts/check_file_size.py`**, een ratchet met een cap per bestand, gedraaid door `inventory.yml` en getoetst door `tests/unit/test_file_size_ratchet.py` (inclusief het bewijs dat hij rood kán worden). Die ratchet staat groen. De `ci.yml`-job is de oude, vervangen poort die nooit is opgeruimd.
-
-**D3 — de dekkingsdrempel wordt niet gehaald, en dat is een mandaatkwestie.** `pyproject.toml` zet `fail_under = 70`. Gemeten op `371755e`:
+**D2 — de dekkingsdrempel wordt niet gehaald, en dat is een mandaatkwestie.** `pyproject.toml` zet `fail_under = 70`. Gemeten op `371755e`:
 
 ```
 TOTAL   24987 statements   10219 missed   59 %
@@ -212,33 +195,43 @@ Gemeten 2026-09-18: in de verse checkout slagen alle negen tests. De `KNOWN_ABSE
 
 Wat er wél onder zit, is kleiner en van een andere orde: `_resolves()` oordeelt op bestaan in het bestandssysteem, dus een ongetrackt lokaal bestand kantelt het oordeel van deze poort. Vandaag is dat precies één pad. Dat is dezelfde klasse als val 2 en het hoort geregistreerd te worden — maar de semantiek van een governance-test wijzigen is géén bijvangst van een CI-sanering. Zie §6.
 
-Wat er uit val 1 en 3 samen volgt is stap 3: de suite hoort hetzelfde te zeggen op elke interpreter en in elke werkboom, of expliciet te vermelden dat hij dat niet doet.
+Wat er uit val 1 en 3 samen volgt is stap 2: de suite hoort hetzelfde te zeggen op elke interpreter en in elke werkboom, of expliciet te vermelden dat hij dat niet doet.
 
 ### 2.4 De poorten die niets meten
 
-Een poort die niet rood kan worden, is documentatie. Er staan er drie in de repository:
+Een poort die niet rood kan worden, is documentatie. Er staan vijf `|| true`-maskers in de workflows:
 
 | Waar | Wat er staat | Wat het doet |
 |---|---|---|
-| `security-scan.yml` | `pip-audit --require-hashes --disable-pip \|\| true` | `\|\| true` maakt elke uitkomst groen. `--require-hashes` zonder requirements-bestand is bovendien een gebruiksfout, dus de stap faalt intern en zwijgt. **De CVE-poort heeft nooit iets gerapporteerd.** |
-| `nightly-regression.yml` | `python apps/regenerate_baseline.py \|\| true` | Slaat de baselineregeneratie stilzwijgend over; de regressietests vergelijken daarna tegen een baseline waarvan niemand weet of hij vers is |
-| `ci.yml` | `loc-guard` | D2: dubbele, verouderde poort naast een werkende ratchet |
+| `security-scan.yml:32` | `pip-audit --require-hashes --disable-pip \|\| true` | `\|\| true` maakt elke uitkomst groen. `--require-hashes` zonder requirements-bestand is bovendien een gebruiksfout, dus de stap faalt intern en zwijgt. **De CVE-poort heeft nooit iets gerapporteerd.** |
+| `nightly-regression.yml:33` | `python apps/regenerate_baseline.py \|\| true` | Slaat de baselineregeneratie stilzwijgend over; de regressietests vergelijken daarna tegen een baseline waarvan niemand weet of hij vers is |
+| `nightly-regression.yml:87` | `python -m apps.monitor_drift \|\| true` | Een driftmonitor die niet mag afgaan, monitort niets |
+| `nightly-regression.yml:119` | inline rapportgeneratie, `\|\| true` | Idem; het rapport kan ontbreken zonder dat iets rood wordt |
+| `paper-trade-ci.yml:94` | `--output paper_trade_report.md \|\| true` | Idem |
 
-Daarnaast worden `bandit` en `pip-audit` **ongepind** geïnstalleerd, en `ci.yml` installeert `pip install -e ".[dev]"` in plaats van de lockfiles — `mypy>=1.7` en `ruff>=0.1.8` betekent dat de releasedatum het oordeel bepaalt. Dat is **DI-16**, gemeten in Phase 7/8: ruff 0.15.12 gaf 7 bevindingen, ruff 0.16.4 gaf er 78 op identieke broncode. DI-16 is gesloten voor de lockfile-workflows en **open gebleven voor `ci.yml`**.
+Beoordeel ze niet als één klasse. Een `|| true` op een **rapport**generator is verdedigbaar als het rapport bijvangst is; een `|| true` op een **poort** is dat nooit. `pip-audit` en `regenerate_baseline` zijn poorten. Schrijf per regel op welke van de twee het is, en verwijder het masker waar het een poort maskeert.
+
+Daarnaast worden `bandit` en `pip-audit` **ongepind** geïnstalleerd. Dat is **DI-16**, gemeten in Phase 7/8: ruff 0.15.12 gaf 7 bevindingen, ruff 0.16.4 gaf er 78 op identieke broncode. DI-16 is gesloten voor `ci.yml`, `hygiene.yml`, `inventory.yml` en `research_gates.yml`, en **open gebleven** voor `nightly-regression.yml`, `paper-trade-ci.yml` en `security-scan.yml`.
 
 ### 2.5 Twee omgevingen, twee oordelen
 
 | | Python | Installatie | Gepind? |
 |---|---|---|---|
-| `ci.yml` | 3.11 | `pip install -e ".[dev]"` | **nee** |
+| `ci.yml` | **3.11** | beide lockfiles + `-e . --no-deps` | ja |
 | `hygiene.yml` | 3.13 | beide lockfiles + `-e . --no-deps` | ja |
 | `inventory.yml` | 3.13.0 | beide lockfiles + `-e . --no-deps` | ja |
 | `research_gates.yml` | 3.13 | beide lockfiles + `-e . --no-deps` | ja |
 | `nightly-regression.yml` | 3.11 | `pip install -e ".[dev]"` | **nee** |
 | `paper-trade-ci.yml` | 3.11 | `pip install -e ".[dev,ingestion]"` | **nee** |
+| `security-scan.yml` | 3.11 | `pip install bandit[toml]` / `pip-audit` | **nee** |
 | referentie-venv | 3.13.0 | beide lockfiles | ja |
 
-Drie workflows meten een andere omgeving dan de referentie, op een andere Python-minor, met ongepinde linters. Elke bevinding die daar ontstaat, is niet reproduceerbaar op de interpreter waarop `docs/runbook.md` §0 meten geldig verklaart.
+Twee dingen staan hier los van elkaar.
+
+**De pins.** Drie workflows installeren nog ongepind. Elke bevinding die daar ontstaat, is niet reproduceerbaar op de interpreter waarop `docs/runbook.md` §0 meten geldig verklaart.
+
+**De Python-minor.** `ci.yml` installeert de lockfiles — die op 3.13 zijn opgelost — op **3.11**. Dat is geen pin-probleem maar een tweede omgeving: dezelfde pins op een andere minor geven een andere resolutie, en in het slechtste geval installeert hij niet eens. De vier gates die het project als geldig erkent draaien op 3.13. Meet of `ci.yml` op 3.11 überhaupt installeert voordat je iets anders concludeert.
+
 
 ---
 
@@ -263,15 +256,7 @@ Elke stap: eerst meten, dan wijzigen, dan opnieuw meten, dan committen met beide
 - [ ] **Meet:** `mypy src/tradebot/schemas/ src/tradebot/utils/ apps/ --ignore-missing-imports` → `Success`. `mypy --strict src/tradebot/schemas/config.py src/tradebot/utils/failfast.py` blijft groen.
 - [ ] Draai de volledige suite opnieuw. Een annotatie die gedrag wijzigt, is geen annotatie.
 
-### Stap 2 — `loc-guard` vervangen door de ratchet die al bestaat (D2)
-
-- [ ] Vervang de `loc-guard`-job in `ci.yml` door `python scripts/check_file_size.py`.
-- [ ] Schrijf in de workflow, in commentaar, dezelfde redenering die bij `make loc-check` staat: de shell-lus hanteerde een whitelist die een niet-bestaand bestand noemde en zeven bestaande overtreders miste, en de ratchet toetst hetzelfde begrip strenger én is zelf getest.
-- [ ] Verboden: de whitelist uitbreiden met de zeven bestanden. Dat is V6 in een andere vorm.
-- [ ] **Meet:** de oude shellstap geeft exit 1; `scripts/check_file_size.py` geeft exit 0; `tests/unit/test_file_size_ratchet.py` blijft groen.
-- [ ] De tien bestanden boven 800 regels zijn **DI-3** en blijven waar ze zijn. Splitsen valt buiten deze opdracht (§6).
-
-### Stap 3 — de testsuite interpreter-onafhankelijk maken (§1.2)
+### Stap 2 — de testsuite interpreter-onafhankelijk maken (§1.2)
 
 - [ ] Bewijs eerst de diagnose: laat `scripts.__path__` zien op beide interpreters.
 - [ ] Kies een reparatie en motiveer hem. De voor de hand liggende is `scripts/__init__.py` toevoegen, waardoor `D:\Tradebot\scripts` een reguliere package wordt en de `sys.path.insert(0, ...)` uit `tests/conftest.py` weer beslissend is.
@@ -279,7 +264,7 @@ Elke stap: eerst meten, dan wijzigen, dan opnieuw meten, dan committen met beide
 - [ ] **Meet:** de collectie is schoon op *beide* interpreters, en alle zes de poortscripts geven nog steeds exit 0.
 - [ ] Breekt de reparatie iets dat zwaarder weegt: niet doorduwen. Registreer hem als DI met de meting erbij.
 
-### Stap 4 — één omgeving, één oordeel (§2.5, sluit DI-16)
+### Stap 3 — één omgeving, één oordeel (§2.5, sluit DI-16)
 
 - [ ] Zet `ci.yml`, `nightly-regression.yml` en `paper-trade-ci.yml` op Python 3.13 en op installatie uit beide lockfiles + `pip install -e . --no-deps`, gelijk aan `hygiene.yml` / `inventory.yml` / `research_gates.yml`.
 - [ ] Werkt dat voor `paper-trade-ci.yml` niet (de `ingestion`-extra staat niet in de lockfiles), los dat expliciet op — extra toevoegen aan de lock, of de workflow documenteren als bewust afwijkend. Niet stilzwijgend laten staan.
@@ -287,7 +272,7 @@ Elke stap: eerst meten, dan wijzigen, dan opnieuw meten, dan committen met beide
 - [ ] **Meet:** `ruff --version` en `mypy --version` zijn in elke workflow gelijk aan de lockfile-pins (`ruff==0.15.12`, `mypy==2.3.1`).
 - [ ] Werk de DI-16-regel in `docs/DEFERRED_ISSUES.md` bij: gesloten, met de commit erbij.
 
-### Stap 5 — de poorten die niets meten laten meten (§2.4)
+### Stap 4 — de poorten die niets meten laten meten (§2.4)
 
 - [ ] `pip-audit`: haal `|| true` weg, haal `--require-hashes --disable-pip` weg, en richt hem op de lockfiles: `pip-audit -r requirements.lock -r requirements-dev.lock`. Pin `pip-audit` in `requirements-dev.lock`.
 - [ ] Draai hem één keer en lees de uitkomst. Vindt hij CVE's, dan is dat een **bevinding, geen blokkade voor deze stap**: registreer elke CVE met versie en oordeel in `docs/DEFERRED_ISSUES.md` en laat de stap rood staan als hij rood hoort te staan. Onderdruk niets.
@@ -295,9 +280,9 @@ Elke stap: eerst meten, dan wijzigen, dan opnieuw meten, dan committen met beide
 - [ ] `regenerate_baseline.py || true` in `nightly-regression.yml`: maak expliciet wat de bedoeling is. Óf de stap mag falen en dan hoort er een conditie bij die zegt wanneer, óf hij mag niet falen en dan gaat `|| true` eruit. Een derde optie is er niet.
 - [ ] **Meet:** laat elke aangepaste stap één keer bewust rood worden (tijdelijk, lokaal) om te bewijzen dat hij dat kán. Zonder dat bewijs is de reparatie niet af — dat is de standaard uit `docs/PROJECT_STATE.md`.
 
-### Stap 6 — de dekking (D3) — meten en voorleggen, niet oplossen
+### Stap 5 — de dekking (D2) — meten en voorleggen, niet oplossen
 
-- [ ] Hermeet de dekking na stap 1 t/m 5; die stappen verplaatsen het cijfer.
+- [ ] Hermeet de dekking na stap 1 t/m 4; die stappen verplaatsen het cijfer.
 - [ ] Maak de opsplitsing per pakket: welke modules dragen de 41 % ongedekt, en hoeveel van de 10.219 gemiste statements zitten in de tien grootste ongedekte bestanden.
 - [ ] Schrijf `reports/ci_dekkingsplan.md`: het gemeten cijfer, de afstand tot 70, en drie opties met hun kosten — (a) tests schrijven tot 70 %, (b) een dekkingsratchet op het gemeten niveau met 70 als staand doel, (c) de drempel accepteren als permanent rode poort met geregistreerde motivering.
 - [ ] **Neem optie (b) of (c) niet zelf.** Beide verlagen feitelijk de eis; dat is een mandaatbesluit (V1, V8). Leg de drie opties voor en stop daar.
@@ -309,13 +294,13 @@ Elke stap: eerst meten, dan wijzigen, dan opnieuw meten, dan committen met beide
 
 De opdracht luidt: de hele repo clean en 100 % valide. Dat is haalbaar voor alles behalve één post, en die uitzondering hoort in de opdracht te staan, niet in een voetnoot.
 
-**Wel haalbaar, volledig, in deze opdracht:** mypy naar nul (D1), `loc-guard` gerepareerd (D2), drie niet-metende poorten die weer meten (§2.4), één omgeving over alle workflows (§2.5), een testsuite die op elke interpreter collecteert (§1.2). Na stap 5 is elke poort in de repository óf groen, óf rood om een geregistreerde, gemeten reden.
+**Wel haalbaar, volledig, in deze opdracht:** mypy naar nul (D1), de niet-metende poorten die weer meten (§2.4), één omgeving over alle workflows (§2.5), een testsuite die op elke interpreter collecteert (§1.2). Na stap 4 is elke poort in de repository óf groen, óf rood om een geregistreerde, gemeten reden.
 
-**Niet haalbaar zonder besluit van de eigenaar:** de dekkingsdrempel (D3). 59,10 % naar 70 % is ~2.723 statements aan nieuwe tests. Dat is geen sanering maar een fase op zichzelf.
+**Niet haalbaar zonder besluit van de eigenaar:** de dekkingsdrempel (D2). 59,10 % naar 70 % is ~2.723 statements aan nieuwe tests. Dat is geen sanering maar een fase op zichzelf.
 
 **Niet haalbaar, punt, en dat is bekend:** DI-15 (survivorship bias), DI-18 (ontbrekende variantieproxy) en DI-21 (H2-bezetting) zijn **dataposten**. Zij gaan niet open met code. `docs/DEFERRED_ISSUES.md` zegt bij DI-21 letterlijk wat er níét mag: *"`k` verlagen of de poort verruimen tot hij opengaat."* Diezelfde zin geldt voor elke poort in deze opdracht.
 
-Een eindrapport dat zegt "alles groen" terwijl D3 is weggepoetst, is een mislukte opdracht. Een eindrapport dat zegt "alles groen behalve de dekkingsdrempel, hier is het gemeten cijfer, hier zijn drie opties, aan u de keuze" is een geslaagde.
+Een eindrapport dat zegt "alles groen" terwijl D2 is weggepoetst, is een mislukte opdracht. Een eindrapport dat zegt "alles groen behalve de dekkingsdrempel, hier is het gemeten cijfer, hier zijn drie opties, aan u de keuze" is een geslaagde.
 
 ---
 
@@ -332,13 +317,12 @@ Een eindrapport dat zegt "alles groen" terwijl D3 is weggepoetst, is een mislukt
 | E5 | 0 FAILED in `pytest -m "not slow and not regression"` en in `pytest tests/unit`, **gemeten in een verse kloon** | beide uitvoeren, in `/tmp/fresh` |
 | E6 | De vier pre-geregistreerde killgates staan XFAILED, identiek, 0 XPASS, 0 FAILED | de guard uit `inventory.yml` |
 | E7 | `apps/run_gates.py` geeft exit 0 op vier poorten | artefact `research_gates.json` |
-| E8 | De LOC-poort in `ci.yml` is de ratchet, en `tests/unit/test_file_size_ratchet.py` is groen | `git diff .github/workflows/ci.yml` |
-| E9 | De drie niet-metende poorten kunnen aantoonbaar rood worden | per poort één bewust rode run, in het rapport |
-| E10 | Elke workflow installeert dezelfde gepinde omgeving als de referentie | `git diff` over de workflows |
-| E11 | Testcollectie is schoon op zowel de venv als de globale interpreter | beide uitvoeren in het rapport |
-| E12 | Geen enkele drempel, ratchet of ignore-lijst is versoepeld | `git diff` over `pyproject.toml` en de drie ratchet-scripts, expliciet getoond |
-| E13 | D3 is gemeten, opgeschreven en als besluit voorgelegd — niet opgelost | `reports/ci_dekkingsplan.md` |
-| E14 | Elke niet-gesloten post staat als DI-regel in `docs/DEFERRED_ISSUES.md` | het diff van dat bestand |
+| E8 | Elk `\|\| true` dat een POORT maskeert is weg, en die poort kan aantoonbaar rood worden | per poort één bewust rode run, in het rapport |
+| E9 | Elke workflow installeert dezelfde gepinde omgeving als de referentie | `git diff` over de workflows |
+| E10 | Testcollectie is schoon op zowel de venv als de globale interpreter | beide uitvoeren in het rapport |
+| E11 | Geen enkele drempel, ratchet of ignore-lijst is versoepeld | `git diff` over `pyproject.toml` en de drie ratchet-scripts, expliciet getoond |
+| E12 | D2 is gemeten, opgeschreven en als besluit voorgelegd — niet opgelost | `reports/ci_dekkingsplan.md` |
+| E13 | Elke niet-gesloten post staat als DI-regel in `docs/DEFERRED_ISSUES.md` | het diff van dat bestand |
 
 ### 5.2 Het verificatieblok — draai dit integraal, vóór en ná
 
@@ -409,5 +393,5 @@ Rapporteer daarna, vóór je stap 1 begint, in maximaal één scherm:
 
 1. welke regels uit §2.1 zijn veranderd sinds 2026-09-18, met het nieuwe getal;
 2. het gemeten resultaat van `pytest tests/unit` en de gemeten dekking;
-3. in welke volgorde je stap 1 t/m 6 doet, en waarom die volgorde;
+3. in welke volgorde je stap 1 t/m 5 doet, en waarom die volgorde;
 4. elk punt waarop je denkt dat §0.1 je in de weg zit — dát is het moment om het te zeggen, niet achteraf.

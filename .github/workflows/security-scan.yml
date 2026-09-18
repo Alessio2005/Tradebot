@@ -14,8 +14,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - run: pip install bandit[toml]
+          python-version: "3.13"
+      # Gepind, om dezelfde reden als ruff en mypy (DI-16): een ongepinde
+      # scanner laat de releasedatum het oordeel bepalen.
+      - run: pip install -r requirements-security.lock
       - name: Run Bandit
         run: bandit -r src/ apps/ -ll -q
 
@@ -26,7 +28,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - run: pip install pip-audit
+          python-version: "3.13"
+      - run: pip install -r requirements-security.lock
+      # `pip-audit --require-hashes --disable-pip || true` stond hier, en die
+      # regel rapporteerde per constructie niets: `--require-hashes` zonder
+      # requirements-bestand is een gebruiksfout, dus de stap faalde intern,
+      # en `|| true` maakte dat onzichtbaar. De CVE-poort heeft in zijn hele
+      # bestaan geen enkele bevinding gemeld.
+      #
+      # Hij draait nu tegen de twee lockfiles -- dat zijn de versies die CI
+      # en de referentie-venv daadwerkelijk installeren -- en hij mag rood
+      # worden. Een CVE die hij vindt is een BEVINDING die in
+      # docs/DEFERRED_ISSUES.md hoort, niet iets om te onderdrukken.
       - name: Audit dependencies
-        run: pip-audit --require-hashes --disable-pip || true
+        run: pip-audit -r requirements.lock -r requirements-dev.lock

@@ -1,0 +1,64 @@
+# requirements-security.lock — de SAST- en CVE-scanners, gepind.
+#
+# Waarom dit bestand bestaat, en waarom het een DERDE lockfile is.
+#
+# `.github/workflows/security-scan.yml` installeerde `bandit[toml]` en
+# `pip-audit` ongepind. Dat is dezelfde fout als DI-16: de releasedatum van de
+# scanner bepaalt dan het oordeel, en een poort die van mening verandert zonder
+# dat de code verandert, bewaakt niets. Voor ruff en mypy is dat in Phase 7/8
+# gesloten met `requirements-dev.lock`; voor de scanners stond het open.
+#
+# WAAROM NIET IN requirements-dev.lock
+# ====================================
+# Gemeten 2026-09-18 met `pip install --dry-run` tegen de referentie-venv: de
+# twee scanners voegen 15 pakketten toe en botsen met NUL bestaande pin. Ze
+# passen er dus technisch prima in. Ze horen er alleen inhoudelijk niet:
+# `requirements-dev.lock` pint de keten die het BEWIJS produceert -- pytest,
+# hypothesis, mypy, ruff -- en die keten wordt door zes workflows en door elke
+# ontwikkelaar geinstalleerd. Vijftien extra pakketten in elke job, voor een
+# scanner die wekelijks draait en niets meet aan het bewijs, maakt de omgeving
+# die het bewijs draagt groter zonder hem beter te maken.
+#
+# Dit is GEEN tweede pin-mechanisme (R-3). Het is hetzelfde mechanisme -- een
+# lockfile met exacte pins -- met een eigen scope, precies zoals
+# `requirements-dev.lock` zich verhoudt tot `requirements.lock`.
+#
+# HERGENEREREN
+# ============
+#     python -m venv /tmp/secvenv
+#     /tmp/secvenv/bin/python -m pip install --dry-run --report r.json \
+#         "bandit[toml]" pip-audit
+#     # de `install`-lijst uit r.json, als naam==versie, gesorteerd
+#
+# Volledige sluiting, opgelost op Python 3.13.0 (docs/runbook.md par. 0).
+CacheControl==0.14.4
+PyYAML==6.0.3
+Pygments==2.21.0
+bandit==1.9.4
+boolean.py==5.0
+certifi==2026.7.22
+charset-normalizer==3.5.1
+colorama==0.4.6
+cyclonedx-python-lib==11.12.0
+defusedxml==0.7.1
+filelock==4.0.0
+idna==3.20
+license-expression==30.4.4
+markdown-it-py==4.2.0
+mdurl==0.1.2
+msgpack==1.2.2
+packageurl-python==0.17.6
+packaging==26.3
+pip-requirements-parser==32.0.1
+pip_api==0.0.35
+pip_audit==2.10.1
+platformdirs==4.11.10
+py-serializable==2.1.0
+pyparsing==3.3.2
+requests==2.34.2
+rich==15.0.0
+sortedcontainers==2.4.0
+stevedore==5.9.1
+tomli==2.4.1
+tomli_w==1.2.0
+urllib3==2.8.0
