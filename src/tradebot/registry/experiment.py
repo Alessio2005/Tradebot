@@ -133,8 +133,10 @@ class ExperimentTracker:
         tags: dict[str, str] | None = None,
     ) -> str:
         """Start a new trial run and return a unique run_id."""
+        # usedforsecurity=False: een run-id, geen beveiligingshash (bandit B324).
         run_id = hashlib.md5(
-            f"{self.experiment_name}_{trial_number}_{time.time()}".encode()
+            f"{self.experiment_name}_{trial_number}_{time.time()}".encode(),
+            usedforsecurity=False,
         ).hexdigest()[:12]
 
         self._active_run = TrialRecord(

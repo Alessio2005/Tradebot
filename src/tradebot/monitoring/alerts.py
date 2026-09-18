@@ -140,6 +140,12 @@ class AlertRouter:
         ))
 
     def _send_slack(self, alert: Alert) -> None:
+        if not str(self._slack_url).startswith("https://"):
+            raise ValueError(
+                f"slack-webhook moet https zijn, kreeg: {self._slack_url!r}. "
+                "Zonder deze controle accepteert urlopen ook file:/ en custom "
+                "schemes (bandit B310), en dan schrijft een alarmpad naar schijf."
+            )
         payload = json.dumps(alert.to_slack_payload()).encode("utf-8")
         req = urllib_request.Request(
             self._slack_url,  # type: ignore[arg-type]
@@ -147,7 +153,9 @@ class AlertRouter:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib_request.urlopen(req, timeout=5) as resp:
+        # nosec B310 -- het schema is bij binnenkomst van deze methode op https
+        # vastgezet; een file:/-webhook crasht daar en bereikt deze regel niet.
+        with urllib_request.urlopen(req, timeout=5) as resp:  # nosec B310
             if resp.status not in (200, 204):
                 logger.warning("Slack alert failed: HTTP %d", resp.status)
 

@@ -39,7 +39,10 @@ __all__ = ["CSMVolumeClockSignal", "rank_normalize_cross_section"]
 
 def _params_hash(**kwargs: object) -> str:
     s = "_".join(f"{k}={v}" for k, v in sorted(kwargs.items()))
-    return hashlib.md5(s.encode()).hexdigest()[:8]
+    # usedforsecurity=False: dit is een PARAMETERFINGERPRINT, geen
+    # beveiligingshash. De vlag laat de digest ongemoeid (geverifieerd
+    # 2026-09-18) en legt de intentie vast waar bandit B324 hem vroeg.
+    return hashlib.md5(s.encode(), usedforsecurity=False).hexdigest()[:8]
 
 
 def rank_normalize_cross_section(

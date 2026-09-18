@@ -152,7 +152,7 @@ funcy==2.0
     #   gto
 gitdb==4.0.12
     # via gitpython
-gitpython==3.1.59
+gitpython==3.1.60
     # via scmrepo
 grandalf==0.8
     # via dvc

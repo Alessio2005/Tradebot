@@ -135,7 +135,14 @@ def _junit_counts(path: Path) -> dict[str, int]:
     """Tellingen uit JUnit-XML. Het uitvoerformaat van pytest is geen contract."""
     if not path.is_file():
         return {}
-    root = ET.parse(path).getroot()
+    # nosec B314 -- BEOORDEELD EN AANVAARD, niet genegeerd.
+    # `path` is de JUnit-XML die pytest zelf een paar regels eerder in
+    # DEZELFDE run heeft geschreven; er komt geen invoer van buiten dit
+    # proces langs. `defusedxml` toevoegen zou een HARDE dependency zijn
+    # (pyproject.toml par. "DOCTRINE": elke dependency hier is hard) voor een
+    # dreiging die op dit pad niet bestaat. Verandert de herkomst van dit
+    # bestand ooit, dan vervalt deze motivering en hoort defusedxml er wel.
+    root = ET.parse(path).getroot()  # nosec B314
     suites = [root] if root.tag == "testsuite" else list(root)
     total = failures = errors = skipped = 0
     for s in suites:
