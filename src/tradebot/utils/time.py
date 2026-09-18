@@ -25,8 +25,10 @@ een UTC-assertie op beide zijden, een sorteer-assertie, en een VERPLICHTE
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from .failfast import DataContractError, require
@@ -145,7 +147,9 @@ def to_utc_ns_series(s: pd.Series) -> pd.Series:
     return s.dt.tz_convert("UTC").astype("int64")
 
 
-def from_utc_ns(ns: int | pd.Series | np.ndarray) -> pd.Timestamp | pd.Series:
+def from_utc_ns(
+    ns: int | pd.Series | npt.NDArray[np.integer[Any]],
+) -> pd.Timestamp | pd.Series:
     """Inverse van `to_utc_ns`: UTC Unix nanoseconden terug naar UTC-aware tijd."""
     if isinstance(ns, (int, np.integer)):
         return pd.Timestamp(int(ns), unit="ns", tz="UTC")
@@ -203,7 +207,7 @@ def align_to_bar(ts: pd.Timestamp, interval: str) -> pd.Timestamp:
 
 def seconds_since(ts: pd.Timestamp) -> float:
     """Return the number of seconds elapsed since ``ts`` (UTC)."""
-    return (now_utc() - ts).total_seconds()
+    return float((now_utc() - ts).total_seconds())
 
 
 def asof_join(

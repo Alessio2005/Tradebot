@@ -18,16 +18,17 @@ Usage:
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+import pandera.pandas as pa
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
 # ── dtype map ────────────────────────────────────────────────────────────────
-_DTYPE_MAP: dict[str, np.dtype] = {
+_DTYPE_MAP: dict[str, np.dtype[Any]] = {
     "f64": np.dtype(np.float64),
     "f32": np.dtype(np.float32),
     "i32": np.dtype(np.int32),
@@ -39,7 +40,7 @@ def numba_array(
     df_col: pd.Series,
     *,
     dtype: Literal["f64", "f32", "i32", "i64"],
-) -> NDArray:
+) -> NDArray[Any]:
     """Convert a Pandas Series to a Numba-safe C-contiguous array.
 
     Parameters
@@ -63,7 +64,7 @@ def numba_array(
         If the column contains NaN values (Numba kernels must not see NaN
         unless the kernel is explicitly designed to handle them).
     """
-    arr = df_col.to_numpy(copy=False)
+    arr: NDArray[Any] = df_col.to_numpy(copy=False)
 
     # ── 1. object dtype: always a schema failure ──────────────────────────────
     if arr.dtype == object:
@@ -108,7 +109,7 @@ def numba_array_nonan(
     *,
     dtype: Literal["f64", "f32", "i32", "i64"],
     fill: float = 0.0,
-) -> NDArray:
+) -> NDArray[Any]:
     """Like numba_array but fills NaN with `fill` instead of raising.
 
     Use only for columns where NaN has a well-defined fill semantic
@@ -123,7 +124,7 @@ def numba_array_nonan(
 
 def validate_or_die(
     df: pd.DataFrame,
-    schema,  # pandera.DataFrameModel subclass
+    schema: type[pa.DataFrameModel],
     *,
     lazy: bool = True,
     sample: int | None = None,

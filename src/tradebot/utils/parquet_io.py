@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import pandera.pandas as pandera_pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 def write_validated_parquet(
     df: pd.DataFrame,
     path: Path | str,
-    schema,           # pandera DataFrameModel subclass
+    schema: type[pandera_pd.DataFrameModel],
     *,
     compression: str = "zstd",
     lazy_validate: bool = True,
@@ -94,7 +95,7 @@ def write_validated_parquet(
 
 def read_validated_parquet(
     path: Path | str,
-    schema,           # pandera DataFrameModel subclass
+    schema: type[pandera_pd.DataFrameModel],
     *,
     lazy_validate: bool = True,
     columns: list[str] | None = None,

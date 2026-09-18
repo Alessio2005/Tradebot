@@ -224,7 +224,11 @@ module = ["tradebot.schemas.*", "tradebot.utils.arrays", "apps.*"]
 strict = true
 
 [[tool.mypy.overrides]]
-module = ["catboost.*", "optuna.*", "joblib.*", "numba.*", "hydra.*", "ccxt.*", "pandera.*"]
+# ccxt staat hier NIET meer: `warn_unused_configs` meldde deze sectie als
+# ongebruikt, en dat klopt -- ccxt is een optionele venue-adapter die door
+# geen enkel getypeerd pad wordt geimporteerd (pyproject.toml regel 76).
+# Een override voor een module die niemand importeert, onderdrukt niets.
+module = ["catboost.*", "optuna.*", "joblib.*", "numba.*", "hydra.*", "pandera.*"]
 ignore_missing_imports = true
 
 # ─────────────────────────────────────────────────────────────────────────────

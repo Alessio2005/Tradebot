@@ -11,6 +11,8 @@ Pragmatic schema:
 """
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame, Series
@@ -35,31 +37,37 @@ class EventSchema(pa.DataFrameModel):
         ordered = False
 
     @pa.dataframe_check
-    def index_is_datetime(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_is_datetime(cls, df: DataFrame[Any]) -> bool:
         return isinstance(df.index, pd.DatetimeIndex)
 
     @pa.dataframe_check
-    def index_is_utc(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_is_utc(cls, df: DataFrame[Any]) -> bool:
         """P0-23: All DatetimeIndex must be UTC-aware."""
         if not isinstance(df.index, pd.DatetimeIndex):
             return True  # let index_is_datetime catch this
         return df.index.tz is not None and str(df.index.tz) in {"UTC", "tzutc()", "UTC+00:00"}
 
     @pa.dataframe_check
-    def index_monotonic_increasing(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_monotonic_increasing(cls, df: DataFrame[Any]) -> bool:
         return bool(df.index.is_monotonic_increasing)
 
     @pa.dataframe_check
-    def index_unique(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_unique(cls, df: DataFrame[Any]) -> bool:
         return bool(df.index.is_unique)
 
     @pa.dataframe_check
-    def feat_columns_present(cls, df: DataFrame) -> bool:
+    @classmethod
+    def feat_columns_present(cls, df: DataFrame[Any]) -> bool:
         """At least one feat_* column must be present."""
         return any(c.startswith("feat_") for c in df.columns)
 
     @pa.dataframe_check
-    def no_all_nan_feat_columns(cls, df: DataFrame) -> bool:
+    @classmethod
+    def no_all_nan_feat_columns(cls, df: DataFrame[Any]) -> bool:
         """No feat_* column may be entirely NaN — indicates upstream failure."""
         feat_cols = [c for c in df.columns if c.startswith("feat_")]
         for col in feat_cols:

@@ -11,6 +11,8 @@ Design rules (blueprint §3.3):
 """
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import DataFrame, Series
@@ -38,39 +40,46 @@ class BarSchema(pa.DataFrameModel):
     # ── Index integrity ───────────────────────────────────────────────────────
 
     @pa.dataframe_check
-    def index_is_datetime(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_is_datetime(cls, df: DataFrame[Any]) -> bool:
         return isinstance(df.index, pd.DatetimeIndex)
 
     @pa.dataframe_check
-    def index_is_utc(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_is_utc(cls, df: DataFrame[Any]) -> bool:
         """P0-23: All DatetimeIndex must be UTC-aware."""
         if not isinstance(df.index, pd.DatetimeIndex):
             return True  # let index_is_datetime catch this
         return df.index.tz is not None and str(df.index.tz) in {"UTC", "tzutc()", "UTC+00:00"}
 
     @pa.dataframe_check
-    def index_monotonic_increasing(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_monotonic_increasing(cls, df: DataFrame[Any]) -> bool:
         return bool(df.index.is_monotonic_increasing)
 
     @pa.dataframe_check
-    def index_unique(cls, df: DataFrame) -> bool:
+    @classmethod
+    def index_unique(cls, df: DataFrame[Any]) -> bool:
         return bool(df.index.is_unique)
 
     # ── OHLC consistency (the only place these checks live) ──────────────────
 
     @pa.dataframe_check
-    def high_ge_low(cls, df: DataFrame) -> bool:
+    @classmethod
+    def high_ge_low(cls, df: DataFrame[Any]) -> bool:
         return bool((df["high"] >= df["low"]).all())
 
     @pa.dataframe_check
-    def high_ge_open_close(cls, df: DataFrame) -> bool:
+    @classmethod
+    def high_ge_open_close(cls, df: DataFrame[Any]) -> bool:
         return bool(
             (df["high"] >= df["open"]).all()
             and (df["high"] >= df["close"]).all()
         )
 
     @pa.dataframe_check
-    def low_le_open_close(cls, df: DataFrame) -> bool:
+    @classmethod
+    def low_le_open_close(cls, df: DataFrame[Any]) -> bool:
         return bool(
             (df["low"] <= df["open"]).all()
             and (df["low"] <= df["close"]).all()

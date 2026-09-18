@@ -10,6 +10,8 @@ purge_days / embargo_days inconsistency diagnosed in blueprint §2.4.
 """
 from __future__ import annotations
 
+from typing import Any
+
 import pandera.pandas as pa
 from pandera.typing import DataFrame, Series
 
@@ -50,7 +52,8 @@ class CPCVFoldSchema(pa.DataFrameModel):
         ordered = True
 
     @pa.dataframe_check
-    def train_before_test_or_no_overlap(cls, df: DataFrame) -> bool:
+    @classmethod
+    def train_before_test_or_no_overlap(cls, df: DataFrame[Any]) -> bool:
         """train_end < test_start (purge gap in between).
 
         Note: CPCV can produce non-contiguous train sets; this check
@@ -59,7 +62,8 @@ class CPCVFoldSchema(pa.DataFrameModel):
         return bool((df["train_end"] < df["test_start"]).all())
 
     @pa.dataframe_check
-    def embargo_covers_t_max(cls, df: DataFrame) -> bool:
+    @classmethod
+    def embargo_covers_t_max(cls, df: DataFrame[Any]) -> bool:
         """embargo_bars must be > 0 — never zero (blueprint §4.2 step 3)."""
         return bool((df["effective_embargo_bars"] > 0).all())
 
