@@ -231,6 +231,14 @@ in functiehandtekeningen — nieuwe modules in `risk/` staan onder ratchet-budge
 Elk besluit draagt de `config_hash` van de configuratie die het produceerde.
 Een risicoconfiguratie zonder hash is niet auditbaar (stap 11).
 
+**De GETALLEN staan niet in dit document, en dat is opzet.** Dit is het
+interfacecontract; de drempels zijn beleid. Waar dat beleid vandaan komt — en
+welke drempel door het inmiddels vervallen propfirm-mandaat werd gezet, welke
+uit de fase-4-opruiming kwam, en welke een marktfeit is dat niet mag
+verruimen — staat in `docs/RISK_MANDATE.md`. Dit contract is bij die
+mandaatwijziging met geen letter veranderd: een ruimere drempel is geen ruimer
+contract.
+
 **Wat NIET in `conf/risk/` hoort**, en in stap 8 verdwijnt:
 `min_signal_confidence` (bevinding E6, een alpha-parameter) en
 `max_funding_cost_bps_day` (bevinding E7, een kostendrempel).

@@ -302,6 +302,14 @@ def _build_engine_shadow() -> LiveEngine:
     )
 
     # ── Engine config ─────────────────────────────────────────────────────────
+    # MERGE 2026-09-18 (handelsplan-assets): die branch zette hier weer losse
+    # getallen neer -- 0.25 / 0.10 / 720 -- met in het commentaar erbij dat de
+    # hardcoding hoort te verdwijnen. Dat is precies wat `from_risk_config`
+    # hierboven al doet. De MANDAATWIJZIGING zelf is niet verloren: zij staat in
+    # `conf/risk/default.yaml`, dat met deze merge is meegekomen
+    # (max_drawdown_pct 0.08 -> 0.25, daily_loss_limit 0.03 -> 0.10,
+    # max_position_age_h 48 -> 720, max_leverage 1.5 -> 4.0). Het mechanisme van
+    # main plus de waarden van de branch, in plaats van een derde kopie.
     # STAGE D, C1 -- de drempels komen uit de soevereine policy, niet uit code.
     # Hier stonden `max_drawdown_pct=0.08`, `max_daily_loss_pct=0.03` en
     # `max_position_age_h=48` als losse getallen. Ze waren gelijk aan

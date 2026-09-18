@@ -7,7 +7,8 @@ Halt conditions (any one sufficient):
   3. max_var_breach : realised VaR > 1.5× limit (placeholder — requires VaR model)
   4. feed_timeout_sec : no bar received for > N seconds
   5. model_hash_mismatch : feature hash at predict time != training-time hash
-  6. max_position_age_h : position open > 48h without a closing signal
+  6. max_position_age_h : position open > the configured age without a
+     closing signal (see docs/RISK_MANDATE.md — 48h was propfirm-derived)
 
 On HALT:
   1. All open positions closed (OMS.close_all())
@@ -109,13 +110,22 @@ class CircuitBreakerConfig:
         ``None`` uses the module-level default ``artefacts/circuit_breaker.log``.
     """
 
-    max_drawdown_pct: float = 0.08
-    max_intraday_drawdown_pct: float = 0.05
-    max_daily_loss_pct: float = 0.03
+    # DEFECT, BEWUST ZICHTBAAR GELATEN: deze defaults zijn een TWEEDE BRON VAN
+    # WAARHEID naast `conf/risk/default.yaml`, wat RISK_CONTRACT §8 verbiedt
+    # ("nul defaults in functiehandtekeningen"). Zij zijn meegetild met de
+    # mandaatwijziging naar eigen kapitaal (`docs/RISK_MANDATE.md`) zodat een
+    # live- of paper-run niet stilzwijgend het oude propfirm-budget terugzet;
+    # de duplicatie zelf hoort te verdwijnen. Zie RISK_MANDATE §6 punt 2 en 5.
+    max_drawdown_pct: float = 0.25          # = risk.max_drawdown_pct
+    max_intraday_drawdown_pct: float = 0.15
+    max_daily_loss_pct: float = 0.10        # = risk.daily_loss_limit
     max_var_breach: float = 1.5
     feed_timeout_sec: int = 30
     model_hash_mismatch: bool = True
-    max_position_age_h: int = 48
+    # 720h (30 dagen) en niet 48: bij 48 uur kan funding carry de 13,0 bps vaste
+    # kosten per round trip nooit terugverdienen (~1,95 bps/dag => >7 dagen), dus
+    # dwong deze limiet elke meting eraan negatief om een reden buiten de markt.
+    max_position_age_h: int = 720           # = risk.max_position_age_h
     cb_log_path: pathlib.Path | None = None
     #: Pad naar de SOEVEREINE halt-state (`risk/kill_switches.py::HaltStore`).
     #: `None` gebruikt het pad uit de module-default.

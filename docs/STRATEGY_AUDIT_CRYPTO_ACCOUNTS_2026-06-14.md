@@ -1,5 +1,19 @@
 # Strategy Design & Audit — Crypto Propfirm Accounts A & B
 
+> ## ⚠️ ACHTERHAALD — HISTORISCH DOCUMENT
+>
+> **Er wordt niet meer met propfirms gewerkt.** De accountregels die dit
+> document als bindend behandelt ("static 10 % max-DD + 5 % daily", §6.3) zijn
+> geen contract meer. Geldend beleid: `docs/RISK_MANDATE.md` +
+> `conf/risk/default.yaml`.
+>
+> §6.3 ("Propfirm fit") is daarmee in zijn geheel achterhaald, inclusief de
+> claim **"Status: enforced in engine"** — de governor is opt-in en staat
+> default uit (RISK_MANDATE §5.4).
+>
+> Bewaard als herkomst, niet als geldende eis.
+
+
 > **GEARCHIVEERD — historisch document.** Dit is een verslag van de strategie-audit van juni 2026 en beschrijft de toestand van toen. Het wordt NIET bijgewerkt: de paden en artefacten die het noemt, zijn die van die periode en bestaan grotendeels niet meer. Voor de huidige toestand, zie `docs/PROJECT_STATE.md`.
 > *Als historisch gemarkeerd op 2026-09-01 (Phase 7/8, Stage E-3).*
 
