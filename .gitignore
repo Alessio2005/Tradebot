@@ -127,3 +127,8 @@ artefacts/governance/research_gates.json
 # niet in versiebeheer en al helemaal niet in een geinstalleerd pakket.
 # Gevonden in Phase 9, stap 14.
 .claude/
+
+# Scratch-werkruimte van de subagent-driven-development-workflow (ledger,
+# briefs, review-pakketten). Sessiegereedschap, geen projectbron -- hetzelfde
+# argument als .claude/ hierboven.
+.superpowers/
