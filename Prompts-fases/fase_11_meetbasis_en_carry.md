@@ -151,17 +151,43 @@ vandaag niet waar.** De vier lokale failures, met hun status:
 | 1 | `test_regime_overlay.py::…::test_a_uniform_factor_is_neutralised_by_the_vol_target` | 19.166,50 tegen 19.770,61 ± 197,71 (3,06 %) | **ja** |
 | 2 | `test_dust_breaks_relative_limits.py::test_a_book_that_straddles_the_dust_tolerance_is_decided` | `'9961e1613bc907a5' == '1b60cb664fbf9a2a'` | **ja** |
 | 3 | `test_docs_claim_only_what_exists.py::…::test_no_document_claims_a_path_that_does_not_exist` | `RISK_MANDATE.md` verwijst naar `conf/env/`, dat niet bestaat | **ja** |
-| 4 | `test_regime_conditioning.py::…::test_the_multiplier_is_causal[hmm3-diag-student_t]` | `np.allclose(..., atol=0.0, rtol=0.0)` op twee arrays die identiek printen | **nee** |
+| 4 | `test_regime_conditioning.py::…::test_the_multiplier_is_causal[hmm3-diag-student_t]` | `np.allclose(..., atol=0.0, rtol=0.0)` op twee arrays die identiek printen | **ja, intermitterend** |
 
-> **Nummer 4 is vermoedelijk geen defect van deze repository.** Hij is een
-> bit-gelijkheidstoets (`atol=0,0`, `rtol=0,0`) op een EM-fit uit `hmmlearn`, en
-> hij staat in de CI-logs van `f50f6ca` **niet** in de failure-lijst. De
-> waarschijnlijke oorzaak is de interpreter/BLAS-combinatie van deze
-> 3.11-omgeving. **Stel dit vast vóór je er iets aan doet** — op 3.13 met de
-> lockfiles reproduceren, en als hij daar groen is, is de bevinding DI-24 en niet
-> een causaliteitsprobleem. Wat NIET mag: `atol` oprekken.
+> **Nummer 4 is niet stabiel, en dat is het defect.** Hij is een
+> bit-gelijkheidstoets (`atol=0,0`, `rtol=0,0`) op een EM-fit uit `hmmlearn`,
+> en hij geeft op identieke code niet steeds hetzelfde antwoord. Het bewijs
+> staat in twee runs van **dezelfde job op dezelfde interpreter (3.13)**, met
+> dezelfde testselectie:
+>
+> | `hygiene`-run | head | failures |
+> |---|---|---|
+> | job 105672758644 | `f50f6ca` | 2 — nummers 1 en 3, **zonder** hmm3 |
+> | job 106152980220 | `80bc3dc` | 3 — nummers 1 en 3, **mét** hmm3 |
+>
+> Het verschil tussen die twee heads is één byte in een markdown-bestand plus
+> één nieuw markdown-bestand. Dat kan een EM-fit niet raken.
+>
+> **De seed is het niet.** Lokaal op 3.11 faalt hij in de volledige suite,
+> geïsoleerd met `-p no:randomly`, en bij `--randomly-seed` 1 t/m 6: zes van
+> zes. De variatie zit dus niet in de testvolgorde of de RNG-seed, maar tussen
+> omgevingen en tussen runs — precies de as waarop een bit-gelijkheidstoets
+> geen marge heeft.
+>
+> **De eerste revisie van dit document noteerde hier "nee" in de CI-kolom en
+> vermoedde een 3.11/BLAS-artefact.** Die lezing kwam van de CI-logs van
+> `f50f6ca`, waarin hij inderdaad niet voorkomt — en zij is door de volgende
+> run weerlegd. De meting is het antwoord (R-10), en de weerlegde voorspelling
+> blijft hier staan omdat zij laat zien hoe een intermitterende poort zich
+> voordoet: als een omgevingsverschil.
+>
+> **Wat stap 1.2 daarmee moet.** Niet `atol` oprekken, en niet de test
+> markeren. Vaststellen *wat* er varieert: AD-17 legt vast dat het startpunt
+> van elke EM **deterministisch** is en niet geseed, dus ofwel houdt die AD
+> niet, ofwel leest er iets anders globale toestand. Een causaliteitstest die
+> bij vlagen slaagt, bewijst geen causaliteit — hij meet ruis met een
+> nulmarge.
 
-**De CI meldt bovendien een vierde blokkade die geen test is:**
+**De CI meldt bovendien een blokkade die geen test is:**
 `FAIL Required test coverage of 70.0% not reached. Total coverage: 60.66%`.
 
 ### 3.2 De poorten
@@ -470,10 +496,14 @@ gemeten is en de configuratie die vandaag geldt.*
   deze fase aantoonbaar gedragsneutraal.
 
 - [ ] **1.2 — Stel per failure vast of hij van deze repository is.** Draai de
-  vier tests uit §3.1 apart, met `-p no:randomly`. Voor failure 4 geldt de
-  expliciete opdracht: **reproduceer hem op 3.13 met de lockfiles.** Is hij daar
-  groen, dan is hij een omgevingsverschil (DI-24) en wordt hij zo geboekt — niet
-  gerepareerd, niet verzacht.
+  vier tests uit §3.1 apart, met `-p no:randomly`. Failure 4 is aantoonbaar
+  **intermitterend** (§3.1), en de seed is uitgesloten: zoek de variatie in de
+  omgeving (BLAS-implementatie, threadaantal, `hmmlearn`/`scipy`-build) door hem
+  op 3.13 herhaald te draaien, met `OMP_NUM_THREADS=1` naast de
+  standaardinstelling. Boek het resultaat als een
+  DI — een bit-gelijkheidstoets op een niet-bit-stabiele berekening is een
+  defect van de **poort**, ook wanneer de onderliggende causaliteit klopt.
+  Wat NIET mag: `atol` oprekken, de test markeren, of hem overslaan.
 
 - [ ] **1.3 — Repareer failure 3, en alleen die.** `docs/RISK_MANDATE.md`
   verwijst naar `conf/env/`, dat niet bestaat. Corrigeer de verwijzing, of zet
