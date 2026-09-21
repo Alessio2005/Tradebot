@@ -64,6 +64,19 @@ KNOWN_ABSENT: dict[str, str] = {
     "conf/env/prod.yaml":
         "niet getrackt: .gitignore `env/` sluit de Hydra-env-groep uit; "
         "model_risk_policy.md par. 2 legt die afwezigheid expliciet uit",
+    # Dezelfde oorzaak als hierboven, nu voor de map zelf: RISK_MANDATE.md §6
+    # punt 4 noemt `conf/env/` expliciet als niet-bestaand ("een tweede,
+    # stille bron van risicowaarden zodra iemand hem aanmaakt") terwijl
+    # `conf/config.yaml` `defaults: - env: dev` declareert. Fase 11, stap 1.3:
+    # zonder deze regel is dit pad wél in de repo aangetroffen -- niet
+    # getrackt, maar aanwezig als lokale, gegitignorede bestanden op minstens
+    # één ontwikkelmachine (`conf/env/{ci,dev,prod,staging}.yaml`) -- wat
+    # bevestigt dat RISK_MANDATE §6.4 een reëel risico beschrijft en geen
+    # hypothetisch. `_resolves()` leest schijf, niet git; op een verse kloon
+    # bestaat de map niet en dit pad hoort hier net als zijn buurregel.
+    "conf/env/":
+        "niet getrackt: dezelfde .gitignore-regel als conf/env/prod.yaml; "
+        "RISK_MANDATE.md §6 punt 4 legt die afwezigheid expliciet uit",
     # Een deliverable die niet kan bestaan. CHAIN_A_STATUS.md stelt vast dat
     # "keten A" nooit heeft bestaan -- geen `CHAIN_A_STATUS.md` in enige
     # branch, geen `momentum_alpha` in enige commit behalve de commit die de
