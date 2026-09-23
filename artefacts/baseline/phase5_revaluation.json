@@ -1,4 +1,14 @@
 {
+  "superseded_by_policy": {
+    "decided_in": "fase 11, stap 2.3",
+    "disposition": "REDERIVE",
+    "hash_source": "declared",
+    "measured_under": [
+      "1b60cb664fbf9a2a"
+    ],
+    "reason": "De ladder is de meetlat: fase 10 heeft er drie hypothesen op beoordeeld en elke L1/L2/L3-Sharpe, elke haltteller en elke kostenuitsplitsing erin is geproduceerd onder 0,08 vol-target en 1,5 leverage. Onder het geldende beleid staat diezelfde laag op 0,20 en 4,0. Een meetlat moet actueel zijn, dus dit artefact wordt opnieuw afgeleid in fase 11 stap 4 naar `artefacts/baseline/phase11_revaluation.json`. Tot dat bestaat is dit herkomst en geen meetlat.",
+    "superseded_by": "9961e1613bc907a5"
+  },
   "git_sha": "8d62d5c",
   "layer_transitions": {
     "T1_equal_weight_to_l1_l2": {

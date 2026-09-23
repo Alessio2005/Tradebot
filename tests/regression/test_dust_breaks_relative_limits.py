@@ -39,6 +39,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
+from tradebot.registry.policy_carry import latest_registered_policy
 from tradebot.risk.contract import MarketState, RiskState
 from tradebot.risk.engine import DUST_TOLERANCE, RiskEngine
 from tradebot.schemas.config import RiskConfig, load_config
@@ -73,9 +74,48 @@ def _decide(book):
 
 
 def test_a_book_that_straddles_the_dust_tolerance_is_decided() -> None:
-    """Het exacte boek dat de H2-campagne liet crashen."""
+    """Het exacte boek dat de H2-campagne liet crashen.
+
+    HIER STOND `assert decision.config_hash == "1b60cb664fbf9a2a"`, EN DAT WAS
+    FOUT -- OOK TOEN HIJ GROEN WAS.
+
+    Die literal was per ongeluk de enige plek in de repository die de
+    mandaatwijziging van 2026-09-12 (`b18aeda`, 0,08 -> 0,20 vol-target) heeft
+    opgemerkt. Dat klinkt als een succes en is het niet: deze test gaat over
+    DI-19, over de VOLGORDE van snap en verificatie in `RiskEngine.decide`, en
+    niet over welk risicobeleid geldt. Dat hij de beleidswijziging ving, is
+    toeval van dekking. Wat hij ervan liet zien was bovendien het minst
+    belangrijke deel: zes artefacten met een risicobesluit meten nog steeds
+    onder het vervallen beleid, en dat zag deze test niet.
+
+    DE LITERAL BIJWERKEN NAAR `9961e1613bc907a5` IS DE VERKEERDE REPARATIE.
+    Dan meet hij de volgende keer weer toevallig, en moet iemand hem opnieuw
+    met de hand bijstellen -- precies het onderhoud dat de vorige keer niet
+    gebeurde.
+
+    `risk_config_hash(RISK)` invullen is even fout, maar anders: `RISK` en
+    `decision.config_hash` komen allebei uit `conf/risk/default.yaml`, dus dat
+    is `x == x`. Een test die zichzelf vergelijkt is groener dan een die niets
+    test, en meet even veel.
+
+    WAT HIER NU STAAT. De rechterkant komt uit het REGISTER
+    (`artefacts/governance/risk_config_registry.json`), de linkerkant uit de
+    engine, en dat zijn twee onafhankelijke bronnen. De test wordt rood zodra
+    iemand `conf/risk/default.yaml` wijzigt zonder de nieuwe configuratie te
+    registreren, of zodra een risicobeleid van buiten dat bestand binnenkomt --
+    zoals een `risk:`-blok in het ongetrackte `conf/env/prod.yaml` zou doen als
+    de `defaults:`-volgorde ooit omdraait (DI-32). Dat is de ONAANGEKONDIGDE
+    beleidswijziging, en dat is wat een regressietest hoort te bewaken.
+
+    WAT DEZE CONSTRUCTIE NIET MEER VANGT, en dat hoort erbij: een wijziging die
+    WEL netjes wordt geregistreerd. Die van september 2026 was er zo een -- het
+    register kreeg zijn rij. Daar is deze test niet langer de poort voor;
+    `tests/unit/test_measurement_carries_policy_hash.py` is dat, en die kijkt
+    naar elk artefact in plaats van naar één toevallige assertie (AD-27).
+    """
     decision = _decide(FAILING_BOOK)
-    assert decision.config_hash == "1b60cb664fbf9a2a"
+    assert decision.permitted_exposure, "het boek is niet beslist"
+    assert decision.config_hash == latest_registered_policy()
 
 
 def test_the_returned_book_carries_no_dust() -> None:

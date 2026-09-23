@@ -1,4 +1,14 @@
 {
+  "superseded_by_policy": {
+    "decided_in": "fase 11, stap 2.3",
+    "disposition": "PROVENANCE_ONLY",
+    "hash_source": "declared",
+    "measured_under": [
+      "1b60cb664fbf9a2a"
+    ],
+    "reason": "Afgesloten hypothese (H-3, fase 6). Zelfde grond als H-2: een gesloten oordeel wordt geamendeerd, niet opnieuw gedraaid. Blijft staan als herkomst.",
+    "superseded_by": "9961e1613bc907a5"
+  },
   "git_sha": "df96805",
   "preregistration_id": "56395fa2013768014c0c915edf346770",
   "preregistration_frozen_utc": "2026-08-25T17:52:22.307814+00:00",

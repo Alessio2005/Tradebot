@@ -1,4 +1,15 @@
 {
+  "superseded_by_policy": {
+    "decided_in": "fase 11, stap 2.3",
+    "derivation": "Niet door de run geschreven. Afgeleid in fase 11 stap 2.1 uit het eigen `git_sha` van dit artefact: `git show <git_sha>:conf/risk/default.yaml` levert een config die hasht naar 1b60cb664fbf9a2a, en `git merge-base --is-ancestor b18aeda <git_sha>` geeft exit 1 -- de mandaatwijziging was op dat commit nog niet bereikbaar.",
+    "disposition": "PROVENANCE_ONLY",
+    "hash_source": "derived_from_git_sha",
+    "measured_under": [
+      "1b60cb664fbf9a2a"
+    ],
+    "reason": "Afgesloten campagne (H-10.1). Dit artefact telt 1.566 halts en 1.742 clips en noemde GEEN enkel beleid -- het is het tweede, onafhankelijke geval van precies het defect dat AD-27 sluit, en het was tot fase 11 stap 2 onzichtbaar omdat er geen hash in stond om te vergelijken. Blijft staan als herkomst; het oordeel zelf wordt niet heropend.",
+    "superseded_by": "9961e1613bc907a5"
+  },
   "git_sha": "6def7fb",
   "preregistration_id": "3bf8a8b17f610296ba488af5376136e9",
   "preregistration_path": "artefacts/governance/preregistration_3bf8a8b17f610296ba488af5376136e9.json",

@@ -1,4 +1,14 @@
 {
+  "superseded_by_policy": {
+    "decided_in": "fase 11, stap 2.3",
+    "disposition": "PROVENANCE_ONLY",
+    "hash_source": "declared",
+    "measured_under": [
+      "1b60cb664fbf9a2a"
+    ],
+    "reason": "Afgesloten hypothese (H-2, fase 6). Een afgesloten oordeel opnieuw draaien is een besluit over een gesloten oordeel en valt buiten deze fase; DI-22 houdt dezelfde stage om dezelfde reden tegen. Blijft staan als herkomst.",
+    "superseded_by": "9961e1613bc907a5"
+  },
   "git_sha": "648ea74",
   "preregistration_id": "3d3af28730a6c7f9da48d13139522a05",
   "preregistration_frozen_utc": "2026-08-25T17:52:22.282373+00:00",
