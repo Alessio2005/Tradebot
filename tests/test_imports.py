@@ -32,7 +32,6 @@ TRADEBOT_MODULES = [
     "tradebot.features.cfi",
     "tradebot.features.pipeline",
     "tradebot.execution.spread",
-    "tradebot.data.funding",
     "tradebot.data.ingestion",
     "tradebot.data.macro",
     "tradebot.backtest._kernels",

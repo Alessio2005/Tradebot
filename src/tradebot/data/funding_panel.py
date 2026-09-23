@@ -41,7 +41,7 @@ import pandas as pd
 
 from ..features.base import DataRegister, load_certified_series
 
-__all__ = ["daily_funding_panel"]
+__all__ = ["daily_funding_panel", "settlement_sums"]
 
 #: Breedte van één dagbar. Een structurele eigenschap van `granularity="1d"`
 #: (event_ts_ns en asof_ts_ns van elke daily bar liggen exact 86400s uiteen),
@@ -73,25 +73,43 @@ def daily_funding_panel(
     """
     columns: dict[str, np.ndarray] = {}
     bar_end = bar_index.values.astype("datetime64[ns]")
-    bar_start = bar_end - np.timedelta64(_BAR_WIDTH)
 
     for symbol in symbols:
         df, _ = load_certified_series(
             store, register, asset_class=asset_class, dataset="funding",
             symbol=symbol, granularity=funding_granularity,
         )
-        event_ns = df["event_ts_ns"].to_numpy(dtype="int64")
-        rate = df["funding_rate"].to_numpy(dtype="float64")
-        event_dt = event_ns.astype("datetime64[ns]")
-
-        # `event_dt` is oplopend (PitStore.load sorteert op event_ts_ns), dus
-        # een cumulatieve som plus binaire zoek levert de raamsom in O(log n)
-        # per bar in plaats van een filter per bar.
-        cum = np.concatenate(([0.0], np.cumsum(rate)))
-        lo = np.searchsorted(event_dt, bar_start, side="left")
-        hi = np.searchsorted(event_dt, bar_end, side="left")
-        columns[symbol] = cum[hi] - cum[lo]
+        columns[symbol] = settlement_sums(
+            df["event_ts_ns"].to_numpy(dtype="int64"),
+            df["funding_rate"].to_numpy(dtype="float64"),
+            bar_end.astype("int64"),
+        )
 
     panel = pd.DataFrame(columns, index=bar_index)[list(symbols)]
     panel.index.name = bar_index.name
     return panel.astype("float64")
+
+
+def settlement_sums(
+    event_ts_ns: np.ndarray, rate: np.ndarray, bar_end_ns: np.ndarray,
+) -> np.ndarray:
+    """De som van de afrekeningen met `event_ts` in `[T - 1 dag, T)`, per bar.
+
+    De pure kern van `daily_funding_panel`, apart zodat de causaliteitstoets
+    (`tests/lookahead/test_funding_panel_causality.py`, fase 11 stap 5.4) hem
+    rechtstreeks kan truncaren en perturberen, naast twee lekkende varianten
+    die rood moeten worden. Het venster is links gesloten en rechts OPEN: de
+    afrekening precies op het sluitmoment `T` hoort bij de bar erna. Zo gebruikt
+    de waarde op de bar die op `T` sluit uitsluitend afrekeningen van vóór `T`.
+
+    `event_ts_ns` moet oplopend zijn (`PitStore.load` sorteert op
+    `event_ts_ns`). Een cumulatieve som plus binaire zoek geeft de vensteromsom
+    in O(log n) per bar in plaats van een filter per bar.
+    """
+    event = np.asarray(event_ts_ns, dtype="int64")
+    ends = np.asarray(bar_end_ns, dtype="int64")
+    starts = ends - np.int64(_BAR_WIDTH.value)
+    cum = np.concatenate(([0.0], np.cumsum(np.asarray(rate, dtype="float64"))))
+    lo = np.searchsorted(event, starts, side="left")
+    hi = np.searchsorted(event, ends, side="left")
+    return np.asarray(cum[hi] - cum[lo], dtype="float64")

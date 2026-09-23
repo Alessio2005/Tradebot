@@ -189,3 +189,52 @@ class TestDailyFundingPanelOnTheRealStore:
                 "valt buiten het plausibele bereik voor een 8h-perp gesommeerd "
                 "naar dagen -- vermoedelijk een eenhedenfout, geen bevinding."
             )
+
+    def test_solusdt_settled_every_two_hours_in_late_2022_and_nothing_is_doubled(
+        self,
+    ) -> None:
+        """Fase 11 stap 5.3. 41 SOLUSDT-dagen in W_DEV dragen geen drie
+        afrekeningen maar 12 (39x), 9 en 6: van 2022-11-10 t/m 2022-12-20
+        rekende Bybit SOLUSDT elke TWEE uur af. Nagelopen tegen de Bybit-API:
+        483 records, 0 extra, 0 ontbrekend, 0 rateverschillen. Het zijn echte
+        betalingen en geen dubbelingen -- deze test zorgt dat niemand ze
+        later als uitschieter 'opschoont'.
+
+        Wat NIET klopt, is het veld `funding_interval_hours`: dat is een
+        configconstante (8) die de ingestie op elke rij stempelt, geen meting
+        (DI-35). De laatste assertie legt dat vast, zodat een reparatie van het
+        veld deze test bewust moet bijwerken."""
+        root = Path(__file__).resolve().parents[2]
+        from tradebot.backtest.baseline_report import load_baseline_configs
+        from tradebot.features.base import load_certified_series
+
+        cfg = load_baseline_configs(root)
+        df, _ = load_certified_series(
+            PitStore(root / cfg["data"].pit_store_root),
+            DataRegister(root / "artefacts/governance/data_hashes.json"),
+            asset_class="crypto", dataset="funding", symbol="SOLUSDT",
+            granularity="8h")
+        ts = pd.to_datetime(df["event_ts_ns"], unit="ns", utc=True)
+        counts = df.groupby(ts.dt.floor("D")).size()
+        w_dev = counts[(counts.index >= "2021-11-15") & (counts.index <= "2025-09-04")]
+        odd = w_dev[w_dev != 3]
+        assert odd.value_counts().to_dict() == {12: 39, 9: 1, 6: 1}
+        assert str(odd.index.min().date()) == "2022-11-10"
+        assert str(odd.index.max().date()) == "2022-12-20"
+        assert not ts.duplicated().any()
+        gaps_h = ts[(ts >= "2022-11-10 08:00") & (ts < "2022-12-21")].diff().dropna()
+        assert (gaps_h == pd.Timedelta(hours=2)).mean() > 0.99
+        assert set(df["funding_interval_hours"].unique()) == {8}
+
+
+class TestThereIsOneFundingRoute:
+    def test_the_legacy_per_bar_loader_is_gone(self) -> None:
+        """Fase 11 stap 5.2, R-3: één implementatie per grootheid. De
+        L3-fundingkosten komen uit `daily_funding_panel` op de gecertificeerde
+        store. `data/funding.py` was een tweede route naar dezelfde grootheid,
+        las een niet-gecertificeerde bron (`macro_crypto_*.parquet`) en gaf
+        bij een ontbrekend bestand stil nullen terug. Een tweede implementatie
+        is een defect, ook als zij hetzelfde getal zou geven."""
+        import importlib.util
+
+        assert importlib.util.find_spec("tradebot.data.funding") is None

@@ -3,9 +3,11 @@
 Bybit perp funding rates are posted every 8h and are autocorrelated.
 Positive funding → longs pay shorts → market is long-skewed → short-term
 mean-reversion / squeeze risk if price falls. Negative funding → the
-opposite. The backtest already debits funding from PnL via
-``data.funding.load_per_bar_funding_rate``, but the model never *sees* the
-rate as a predictor.
+opposite. The backtest debits funding from PnL via
+``data.funding_panel.daily_funding_panel`` (the only funding route since
+fase 11 stap 5.2; the earlier ``data.funding.load_per_bar_funding_rate`` read
+an uncertified source and was removed), but the model never *sees* the rate
+as a predictor.
 
 This module turns the same per-bar funding array into causal features:
 
@@ -42,8 +44,8 @@ def compute_funding_features(
         DatetimeIndex of the feature matrix.
     funding_per_bar :
         Per-bar funding rate array (length must equal ``len(bar_index)``).
-        Use :func:`tradebot.data.funding.load_per_bar_funding_rate` to
-        produce this.
+        On daily bars, :func:`tradebot.data.funding_panel.daily_funding_panel`
+        produces it from the certified store.
     bars_per_day :
         Bars per calendar day for the meso aggregations. Default 24 (1 h
         bars on 24/7 crypto).

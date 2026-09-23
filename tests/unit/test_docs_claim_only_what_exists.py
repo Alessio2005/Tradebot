@@ -77,6 +77,12 @@ KNOWN_ABSENT: dict[str, str] = {
     "conf/env/":
         "niet getrackt: dezelfde .gitignore-regel als conf/env/prod.yaml; "
         "RISK_MANDATE.md §6 punt 4 legt die afwezigheid expliciet uit",
+    # Verwijderd in fase 11, stap 5.2 (R-3: één route per grootheid). Het was
+    # een tweede fundingroute die een niet-gecertificeerde bron las en bij een
+    # ontbrekend bestand stil nullen teruggaf. CODE_REGISTER.md noemt het pad
+    # om uit te leggen dat het weg is en waarom.
+    "data/funding.py":
+        "verwijderd in fase 11 stap 5.2; CODE_REGISTER.md legt uit waarom",
     # Een deliverable die niet kan bestaan. CHAIN_A_STATUS.md stelt vast dat
     # "keten A" nooit heeft bestaan -- geen `CHAIN_A_STATUS.md` in enige
     # branch, geen `momentum_alpha` in enige commit behalve de commit die de
