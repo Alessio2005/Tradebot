@@ -145,7 +145,6 @@ class TestTheVolTarget:
         vol = {e.name: e for e in step_effects(tracer.records[0].steps)}["vol_target"]
         assert not vol.changed
 
-
     def test_the_largest_ratio_is_reported(self) -> None:
         """REGEL V geldt op bar t voor een factor c precies wanneer
         c >= sigma_target / sigma_boek(t). De grootste verhouding over de run
@@ -228,7 +227,7 @@ class TestTheLadderIsMeasuredNotRebuilt:
     een tweede implementatie van wat de ladder doet (R-3)."""
 
     @staticmethod
-    def _run(factory=None):
+    def _run(factory=None, risk_cfg=RISK):
         import numpy as np
 
         from tradebot.backtest.phase5_baseline import run_all_layers
@@ -253,7 +252,7 @@ class TestTheLadderIsMeasuredNotRebuilt:
         return run_all_layers(
             "synthetic", weights, prices, sigma, sigma / np.sqrt(365.0),
             flat + 5.0e8, flat + 5.0e7, flat, dict(RISK.clusters),
-            risk_cfg=RISK,
+            risk_cfg=risk_cfg,
             impact=ImpactParams(
                 eta=2.9919, kappa_d=0.6720,
                 status=ImpactStatus.IMPACT_UNCALIBRATED, method="test",
@@ -307,6 +306,94 @@ class TestTheLadderIsMeasuredNotRebuilt:
         hash laten reizen -- precies het defect van fase 11."""
         with pytest.raises(DataContractError, match="ander beleid"):
             self._run(lambda _layer, _cfg: RiskEngine(policy_from_registry(LAPSED)))
+
+
+class TestEverySharpeInTheLadderCarriesItsUncertainty:
+    """Fase 11 stap 4, R-8 en MEASUREMENT_CONTRACT §10. `phase5_revaluation.json`
+    droeg Sharpes zonder SE en zonder het drietal `(n_obs, bars_per_year,
+    t_years)`; §10 zegt dat de serializer zo'n Sharpe MOET weigeren."""
+
+    def test_each_row_carries_the_triple_and_both_standard_errors(self) -> None:
+        from tradebot.validation.inference import require_sharpe_triple
+        for row in TestTheLadderIsMeasuredNotRebuilt._run():
+            record = row.as_record()
+            require_sharpe_triple(record, where=f"{row.track}/{row.layer}")
+            assert record["net_sharpe_se"] > 0.0
+            assert record["gross_sharpe_se"] > 0.0
+
+    def test_the_se_comes_from_the_one_implementation(self) -> None:
+        """R-3: de SE is die van `validation/inference.py::sharpe_with_se`,
+        en de Sharpe ernaast is dezelfde Sharpe als die de SE bij hoort."""
+        from tradebot.validation.inference import sharpe_with_se
+        for row in TestTheLadderIsMeasuredNotRebuilt._run():
+            est = sharpe_with_se(row.returns, bars_per_year=365.0)
+            record = row.as_record()
+            assert record["net_sharpe_se"] == est.se
+            assert record["net_sharpe"] == pytest.approx(est.sharpe, rel=1e-12)
+            assert record["n_obs"] == est.n_obs
+
+
+class TestTwoLaddersSideBySide:
+    """Stap 4.3: per cel het verschil, met de SE van elke Sharpe ernaast (R-8),
+    uit `sharpe_difference_test` en `sharpe_with_se` (R-3)."""
+
+    @staticmethod
+    def _both():
+        lapsed = policy_from_registry(LAPSED)
+        current = TestTheLadderIsMeasuredNotRebuilt._run()
+        old = TestTheLadderIsMeasuredNotRebuilt._run(
+            lambda _layer, _cfg: RiskEngine(lapsed), risk_cfg=lapsed)
+        return current, old
+
+    def test_every_cell_is_compared_with_its_uncertainty(self) -> None:
+        from tradebot.backtest.phase5_baseline import compare_ladders
+        from tradebot.validation.inference import require_sharpe_triple
+        current, old = self._both()
+        cells = compare_ladders(current, old, bars_per_year=365.0)
+        assert {(c["track"], c["layer"]) for c in cells} == \
+            {(r.track, r.layer) for r in current}
+        for cell in cells:
+            require_sharpe_triple(cell, where=f"{cell['track']}/{cell['layer']}")
+            assert cell["se_current"] > 0.0 and cell["se_lapsed"] > 0.0
+
+    def test_the_layers_before_the_risk_layer_do_not_move(self) -> None:
+        """L0 kent geen risicolaag; L1 en L2 zijn onder twee beleidsregels een
+        positief veelvoud van elkaar zolang de vol-target op beide bindt. Het
+        Sharpe-verschil is daar exact nul -- en dat moet de vergelijking ook
+        zeggen, niet een ruisgetal."""
+        from tradebot.backtest.phase5_baseline import compare_ladders
+        current, old = self._both()
+        by = {c["layer"]: c for c in compare_ladders(current, old, bars_per_year=365.0)}
+        assert by["L0_vectorized"]["delta_sharpe"] == 0.0
+
+    def test_a_cell_without_its_counterpart_is_refused(self) -> None:
+        from tradebot.backtest.phase5_baseline import compare_ladders
+        current, old = self._both()
+        with pytest.raises(DataContractError, match="tegenhanger"):
+            compare_ladders(current, old[:-1], bars_per_year=365.0)
+
+
+class TestTheRederivationBlock:
+    """Stap 4.1/4.2: een her-afleiding onder een exogeen gewijzigd beleid kost
+    nul trials, en het artefact zegt dat zelf, met de reden erbij."""
+
+    def test_it_names_what_it_supersedes_and_costs_no_trial(self) -> None:
+        from tradebot.backtest.phase5_baseline import rederivation_block
+        block = rederivation_block(
+            "artefacts/baseline/phase5_revaluation.json", risk_config_hash(RISK),
+            root=ROOT)
+        assert block["supersedes"] == "artefacts/baseline/phase5_revaluation.json"
+        assert block["trials"] == 0
+        assert block["risk_policy_hash"] == risk_config_hash(RISK)
+        assert "R-2" in block["reason"]
+
+    def test_it_refuses_to_supersede_what_does_not_exist(self) -> None:
+        """Een `supersedes` die nergens naar wijst, is een herkomst die niet te
+        volgen is."""
+        from tradebot.backtest.phase5_baseline import rederivation_block
+        with pytest.raises(DataContractError, match="bestaat niet"):
+            rederivation_block("artefacts/baseline/nope.json",
+                               risk_config_hash(RISK), root=ROOT)
 
 
 def _record(step: ChainStep):

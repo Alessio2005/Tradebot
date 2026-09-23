@@ -37,8 +37,9 @@ Ref: ARCHITECTUUR_AUDIT_2026-08-22.md secties 15, 16.1, 19, 21, 26.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -53,6 +54,7 @@ from ..execution.order_router import (
 from ..risk.contract import MarketState, RiskState
 from ..risk.engine import RiskEngine, risk_config_hash
 from ..utils.failfast import DataContractError, require
+from ..validation.inference import sharpe_difference_test, sharpe_with_se
 from .engine import EventDrivenEngine, build_slices, exposures_from_frame
 from .metrics import calmar_ratio, max_drawdown, sharpe_ratio
 from .vectorized import run_vectorized
@@ -61,7 +63,9 @@ __all__ = [
     "LAYERS",
     "LayerResult",
     "build_engine",
+    "compare_ladders",
     "exposures_from_weights",
+    "rederivation_block",
     "run_all_layers",
     "summarise",
 ]
@@ -160,7 +164,19 @@ def _metrics(
     values = equity.to_numpy(dtype="float64")
     mdd, _, _ = max_drawdown(values)
     net_arr = net.to_numpy(dtype="float64")
+    # R-8 en MEASUREMENT_CONTRACT §10 (fase 11 stap 4): elke Sharpe draagt zijn
+    # SE en het drietal (n_obs, bars_per_year, t_years). De SE komt uit de ene
+    # implementatie (R-3); de Sharpe zelf blijft die van `sharpe_ratio`, zodat
+    # elk bestaand laddergetal bit-identiek blijft -- getest gelijk.
+    net_est = sharpe_with_se(net_arr, bars_per_year=float(bars_per_year))
+    gross_est = sharpe_with_se(gross.to_numpy(dtype="float64"),
+                               bars_per_year=float(bars_per_year))
     return {
+        "net_sharpe_se": float(net_est.se),
+        "gross_sharpe_se": float(gross_est.se),
+        "n_obs": float(net_est.n_obs),
+        "bars_per_year": float(bars_per_year),
+        "t_years": float(net_est.t_years),
         "gross_return": float(np.prod(1.0 + gross.to_numpy()) - 1.0),
         "net_return": float(values[-1] / values[0] - 1.0) if values.size else 0.0,
         "volatility": float(np.std(net_arr, ddof=1) * np.sqrt(bars_per_year))
@@ -328,6 +344,82 @@ def run_all_layers(
         },
     ))
     return out
+
+
+def rederivation_block(
+    supersedes: str, risk_policy_hash: str, *, root: Path,
+) -> dict[str, Any]:
+    """Het blok dat een HER-AFLEIDING van de ladder van een zoektocht onderscheidt.
+
+    Fase 11 stap 4.1/4.2. Dezelfde vier tracks, hetzelfde venster en dezelfde
+    vier lagen, opnieuw gedraaid omdat het risicobeleid exogeen is gewijzigd
+    (AD-26). Er wordt niets gekozen of gevarieerd, en daarom kost het nul trials
+    (R-2). Die redenering staat IN het artefact, zodat een latere lezer kan
+    nagaan dat het geen zoektocht was, en `supersedes` wijst naar het artefact
+    dat hierdoor herkomst wordt.
+    """
+    require(
+        (root / supersedes).is_file(),
+        "Het artefact dat deze her-afleiding zou vervangen, bestaat niet. Een "
+        "`supersedes` die nergens naar wijst, is een herkomst die niet te "
+        "volgen is.",
+        DataContractError, supersedes=supersedes,
+    )
+    return {
+        "supersedes": supersedes,
+        "trials": 0,
+        "risk_policy_hash": risk_policy_hash,
+        "reason": (
+            f"Her-afleiding van {supersedes} onder het geldende risicobeleid "
+            f"{risk_policy_hash}: dezelfde tracks, hetzelfde venster en dezelfde "
+            "vier lagen, één keer gedraaid omdat het beleid exogeen is gewijzigd "
+            "(AD-26). Niets gekozen of gevarieerd, dus nul trials (R-2)."),
+    }
+
+
+def compare_ladders(
+    current: Sequence[LayerResult],
+    lapsed: Sequence[LayerResult],
+    *,
+    bars_per_year: float,
+) -> list[dict[str, Any]]:
+    """Twee ladders op dezelfde bars, per cel naast elkaar. Fase 11, stap 4.3.
+
+    Per (track, laag): elke Sharpe met zijn SE (`sharpe_with_se`), en het
+    verschil met zijn gepaarde SE, interval en p-waarde
+    (`sharpe_difference_test`), allebei uit `validation/inference.py` (R-3).
+    `align="common_valid"`: de laddersharpe wordt over ALLE bars berekend,
+    inclusief de vlakke bars na een halt, dus het verschil ook. Een cel waarvan
+    het 95 %-interval nul uitsluit, heet hier `significant`.
+    """
+    old = {(r.track, r.layer): r for r in lapsed}
+    cells: list[dict[str, Any]] = []
+    for row in current:
+        key = (row.track, row.layer)
+        require(
+            key in old,
+            "Een cel van de ene ladder heeft geen tegenhanger in de andere. Dan "
+            "zijn de twee niet op dezelfde tracks en lagen gedraaid, en is er "
+            "niets te vergelijken.",
+            DataContractError, track=row.track, layer=row.layer,
+        )
+        a = sharpe_with_se(row.returns, bars_per_year=float(bars_per_year))
+        b = sharpe_with_se(old[key].returns, bars_per_year=float(bars_per_year))
+        diff = sharpe_difference_test(row.returns, old[key].returns,
+                                      bars_per_year=float(bars_per_year),
+                                      align="common_valid")
+        cells.append({
+            "track": row.track, "layer": row.layer,
+            "sharpe_current": a.sharpe, "se_current": a.se,
+            "sharpe_lapsed": b.sharpe, "se_lapsed": b.se,
+            "delta_sharpe": diff.delta_sharpe, "se_delta": diff.se,
+            "t_stat": diff.t_stat, "p_value": diff.p_value,
+            "ci_low": diff.ci_low, "ci_high": diff.ci_high,
+            "significant": bool(diff.ci_low > 0.0 or diff.ci_high < 0.0),
+            "n_obs": a.n_obs, "bars_per_year": float(bars_per_year),
+            "t_years": a.t_years,
+        })
+    return cells
 
 
 def summarise(results: list[LayerResult]) -> pd.DataFrame:
