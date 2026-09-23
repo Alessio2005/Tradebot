@@ -38,9 +38,13 @@ DE VOLGORDE VAN DE STOP-CRITERIA IS GEEN IMPLEMENTATIEDETAIL
 
 WAT DE ARCHITECTUUR AL VOOR DE RUN BEPERKT
 ===========================================
-De soevereine laag schaalt het boek met `w_t = min(max_leverage,
-sigma_target / sigma_boek)`. Een UNIFORME factor deelt daar weer uit: een
-regime-overlay kan dit boek niet de-grossen. Wat overblijft is de asymmetrie
+De soevereine laag schaalt het boek met `w_t = min(1, min(max_leverage,
+sigma_target / sigma_boek))` en verkleint uitsluitend. Een UNIFORME factor `c`
+deelt daar weer uit op elke bar waar `c >= sigma_target / sigma_boek`; alleen
+daaronder blijft het boek kleiner (fase 11 stap 3.4, DI-30, AD-25). Op de
+ladderbars van de primaire track is die verhouding onder het H2-beleid nooit
+groter dan 0,092: een uniforme factor van 0,092 of meer kan dit boek daar
+niet de-grossen. Wat overblijft is de asymmetrie
 TUSSEN symbolen -- elk symbool heeft zijn eigen regime -- en dat maakt van H2 een
 cross-sectionele tilt: haal het risicobudget weg bij wat nu onrustig is en geef
 het aan de rest. Zie `backtest/regime_overlay.py`; het rapport zegt het, en

@@ -1,0 +1,1809 @@
+{
+  "git_sha": "01b9d32",
+  "n_bars": 1743,
+  "period": [
+    "2021-11-15",
+    "2026-08-23"
+  ],
+  "policies": {
+    "1b60cb664fbf9a2a": {
+      "long_only_equal_weight": {
+        "L1_sovereign": {
+          "ladder": {
+            "gross_sharpe": 0.12942153710454038,
+            "max_drawdown": 0.1380944857488874,
+            "mean_gross": 0.11282745924927676,
+            "net_sharpe": 0.11915357414797134,
+            "volatility": 0.07505155340480792
+          },
+          "mean_gross_desired": 6.0,
+          "mean_gross_permitted": 0.11282745924927676,
+          "n_decisions": 1743,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.9811954234584538,
+              "mean_shrink_when_changed": 0.9811954234584538,
+              "n_changed": 1743,
+              "n_disagree": 0,
+              "n_recorded": 1743,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 1.5,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1743,
+            "n_ratio_below_one": 1743,
+            "ratio_max": 0.03742159952856507,
+            "ratio_quantiles": {
+              "q05": 0.011688255992769684,
+              "q25": 0.015034196916222101,
+              "q50": 0.01781828622619459,
+              "q75": 0.021758975318368685,
+              "q95": 0.02992366720931646
+            },
+            "sigma_target": 0.08
+          }
+        },
+        "L3_execution": {
+          "ladder": {
+            "gross_sharpe": -0.7192301877356054,
+            "max_drawdown": 0.08554220752060995,
+            "n_sovereign_clipped": 1742,
+            "n_sovereign_halted": 1566,
+            "net_sharpe": -0.7192301877356054,
+            "volatility": 0.02430870132239771
+          },
+          "mean_gross_desired": 6.0,
+          "mean_gross_permitted": 0.009027541052036119,
+          "n_decisions": 1742,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.9242250287026407,
+              "mean_shrink_when_changed": 0.9757575757575757,
+              "n_changed": 1650,
+              "n_disagree": 0,
+              "n_recorded": 1650,
+              "share_changed": 0.947187141216992
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.09865070556102738,
+              "mean_shrink_when_changed": 0.9764177789051686,
+              "n_changed": 176,
+              "n_disagree": 0,
+              "n_recorded": 176,
+              "share_changed": 0.1010332950631458
+            }
+          },
+          "vol_target": {
+            "max_leverage": 1.5,
+            "n_flat_book": 1566,
+            "n_ratio_below_max_leverage": 176,
+            "n_ratio_below_one": 176,
+            "ratio_max": 0.07235046372962253,
+            "ratio_quantiles": {
+              "q05": 0.012629579027554,
+              "q25": 0.014257403280160202,
+              "q50": 0.0180675824264223,
+              "q75": 0.028599866114433336,
+              "q95": 0.04074491991241692
+            },
+            "sigma_target": 0.08
+          }
+        }
+      },
+      "long_only_risk_parity": {
+        "L1_sovereign": {
+          "ladder": {
+            "gross_sharpe": 0.13282386951142403,
+            "max_drawdown": 0.13752444176358708,
+            "mean_gross": 0.12121801638041216,
+            "net_sharpe": 0.11984689539463547,
+            "volatility": 0.07608037111413465
+          },
+          "mean_gross_desired": 4.109327603704791,
+          "mean_gross_permitted": 0.12121801638041216,
+          "n_decisions": 1743,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.9699028987653159,
+              "mean_shrink_when_changed": 0.9699028987653159,
+              "n_changed": 1743,
+              "n_disagree": 0,
+              "n_recorded": 1743,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 1.5,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1743,
+            "n_ratio_below_one": 1743,
+            "ratio_max": 0.06539987884761327,
+            "ratio_quantiles": {
+              "q05": 0.01723690405295377,
+              "q25": 0.022814469640680887,
+              "q50": 0.028817504396286473,
+              "q75": 0.03588743026569753,
+              "q95": 0.04729872064614683
+            },
+            "sigma_target": 0.08
+          }
+        },
+        "L3_execution": {
+          "ladder": {
+            "gross_sharpe": -0.7446899936739573,
+            "max_drawdown": 0.08935458124526223,
+            "n_sovereign_clipped": 1742,
+            "n_sovereign_halted": 1566,
+            "net_sharpe": -0.7446899936739573,
+            "volatility": 0.024645984677561662
+          },
+          "mean_gross_desired": 4.108978867386186,
+          "mean_gross_permitted": 0.009456418547090848,
+          "n_decisions": 1742,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.9289609644087256,
+              "mean_shrink_when_changed": 0.9730907997594709,
+              "n_changed": 1663,
+              "n_disagree": 0,
+              "n_recorded": 1663,
+              "share_changed": 0.9546498277841562
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.09727379496021193,
+              "mean_shrink_when_changed": 0.9627894932993706,
+              "n_changed": 176,
+              "n_disagree": 0,
+              "n_recorded": 176,
+              "share_changed": 0.1010332950631458
+            }
+          },
+          "vol_target": {
+            "max_leverage": 1.5,
+            "n_flat_book": 1566,
+            "n_ratio_below_max_leverage": 176,
+            "n_ratio_below_one": 176,
+            "ratio_max": 0.10815565426473846,
+            "ratio_quantiles": {
+              "q05": 0.018966656202479785,
+              "q25": 0.022294339853659972,
+              "q50": 0.03205660611538064,
+              "q75": 0.045815469212558795,
+              "q95": 0.08454745677681538
+            },
+            "sigma_target": 0.08
+          }
+        }
+      },
+      "xs_momentum_equal_weight": {
+        "L1_sovereign": {
+          "ladder": {
+            "gross_sharpe": 0.40393769771684146,
+            "max_drawdown": 0.048993822036125546,
+            "mean_gross": 0.11103139954770874,
+            "net_sharpe": 0.2146653874880716,
+            "volatility": 0.0253504376277851
+          },
+          "mean_gross_desired": 3.589137502390515,
+          "mean_gross_permitted": 0.11103139954770874,
+          "n_decisions": 1743,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.9690807728199274,
+              "mean_shrink_when_changed": 0.9690807728199274,
+              "n_changed": 1743,
+              "n_disagree": 0,
+              "n_recorded": 1743,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 1.5,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1743,
+            "n_ratio_below_one": 1743,
+            "ratio_max": 0.06312248195262736,
+            "ratio_quantiles": {
+              "q05": 0.019051525310380672,
+              "q25": 0.024737129421337014,
+              "q50": 0.029458003065957823,
+              "q75": 0.036237180148086884,
+              "q95": 0.04841353156675277
+            },
+            "sigma_target": 0.08
+          }
+        },
+        "L3_execution": {
+          "ladder": {
+            "gross_sharpe": -0.1681274015163754,
+            "max_drawdown": 0.06660252745109764,
+            "n_sovereign_clipped": 1742,
+            "n_sovereign_halted": 0,
+            "net_sharpe": -0.1681274015163754,
+            "volatility": 0.024977603983879788
+          },
+          "mean_gross_desired": 3.589131266743208,
+          "mean_gross_permitted": 0.11103162000328538,
+          "n_decisions": 1742,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.23435706084959818,
+              "mean_shrink_when_changed": 0.5465194109772423,
+              "n_changed": 747,
+              "n_disagree": 0,
+              "n_recorded": 747,
+              "share_changed": 0.4288174512055109
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.9478429996875095,
+              "mean_shrink_when_changed": 0.9478429996875095,
+              "n_changed": 1742,
+              "n_disagree": 0,
+              "n_recorded": 1742,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 1.5,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1742,
+            "n_ratio_below_one": 1742,
+            "ratio_max": 0.2048850111170348,
+            "ratio_quantiles": {
+              "q05": 0.02002016170666636,
+              "q25": 0.025892002941013435,
+              "q50": 0.03543737940114533,
+              "q75": 0.0670843433923718,
+              "q95": 0.1518017307085585
+            },
+            "sigma_target": 0.08
+          }
+        }
+      },
+      "xs_momentum_risk_parity": {
+        "L1_sovereign": {
+          "ladder": {
+            "gross_sharpe": 0.2209375375168796,
+            "max_drawdown": 0.053203687615532534,
+            "mean_gross": 0.11782661343106657,
+            "net_sharpe": -0.005002614094703274,
+            "volatility": 0.022670160002099565
+          },
+          "mean_gross_desired": 3.1141221668100543,
+          "mean_gross_permitted": 0.11782661343106655,
+          "n_decisions": 1743,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.011669188468801954,
+              "mean_shrink_when_changed": 0.07505311993033877,
+              "n_changed": 271,
+              "n_disagree": 0,
+              "n_recorded": 271,
+              "share_changed": 0.15547905909351692
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.9603778683597849,
+              "mean_shrink_when_changed": 0.9603778683597849,
+              "n_changed": 1743,
+              "n_disagree": 0,
+              "n_recorded": 1743,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 1.5,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1743,
+            "n_ratio_below_one": 1743,
+            "ratio_max": 0.09219005864115448,
+            "ratio_quantiles": {
+              "q05": 0.021541327811213713,
+              "q25": 0.029604086452288795,
+              "q50": 0.03772274322651566,
+              "q75": 0.04653657881546905,
+              "q95": 0.06722241180750806
+            },
+            "sigma_target": 0.08
+          }
+        },
+        "L3_execution": {
+          "ladder": {
+            "gross_sharpe": -0.3691267772707423,
+            "max_drawdown": 0.06989384170912996,
+            "n_sovereign_clipped": 1742,
+            "n_sovereign_halted": 0,
+            "net_sharpe": -0.3691267772707423,
+            "volatility": 0.02268469606027717
+          },
+          "mean_gross_desired": 3.1138592028627046,
+          "mean_gross_permitted": 0.11782917410700001,
+          "n_decisions": 1742,
+          "risk_policy_hash": "1b60cb664fbf9a2a",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.01167588719926625,
+              "mean_shrink_when_changed": 0.07505311993033877,
+              "n_changed": 271,
+              "n_disagree": 0,
+              "n_recorded": 271,
+              "share_changed": 0.1555683122847302
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.28157290470723306,
+              "mean_shrink_when_changed": 0.541988950276243,
+              "n_changed": 905,
+              "n_disagree": 0,
+              "n_recorded": 905,
+              "share_changed": 0.5195177956371986
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.9296213291494001,
+              "mean_shrink_when_changed": 0.9296213291494001,
+              "n_changed": 1742,
+              "n_disagree": 0,
+              "n_recorded": 1742,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 1.5,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1742,
+            "n_ratio_below_one": 1742,
+            "ratio_max": 0.3340649426288939,
+            "ratio_quantiles": {
+              "q05": 0.02236361540675816,
+              "q25": 0.032604610373985286,
+              "q50": 0.058234272985869626,
+              "q75": 0.09130779679583938,
+              "q95": 0.1701143002744974
+            },
+            "sigma_target": 0.08
+          }
+        }
+      }
+    },
+    "9961e1613bc907a5": {
+      "long_only_equal_weight": {
+        "L1_sovereign": {
+          "ladder": {
+            "gross_sharpe": 0.1294215371045404,
+            "max_drawdown": 0.31652573317540056,
+            "mean_gross": 0.2820686481231919,
+            "net_sharpe": 0.11915357414797147,
+            "volatility": 0.1876288835120198
+          },
+          "mean_gross_desired": 6.0,
+          "mean_gross_permitted": 0.2820686481231919,
+          "n_decisions": 1743,
+          "risk_policy_hash": "9961e1613bc907a5",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.9529885586461346,
+              "mean_shrink_when_changed": 0.9529885586461346,
+              "n_changed": 1743,
+              "n_disagree": 0,
+              "n_recorded": 1743,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 4.0,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1743,
+            "n_ratio_below_one": 1743,
+            "ratio_max": 0.09355399882141267,
+            "ratio_quantiles": {
+              "q05": 0.029220639981924208,
+              "q25": 0.03758549229055526,
+              "q50": 0.04454571556548648,
+              "q75": 0.054397438295921724,
+              "q95": 0.07480916802329116
+            },
+            "sigma_target": 0.2
+          }
+        },
+        "L3_execution": {
+          "ladder": {
+            "gross_sharpe": -0.9428815011200163,
+            "max_drawdown": 0.2666469084732658,
+            "n_sovereign_clipped": 1742,
+            "n_sovereign_halted": 1532,
+            "net_sharpe": -0.9428815011200163,
+            "volatility": 0.0665123252500693
+          },
+          "mean_gross_desired": 6.0,
+          "mean_gross_permitted": 0.025548581352508273,
+          "n_decisions": 1742,
+          "risk_policy_hash": "9961e1613bc907a5",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.9036739380022962,
+              "mean_shrink_when_changed": 0.9765508684863524,
+              "n_changed": 1612,
+              "n_disagree": 0,
+              "n_recorded": 1612,
+              "share_changed": 0.9253731343283582
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.11448469741000096,
+              "mean_shrink_when_changed": 0.9496778232772461,
+              "n_changed": 210,
+              "n_disagree": 0,
+              "n_recorded": 210,
+              "share_changed": 0.12055109070034443
+            }
+          },
+          "vol_target": {
+            "max_leverage": 4.0,
+            "n_flat_book": 1532,
+            "n_ratio_below_max_leverage": 210,
+            "n_ratio_below_one": 210,
+            "ratio_max": 0.10101073361841365,
+            "ratio_quantiles": {
+              "q05": 0.03159089744207653,
+              "q25": 0.03513333939228568,
+              "q50": 0.04212665436174815,
+              "q75": 0.060150681352813595,
+              "q95": 0.08995440042630945
+            },
+            "sigma_target": 0.2
+          }
+        }
+      },
+      "long_only_risk_parity": {
+        "L1_sovereign": {
+          "ladder": {
+            "gross_sharpe": 0.13282386951142394,
+            "max_drawdown": 0.3175342821728004,
+            "mean_gross": 0.30304504095103035,
+            "net_sharpe": 0.11984689539463544,
+            "volatility": 0.19020092778533665
+          },
+          "mean_gross_desired": 4.109327603704791,
+          "mean_gross_permitted": 0.30304504095103035,
+          "n_decisions": 1743,
+          "risk_policy_hash": "9961e1613bc907a5",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.9247572469132898,
+              "mean_shrink_when_changed": 0.9247572469132898,
+              "n_changed": 1743,
+              "n_disagree": 0,
+              "n_recorded": 1743,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 4.0,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1743,
+            "n_ratio_below_one": 1743,
+            "ratio_max": 0.16349969711903314,
+            "ratio_quantiles": {
+              "q05": 0.04309226013238443,
+              "q25": 0.05703617410170222,
+              "q50": 0.07204376099071619,
+              "q75": 0.08971857566424384,
+              "q95": 0.11824680161536709
+            },
+            "sigma_target": 0.2
+          }
+        },
+        "L3_execution": {
+          "ladder": {
+            "gross_sharpe": -0.9183271525883223,
+            "max_drawdown": 0.26235880855798327,
+            "n_sovereign_clipped": 1742,
+            "n_sovereign_halted": 1533,
+            "net_sharpe": -0.9183271525883223,
+            "volatility": 0.06693101060343856
+          },
+          "mean_gross_desired": 4.108978867386186,
+          "mean_gross_permitted": 0.02681328978349758,
+          "n_decisions": 1742,
+          "risk_policy_hash": "9961e1613bc907a5",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.9090700344431687,
+              "mean_shrink_when_changed": 0.9691554467564258,
+              "n_changed": 1634,
+              "n_disagree": 0,
+              "n_recorded": 1634,
+              "share_changed": 0.9380022962112514
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.11025524791015819,
+              "mean_shrink_when_changed": 0.9189695782750985,
+              "n_changed": 209,
+              "n_disagree": 0,
+              "n_recorded": 209,
+              "share_changed": 0.11997703788748565
+            }
+          },
+          "vol_target": {
+            "max_leverage": 4.0,
+            "n_flat_book": 1533,
+            "n_ratio_below_max_leverage": 209,
+            "n_ratio_below_one": 209,
+            "ratio_max": 0.17695427984594486,
+            "ratio_quantiles": {
+              "q05": 0.04641604048109762,
+              "q25": 0.053770016214621026,
+              "q50": 0.06530400848190315,
+              "q75": 0.09893349396432999,
+              "q95": 0.15732199199597985
+            },
+            "sigma_target": 0.2
+          }
+        }
+      },
+      "xs_momentum_equal_weight": {
+        "L1_sovereign": {
+          "ladder": {
+            "gross_sharpe": 0.4039376977168414,
+            "max_drawdown": 0.1190010559482799,
+            "mean_gross": 0.27757849886927183,
+            "net_sharpe": 0.21466538748807168,
+            "volatility": 0.06337609406946276
+          },
+          "mean_gross_desired": 3.589137502390515,
+          "mean_gross_permitted": 0.27757849886927183,
+          "n_decisions": 1743,
+          "risk_policy_hash": "9961e1613bc907a5",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.9227019320498188,
+              "mean_shrink_when_changed": 0.9227019320498188,
+              "n_changed": 1743,
+              "n_disagree": 0,
+              "n_recorded": 1743,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 4.0,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1743,
+            "n_ratio_below_one": 1743,
+            "ratio_max": 0.1578062048815684,
+            "ratio_quantiles": {
+              "q05": 0.047628813275951684,
+              "q25": 0.061842823553342544,
+              "q50": 0.07364500766489455,
+              "q75": 0.09059295037021722,
+              "q95": 0.12103382891688193
+            },
+            "sigma_target": 0.2
+          }
+        },
+        "L3_execution": {
+          "ladder": {
+            "gross_sharpe": -0.22973875238159788,
+            "max_drawdown": 0.16615215976129444,
+            "n_sovereign_clipped": 1742,
+            "n_sovereign_halted": 0,
+            "net_sharpe": -0.22973875238159788,
+            "volatility": 0.06248008671279463
+          },
+          "mean_gross_desired": 3.589131266743208,
+          "mean_gross_permitted": 0.2775790500082134,
+          "n_decisions": 1742,
+          "risk_policy_hash": "9961e1613bc907a5",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.13295063145809413,
+              "mean_shrink_when_changed": 0.39999999999999997,
+              "n_changed": 579,
+              "n_disagree": 0,
+              "n_recorded": 579,
+              "share_changed": 0.33237657864523534
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.9020319802272525,
+              "mean_shrink_when_changed": 0.9020319802272525,
+              "n_changed": 1742,
+              "n_disagree": 0,
+              "n_recorded": 1742,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 4.0,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1742,
+            "n_ratio_below_one": 1742,
+            "ratio_max": 0.26301034146928065,
+            "ratio_quantiles": {
+              "q05": 0.04762862088837842,
+              "q25": 0.06317027162904423,
+              "q50": 0.08085574402500433,
+              "q75": 0.125599736969183,
+              "q95": 0.20174039321511825
+            },
+            "sigma_target": 0.2
+          }
+        }
+      },
+      "xs_momentum_risk_parity": {
+        "L1_sovereign": {
+          "ladder": {
+            "gross_sharpe": 0.22093753751687978,
+            "max_drawdown": 0.1285567108466346,
+            "mean_gross": 0.29456653357766643,
+            "net_sharpe": -0.005002614094703091,
+            "volatility": 0.05667540000524892
+          },
+          "mean_gross_desired": 3.1141221668100543,
+          "mean_gross_permitted": 0.29456653357766643,
+          "n_decisions": 1743,
+          "risk_policy_hash": "9961e1613bc907a5",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.011669188468801954,
+              "mean_shrink_when_changed": 0.07505311993033877,
+              "n_changed": 271,
+              "n_disagree": 0,
+              "n_recorded": 271,
+              "share_changed": 0.15547905909351692
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.9009446708994622,
+              "mean_shrink_when_changed": 0.9009446708994622,
+              "n_changed": 1743,
+              "n_disagree": 0,
+              "n_recorded": 1743,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 4.0,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1743,
+            "n_ratio_below_one": 1743,
+            "ratio_max": 0.23047514660288623,
+            "ratio_quantiles": {
+              "q05": 0.05385331952803428,
+              "q25": 0.07401021613072199,
+              "q50": 0.09430685806628915,
+              "q75": 0.11634144703867261,
+              "q95": 0.1680560295187701
+            },
+            "sigma_target": 0.2
+          }
+        },
+        "L3_execution": {
+          "ladder": {
+            "gross_sharpe": -0.432104082976347,
+            "max_drawdown": 0.18206266179705088,
+            "n_sovereign_clipped": 1742,
+            "n_sovereign_halted": 0,
+            "net_sharpe": -0.432104082976347,
+            "volatility": 0.056737245542181756
+          },
+          "mean_gross_desired": 3.1138592028627046,
+          "mean_gross_permitted": 0.2945729352675,
+          "n_decisions": 1742,
+          "risk_policy_hash": "9961e1613bc907a5",
+          "steps": {
+            "adv_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "cluster_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "concentration_cap": {
+              "mean_shrink_all": 0.01167588719926625,
+              "mean_shrink_when_changed": 0.07505311993033878,
+              "n_changed": 271,
+              "n_disagree": 0,
+              "n_recorded": 271,
+              "share_changed": 0.1555683122847302
+            },
+            "daily_loss_governor": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "drawdown_breaker": {
+              "mean_shrink_all": 0.15907003444316875,
+              "mean_shrink_when_changed": 0.40043352601156074,
+              "n_changed": 692,
+              "n_disagree": 0,
+              "n_recorded": 692,
+              "share_changed": 0.39724454649827784
+            },
+            "gross_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "halted": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "net_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "per_asset_cap": {
+              "mean_shrink_all": 0.0,
+              "mean_shrink_when_changed": 0.0,
+              "n_changed": 0,
+              "n_disagree": 0,
+              "n_recorded": 0,
+              "share_changed": 0.0
+            },
+            "vol_target": {
+              "mean_shrink_all": 0.8713616408134077,
+              "mean_shrink_when_changed": 0.8713616408134077,
+              "n_changed": 1742,
+              "n_disagree": 0,
+              "n_recorded": 1742,
+              "share_changed": 1.0
+            }
+          },
+          "vol_target": {
+            "max_leverage": 4.0,
+            "n_flat_book": 0,
+            "n_ratio_below_max_leverage": 1742,
+            "n_ratio_below_one": 1742,
+            "ratio_max": 0.40752264159342166,
+            "ratio_quantiles": {
+              "q05": 0.05388174312854446,
+              "q25": 0.07628922375186184,
+              "q50": 0.11283993527080009,
+              "q75": 0.1697982059615489,
+              "q95": 0.24264397602906188
+            },
+            "sigma_target": 0.2
+          }
+        }
+      }
+    }
+  },
+  "superseded_by_policy": {
+    "decided_in": "fase 11, stap 3.2",
+    "disposition": "PROVENANCE_ONLY",
+    "hash_source": "declared",
+    "measured_under": [
+      "1b60cb664fbf9a2a"
+    ],
+    "reason": "Bewuste vergelijkingsmeting: dezelfde bars en exposures onder het vervallen beleid, naast het geldende. Het verschil tussen de twee kolommen IS het gevolg van AD-26.",
+    "superseded_by": "9961e1613bc907a5"
+  },
+  "trials": 0
+}

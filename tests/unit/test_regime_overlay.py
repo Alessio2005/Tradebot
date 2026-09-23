@@ -21,13 +21,23 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
+from tradebot.backtest.engine import build_slices, exposures_from_frame
+from tradebot.backtest.phase5_baseline import build_engine
 from tradebot.backtest.regime_overlay import MarketPanels, run_overlay_arm
 from tradebot.execution.impact_model import ImpactParams, ImpactStatus
-from tradebot.execution.order_router import VenueSpec
+from tradebot.execution.order_router import SpreadModel, SpreadStatus, VenueSpec
+from tradebot.risk.binding_audit import (
+    TracingRiskEngine,
+    first_divergent_step,
+    policy_from_registry,
+    vol_ratio,
+)
 from tradebot.schemas.config import RiskConfig, load_config
 from tradebot.utils.failfast import DataContractError
 
 RISK = load_config(ROOT / "conf/risk/default.yaml", RiskConfig)
+#: Het vervallen beleid, uit het register (fase 11, AD-27).
+LAPSED = "1b60cb664fbf9a2a"
 IMPACT = ImpactParams(
     eta=2.9919, kappa_d=0.6720, status=ImpactStatus.IMPACT_UNCALIBRATED,
     method="test", data_hash="test", sample_size=1, period_start="2021-01-01",
@@ -78,6 +88,37 @@ def _run(exposures: pd.DataFrame, panels: MarketPanels,
         risk_cfg=RISK, impact=IMPACT, venue=VENUE,
         half_spread_bps=half_spread_bps, spread_source="test",
         initial_equity=100_000.0, bars_per_year=365.0)
+
+
+def _traced(cfg: RiskConfig, exposures: pd.DataFrame,
+            panels: MarketPanels) -> dict:
+    """Eén arm door de event-driven engine, met de keten per besluit bewaard."""
+    tracer = TracingRiskEngine(cfg)
+    engine = build_engine(
+        cfg, IMPACT, VENUE,
+        SpreadModel(half_spread_bps=1.0, status=SpreadStatus.SPREAD_ASSUMED,
+                    source="test"),
+        initial_equity=100_000.0, risk_engine=tracer)
+    engine.run(build_slices(panels.prices, panels.sigma_annual,
+                            panels.sigma_bar, panels.adv, panels.volume,
+                            dict(panels.clusters), panels.funding),
+               exposures_from_frame(exposures))
+    return {record.asof_ts: record for record in tracer.records}
+
+
+def _divergence(cfg: RiskConfig, factor: float) -> tuple[dict, set]:
+    """Per besluit: de eerste stap waar `factor * a` afwijkt (gemeten), en de
+    besluiten waar de exacte vorm van REGEL V een afwijking voorspelt."""
+    panels = _panels()
+    exposures = _exposures(panels)
+    full = _traced(cfg, exposures, panels)
+    scaled = _traced(cfg, exposures * factor, panels)
+    assert set(full) == set(scaled)
+    measured = {ts: first_divergent_step(full[ts].steps, scaled[ts].steps, factor)
+                for ts in full}
+    predicted = {ts for ts, record in full.items()
+                 if vol_ratio(record, cfg) > factor}
+    return measured, predicted
 
 
 class TestAttribution:
@@ -140,28 +181,49 @@ class TestArmsDifferInOneThingOnly:
         assert dear.spread_cost_oos > cheap.spread_cost_oos
         assert dear.net_return_oos < cheap.net_return_oos
 
-    def test_a_uniform_factor_is_neutralised_by_the_vol_target(self) -> None:
-        """DE BEPERKING DIE DE ARCHITECTUUR OPLEGT, HIER VASTGELEGD.
+    @pytest.mark.parametrize("policy", ["current", "lapsed"])
+    def test_a_uniform_factor_is_neutralised_exactly_where_the_vol_target_binds(
+        self, policy: str
+    ) -> None:
+        """DE BEPERKING DIE DE ARCHITECTUUR OPLEGT, IN HAAR EXACTE VORM (DI-30).
 
         De soevereine laag schaalt het hele boek met
-        `w_t = min(max_leverage, sigma_target / sigma_boek)`. Vermenigvuldig
-        elke exposure met dezelfde `c`, dan deelt `w_t` er weer door: de
-        positie, de turnover en de fees blijven wat ze waren zolang de
-        vol-target bindt.
+        `w_t = min(1, min(max_leverage, sigma_target / sigma_boek))` en
+        VERKLEINT uitsluitend. Vermenigvuldig elke exposure met dezelfde `c`:
+        zolang de vol-target ook het geschaalde boek nog terugschaalt, deelt
+        hij `c` er weer uit en is het besluit identiek. Op een bar waar
+        `c * sigma_boek < sigma_target` doet hij dat niet meer, en blijft het
+        boek `c` keer kleiner. Dus: op bar t valt `c` weg dan en slechts dan
+        als `c >= sigma_target / sigma_boek(t)`.
 
-        Een regime-overlay kan het boek dus NIET de-grossen. Dat is geen fout
-        in deze test maar een eigenschap van L7, en zij bepaalt wat H2
-        uberhaupt kan meten: wat overblijft is een CROSS-SECTIONELE tilt, geen
-        risicoreductie. Het rapport moet dat zeggen, en deze test zorgt dat het
-        waar blijft."""
-        panels = _panels()
-        exposures = _exposures(panels)
-        full = _run(exposures, panels)
-        halved = _run(exposures * 0.5, panels)
-        assert halved.turnover_notional_oos == pytest.approx(
-            full.turnover_notional_oos, rel=0.01)
-        assert halved.mean_gross_notional_oos == pytest.approx(
-            full.mean_gross_notional_oos, rel=0.01)
+        WAT HIER STOND, EN WAAROM HET WEG IS. Deze test eiste dat de
+        gemiddelde bruto notional over de hele OOS-run binnen 1 % gelijk
+        bleef. Dat is de ALGEMENE vorm, en die is nooit waar geweest: onder
+        het vervallen beleid (0,08) wijkt deze fixture 0,21 % af (10 van 299
+        besluiten; AD-16 mat toen 8.300 tegen 8.283 en noemde het ruis), onder
+        het geldende (0,20) 3,06 % (76 van 299). Fase 11 stap 3.4 heeft per
+        bar gemeten waar de afwijking ontstaat: ALTIJD bij `vol_target` zelf,
+        nooit bij een cap erna. De verwachting van de fase-11-prompt (een
+        niet-schaalinvariante limiet NA de vol-target) is daarmee weerlegd.
+        De tolerantie is niet opgerekt; de bewering is vervangen door de
+        exacte, die per besluit wordt getoetst en dus strenger is.
+
+        Voor H2 betekent dit: een regime-overlay kan het boek de-grossen op
+        precies die bars, en alleen daar. Op de echte ladder is de grootste
+        verhouding 0,23 (geldend) en 0,092 (vervallen), dus een uniforme
+        factor `c >= 0,23` valt er op elke bar uit (AD-25)."""
+        cfg = RISK if policy == "current" else policy_from_registry(LAPSED)
+        measured, predicted = _divergence(cfg, 0.5)
+        assert set(measured.values()) <= {None, "vol_target"}
+        assert {ts for ts, step in measured.items() if step is not None} == predicted
+
+    def test_the_general_form_does_not_hold_on_this_fixture(self) -> None:
+        """De negatieve controle op de test hierboven: de uitzonderingsset is
+        NIET leeg. Was zij leeg, dan zou de exacte vorm niets toetsen wat de
+        algemene vorm niet al toetste."""
+        measured, predicted = _divergence(RISK, 0.5)
+        assert len(predicted) == 76
+        assert sum(step == "vol_target" for step in measured.values()) == 76
 
     def test_a_per_symbol_factor_does_change_the_book(self) -> None:
         """En dit is waarom H2 toch iets meet: de factor verschilt PER SYMBOOL,

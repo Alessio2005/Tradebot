@@ -163,12 +163,18 @@ def _architecture(add: Any, campaign: Mapping[str, Any]) -> None:
         "risicoreductie")
     add("")
     add("De soevereine laag schaalt het hele boek met "
-        "`w_t = min(max_leverage, σ_target / σ_boek)`. Vermenigvuldig elke "
-        "exposure met dezelfde `c`, dan deelt `w_t` er weer door: **een "
-        "regime-overlay kan dit boek niet de-grossen.** Wat overblijft is de "
-        "asymmetrie TUSSEN symbolen — elk symbool heeft zijn eigen regime — en "
-        "dat maakt van H2 een cross-sectionele tilt: haal het risicobudget weg "
-        "bij wat nu onrustig is en geef het aan de rest.")
+        "`w_t = min(1, min(max_leverage, σ_target / σ_boek))` en verkleint "
+        "uitsluitend. Vermenigvuldig elke exposure met dezelfde `c`, dan deelt "
+        "`w_t` er weer door op elke bar waar `c ≥ σ_target / σ_boek`; "
+        "daaronder schaalt de vol-target het geschaalde boek niet meer terug "
+        "en blijft het `c` keer kleiner (fase 11 stap 3.4, DI-30). Op de "
+        "1.743 ladderbars van de primaire track komt die verhouding onder het "
+        "beleid waaronder H2 is gemeten nergens boven 0,092 "
+        "(`artefacts/risk/phase11_binding_audit.json`, L1): **een uniforme "
+        "factor van 0,092 of meer kan dit boek daar niet de-grossen.** Wat "
+        "overblijft is de asymmetrie TUSSEN symbolen — elk symbool heeft zijn "
+        "eigen regime — en dat maakt van H2 een cross-sectionele tilt: haal het "
+        "risicobudget weg bij wat nu onrustig is en geef het aan de rest.")
     add("")
     add("Gemeten op de M0-arm tegen de ongeconditioneerde arm:")
     add("")
@@ -507,8 +513,9 @@ def _limitations(add: Any, payload: Mapping[str, Any],
     add("## 10. Wat hiermee NIET is getoetst")
     add("")
     add("1. **De vraag of een regime-overlay het risico kan verlagen.** Dat kan "
-        "dit boek per constructie niet meten: de soevereine vol-target "
-        "herschaalt elke uniforme reductie weg (§2). Wat is gemeten is de "
+        "dit boek vrijwel niet meten: de soevereine vol-target herschaalt elke "
+        "uniforme reductie met `c ≥ σ_target / σ_boek` weg (§2), en alleen een "
+        "reductie tot onder die verhouding blijft staan. Wat is gemeten is de "
         "cross-sectionele tilt.")
     add("2. **Een effect van de orde 0,08 Sharpe-eenheden.** De gemeten power "
         "daar is "

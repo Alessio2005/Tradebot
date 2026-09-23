@@ -37,7 +37,7 @@ Ref: ARCHITECTUUR_AUDIT_2026-08-22.md secties 15, 16.1, 19, 21, 26.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -51,7 +51,7 @@ from ..execution.order_router import (
     VenueSpec,
 )
 from ..risk.contract import MarketState, RiskState
-from ..risk.engine import RiskEngine
+from ..risk.engine import RiskEngine, risk_config_hash
 from ..utils.failfast import DataContractError, require
 from .engine import EventDrivenEngine, build_slices, exposures_from_frame
 from .metrics import calmar_ratio, max_drawdown, sharpe_ratio
@@ -72,6 +72,16 @@ LAYERS: tuple[str, ...] = ("L0_vectorized", "L1_sovereign", "L2_latency",
 
 #: Verwaarloosbare exposure. Onder deze waarde bestaat de positie niet.
 _TOL = 1e-12
+
+#: Bouwt de `RiskEngine` voor één laag (`"L1_sovereign"` of `"L3_execution"`).
+#: De standaard is een gewone `RiskEngine`; fase 11 stap 3 geeft hier een
+#: `TracingRiskEngine` in, zodat de bindingsaudit DEZE lussen meet in plaats van
+#: een nabouw ervan (R-3).
+EngineFactory = Callable[[str, Any], RiskEngine]
+
+
+def _plain_engine(_layer: str, risk_cfg: Any) -> RiskEngine:
+    return RiskEngine(risk_cfg)
 
 
 @dataclass(frozen=True)
@@ -119,9 +129,23 @@ def build_engine(
     spread: SpreadModel,
     *,
     initial_equity: float,
+    risk_engine: RiskEngine | None = None,
 ) -> EventDrivenEngine:
-    """De authoritative engine, met alle vier de lagen aangesloten."""
-    risk = RiskEngine(risk_cfg)
+    """De authoritative engine, met alle vier de lagen aangesloten.
+
+    `risk_engine` is er voor één aanroeper: de bindingsaudit van fase 11 stap 3,
+    die een `TracingRiskEngine` inzet om deze engine te meten zonder haar na te
+    bouwen. Hij moet `risk_cfg` dragen; een engine met een ander beleid dan de
+    router meldt, zou een besluit onder de verkeerde hash laten reizen.
+    """
+    risk = risk_engine if risk_engine is not None else RiskEngine(risk_cfg)
+    require(
+        risk.config_hash == risk_config_hash(risk_cfg),
+        "De meegegeven RiskEngine draagt een ander beleid dan risk_cfg. De "
+        "router zou dan een config_hash melden die niet heeft beslist (AD-27).",
+        DataContractError,
+        engine_hash=risk.config_hash, config_hash=risk_config_hash(risk_cfg),
+    )
     return EventDrivenEngine(
         risk_engine=risk,
         router=OrderRouter(venue=venue, spread=spread, impact=impact,
@@ -150,7 +174,7 @@ def _metrics(
 
 
 def _sovereign_weights(
-    risk_cfg: Any,
+    engine: RiskEngine,
     exposures: pd.DataFrame,
     sigma_hat: pd.DataFrame,
     adv: pd.DataFrame,
@@ -163,7 +187,6 @@ def _sovereign_weights(
     Dit isoleert L1: wat DOET de risicolaag met deze gewichten, los van hoe ze
     worden uitgevoerd.
     """
-    engine = RiskEngine(risk_cfg)
     symbols = list(exposures.columns)
     rows: list[list[float]] = []
     bound: dict[str, int] = {}
@@ -202,8 +225,14 @@ def run_all_layers(
     initial_equity: float,
     cost_per_side: float,
     bars_per_year: float,
+    engine_factory: EngineFactory = _plain_engine,
 ) -> list[LayerResult]:
-    """Draai alle vier de lagen op dezelfde track en dezelfde bars."""
+    """Draai alle vier de lagen op dezelfde track en dezelfde bars.
+
+    `engine_factory(laag, risk_cfg)` levert de `RiskEngine` voor L1 en voor L3.
+    Zonder argument is dat een gewone `RiskEngine`, en dan is deze functie
+    bit-identiek aan wat zij vóór fase 11 was.
+    """
     require(
         bool(weights.index.equals(prices.index)),
         "Gewichten en prijzen staan niet op dezelfde tijdas.",
@@ -229,7 +258,8 @@ def run_all_layers(
 
     # ---------------------------------------------------------------- L1
     permitted, bound = _sovereign_weights(
-        risk_cfg, exposures, sigma_hat, adv, clusters, equity=initial_equity)
+        engine_factory("L1_sovereign", risk_cfg), exposures, sigma_hat, adv,
+        clusters, equity=initial_equity)
     l1 = run_vectorized(permitted, prices, cost_per_side=cost_per_side,
                         initial_equity=initial_equity)
     out.append(LayerResult(
@@ -269,7 +299,8 @@ def run_all_layers(
     slices = build_slices(prices, sigma_hat, sigma_daily, adv, bar_volume,
                           dict(clusters), funding)
     engine = build_engine(risk_cfg, impact, venue, spread,
-                          initial_equity=initial_equity)
+                          initial_equity=initial_equity,
+                          risk_engine=engine_factory("L3_execution", risk_cfg))
     result = engine.run(slices, exposures_from_frame(exposures))
     equity = result.equity_curve
     net = result.returns

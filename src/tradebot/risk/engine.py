@@ -37,6 +37,7 @@ Ref: ARCHITECTUUR_AUDIT_2026-08-22.md secties 11.1, 14, 14.1, 19 (L7), 24.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
@@ -68,7 +69,7 @@ from .limits import (
 )
 from .vol_targeting import apply_volatility_target
 
-__all__ = ["DUST_TOLERANCE", "KNOWN_CONSTRAINTS", "RiskEngine",
+__all__ = ["DUST_TOLERANCE", "KNOWN_CONSTRAINTS", "ChainStep", "RiskEngine",
            "risk_config_hash"]
 
 #: Elke limiet die de engine kan uitvoeren. `constraint_order` in
@@ -107,6 +108,21 @@ _Step = Callable[
     [dict[str, float], MarketState, RiskState],
     tuple[dict[str, float], list[BindingConstraint], RiskState],
 ]
+
+
+@dataclass(frozen=True)
+class ChainStep:
+    """Eén stap van de limietketen: het boek vóór en na één limiet.
+
+    Fase 11, stap 3. `RiskDecision.binding_constraints` zegt welke limiet
+    MELDDE dat hij bond; dit zegt wat hij met het boek DEED. Die twee horen
+    samen te vallen, en `risk/binding_audit.py` meet of dat zo is.
+    """
+
+    name: str
+    exposure_before: Mapping[str, float]
+    exposure_after: Mapping[str, float]
+    bound: tuple[BindingConstraint, ...]
 
 
 def risk_config_hash(config: RiskConfig) -> str:
@@ -229,28 +245,10 @@ class RiskEngine:
         `RiskDecision`, ongeacht welke alpha-unit `desired_exposure` heeft
         geproduceerd.
         """
-        require(
-            isinstance(market_state, MarketState),
-            "market_state moet een MarketState zijn.",
-            DataContractError,
-            got=type(market_state).__name__,
-        )
-        require(
-            isinstance(risk_state, RiskState),
-            "risk_state moet een RiskState zijn.",
-            DataContractError,
-            got=type(risk_state).__name__,
-        )
-
-        exposures = validate_desired_exposure(desired_exposure)
-        original = dict(exposures)
-        state = risk_state
-        trail: list[BindingConstraint] = []
-
-        steps = self._steps()
-        for name in self._config.constraint_order:
-            exposures, bound, state = steps[name](exposures, market_state, state)
-            trail.extend(bound)
+        original = self._validated(desired_exposure, market_state, risk_state)
+        chain, state = self._chain(original, market_state, risk_state)
+        exposures = dict(chain[-1].exposure_after)
+        trail: list[BindingConstraint] = [b for step in chain for b in step.bound]
 
         # DE VOLGORDE VAN DEZE TWEE REGELS IS EEN CONTRACT, GEEN STIJL.
         #
@@ -297,6 +295,63 @@ class RiskEngine:
             config_hash=self._config_hash,
             risk_state_out=state,
         )
+
+    def trace(
+        self,
+        desired_exposure: Mapping[str, float],
+        market_state: MarketState,
+        risk_state: RiskState,
+    ) -> tuple[tuple[ChainStep, ...], RiskState]:
+        """De limietketen van `decide`, stap voor stap. Fase 11, stap 3.
+
+        Dit is DEZELFDE lus als die van `decide` (`_chain`), niet een
+        nabouw: een tweede implementatie van de keten zou een audit opleveren
+        van iets anders dan wat beslist (R-3). Wat `trace` weglaat, is wat
+        `decide` NA de keten doet: de verificatie en de stofsnap. De laatste
+        stap draagt dus het boek vóór die snap.
+
+        Het zijkanaal is dat van `decide`: met een `HaltStore` schrijft een
+        vurende kill switch hier net zo goed weg. Een audit draait zonder store.
+        """
+        original = self._validated(desired_exposure, market_state, risk_state)
+        return self._chain(original, market_state, risk_state)
+
+    def _validated(
+        self,
+        desired_exposure: Mapping[str, float],
+        market_state: MarketState,
+        risk_state: RiskState,
+    ) -> dict[str, float]:
+        require(
+            isinstance(market_state, MarketState),
+            "market_state moet een MarketState zijn.",
+            DataContractError,
+            got=type(market_state).__name__,
+        )
+        require(
+            isinstance(risk_state, RiskState),
+            "risk_state moet een RiskState zijn.",
+            DataContractError,
+            got=type(risk_state).__name__,
+        )
+        return dict(validate_desired_exposure(desired_exposure))
+
+    def _chain(
+        self,
+        exposures: dict[str, float],
+        market_state: MarketState,
+        risk_state: RiskState,
+    ) -> tuple[tuple[ChainStep, ...], RiskState]:
+        """De enige implementatie van de limietketen, in `constraint_order`."""
+        state = risk_state
+        chain: list[ChainStep] = []
+        steps = self._steps()
+        for name in self._config.constraint_order:
+            before = exposures
+            exposures, bound, state = steps[name](dict(before), market_state, state)
+            chain.append(ChainStep(name=name, exposure_before=before,
+                                   exposure_after=exposures, bound=tuple(bound)))
+        return tuple(chain), state
 
     # ------------------------------------------------------------------ #
     # Postconditie
