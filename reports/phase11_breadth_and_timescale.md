@@ -96,3 +96,72 @@ richtingsboek niet.** Het ontwerpeffect springt in dezelfde jaren tussen 33 en 4
 | bèta-gehedged tegen BTC | 2,825 | niet in dit artefact | de constructie staat niet in `conf/research/breadth.yaml`; de opdracht noemde haar als diagnostiek, en zij is niet opnieuw gemeten |
 
 Elke puntschatting reproduceert de faseopdracht op drie decimalen.
+
+---
+
+## 2. De signaalklok (stap 3)
+
+Gewichtspanelen van de vier baseline-tracks, gebouwd precies zoals H-10.1 ze
+bouwt (`baseline_weight_tracks`), besluitpaneel `weights.loc[usable].fillna(0.0)`,
+venster `W_DEV`. Omzet uit `backtest/vectorized.py::run_vectorized` met kosten
+nul: de enige omzetdefinitie, tweezijdig en met de instapbar. De schatter is de
+geïntegreerde autocorrelatietijd met een Sokal-venster, `c = 5` en maximaal 200
+lags, beide gezet in `conf/research/breadth.yaml` vóór deze meting.
+
+| track | unieke rijen | bars met wijziging | omzet per bar | omzet per jaar | ac1 (mediaan) | τ_int (mediaan) | **onafh. besluiten per jaar** |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `long_only_equal_weight` | **1** | **0** | 0,0007 | 0,26 | — | ∞ | **0** |
+| `long_only_risk_parity` | 1.390 | 1.389 | 0,0177 | 6,46 | 0,976 | ≈ 84,7 † | ≈ 4,3 † |
+| `xs_momentum_equal_weight` | 284 | 678 | 0,1537 | 56,10 | 0,946 | **29,96** | **12,18** |
+| `xs_momentum_risk_parity` | 1.390 | 1.389 | 0,1769 | 64,58 | 0,947 | 31,02 | 11,77 |
+
+De twee momentumtracks wisselen per naam 21,9 keer per jaar van teken.
+
+**Waar het venster niet werd bereikt.** De mediaan over zes namen verbergt dat
+het Sokal-venster bij sommige namen niet binnen 200 lags viel; hun τ is dan een
+ondergrens. Per naam:
+
+| track | BTC | ETH | SOL | AVAX | LINK | DOT |
+|---|---:|---:|---:|---:|---:|---:|
+| `xs_momentum_equal_weight` | 25,5 | 37,5 | ≥ 68,9 | 29,4 | 30,5 | 19,3 |
+| `xs_momentum_risk_parity` | 25,5 | 37,9 | ≥ 58,9 | 31,0 | 31,0 | 20,9 |
+| `long_only_risk_parity` | ≥ 100,6 | ≥ 132,7 | ≥ 97,7 | 24,4 | ≥ 71,6 | 39,5 |
+
+- **Momentum:** alleen SOL is afgekapt, en SOL ligt boven de mediaan. De
+  mediaan (het gemiddelde van de derde en vierde naam, 29,4 en 30,5) hangt er
+  niet van af. **De signaalklok van `xs_momentum_equal_weight` is 30 bars.**
+- **† Risicopariteit long-only:** vier van de zes namen halen het venster niet,
+  en de mediaan valt tussen twee afgekapte waarden. Met 600 lags in plaats van
+  200 (een gevoeligheidscontrole buiten de config; de config zelf blijft
+  staan) dalen die schattingen juist, van 132,7 naar 90,1 bij ETH: de staart
+  van de autocorrelatiefunctie is daar ruis. Het getal van ongeveer 85 bars
+  (ongeveer 4 besluiten per jaar) is dus een ordegrootte en geen meting op één
+  decimaal. De klok van deze track is de EWMA-volatiliteit, niet een signaal.
+
+### 2.1 De beslisklok tegen de signaalklok
+
+`xs_momentum_equal_weight` vormt zijn signaal over 60 bars
+(`conf/model/alpha.yaml`) en herziet het elke bar. Het paneel verandert op 678
+van de 1.390 bars (178 per jaar) en draagt 56,1 eenheden omzet per jaar, terwijl
+de gewichten ongeveer 12 keer per jaar iets onafhankelijks zeggen. **Het boek
+betaalt voor 178 herschikkingen per jaar om 12 besluiten uit te drukken.** Of dat
+verschil een kostenlek is dat de netto Sharpe meetbaar verandert, is vraag V3,
+en stap 7 rekent vóór elke registratie uit of die vraag op deze sample
+beslisbaar is.
+
+### 2.2 H-10.1, verklaard zonder nieuwe meting (stap 3.3)
+
+H-10.1 legde de beslisfrequentie op `long_only_equal_weight`. Dat paneel heeft
+**één** unieke rij, nul wijzigingen en daarmee een temporele breedte van nul:
+τ_int is oneindig, want de reeks zegt na de eerste bar nooit meer iets nieuws.
+Een vasthoudoperatie op zo'n paneel is per constructie de identiteit, en het
+verschil tegen k = 1 is dan exact nul. Dat staat in het H-10.1-rapport als
+gemeten uitkomst.
+
+Wat hier bijkomt, is dat het vóór de registratie uit de gewichtsmatrix te lezen
+was. De pre-registratie voorspelde het zelfs ("vrijwel nul"). De ontbrekende
+stap was de conclusie: een hypothese die per constructie niets kan meten, hoort
+niet geregistreerd te worden. Dat is R-17 van deze fase.
+
+Dit staat in dit rapport en **niet** in de ledger: die is append-only, en het
+oordeel over H-10.1 (`UNPROVEN`) verandert er niet door.

@@ -68,3 +68,26 @@ def test_every_construction_is_measured_on_every_window_and_year(tmp_path: Path)
     assert years == set(IDX.year)
     assert result["first_moments_computed"] is False
     assert all("n_eff" not in row for row in result["rows"])
+
+
+def test_the_signal_clock_is_measured_on_the_development_window_only(tmp_path: Path) -> None:
+    from tradebot.validation.phase11_breadth_measurement import measure_signal_clock
+
+    cfg = breadth_config(ROOT / "conf" / "research" / "breadth.yaml")
+    prices = 100.0 * np.exp(_panel().cumsum())
+    development = split_windows(_panel(), lock_path=_lock(tmp_path))["W_DEV"].index
+    constant = pd.DataFrame(0.25, index=IDX, columns=list("ABCD"))
+    rng = np.random.default_rng(22)
+    blocks = pd.DataFrame(np.repeat(rng.uniform(-1, 1, (len(IDX) // 10 + 1, 4)), 10,
+                                    axis=0)[: len(IDX)], index=IDX, columns=list("ABCD"))
+    result = measure_signal_clock({"constant": constant, "blocks": blocks},
+                                  prices=prices, usable=IDX,
+                                  development_index=development, cfg=cfg,
+                                  bars_per_year=365.0)
+    assert result["window"] == "W_DEV"
+    assert result["tracks"]["constant"]["independent_decisions_per_year"] == 0.0
+    assert result["tracks"]["constant"]["unique_rows"] == 1
+    assert result["tracks"]["blocks"]["n_bars"] == len(development)
+    # instapbar inbegrepen: van nul naar 0,25 op vier namen is omzet 1,0
+    assert result["tracks"]["constant"]["mean_turnover"] == pytest.approx(
+        1.0 / len(development))

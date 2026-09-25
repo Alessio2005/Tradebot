@@ -1,5 +1,5 @@
 {
-  "git_sha": "703acd9",
+  "git_sha": "5f6031c",
   "config": {
     "path": "conf/research/breadth.yaml",
     "sha256": "d35c02de38d948f7f6ae8dd908de7a980a9f7ad1b2d0e8b0f24074dff50447f3"
@@ -676,5 +676,63 @@
     },
     "beta_hedged_ew_note": "b\u00e8ta op het volle venster van elke rij geschat: diagnostiek, geen besluitgrootheid",
     "first_moments_computed": false
+  },
+  "signal_clock": {
+    "window": "W_DEV",
+    "tracks": {
+      "long_only_equal_weight": {
+        "n_bars": 1390,
+        "unique_rows": 1,
+        "bars_with_change": 0,
+        "mean_turnover": 0.0007194244604316548,
+        "turnover_per_year": 0.262589928057554,
+        "ac1_median": null,
+        "tau_int_median": null,
+        "tau_window_reached_all": true,
+        "independent_decisions_per_year": 0.0,
+        "sign_flips_per_name_per_year": 0.0
+      },
+      "long_only_risk_parity": {
+        "n_bars": 1390,
+        "unique_rows": 1390,
+        "bars_with_change": 1389,
+        "mean_turnover": 0.017696892742141684,
+        "turnover_per_year": 6.459365850881714,
+        "ac1_median": 0.9764049721594452,
+        "tau_int_median": 84.65481314098636,
+        "tau_window_reached_all": false,
+        "independent_decisions_per_year": 4.311627259658814,
+        "sign_flips_per_name_per_year": 0.0
+      },
+      "xs_momentum_equal_weight": {
+        "n_bars": 1390,
+        "unique_rows": 284,
+        "bars_with_change": 678,
+        "mean_turnover": 0.15369704236610712,
+        "turnover_per_year": 56.0994204636291,
+        "ac1_median": 0.9464972204457893,
+        "tau_int_median": 29.964600020426595,
+        "tau_window_reached_all": false,
+        "independent_decisions_per_year": 12.181040285910134,
+        "sign_flips_per_name_per_year": 21.926258992805753
+      },
+      "xs_momentum_risk_parity": {
+        "n_bars": 1390,
+        "unique_rows": 1390,
+        "bars_with_change": 1389,
+        "mean_turnover": 0.17694355491054334,
+        "turnover_per_year": 64.58439754234831,
+        "ac1_median": 0.9473375209526236,
+        "tau_int_median": 31.016042496771252,
+        "tau_window_reached_all": false,
+        "independent_decisions_per_year": 11.76810355602254,
+        "sign_flips_per_name_per_year": 21.926258992805753
+      }
+    },
+    "estimator": {
+      "iact_window_c": 5.0,
+      "iact_max_lag": 200
+    },
+    "turnover_source": "backtest/vectorized.py::run_vectorized, cost_per_side=0, tweezijdig, instapbar inbegrepen"
   }
 }

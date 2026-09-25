@@ -25,7 +25,12 @@ from tradebot.features.base import DataRegister
 from tradebot.features.registry import current_git_sha
 from tradebot.schemas.config import inference_config
 from tradebot.validation.breadth import breadth_config
-from tradebot.validation.phase11_breadth_measurement import measure_breadth, split_windows
+from tradebot.validation.phase11_breadth_measurement import (
+    baseline_weight_tracks,
+    measure_breadth,
+    measure_signal_clock,
+    split_windows,
+)
 
 CONF = ROOT / "conf" / "research" / "breadth.yaml"
 LOCK = ROOT / "artefacts" / "governance" / "holdout_lock.json"
@@ -56,6 +61,11 @@ def main(argv: list[str] | None = None) -> int:
         "trials": 0,
         "breadth": measure_breadth(windows, cfg=cfg, n_boot=inf.n_boot, seed=inf.seed,
                                    ci_level=inf.ci_level, block_length=inf.block_length),
+        "signal_clock": measure_signal_clock(
+            baseline_weight_tracks(ROOT, base, git_sha=current_git_sha()),
+            prices=market["prices"], usable=usable,
+            development_index=windows["W_DEV"].index, cfg=cfg,
+            bars_per_year=base["bt"].bars_per_year),
     }
     out = ROOT / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
