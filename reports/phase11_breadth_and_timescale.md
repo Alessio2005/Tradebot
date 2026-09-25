@@ -165,3 +165,37 @@ niet geregistreerd te worden. Dat is R-17 van deze fase.
 
 Dit staat in dit rapport en **niet** in de ledger: die is append-only, en het
 oordeel over H-10.1 (`UNPROVEN`) verandert er niet door.
+
+### 2.3 Eén vasthoudoperatie (stap 4)
+
+De repository kent twee implementaties van "een besluit k bars vasthouden":
+`alpha/momentum.py::CrossSectionalMomentum` met `rebalance_every_bars = k` (houdt
+de signaalexposures vast, kalender vanaf het begin van het featurepaneel) en
+`portfolio/decision_frequency.py::hold_decision` (houdt de gewichten vast,
+blokken vanaf de eerste bar die hij krijgt). `tests/unit/test_hold_equivalence.py`
+legt vast waar dat dezelfde operatie is:
+
+| geval | uitkomst |
+|---|---|
+| gelijkgewogen sizing, gelijk anker | **bit-identiek**: normaliseren per rij laat identieke rijen identiek |
+| risicopariteit, gelijk anker | **ander boek**: de sizing leest een volatiliteit die elke bar verandert |
+| gelijkgewogen, anker drie bars verschoven | **ander boek**: de fase van de kalender verschilt |
+| de geconfigureerde unit (lookback 60, skip 1), k = 10 | **geweigerd door de unit zelf** |
+
+Het laatste geval stond niet in de faseopdracht en is tijdens het schrijven van
+de test gemeten. Met de geconfigureerde lookback is de burn-in 61 bars. De
+bars tussen het einde van de burn-in en de eerste rebalancebar dragen een
+feature, maar hun exposure komt via `ffill` uit een NaN, en de eigen validatie
+van de unit slaat daarop aan. Van alle k van 1 tot en met 61 accepteert de unit
+er twee: **1 en 61**. 61 is priem, dus de vasthoudoptie van de unit is met de
+geconfigureerde lookback voor geen enkele k tussen 2 en 60 bruikbaar.
+
+**Besluit (DI-36):** `hold_decision` is de ene implementatie van "een besluit
+vasthouden". Zij heeft een causaliteitstest met negatieve controle en is door
+H-10.1 gebruikt. `rebalance_every_bars` blijft op 1 en wordt uit de unit
+gehaald zodra een fase de baseline-unit om een andere reden opnieuw afleidt.
+`conf/model/alpha.yaml` is in deze fase niet aangeraakt (fence).
+
+De equivalentietest slaagde bij de eerste run, omdat beide implementaties al
+bestonden (R-11). De zekerheid komt uit een mutatie: vasthouden met k + 1 in
+plaats van k maakt de test rood.
