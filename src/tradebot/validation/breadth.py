@@ -127,7 +127,7 @@ def breadth_config(path: str | Path) -> BreadthConfig:
     return validate_mapping(BreadthConfig, raw["breadth"], source=str(source))
 
 
-def independent_bets(correlation_matrix: np.ndarray) -> float:
+def independent_bets(correlation_matrix: np.ndarray[Any, Any]) -> float:
     """Het aantal onafhankelijke weddenschappen in een correlatiematrix.
 
     De participatieratio van de eigenwaarden, begrensd door de rang. De
@@ -216,16 +216,17 @@ class BreadthRow:
         return asdict(self)
 
 
-def _cross_product_series(values: np.ndarray) -> np.ndarray:
+def _cross_product_series(values: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """De reeks waarvan het gemiddelde rho_bar is: per bar het gemiddelde van
     z_i * z_j over de paren i < j. Haar afhankelijkheid in de tijd is die van
     de correlatieschatting, en dus de reeks waarop de bloklengte hoort."""
     z = (values - values.mean(axis=0)) / values.std(axis=0, ddof=1)
     upper = np.triu_indices(values.shape[1], k=1)
-    return (z[:, :, None] * z[:, None, :])[:, upper[0], upper[1]].mean(axis=1)
+    return np.asarray((z[:, :, None] * z[:, None, :])[:, upper[0], upper[1]].mean(axis=1),
+                      dtype=np.float64)
 
 
-def _design_effect_or_none(corr: np.ndarray) -> float | None:
+def _design_effect_or_none(corr: np.ndarray[Any, Any]) -> float | None:
     try:
         return float(effective_breadth(corr))
     except DataContractError:
@@ -393,7 +394,7 @@ class WallSimulation:
 
 
 def simulate_wall(
-    covariance: np.ndarray,
+    covariance: np.ndarray[Any, Any],
     *,
     construction: str,
     ic: float,
