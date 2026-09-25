@@ -1,13 +1,14 @@
 # src/tradebot/validation/phase11_breadth_measurement.py
-"""Fase 11, breedte en tijdschaal — de meetcampagne van stages A en B.
+"""Fase 11, breedte en tijdschaal — de meetcampagne van stages A t/m D.
 
 WAT HIER WOONT EN WAT NIET
 ==========================
 `validation/breadth.py` bevat de DEFINITIES (constructies, onafhankelijke
 weddenschappen, het ontwerpeffect onder zijn eigen naam) en
-`validation/signal_clock.py` de klok van een besluitpaneel. Dit bestand zet ze
-over de vensters en de jaren heen en maakt er één artefact van. Er staat hier
-geen nieuwe statistiek (R-3).
+`validation/signal_clock.py` de klok van een besluitpaneel, en
+`validation/phase11_decision_clock_feasibility.py` de poort van stap 7. Dit
+bestand zet ze over de vensters en de jaren heen en maakt er één artefact van.
+Er staat hier geen nieuwe statistiek (R-3).
 
 DE VENSTERS WORDEN AFGELEID, NIET GEDEFINIEERD
 ==============================================
@@ -27,12 +28,14 @@ Niets hier gaat door de risicolaag. Het artefact draagt daarom geen
 """
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from ..backtest.baseline_runner import CostModel
 from ..backtest.vectorized import run_vectorized
 from ..utils.failfast import DataContractError, require
 from .breadth import (
@@ -45,11 +48,17 @@ from .breadth import (
     t_hurdle_sharpe,
 )
 from .holdout import development_slice
+from .phase11_decision_clock_feasibility import (
+    ladder_cost_mix,
+    measure_feasibility,
+    policy_book_scales,
+)
 from .signal_clock import decision_panel_clock
 
 __all__ = [
     "baseline_weight_tracks",
     "build_artefact",
+    "k_star_from_clock",
     "measure_breadth",
     "measure_signal_clock",
     "measure_wall",
@@ -86,8 +95,8 @@ def measure_breadth(
     block_length: int | None,
 ) -> dict[str, Any]:
     """Elke constructie op elk venster, en op elk kalenderjaar van `W_FULL`."""
-    kwargs = {"n_boot": n_boot, "seed": seed, "ci_level": ci_level,
-              "block_length": block_length}
+    kwargs: dict[str, Any] = {"n_boot": n_boot, "seed": seed, "ci_level": ci_level,
+                              "block_length": block_length}
     rows = [
         {"window": name, **breadth_measurement(
             construct(panel, construction), construction=construction, **kwargs
@@ -254,6 +263,21 @@ def measure_wall(
     }
 
 
+def k_star_from_clock(row: dict[str, Any]) -> int:
+    """k* = ⌈τ_int⌉ van het besluitpaneel, alleen als die mediaan een meting is.
+
+    Een naam waarvan het Sokal-venster niet is bereikt, mag boven de mediaan
+    liggen (`signal_clock.median_is_determined`); een mediaan die zelf een
+    ondergrens is, levert geen k*.
+    """
+    tau = float(row["tau_int_median"])
+    require(math.isfinite(tau) and bool(row["tau_median_determined"]),
+            "De signaalklok van de primaire cel is niet eindig, of haar mediaan "
+            "hangt af van een afgekapte naam; dan is er geen k* en geen "
+            "hypothese om te toetsen.", DataContractError, tau=tau)
+    return int(math.ceil(tau))
+
+
 def build_artefact(
     root: Path,
     *,
@@ -263,29 +287,51 @@ def build_artefact(
     inference: Any,
     lock_path: Path,
     m_new: int,
+    current_policy_hash: str,
     git_sha: str,
     provenance: dict[str, Any],
 ) -> dict[str, Any]:
-    """Stage A t/m C in één artefact: breedte, signaalklok en muur."""
+    """Stage A t/m D in één artefact: breedte, signaalklok, muur en de poort van stap 7."""
     usable = market["sigma"].dropna(how="any").index
     usable = usable[usable.isin(market["adv"].dropna(how="any").index)]
     windows = split_windows(np.log(market["prices"]).diff().loc[usable], lock_path=lock_path)
     bars_per_year = float(base["bt"].bars_per_year)
     breadth = measure_breadth(windows, cfg=cfg, n_boot=inference.n_boot, seed=inference.seed,
                               ci_level=inference.ci_level, block_length=inference.block_length)
+    tracks = baseline_weight_tracks(root, base, git_sha=git_sha)
+    clock = measure_signal_clock(tracks, prices=market["prices"], usable=usable,
+                                 development_index=windows["W_DEV"].index, cfg=cfg,
+                                 bars_per_year=bars_per_year)
+    wall = measure_wall(windows, breadth, cfg=cfg, bars_per_year=bars_per_year,
+                        m_new=m_new, dsr_target=1.0 - float(base["val"].dsr_alpha))
+    feas = cfg.feasibility
+    ladder = {**ladder_cost_mix(root / feas.ladder_artefact, track=feas.primary_track),
+              "artefact": feas.ladder_artefact}
+    cost = CostModel(taker_fee_bps=base["exec"].taker_fee_bps,
+                     half_spread_bps=base["exec"].assumed_half_spread_bps,
+                     is_provisional=base["exec"].cost_assumption_is_provisional)
+    feasibility = measure_feasibility(
+        tracks, prices=market["prices"], usable=usable, development=windows["W_DEV"],
+        cfg=feas, k_star=k_star_from_clock(clock["tracks"][feas.primary_track]),
+        cost_per_side=cost.per_side, ladder=ladder,
+        scales=policy_book_scales(
+            root / "artefacts/governance/risk_config_registry.json",
+            ladder_hash=ladder["risk_policy_hash"], current_hash=current_policy_hash,
+            ladder_mean_gross=ladder["mean_gross_l1"]),
+        current_policy_hash=current_policy_hash,
+        sr_level_required=wall["hurdles"]["W_DEV"]["dsr"], bars_per_year=bars_per_year,
+        ci_level=inference.ci_level)
     return {
         "git_sha": git_sha,
         **provenance,
         "inference": {"n_boot": inference.n_boot, "seed": inference.seed,
                       "ci_level": inference.ci_level, "block_length": inference.block_length},
         "risk_policy_hash": None,
-        "risk_policy_note": "geen risicobesluit: alles hier is L0/data (AD-27 n.v.t.)",
+        "risk_policy_note": "geen risicobesluit: alles hier is L0/data (AD-27 n.v.t.); "
+                            "de poort van stap 7 citeert de ladder met haar eigen beleid",
         "trials": 0,
         "breadth": breadth,
-        "signal_clock": measure_signal_clock(
-            baseline_weight_tracks(root, base, git_sha=git_sha), prices=market["prices"],
-            usable=usable, development_index=windows["W_DEV"].index, cfg=cfg,
-            bars_per_year=bars_per_year),
-        "wall": measure_wall(windows, breadth, cfg=cfg, bars_per_year=bars_per_year,
-                             m_new=m_new, dsr_target=1.0 - float(base["val"].dsr_alpha)),
+        "signal_clock": clock,
+        "wall": wall,
+        "feasibility": feasibility,
     }

@@ -20,6 +20,7 @@ import pytest
 
 from tradebot.utils.failfast import DataContractError
 from tradebot.validation.signal_clock import (
+    IactResult,
     decision_panel_clock,
     integrated_autocorrelation_time,
 )
@@ -103,3 +104,35 @@ def test_a_blockwise_panel_has_a_clock_near_its_block() -> None:
     assert clock.bars_with_change == pytest.approx(20_000 / 20, rel=0.02)
     assert clock.independent_decisions_per_year == pytest.approx(
         365.0 / clock.tau_int_median)
+
+
+def _results(taus: list[float], truncated: set[int]) -> list[IactResult]:
+    return [IactResult(tau=t, lags_used=200, window_reached=i not in truncated)
+            for i, t in enumerate(taus)]
+
+
+@pytest.mark.parametrize(("truncated", "determined"), [
+    (set(), True),     # niets afgekapt
+    ({5}, True),       # de hoogste is een ondergrens: de mediaan hangt er niet van af
+    ({4, 5}, True),
+    ({3}, False),      # de bovenste mediaannaam zelf is een ondergrens
+    ({0}, False),      # een ondergrens onder de mediaan kan haar verschuiven
+])
+def test_the_median_is_determined_only_when_every_lower_bound_lies_above_it(
+    truncated: set[int], determined: bool,
+) -> None:
+    from tradebot.validation.signal_clock import median_is_determined
+
+    results = _results([10.0, 20.0, 30.0, 40.0, 50.0, 60.0], truncated)
+    assert median_is_determined(results) is determined
+
+
+def test_the_panel_clock_reports_every_name_and_whether_its_median_holds() -> None:
+    panel = _blocks(20, 5_000, 4)
+    turnover = panel.diff().abs().sum(axis=1).fillna(0.0)
+    clock = decision_panel_clock(panel, turnover=turnover, window_c=WINDOW_C,
+                                 max_lag=MAX_LAG, bars_per_year=365.0)
+    assert sorted(clock.tau_int_by_name) == sorted(panel.columns)
+    assert clock.tau_median_determined is True
+    assert clock.tau_int_median == pytest.approx(
+        float(np.median(list(clock.tau_int_by_name.values()))))

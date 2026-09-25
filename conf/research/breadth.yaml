@@ -48,3 +48,17 @@ breadth:
     # Aantal synthetische nul-rendementspaden voor de detectiegrens van stap 7.2.
     null_paths: 200
     null_seed: 20260926
+    # Bootstrapreplicaties PER nulpad. De detectiegrens gebruikt de analytische
+    # Ledoit-Wolf-SE van de kern, die niet van dit getal afhangt; het bestaat
+    # alleen omdat sharpe_difference_test altijd ook zijn interval bootstrapt.
+    # Toegevoegd vóór de eerste meting van stap 7 (10.000 per pad zou 25
+    # minuten kosten voor een getal dat niet wordt gebruikt).
+    null_n_boot: 200
+    # De ladder waarvan stap 7 de L3-kostenmix leest. De poort hoort te staan op
+    # de ladder onder het geldende beleid, artefacts/baseline/phase11_revaluation.json
+    # van de zusterfase; zolang die niet op main staat, is dit de ladder die er
+    # is, en rekent de module met de boekschalen uit het beleidsregister. Stap
+    # 7.1 is: dit pad vervangen en de app opnieuw draaien. Het vereiste beleid
+    # staat hier NIET: het is de hash van conf/risk/default.yaml, en wordt
+    # daaruit berekend.
+    ladder_artefact: artefacts/baseline/phase5_revaluation.json

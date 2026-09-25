@@ -1,4 +1,4 @@
-"""Fase 11, breedte en tijdschaal — stages A t/m C: breedte, signaalklok en muur.
+"""Fase 11, breedte en tijdschaal — stages A t/m D: breedte, klok, muur en poort.
 
 Nul trials: alleen tweede momenten, besluitpanelen en synthetische rendementen,
 geen enkel gemiddeld rendement. Alle logica staat in
@@ -24,7 +24,8 @@ from tradebot.backtest.baseline_report import json_safe, load_baseline_configs
 from tradebot.features.base import DataRegister
 from tradebot.features.registry import current_git_sha
 from tradebot.registry.ledger_reset import active_trial_count
-from tradebot.schemas.config import inference_config
+from tradebot.risk.engine import risk_config_hash
+from tradebot.schemas.config import RiskConfig, inference_config, load_config
 from tradebot.validation.breadth import breadth_config
 from tradebot.validation.phase11_breadth_measurement import build_artefact
 
@@ -50,7 +51,9 @@ def main(argv: list[str] | None = None) -> int:
     payload = build_artefact(
         ROOT, market=load_market(ROOT, base), base=base, cfg=breadth_config(CONF),
         inference=inference_config(), lock_path=GOV / "holdout_lock.json",
-        m_new=trials.total, git_sha=current_git_sha(), provenance=provenance)
+        m_new=trials.total, git_sha=current_git_sha(), provenance=provenance,
+        current_policy_hash=risk_config_hash(
+            load_config(ROOT / "conf/risk/default.yaml", RiskConfig)))
     out = ROOT / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(json_safe(payload), indent=2) + "\n", encoding="utf-8")

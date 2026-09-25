@@ -94,6 +94,8 @@ class FeasibilityConfig(StrictModel):
     reference_k: PositiveInt
     null_paths: PositiveInt
     null_seed: int
+    null_n_boot: PositiveInt
+    ladder_artefact: str
 
 
 class BreadthConfig(StrictModel):

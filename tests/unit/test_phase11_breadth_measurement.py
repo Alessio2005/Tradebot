@@ -115,3 +115,14 @@ def test_the_wall_follows_its_preregistered_decision_rule(tmp_path: Path) -> Non
                 assert row["wall"][key] == value / block["correction"]
         first, last = block["table"][0], block["table"][-1]
         assert last["formula"]["dsr_W_DEV"] > first["formula"]["dsr_W_DEV"]
+
+
+def test_k_star_is_the_ceiling_of_the_clock_and_needs_a_determined_median() -> None:
+    from tradebot.utils.failfast import DataContractError
+    from tradebot.validation.phase11_breadth_measurement import k_star_from_clock
+
+    assert k_star_from_clock({"tau_int_median": 29.9646, "tau_median_determined": True}) == 30
+    for row in ({"tau_int_median": float("inf"), "tau_median_determined": True},
+                {"tau_int_median": 12.0, "tau_median_determined": False}):
+        with pytest.raises(DataContractError):
+            k_star_from_clock(row)

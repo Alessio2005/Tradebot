@@ -39,7 +39,13 @@ import pandas as pd
 
 from ..utils.failfast import DataContractError, require
 
-__all__ = ["ClockRow", "IactResult", "decision_panel_clock", "integrated_autocorrelation_time"]
+__all__ = [
+    "ClockRow",
+    "IactResult",
+    "decision_panel_clock",
+    "integrated_autocorrelation_time",
+    "median_is_determined",
+]
 
 
 @dataclass(frozen=True)
@@ -53,17 +59,17 @@ class IactResult:
     window_reached: bool
 
 
-def _autocorrelations(x: np.ndarray, max_lag: int) -> np.ndarray:
+def _autocorrelations(x: np.ndarray[Any, Any], max_lag: int) -> np.ndarray[Any, Any]:
     centred = x - x.mean()
     n = centred.size
     size = 1 << (2 * n - 1).bit_length()
     spectrum = np.fft.rfft(centred, n=size)
     acov = np.fft.irfft(spectrum * np.conj(spectrum), n=size)[: max_lag + 1]
-    return acov / acov[0]
+    return np.asarray(acov / acov[0], dtype=np.float64)
 
 
 def integrated_autocorrelation_time(
-    series: np.ndarray, *, window_c: float, max_lag: int
+    series: np.ndarray[Any, Any], *, window_c: float, max_lag: int
 ) -> IactResult:
     """`tau_int` van één reeks met het automatische venster van Sokal."""
     x = np.asarray(series, dtype=np.float64)
@@ -101,14 +107,34 @@ class ClockRow:
     turnover_per_year: float
     ac1_median: float | None
     tau_int_median: float
-    #: False wanneer bij minstens één naam het venster niet is bereikt: de
-    #: mediaan is dan (mede) op een ondergrens gebaseerd.
+    #: False wanneer bij minstens één naam het venster niet is bereikt.
     tau_window_reached_all: bool
+    #: True wanneer de mediaan niet van een ondergrens afhangt (zie
+    #: `median_is_determined`). Dit, en niet `tau_window_reached_all`, beslist
+    #: of de mediaan een meting is.
+    tau_median_determined: bool
+    tau_int_by_name: dict[str, float]
+    window_reached_by_name: dict[str, bool]
     independent_decisions_per_year: float
     sign_flips_per_name_per_year: float
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def median_is_determined(results: list[IactResult]) -> bool:
+    """Hangt de mediaan van `tau` af van een naam waarvan `tau` een ondergrens is?
+
+    Een afgekapte `tau` is een ondergrens: de werkelijke waarde ligt er op of
+    boven. Ligt zo'n ondergrens STRIKT boven de bovenste naam die de mediaan
+    bepaalt (bij een even aantal de hoogste van de middelste twee), dan ligt de
+    werkelijke waarde daar ook boven, en schuift de mediaan niet. In elk ander
+    geval kan zij schuiven, en is de mediaan zelf een ondergrens.
+    """
+    if not results:
+        return True
+    upper_median = float(np.sort([r.tau for r in results])[len(results) // 2])
+    return all(r.window_reached or r.tau > upper_median for r in results)
 
 
 def decision_panel_clock(
@@ -145,6 +171,10 @@ def decision_panel_clock(
         if moving else None,
         tau_int_median=tau_median,
         tau_window_reached_all=all(t.window_reached for t in taus),
+        tau_median_determined=median_is_determined(taus),
+        tau_int_by_name={str(c): float(t.tau) for c, t in zip(moving, taus, strict=True)},
+        window_reached_by_name={str(c): bool(t.window_reached)
+                                for c, t in zip(moving, taus, strict=True)},
         independent_decisions_per_year=0.0 if math.isinf(tau_median)
         else float(bars_per_year) / tau_median,
         sign_flips_per_name_per_year=float(flips / weights.shape[1] / years),
