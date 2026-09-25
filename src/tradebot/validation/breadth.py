@@ -50,6 +50,7 @@ __all__ = [
     "BreadthConfig",
     "BreadthRow",
     "WallSimulation",
+    "assert_ic_wall_declared",
     "breadth_config",
     "breadth_measurement",
     "construct",
@@ -437,3 +438,62 @@ def simulate_wall(
         sharpe=sharpe, law_sharpe=law, ratio=sharpe / law, independent_bets=bets,
         n_obs=int(n_obs), seed=int(seed),
     )
+
+
+# --------------------------------------------------------------------------- #
+# Stap 6 — AD-29: een pre-registratie noemt haar breedte, horizon en muur.
+# --------------------------------------------------------------------------- #
+_IC_WALL_FIELDS = ("construction", "n_names", "independent_bets", "horizon_bars",
+                   "bars_per_year", "sr_required", "required_ic", "ic_evidence")
+
+
+def assert_ic_wall_declared(preregistration: Any) -> None:
+    """Crash wanneer een pre-registratie haar IC-muur niet noemt (AD-29).
+
+    ADDITIEF: nieuwe apps roepen deze controle aan vóór
+    `registry/preregistration.py::freeze_preregistration`; zij zit daar niet in
+    ingebouwd en werkt niet met terugwerkende kracht (DI-37). Het blok
+    `ic_wall` noemt de constructie, de breedte, de horizon, de drempel en de IC
+    die daaruit volgt, plus waar de aannemelijkheid van die IC vandaan komt.
+    Twee controles naast de volledigheid:
+
+    * de breedte is niet groter dan het aantal namen: 123,58 weddenschappen op
+      zes namen (DI-35) bestaat niet;
+    * de opgegeven IC volgt uit de eigen getallen van het blok, zodat hij niet
+      naar een gewenste waarde kan worden afgerond.
+
+    Het is de les van H-10.1 en H-10.3 als poort: een hypothese waarvan vooraf
+    uit te rekenen is dat zij niets kan meten of niet te halen is, hoort dat
+    vóór haar registratie te laten zien.
+    """
+    block = preregistration.get("ic_wall") if hasattr(preregistration, "get") else None
+    require(
+        isinstance(block, dict),
+        "De pre-registratie mist het blok `ic_wall` (AD-29): de constructie, de "
+        "breedte, de horizon en de IC die de poort daarbij vraagt.",
+        DataContractError,
+    )
+    assert isinstance(block, dict)
+    missing = [field for field in _IC_WALL_FIELDS if field not in block]
+    require(not missing, "Het blok `ic_wall` is onvolledig.", DataContractError,
+            missing=missing)
+    require(
+        0.0 < float(block["independent_bets"]) <= float(block["n_names"]),
+        "De opgegeven breedte ligt niet tussen nul en het aantal namen. Een breedte "
+        "boven het aantal namen is het ontwerpeffect en geen breedte (DI-35).",
+        DataContractError, independent_bets=block["independent_bets"],
+        n_names=block["n_names"],
+    )
+    implied = required_ic(float(block["sr_required"]),
+                          independent_bets=float(block["independent_bets"]),
+                          horizon_bars=int(block["horizon_bars"]),
+                          bars_per_year=float(block["bars_per_year"]))
+    require(
+        math.isclose(float(block["required_ic"]), implied, rel_tol=1e-6),
+        "De opgegeven IC volgt niet uit de eigen breedte, horizon en drempel van "
+        "het blok. Reken haar uit met `required_ic`; rond haar niet af.",
+        DataContractError, declared=block["required_ic"], implied=implied,
+    )
+    require(bool(str(block["ic_evidence"]).strip()),
+            "`ic_evidence` is leeg: zeg waar de aannemelijkheid van deze IC vandaan "
+            "komt, of dat die er niet is.", DataContractError)

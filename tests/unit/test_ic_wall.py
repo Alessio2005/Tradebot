@@ -83,3 +83,56 @@ def test_an_impossible_ic_is_refused() -> None:
     with pytest.raises(DataContractError):
         simulate_wall(np.eye(4), construction="directional", ic=1.5, n_obs=100, seed=1,
                       bars_per_year=365.0)
+
+
+# --------------------------------------------------------------------------- #
+# Stap 6 — AD-29: een pre-registratie noemt haar breedte, horizon en muur.
+# --------------------------------------------------------------------------- #
+def _declaration(**overrides: object) -> dict[str, object]:
+    ic = required_ic(1.8686, independent_bets=4.353, horizon_bars=30, bars_per_year=365.0)
+    base: dict[str, object] = {
+        "construction": "dollar_neutral", "n_names": 6, "independent_bets": 4.353,
+        "horizon_bars": 30, "bars_per_year": 365.0, "sr_required": 1.8686,
+        "required_ic": ic, "ic_evidence": "geen: dit is precies wat de hypothese toetst",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_a_complete_and_consistent_declaration_passes() -> None:
+    from tradebot.validation.breadth import assert_ic_wall_declared
+
+    assert_ic_wall_declared({"ic_wall": _declaration()})
+
+
+@pytest.mark.parametrize("missing", ["construction", "independent_bets", "horizon_bars",
+                                     "sr_required", "required_ic", "ic_evidence"])
+def test_a_declaration_without_a_field_is_refused(missing: str) -> None:
+    from tradebot.validation.breadth import assert_ic_wall_declared
+
+    declaration = _declaration()
+    del declaration[missing]
+    with pytest.raises(DataContractError):
+        assert_ic_wall_declared({"ic_wall": declaration})
+
+
+def test_a_preregistration_without_the_block_is_refused() -> None:
+    from tradebot.validation.breadth import assert_ic_wall_declared
+
+    with pytest.raises(DataContractError):
+        assert_ic_wall_declared({"hypothesis": "iets"})
+
+
+def test_breadth_above_the_number_of_names_is_refused() -> None:
+    """De les van DI-35: 123,58 weddenschappen op zes namen bestaat niet."""
+    from tradebot.validation.breadth import assert_ic_wall_declared
+
+    with pytest.raises(DataContractError):
+        assert_ic_wall_declared({"ic_wall": _declaration(independent_bets=123.58)})
+
+
+def test_a_required_ic_that_does_not_follow_from_its_own_numbers_is_refused() -> None:
+    from tradebot.validation.breadth import assert_ic_wall_declared
+
+    with pytest.raises(DataContractError):
+        assert_ic_wall_declared({"ic_wall": _declaration(required_ic=0.05)})
