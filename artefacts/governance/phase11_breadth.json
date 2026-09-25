@@ -1,0 +1,680 @@
+{
+  "git_sha": "703acd9",
+  "config": {
+    "path": "conf/research/breadth.yaml",
+    "sha256": "d35c02de38d948f7f6ae8dd908de7a980a9f7ad1b2d0e8b0f24074dff50447f3"
+  },
+  "inference": {
+    "n_boot": 10000,
+    "seed": 20260905,
+    "ci_level": 0.95,
+    "block_length": null
+  },
+  "data_hashes": {
+    "crypto/ohlcv/AVAXUSDT/1d": "af05b4f95d0e282111641f85904c22f9",
+    "crypto/ohlcv/BTCUSDT/1d": "4f21f2c7ab071ddc19da5eb3f38172f3",
+    "crypto/ohlcv/DOTUSDT/1d": "17be1f4206997f12fd7e1825f123299b",
+    "crypto/ohlcv/ETHUSDT/1d": "d67c9bb18b2c794ba416067556227a5a",
+    "crypto/ohlcv/LINKUSDT/1d": "8d6a82f316253c2626d016bbbad804d4",
+    "crypto/ohlcv/SOLUSDT/1d": "1d64b001993b575f34ef04ce548616c5",
+    "crypto/open_interest/AVAXUSDT/1d": "5f642bd6e318ad795103682c530dd952",
+    "crypto/open_interest/BTCUSDT/1d": "4fe481c71f8237e9ba2bbd80f0d84e96",
+    "crypto/open_interest/DOTUSDT/1d": "1795c58ed7ab641fd80219a26272b313",
+    "crypto/open_interest/ETHUSDT/1d": "be986e9314c9f28ef3fd147b01bfefd4",
+    "crypto/open_interest/LINKUSDT/1d": "9024d7e536d7ced7e8e23a4dc97eb952",
+    "crypto/open_interest/SOLUSDT/1d": "9267e0accf0055a1cba7c9db1ab5d4e2"
+  },
+  "risk_policy_hash": null,
+  "risk_policy_note": "geen risicobesluit: alles hier is L0/data (AD-27 n.v.t.)",
+  "trials": 0,
+  "breadth": {
+    "windows": {
+      "W_DEV": {
+        "n_obs": 1390,
+        "first": "2021-11-15",
+        "last": "2025-09-04"
+      },
+      "W_GATE": {
+        "n_obs": 353,
+        "first": "2025-09-05",
+        "last": "2026-08-23"
+      },
+      "W_FULL": {
+        "n_obs": 1743,
+        "first": "2021-11-15",
+        "last": "2026-08-23"
+      }
+    },
+    "rows": [
+      {
+        "window": "W_DEV",
+        "construction": "directional",
+        "n_obs": 1390,
+        "n_names": 6,
+        "rank": 6,
+        "rho_bar": 0.7403480091096143,
+        "independent_bets": 1.6005632555018363,
+        "independent_bets_ci": [
+          1.5163751826748229,
+          1.684353545552316
+        ],
+        "design_effect": 1.2761232951790284,
+        "design_effect_ci": [
+          1.239710428882223,
+          1.312369467375218
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "window": "W_DEV",
+        "construction": "dollar_neutral",
+        "n_obs": 1390,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.1902896988557485,
+        "independent_bets": 4.352846756184167,
+        "independent_bets_ci": [
+          4.143747761482508,
+          4.499723377200599
+        ],
+        "design_effect": 123.58010139679362,
+        "design_effect_ci": [
+          45.603389324509465,
+          335.91093805795225
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "window": "W_DEV",
+        "construction": "beta_hedged_ew",
+        "n_obs": 1390,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.18717612902475828,
+        "independent_bets": 4.614626380534818,
+        "independent_bets_ci": [
+          4.436821443081258,
+          4.716507998611762
+        ],
+        "design_effect": 93.57548920421662,
+        "design_effect_ci": [
+          47.05816932305811,
+          167.98121499678857
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 7,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "window": "W_GATE",
+        "construction": "directional",
+        "n_obs": 353,
+        "n_names": 6,
+        "rank": 6,
+        "rho_bar": 0.8200128734128712,
+        "independent_bets": 1.368745574554958,
+        "independent_bets_ci": [
+          1.2964474044135963,
+          1.4676584762796032
+        ],
+        "design_effect": 1.1764557401956193,
+        "design_effect_ci": [
+          1.1429923642206201,
+          1.2214944763887796
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "window": "W_GATE",
+        "construction": "dollar_neutral",
+        "n_obs": 353,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.18301903331362826,
+        "independent_bets": 3.8011900322666143,
+        "independent_bets_ci": [
+          3.1422280675514456,
+          4.336351584459236
+        ],
+        "design_effect": 70.66735493704682,
+        "design_effect_ci": [
+          40.335841595552466,
+          137.76673417630096
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "window": "W_GATE",
+        "construction": "beta_hedged_ew",
+        "n_obs": 353,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.17517195738177366,
+        "independent_bets": 3.7626200419376454,
+        "independent_bets_ci": [
+          3.2708769975910053,
+          4.156817016240009
+        ],
+        "design_effect": 48.332444826684636,
+        "design_effect_ci": [
+          30.050322743462086,
+          82.68709977164187
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "window": "W_FULL",
+        "construction": "directional",
+        "n_obs": 1743,
+        "n_names": 6,
+        "rank": 6,
+        "rho_bar": 0.748456344151614,
+        "independent_bets": 1.575508929808124,
+        "independent_bets_ci": [
+          1.503044374426718,
+          1.6474655897635238
+        ],
+        "design_effect": 1.2652137416755744,
+        "design_effect_ci": [
+          1.233690472677346,
+          1.296579748829782
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "window": "W_FULL",
+        "construction": "dollar_neutral",
+        "n_obs": 1743,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.19305197734459736,
+        "independent_bets": 4.363630613636039,
+        "independent_bets_ci": [
+          4.172415187153564,
+          4.503434194743008
+        ],
+        "design_effect": 172.71100851504914,
+        "design_effect_ci": [
+          59.693662093619686,
+          501.8507636995146
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 6,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "window": "W_FULL",
+        "construction": "beta_hedged_ew",
+        "n_obs": 1743,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.18905770642182926,
+        "independent_bets": 4.572564363109224,
+        "independent_bets_ci": [
+          4.41460193701657,
+          4.674250643220478
+        ],
+        "design_effect": 109.66622229858034,
+        "design_effect_ci": [
+          55.383073985472166,
+          188.98134004803734
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 7,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      }
+    ],
+    "per_year": [
+      {
+        "year": 2021,
+        "construction": "directional",
+        "n_obs": 47,
+        "n_names": 6,
+        "rank": 6,
+        "rho_bar": 0.7193825578810567,
+        "independent_bets": 1.6351835352360826,
+        "independent_bets_ci": [
+          1.3967579847886815,
+          1.9325246500770312
+        ],
+        "design_effect": 1.3052238045125582,
+        "design_effect_ci": [
+          1.193598805619328,
+          1.4574448223105156
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2021,
+        "construction": "dollar_neutral",
+        "n_obs": 47,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.16369089557093713,
+        "independent_bets": 3.9501471486715767,
+        "independent_bets_ci": [
+          3.345390581118481,
+          4.171115931326261
+        ],
+        "design_effect": 33.04956205528123,
+        "design_effect_ci": [
+          15.756262113008493,
+          77.29456373860846
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2021,
+        "construction": "beta_hedged_ew",
+        "n_obs": 47,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.14646860732188233,
+        "independent_bets": 4.1363939970375085,
+        "independent_bets_ci": [
+          3.410345391057778,
+          4.368514405218768
+        ],
+        "design_effect": 22.41675286155092,
+        "design_effect_ci": [
+          12.131016104840011,
+          51.345815262856036
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2022,
+        "construction": "directional",
+        "n_obs": 365,
+        "n_names": 6,
+        "rank": 6,
+        "rho_bar": 0.7980763904268611,
+        "independent_bets": 1.4302751478338673,
+        "independent_bets_ci": [
+          1.3373257124650246,
+          1.5004107563272742
+        ],
+        "design_effect": 1.2023127803742353,
+        "design_effect_ci": [
+          1.1603072814559232,
+          1.2342790179243168
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2022,
+        "construction": "dollar_neutral",
+        "n_obs": 365,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.17420241209771506,
+        "independent_bets": 4.131406383170913,
+        "independent_bets_ci": [
+          3.514734019094312,
+          4.440476059951282
+        ],
+        "design_effect": 46.515976786097646,
+        "design_effect_ci": [
+          13.449924146855217,
+          635.9528488209681
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2022,
+        "construction": "beta_hedged_ew",
+        "n_obs": 365,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.17557941326038654,
+        "independent_bets": 4.4740901693282416,
+        "independent_bets_ci": [
+          3.987038333355846,
+          4.676873826674462
+        ],
+        "design_effect": 49.13886847990589,
+        "design_effect_ci": [
+          17.342348958692416,
+          230.69059370381257
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2023,
+        "construction": "directional",
+        "n_obs": 365,
+        "n_names": 6,
+        "rank": 6,
+        "rho_bar": 0.6533885056088278,
+        "independent_bets": 1.900017355273934,
+        "independent_bets_ci": [
+          1.6802441594044915,
+          2.14762460364997
+        ],
+        "design_effect": 1.4061590847698275,
+        "design_effect_ci": [
+          1.3127307129793846,
+          1.5162406683417111
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2023,
+        "construction": "dollar_neutral",
+        "n_obs": 365,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.18154828432262557,
+        "independent_bets": 3.924824647283366,
+        "independent_bets_ci": [
+          3.61244521691347,
+          4.124066204554106
+        ],
+        "design_effect": 65.03460279693368,
+        "design_effect_ci": [
+          35.64882687886364,
+          119.02707390844805
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 8,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2023,
+        "construction": "beta_hedged_ew",
+        "n_obs": 365,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.1789955257060328,
+        "independent_bets": 4.371010466707049,
+        "independent_bets_ci": [
+          4.0660394359781185,
+          4.517958479471975
+        ],
+        "design_effect": 57.13068478674844,
+        "design_effect_ci": [
+          35.57950870534747,
+          87.01938575719585
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 7,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2024,
+        "construction": "directional",
+        "n_obs": 366,
+        "n_names": 6,
+        "rank": 6,
+        "rho_bar": 0.6981950642136837,
+        "independent_bets": 1.7377914631002433,
+        "independent_bets_ci": [
+          1.5381159414988033,
+          1.977610226295444
+        ],
+        "design_effect": 1.33601268567483,
+        "design_effect_ci": [
+          1.2494088362607094,
+          1.4422359223400194
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2024,
+        "construction": "dollar_neutral",
+        "n_obs": 366,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.1961004088376928,
+        "independent_bets": 4.116137759747381,
+        "independent_bets_ci": [
+          3.58353644122302,
+          4.451051186983181
+        ],
+        "design_effect": 307.7245665132795,
+        "design_effect_ci": [
+          119.33005645122749,
+          840.7260904684246
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2024,
+        "construction": "beta_hedged_ew",
+        "n_obs": 366,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.19236628667567335,
+        "independent_bets": 4.401162716394307,
+        "independent_bets_ci": [
+          3.9273929511425743,
+          4.6353814405146805
+        ],
+        "design_effect": 157.19741481199105,
+        "design_effect_ci": [
+          79.82720541212613,
+          306.6548268383238
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2025,
+        "construction": "directional",
+        "n_obs": 365,
+        "n_names": 6,
+        "rank": 6,
+        "rho_bar": 0.8074848887690524,
+        "independent_bets": 1.4055625744939018,
+        "independent_bets_ci": [
+          1.3195897913286534,
+          1.5222799107969174
+        ],
+        "design_effect": 1.1910848622912478,
+        "design_effect_ci": [
+          1.1523789632468968,
+          1.2437585255954327
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2025,
+        "construction": "dollar_neutral",
+        "n_obs": 365,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.19742241178283393,
+        "independent_bets": 4.291815429768183,
+        "independent_bets_ci": [
+          3.691696446962439,
+          4.650598039199334
+        ],
+        "design_effect": 465.5514763794737,
+        "design_effect_ci": [
+          171.89450280141176,
+          696.707626198681
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2025,
+        "construction": "beta_hedged_ew",
+        "n_obs": 365,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.19293772873816586,
+        "independent_bets": 4.462468640170571,
+        "independent_bets_ci": [
+          4.030511722992805,
+          4.7171275504058645
+        ],
+        "design_effect": 169.91700764668,
+        "design_effect_ci": [
+          88.7146150752833,
+          286.7383497594492
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2026,
+        "construction": "directional",
+        "n_obs": 235,
+        "n_names": 6,
+        "rank": 6,
+        "rho_bar": 0.826331386095601,
+        "independent_bets": 1.3512269277190734,
+        "independent_bets_ci": [
+          1.2519498318583484,
+          1.4849912752979615
+        ],
+        "design_effect": 1.1692130010415778,
+        "design_effect_ci": [
+          1.1226914114048,
+          1.2312044380529041
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2026,
+        "construction": "dollar_neutral",
+        "n_obs": 235,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.17686825902738929,
+        "independent_bets": 4.066524719638707,
+        "independent_bets_ci": [
+          3.5802103530710427,
+          4.397646280430594
+        ],
+        "design_effect": 51.87676973474968,
+        "design_effect_ci": [
+          25.66107617024345,
+          138.83729743247366
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      },
+      {
+        "year": 2026,
+        "construction": "beta_hedged_ew",
+        "n_obs": 235,
+        "n_names": 6,
+        "rank": 5,
+        "rho_bar": -0.16967967407541149,
+        "independent_bets": 3.8630556849404565,
+        "independent_bets_ci": [
+          3.434758702326777,
+          4.170317850601254
+        ],
+        "design_effect": 39.577410974558504,
+        "design_effect_ci": [
+          21.168948838704644,
+          84.04106731103197
+        ],
+        "design_effect_undefined_replicates": 0,
+        "block_length": 5,
+        "n_boot": 10000,
+        "seed": 20260905,
+        "ci_level": 0.95
+      }
+    ],
+    "quantities": {
+      "independent_bets": "participatieratio van de eigenwaarden, validation/breadth.py::independent_bets (AD-30)",
+      "design_effect": "Kish, validation/inference.py::effective_breadth; GEEN breedte (DI-35)"
+    },
+    "beta_hedged_ew_note": "b\u00e8ta op het volle venster van elke rij geschat: diagnostiek, geen besluitgrootheid",
+    "first_moments_computed": false
+  }
+}

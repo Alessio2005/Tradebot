@@ -1,0 +1,50 @@
+# conf/research/breadth.yaml — fase 11, breedte en tijdschaal.
+#
+# Gezet VÓÓR de eerste meting (stap 2.1 van
+# Prompts-fases/fase_11_breedte_en_tijdschaal.md). Een parameter die na het meten
+# wordt gezet, is een keuze op een uitkomst, ook als die uitkomst geen rendement
+# is.
+#
+# Wat hier bewust NIET staat, omdat het al een bron heeft (R-3):
+#   * de vensters W_DEV / W_GATE / W_FULL -- docs/MEASUREMENT_CONTRACT.md §2 en
+#     artefacts/governance/holdout_lock.json; de meting leidt ze daaruit af;
+#   * n_boot, seed, ci_level en de bloklengte van de bootstrap --
+#     conf/validation/inference.yaml;
+#   * het DSR-doel (1 - dsr_alpha) -- conf/validation/default.yaml;
+#   * M_new = 25 -- artefacts/governance/ledger_reset.json;
+#   * bars_per_year -- conf/backtest/default.yaml.
+breadth:
+  # De drie constructies van §3.1. `beta_hedged_ew` schat zijn bèta op het VOLLE
+  # venster: diagnostiek van tweede momenten, geen besluitgrootheid. Een
+  # handelbare hedge is van de zusterfase (haar arm 2).
+  constructions: [directional, dollar_neutral, beta_hedged_ew]
+
+  signal_clock:
+    # Geïntegreerde autocorrelatietijd met een Sokal-venster: stop met optellen
+    # zodra lag >= c * tau. c = 5 is de waarde waarmee de nulmeting van §3.4 is
+    # gedaan; zij staat hier voordat stap 3 een getal produceert, en omdat zij
+    # later k* bepaalt (stap 7) mag zij daarna niet meer bewegen.
+    iact_window_c: 5.0
+    iact_max_lag: 200
+
+  wall:
+    # Horizonrooster in dagbars (§3.6). h = 30 is de verwachte signaalklok.
+    horizons_bars: [1, 5, 10, 30, 60]
+    # De t-drempel van het meetcontract (t = 2).
+    t_hurdle: 2.0
+    # Simulatie van stap 5.2: opgelegde IC's rond de muur, lengte en seed.
+    simulation_ic_grid: [0.02, 0.05, 0.10, 0.20]
+    simulation_n_obs: 200000
+    simulation_seed: 20260925
+    # Beslisregel van stap 5.2, vooraf: ligt de gesimuleerde Sharpe over het
+    # hele rooster binnen deze relatieve afwijking van IC * sqrt(BR), dan is de
+    # formule de muur; anders is de simulatie het.
+    formula_tolerance: 0.10
+
+  feasibility:
+    # Stap 7. De primaire cel en de vergelijkingsbasis van H-11.2, vooraf.
+    primary_track: xs_momentum_equal_weight
+    reference_k: 1
+    # Aantal synthetische nul-rendementspaden voor de detectiegrens van stap 7.2.
+    null_paths: 200
+    null_seed: 20260926
