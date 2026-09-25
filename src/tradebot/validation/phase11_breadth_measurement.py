@@ -113,6 +113,11 @@ def measure_breadth(
     ]
     return {
         "windows": {name: _window_meta(panel) for name, panel in windows.items()},
+        "panel": {
+            "quantity": "dagelijkse logrendementen, log(close).diff()",
+            "names": [str(name) for name in full.columns],
+            "window_rule": "W_FULL = bars met ex-ante sigma en causale ADV op elke naam",
+        },
         "rows": rows,
         "per_year": per_year,
         "quantities": {

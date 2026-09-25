@@ -68,6 +68,9 @@ def test_every_construction_is_measured_on_every_window_and_year(tmp_path: Path)
     assert years == set(IDX.year)
     assert result["first_moments_computed"] is False
     assert all("n_eff" not in row for row in result["rows"])
+    # Exit-criterium 6: elke breedte draagt ook het paneel waarop zij is gemeten.
+    assert result["panel"]["names"] == list("ABCD")
+    assert "logrendementen" in result["panel"]["quantity"]
 
 
 def test_the_signal_clock_is_measured_on_the_development_window_only(tmp_path: Path) -> None:
