@@ -107,6 +107,27 @@ lossen.
 > universumbreedte, niet over waarnemingsfrequentie, en AD-23 doet daarover geen
 > uitspraak.
 
+> **Bijgesteld 2026-09-25, fase 11 (breedte en tijdschaal), stap 9.4.** DI-15
+> en DI-21 hebben nieuw bewijs. Hun voorwaarden blijven ongewijzigd. Wat een groter
+> universum aan breedte zou opleveren, is nu gemeten in plaats van aangenomen
+> (`reports/phase11_breadth_and_timescale.md` §1,
+> `reports/phase11_breadth_owner_decision.md`). Op de zes overlevers is de
+> directionele breedte **1,601** onafhankelijke weddenschappen [1,516; 1,684],
+> en de dollar-neutrale **4,353** [4,144; 4,500], op `W_DEV`. De eerste factor
+> draagt 78,5 % van de variantie. Bij gelijke correlatie (ρ̄ = 0,740) loopt de
+> directionele breedte ook met oneindig veel namen niet boven 1,82; alleen de
+> dollar-neutrale breedte schaalt mee, en F10 zegt dat die niet betaalt. Voor
+> **DI-15** betekent dat: een bron met delisting-historie maakt claims
+> eerlijker, maar maakt het universum directioneel nauwelijks breder. Voor
+> **DI-21** betekent het: als de zeldzame toestand door de gemeenschappelijke
+> factor wordt gedragen, voegen extra namen aan haar bezetting weinig
+> onafhankelijke waarnemingen toe; zes namen zijn directioneel 1,6
+> onafhankelijke reeksen. Dat is een afleiding, geen meting van de
+> bezetting. Het langere venster (H-10.2) voegt
+> bars toe met gemiddeld 3,265 namen. Beide blijven **Product**: of het
+> universum groeit, is het besluit van de eigenaar
+> (`reports/phase11_breadth_owner_decision.md` §3), niet van een fase.
+
 Geen enkele DI verwijst nog naar een afgeronde fase als "toewijzing".
 
 ## Gesloten
