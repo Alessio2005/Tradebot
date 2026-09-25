@@ -91,3 +91,27 @@ def test_the_signal_clock_is_measured_on_the_development_window_only(tmp_path: P
     # instapbar inbegrepen: van nul naar 0,25 op vier namen is omzet 1,0
     assert result["tracks"]["constant"]["mean_turnover"] == pytest.approx(
         1.0 / len(development))
+
+
+def test_the_wall_follows_its_preregistered_decision_rule(tmp_path: Path) -> None:
+    from tradebot.validation.phase11_breadth_measurement import measure_wall
+
+    cfg = breadth_config(ROOT / "conf" / "research" / "breadth.yaml")
+    small = cfg.model_copy(update={"wall": cfg.wall.model_copy(update={
+        "simulation_n_obs": 20_000, "simulation_ic_grid": (0.05, 0.10)})})
+    windows = split_windows(_panel(), lock_path=_lock(tmp_path))
+    breadth = measure_breadth(windows, cfg=small, n_boot=40, seed=3, ci_level=0.95,
+                              block_length=None)
+    wall = measure_wall(windows, breadth, cfg=small, bars_per_year=365.0, m_new=25,
+                        dsr_target=0.95)
+    assert wall["hurdles"]["W_DEV"]["dsr"] > wall["hurdles"]["W_DEV"]["t"] > 0
+    for construction, block in wall["constructions"].items():
+        assert construction in small.constructions
+        assert len(block["table"]) == len(small.wall.horizons_bars)
+        if block["formula_holds"]:
+            assert block["correction"] == 1.0
+        for row in block["table"]:
+            for key, value in row["formula"].items():
+                assert row["wall"][key] == value / block["correction"]
+        first, last = block["table"][0], block["table"][-1]
+        assert last["formula"]["dsr_W_DEV"] > first["formula"]["dsr_W_DEV"]

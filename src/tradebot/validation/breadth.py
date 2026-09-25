@@ -32,6 +32,7 @@ waaronder de validatielaag haar gebruikt, en bewaakt de invoer.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -48,10 +49,15 @@ from .inference import calibrate_block_length, circular_block_indices, effective
 __all__ = [
     "BreadthConfig",
     "BreadthRow",
+    "WallSimulation",
     "breadth_config",
     "breadth_measurement",
     "construct",
+    "dsr_hurdle",
     "independent_bets",
+    "required_ic",
+    "simulate_wall",
+    "t_hurdle_sharpe",
 ]
 
 Construction = Literal["directional", "dollar_neutral", "beta_hedged_ew"]
@@ -292,4 +298,142 @@ def breadth_measurement(
         n_boot=int(n_boot),
         seed=int(seed),
         ci_level=float(ci_level),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Stap 5 — de muur: welke IC de poort vraagt bij een gegeven breedte.
+# --------------------------------------------------------------------------- #
+def dsr_hurdle(
+    *,
+    n_obs: int,
+    n_trials: int,
+    skew: float,
+    kurtosis: float,
+    sr_variance: float,
+    bars_per_year: float,
+    dsr_target: float,
+) -> float:
+    """De geannualiseerde Sharpe waarbij de DSR precies `dsr_target` is.
+
+    Een numerieke omkering van `backtest/metrics.py::deflated_sharpe` met een
+    wortelzoeker, geen tweede DSR-formule (R-3). Tot fase 11 bestond deze
+    drempel alleen als overgetypt getal (1,8686 in een ledger-notitie).
+    """
+    from scipy.optimize import brentq
+
+    from ..backtest.metrics import deflated_sharpe
+
+    scale = math.sqrt(float(bars_per_year))
+
+    def gap(sharpe_annual: float) -> float:
+        result = deflated_sharpe(
+            sharpe_annual / scale, n_obs=int(n_obs), n_trials=int(n_trials),
+            sr_variance=float(sr_variance), skew=float(skew), kurtosis=float(kurtosis),
+            bars_per_year=float(bars_per_year))
+        return float(result.dsr) - float(dsr_target)
+
+    require(0.0 < dsr_target < 1.0 and n_obs > 1 and n_trials >= 1,
+            "Een DSR-drempel vraagt een doel tussen 0 en 1, meer dan één "
+            "observatie en minstens één trial.",
+            DataContractError, dsr_target=dsr_target, n_obs=n_obs, n_trials=n_trials)
+    upper = 1.0
+    while gap(upper) < 0.0:
+        upper *= 2.0
+        require(upper < scale * scale,
+                "De DSR-drempel is binnen elke redelijke Sharpe niet te bereiken.",
+                DataContractError, n_obs=n_obs, n_trials=n_trials)
+    return float(brentq(gap, 0.0, upper, xtol=1e-10))
+
+
+def t_hurdle_sharpe(*, n_obs: int, bars_per_year: float, t: float) -> float:
+    """De geannualiseerde Sharpe waarbij `t = SR * sqrt(T)` precies `t` is."""
+    require(n_obs > 0 and bars_per_year > 0 and t > 0,
+            "Een t-drempel vraagt positieve waarden.", DataContractError,
+            n_obs=n_obs, bars_per_year=bars_per_year, t=t)
+    return float(t) / math.sqrt(float(n_obs) / float(bars_per_year))
+
+
+def required_ic(
+    sr_required: float, *, independent_bets: float, horizon_bars: int, bars_per_year: float
+) -> float:
+    """De IC die de fundamentele wet vraagt: `SR / sqrt(breedte * bars_per_year / h)`."""
+    require(
+        independent_bets > 0 and horizon_bars > 0 and bars_per_year > 0,
+        "Zonder breedte of zonder horizon bestaat er geen weddenschap om een IC "
+        "voor te vragen.",
+        DataContractError, independent_bets=independent_bets, horizon_bars=horizon_bars,
+    )
+    return float(sr_required) / math.sqrt(
+        float(independent_bets) * float(bars_per_year) / float(horizon_bars))
+
+
+@dataclass(frozen=True)
+class WallSimulation:
+    """Eén simulatie: een opgelegde IC, de gemeten IC, en wat de wet ervan zegt."""
+
+    construction: str
+    ic_imposed: float
+    #: Gepoolde correlatie over alle (bar, naam) tussen voorspelling en rendement.
+    ic_measured: float
+    #: Gerealiseerde geannualiseerde Sharpe, via `inference.sharpe_with_se`.
+    sharpe: float
+    #: `ic_measured * sqrt(independent_bets * bars_per_year)`.
+    law_sharpe: float
+    ratio: float
+    independent_bets: float
+    n_obs: int
+    seed: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def simulate_wall(
+    covariance: np.ndarray,
+    *,
+    construction: str,
+    ic: float,
+    n_obs: int,
+    seed: int,
+    bars_per_year: float,
+) -> WallSimulation:
+    """Toets `SR ≈ IC * sqrt(BR)` op synthetische rendementen met een bekende IC.
+
+    Rendementen worden getrokken uit `covariance` (ook een singuliere, zoals het
+    dollar-neutrale residu). De voorspelling per naam is
+    `ic * z + sqrt(1 - ic^2) * ruis`, met `z` het gestandaardiseerde rendement en
+    ruis die ONAFHANKELIJK is over de namen. Dat laatste is een modelkeuze en
+    zij doet ertoe: bij een sterk gecorreleerd universum zijn zes voorspellingen
+    met onafhankelijke ruis op één gezamenlijke factor samen meer waard dan de
+    breedte van de rendementen alleen zegt. Het boek is `w = f / sum|f|`,
+    voor `dollar_neutral` eerst per bar gedemeaned. De Sharpe komt uit de
+    inferentiekern (R-3). Geen enkel echt rendement komt in deze functie.
+    """
+    from .inference import sharpe_with_se
+
+    require(0.0 < ic < 1.0, "Een IC ligt strikt tussen 0 en 1.", DataContractError, ic=ic)
+    cov = np.asarray(covariance, dtype=np.float64)
+    require(cov.ndim == 2 and cov.shape[0] == cov.shape[1] and cov.shape[0] >= 2,
+            "De covariantie moet vierkant zijn met minstens twee namen.",
+            DataContractError, shape=tuple(cov.shape))
+    rng = np.random.default_rng(int(seed))
+    eigenvalues, vectors = np.linalg.eigh(0.5 * (cov + cov.T))
+    loading = vectors * np.sqrt(np.clip(eigenvalues, 0.0, None))
+    returns = rng.standard_normal((int(n_obs), cov.shape[0])) @ loading.T
+    standardised = returns / returns.std(axis=0)
+    forecast = ic * standardised + math.sqrt(1.0 - ic * ic) * rng.standard_normal(
+        returns.shape)
+    if construction == "dollar_neutral":
+        forecast = forecast - forecast.mean(axis=1, keepdims=True)
+    weights = forecast / np.abs(forecast).sum(axis=1, keepdims=True)
+    pnl = (weights * returns).sum(axis=1)
+    sharpe = float(sharpe_with_se(pnl, bars_per_year=float(bars_per_year)).sharpe)
+    ic_measured = float(np.corrcoef(forecast.ravel(), returns.ravel())[0, 1])
+    bets = independent_bets(np.corrcoef(returns, rowvar=False))
+    law = ic_measured * math.sqrt(bets * float(bars_per_year))
+    return WallSimulation(
+        construction=construction, ic_imposed=float(ic), ic_measured=ic_measured,
+        sharpe=sharpe, law_sharpe=law, ratio=sharpe / law, independent_bets=bets,
+        n_obs=int(n_obs), seed=int(seed),
     )

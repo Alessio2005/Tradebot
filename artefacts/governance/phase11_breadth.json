@@ -1,14 +1,8 @@
 {
-  "git_sha": "5f6031c",
+  "git_sha": "7b3abb7",
   "config": {
     "path": "conf/research/breadth.yaml",
     "sha256": "d35c02de38d948f7f6ae8dd908de7a980a9f7ad1b2d0e8b0f24074dff50447f3"
-  },
-  "inference": {
-    "n_boot": 10000,
-    "seed": 20260905,
-    "ci_level": 0.95,
-    "block_length": null
   },
   "data_hashes": {
     "crypto/ohlcv/AVAXUSDT/1d": "af05b4f95d0e282111641f85904c22f9",
@@ -23,6 +17,12 @@
     "crypto/open_interest/ETHUSDT/1d": "be986e9314c9f28ef3fd147b01bfefd4",
     "crypto/open_interest/LINKUSDT/1d": "9024d7e536d7ced7e8e23a4dc97eb952",
     "crypto/open_interest/SOLUSDT/1d": "9267e0accf0055a1cba7c9db1ab5d4e2"
+  },
+  "inference": {
+    "n_boot": 10000,
+    "seed": 20260905,
+    "ci_level": 0.95,
+    "block_length": null
   },
   "risk_policy_hash": null,
   "risk_policy_note": "geen risicobesluit: alles hier is L0/data (AD-27 n.v.t.)",
@@ -734,5 +734,397 @@
       "iact_max_lag": 200
     },
     "turnover_source": "backtest/vectorized.py::run_vectorized, cost_per_side=0, tweezijdig, instapbar inbegrepen"
+  },
+  "wall": {
+    "hurdles": {
+      "W_DEV": {
+        "n_obs": 1390,
+        "dsr": 1.8686086235559072,
+        "t": 1.0248705831617062
+      },
+      "W_GATE": {
+        "n_obs": 353,
+        "t": 2.033710239220544
+      }
+    },
+    "hurdle_assumptions": "normaliteit: scheefheid 0, kurtosis 3, sr_variance = 1/n_obs",
+    "m_new": 25,
+    "dsr_target": 0.95,
+    "formula_tolerance": 0.1,
+    "forecast_noise_model": "onafhankelijk over de namen (zie simulate_wall)",
+    "constructions": {
+      "directional": {
+        "simulations": [
+          {
+            "construction": "directional",
+            "ic_imposed": 0.02,
+            "ic_measured": 0.020447985472735627,
+            "sharpe": 0.9193367053059844,
+            "law_sharpe": 0.4942792763673426,
+            "ratio": 1.8599539759436408,
+            "independent_bets": 1.6008508983752479,
+            "n_obs": 200000,
+            "seed": 20260925
+          },
+          {
+            "construction": "directional",
+            "ic_imposed": 0.05,
+            "ic_measured": 0.04979775966932975,
+            "sharpe": 2.2240303773550116,
+            "law_sharpe": 1.2037371919542044,
+            "ratio": 1.847604603579968,
+            "independent_bets": 1.6008508983752479,
+            "n_obs": 200000,
+            "seed": 20260925
+          },
+          {
+            "construction": "directional",
+            "ic_imposed": 0.1,
+            "ic_measured": 0.09870791742560774,
+            "sharpe": 4.35048604547282,
+            "law_sharpe": 2.386018811579757,
+            "ratio": 1.823324285776444,
+            "independent_bets": 1.6008508983752479,
+            "n_obs": 200000,
+            "seed": 20260925
+          },
+          {
+            "construction": "directional",
+            "ic_imposed": 0.2,
+            "ic_measured": 0.19650385497054934,
+            "sharpe": 8.294974608591653,
+            "law_sharpe": 4.749992773994384,
+            "ratio": 1.746313100517879,
+            "independent_bets": 1.6008508983752479,
+            "n_obs": 200000,
+            "seed": 20260925
+          }
+        ],
+        "ratio_min": 1.746313100517879,
+        "ratio_max": 1.8599539759436408,
+        "formula_holds": false,
+        "correction": 1.835464444678206,
+        "table": [
+          {
+            "horizon_bars": 1,
+            "formula": {
+              "dsr_W_DEV": 0.0773099683194904,
+              "t_W_DEV": 0.042401983656177096,
+              "t_W_GATE": 0.09098740500393722
+            },
+            "wall": {
+              "dsr_W_DEV": 0.042120112183946117,
+              "t_W_DEV": 0.02310150097383718,
+              "t_W_GATE": 0.04957187008865712
+            },
+            "bets_per_year_W_DEV": 584.2055882581702
+          },
+          {
+            "horizon_bars": 5,
+            "formula": {
+              "dsr_W_DEV": 0.1728703445007357,
+              "t_W_DEV": 0.09481371783604706,
+              "t_W_GATE": 0.20345402268510812
+            },
+            "wall": {
+              "dsr_W_DEV": 0.09418343406322065,
+              "t_W_DEV": 0.051656526559777524,
+              "t_W_GATE": 0.11084607129002584
+            },
+            "bets_per_year_W_DEV": 116.84111765163405
+          },
+          {
+            "horizon_bars": 10,
+            "formula": {
+              "dsr_W_DEV": 0.24447558572504963,
+              "t_W_DEV": 0.13408684566275358,
+              "t_W_GATE": 0.2877274382006433
+            },
+            "wall": {
+              "dsr_W_DEV": 0.13319548980307877,
+              "t_W_DEV": 0.07305336044592338,
+              "t_W_GATE": 0.15676001735412953
+            },
+            "bets_per_year_W_DEV": 58.420558825817025
+          },
+          {
+            "horizon_bars": 30,
+            "formula": {
+              "dsr_W_DEV": 0.4234441356859465,
+              "t_W_DEV": 0.23224522931453576,
+              "t_W_GATE": 0.49835854169514837
+            },
+            "wall": {
+              "dsr_W_DEV": 0.23070135567795474,
+              "t_W_DEV": 0.12653213195598187,
+              "t_W_GATE": 0.27151631465273124
+            },
+            "bets_per_year_W_DEV": 19.473519608605674
+          },
+          {
+            "horizon_bars": 60,
+            "formula": {
+              "dsr_W_DEV": 0.5988404395944187,
+              "t_W_DEV": 0.32844435309306597,
+              "t_W_GATE": 0.7047854085897565
+            },
+            "wall": {
+              "dsr_W_DEV": 0.3262609860576229,
+              "t_W_DEV": 0.17894345708813167,
+              "t_W_GATE": 0.38398205458745327
+            },
+            "bets_per_year_W_DEV": 9.736759804302837
+          }
+        ]
+      },
+      "dollar_neutral": {
+        "simulations": [
+          {
+            "construction": "dollar_neutral",
+            "ic_imposed": 0.02,
+            "ic_measured": 0.019393129215910087,
+            "sharpe": 0.7688834844888279,
+            "law_sharpe": 0.7733053185636881,
+            "ratio": 0.994281903966375,
+            "independent_bets": 4.3562555374614575,
+            "n_obs": 200000,
+            "seed": 20260925
+          },
+          {
+            "construction": "dollar_neutral",
+            "ic_imposed": 0.05,
+            "ic_measured": 0.051791808273655975,
+            "sharpe": 2.0892079016554432,
+            "law_sharpe": 2.0652098147828215,
+            "ratio": 1.0116201689052815,
+            "independent_bets": 4.3562555374614575,
+            "n_obs": 200000,
+            "seed": 20260925
+          },
+          {
+            "construction": "dollar_neutral",
+            "ic_imposed": 0.1,
+            "ic_measured": 0.10573455763217722,
+            "sharpe": 4.293620191522977,
+            "law_sharpe": 4.216188881259117,
+            "ratio": 1.0183652375271992,
+            "independent_bets": 4.3562555374614575,
+            "n_obs": 200000,
+            "seed": 20260925
+          },
+          {
+            "construction": "dollar_neutral",
+            "ic_imposed": 0.2,
+            "ic_measured": 0.2131344063425862,
+            "sharpe": 8.71031056000372,
+            "law_sharpe": 8.498781612738384,
+            "ratio": 1.0248893261297933,
+            "independent_bets": 4.3562555374614575,
+            "n_obs": 200000,
+            "seed": 20260925
+          }
+        ],
+        "ratio_min": 0.994281903966375,
+        "ratio_max": 1.0248893261297933,
+        "formula_holds": true,
+        "correction": 1.0,
+        "table": [
+          {
+            "horizon_bars": 1,
+            "formula": {
+              "dsr_W_DEV": 0.04687974358527123,
+              "t_W_DEV": 0.025712002792365737,
+              "t_W_GATE": 0.054598769126686264
+            },
+            "wall": {
+              "dsr_W_DEV": 0.04687974358527123,
+              "t_W_DEV": 0.025712002792365737,
+              "t_W_GATE": 0.054598769126686264
+            },
+            "bets_per_year_W_DEV": 1588.789066007221
+          },
+          {
+            "horizon_bars": 5,
+            "formula": {
+              "dsr_W_DEV": 0.10482629342442616,
+              "t_W_DEV": 0.057493786081394195,
+              "t_W_GATE": 0.1220865592550873
+            },
+            "wall": {
+              "dsr_W_DEV": 0.10482629342442616,
+              "t_W_DEV": 0.057493786081394195,
+              "t_W_GATE": 0.1220865592550873
+            },
+            "bets_per_year_W_DEV": 317.7578132014442
+          },
+          {
+            "horizon_bars": 10,
+            "formula": {
+              "dsr_W_DEV": 0.1482467658541251,
+              "t_W_DEV": 0.08130849202848515,
+              "t_W_GATE": 0.172656467882011
+            },
+            "wall": {
+              "dsr_W_DEV": 0.1482467658541251,
+              "t_W_DEV": 0.08130849202848515,
+              "t_W_GATE": 0.172656467882011
+            },
+            "bets_per_year_W_DEV": 158.8789066007221
+          },
+          {
+            "horizon_bars": 30,
+            "formula": {
+              "dsr_W_DEV": 0.25677093051711164,
+              "t_W_DEV": 0.14083043928014533,
+              "t_W_GATE": 0.2990497746270271
+            },
+            "wall": {
+              "dsr_W_DEV": 0.25677093051711164,
+              "t_W_DEV": 0.14083043928014533,
+              "t_W_GATE": 0.2990497746270271
+            },
+            "bets_per_year_W_DEV": 52.95963553357403
+          },
+          {
+            "horizon_bars": 60,
+            "formula": {
+              "dsr_W_DEV": 0.3631289323604589,
+              "t_W_DEV": 0.19916431722494218,
+              "t_W_GATE": 0.42292024710215914
+            },
+            "wall": {
+              "dsr_W_DEV": 0.3631289323604589,
+              "t_W_DEV": 0.19916431722494218,
+              "t_W_GATE": 0.42292024710215914
+            },
+            "bets_per_year_W_DEV": 26.479817766787015
+          }
+        ]
+      },
+      "beta_hedged_ew": {
+        "simulations": [
+          {
+            "construction": "beta_hedged_ew",
+            "ic_imposed": 0.02,
+            "ic_measured": 0.018400442108938753,
+            "sharpe": 0.8173459455294785,
+            "law_sharpe": 0.7553845022615329,
+            "ratio": 1.082026362842288,
+            "independent_bets": 4.617285834313159,
+            "n_obs": 200000,
+            "seed": 20260925
+          },
+          {
+            "construction": "beta_hedged_ew",
+            "ic_imposed": 0.05,
+            "ic_measured": 0.0477318604577374,
+            "sharpe": 2.133695312168549,
+            "law_sharpe": 1.9595131160663417,
+            "ratio": 1.088890548715424,
+            "independent_bets": 4.617285834313159,
+            "n_obs": 200000,
+            "seed": 20260925
+          },
+          {
+            "construction": "beta_hedged_ew",
+            "ic_imposed": 0.1,
+            "ic_measured": 0.09662564045580266,
+            "sharpe": 4.325769787512658,
+            "law_sharpe": 3.966725956326383,
+            "ratio": 1.0905138986507625,
+            "independent_bets": 4.617285834313159,
+            "n_obs": 200000,
+            "seed": 20260925
+          },
+          {
+            "construction": "beta_hedged_ew",
+            "ic_imposed": 0.2,
+            "ic_measured": 0.1944410976082334,
+            "sharpe": 8.704679094492908,
+            "law_sharpe": 7.982296885390038,
+            "ratio": 1.0904980382808165,
+            "independent_bets": 4.617285834313159,
+            "n_obs": 200000,
+            "seed": 20260925
+          }
+        ],
+        "ratio_min": 1.082026362842288,
+        "ratio_max": 1.0905138986507625,
+        "formula_holds": true,
+        "correction": 1.0,
+        "table": [
+          {
+            "horizon_bars": 1,
+            "formula": {
+              "dsr_W_DEV": 0.04553062839432923,
+              "t_W_DEV": 0.024972057329702795,
+              "t_W_GATE": 0.05487789706381712
+            },
+            "wall": {
+              "dsr_W_DEV": 0.04553062839432923,
+              "t_W_DEV": 0.024972057329702795,
+              "t_W_GATE": 0.05487789706381712
+            },
+            "bets_per_year_W_DEV": 1684.3386288952086
+          },
+          {
+            "horizon_bars": 5,
+            "formula": {
+              "dsr_W_DEV": 0.10180958014800229,
+              "t_W_DEV": 0.055839217727237336,
+              "t_W_GATE": 0.12271070829693119
+            },
+            "wall": {
+              "dsr_W_DEV": 0.10180958014800229,
+              "t_W_DEV": 0.055839217727237336,
+              "t_W_GATE": 0.12271070829693119
+            },
+            "bets_per_year_W_DEV": 336.86772577904173
+          },
+          {
+            "horizon_bars": 10,
+            "formula": {
+              "dsr_W_DEV": 0.14398048902481544,
+              "t_W_DEV": 0.07896857902216319,
+              "t_W_GATE": 0.1735391479219288
+            },
+            "wall": {
+              "dsr_W_DEV": 0.14398048902481544,
+              "t_W_DEV": 0.07896857902216319,
+              "t_W_GATE": 0.1735391479219288
+            },
+            "bets_per_year_W_DEV": 168.43386288952087
+          },
+          {
+            "horizon_bars": 30,
+            "formula": {
+              "dsr_W_DEV": 0.24938152228959345,
+              "t_W_DEV": 0.13677759106790446,
+              "t_W_GATE": 0.30057862130299157
+            },
+            "wall": {
+              "dsr_W_DEV": 0.24938152228959345,
+              "t_W_DEV": 0.13677759106790446,
+              "t_W_GATE": 0.30057862130299157
+            },
+            "bets_per_year_W_DEV": 56.144620963173615
+          },
+          {
+            "horizon_bars": 60,
+            "formula": {
+              "dsr_W_DEV": 0.3526787310271914,
+              "t_W_DEV": 0.1934327243169516,
+              "t_W_GATE": 0.4250823628060972
+            },
+            "wall": {
+              "dsr_W_DEV": 0.3526787310271914,
+              "t_W_DEV": 0.1934327243169516,
+              "t_W_GATE": 0.4250823628060972
+            },
+            "bets_per_year_W_DEV": 28.072310481586808
+          }
+        ]
+      }
+    }
   }
 }

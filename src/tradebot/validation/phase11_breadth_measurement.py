@@ -35,11 +35,26 @@ import pandas as pd
 
 from ..backtest.vectorized import run_vectorized
 from ..utils.failfast import DataContractError, require
-from .breadth import BreadthConfig, breadth_measurement, construct
+from .breadth import (
+    BreadthConfig,
+    breadth_measurement,
+    construct,
+    dsr_hurdle,
+    required_ic,
+    simulate_wall,
+    t_hurdle_sharpe,
+)
 from .holdout import development_slice
 from .signal_clock import decision_panel_clock
 
-__all__ = ["baseline_weight_tracks", "measure_breadth", "measure_signal_clock", "split_windows"]
+__all__ = [
+    "baseline_weight_tracks",
+    "build_artefact",
+    "measure_breadth",
+    "measure_signal_clock",
+    "measure_wall",
+    "split_windows",
+]
 
 
 def split_windows(returns: pd.DataFrame, *, lock_path: Path) -> dict[str, pd.DataFrame]:
@@ -159,4 +174,118 @@ def measure_signal_clock(
                       "iact_max_lag": cfg.signal_clock.iact_max_lag},
         "turnover_source": "backtest/vectorized.py::run_vectorized, cost_per_side=0, "
                            "tweezijdig, instapbar inbegrepen",
+    }
+
+
+def measure_wall(
+    windows: dict[str, pd.DataFrame],
+    breadth: dict[str, Any],
+    *,
+    cfg: BreadthConfig,
+    bars_per_year: float,
+    m_new: int,
+    dsr_target: float,
+) -> dict[str, Any]:
+    """De IC-muur per constructie en horizon, gecontroleerd door simulatie (stap 5).
+
+    De drempels gelden onder normaliteit (scheefheid 0, kurtosis 3,
+    `sr_variance = 1/n_obs`); een hypothese rekent haar drempel voor haar eigen
+    reeks opnieuw uit. De simulatie gebruikt alleen de covariantie van `W_DEV`,
+    geen enkel gemiddeld rendement. Beslisregel, vooraf in
+    `conf/research/breadth.yaml`: ligt de gesimuleerde Sharpe over het hele
+    IC-rooster binnen `formula_tolerance` van de wet, dan is de formule de muur;
+    anders wordt de formule gecorrigeerd met de mediane verhouding.
+    """
+    dev, gate = windows["W_DEV"], windows["W_GATE"]
+    n_dev, n_gate = len(dev), len(gate)
+    hurdles = {
+        "W_DEV": {
+            "n_obs": n_dev,
+            "dsr": dsr_hurdle(n_obs=n_dev, n_trials=m_new, skew=0.0, kurtosis=3.0,
+                              sr_variance=1.0 / n_dev, bars_per_year=bars_per_year,
+                              dsr_target=dsr_target),
+            "t": t_hurdle_sharpe(n_obs=n_dev, bars_per_year=bars_per_year,
+                                 t=cfg.wall.t_hurdle),
+        },
+        "W_GATE": {"n_obs": n_gate,
+                   "t": t_hurdle_sharpe(n_obs=n_gate, bars_per_year=bars_per_year,
+                                        t=cfg.wall.t_hurdle)},
+    }
+    bets = {(row["window"], row["construction"]): row["independent_bets"]
+            for row in breadth["rows"]}
+    constructions: dict[str, Any] = {}
+    for construction in cfg.constructions:
+        covariance = construct(dev, construction).cov().to_numpy()
+        sims = [simulate_wall(covariance, construction=construction, ic=ic,
+                              n_obs=cfg.wall.simulation_n_obs,
+                              seed=cfg.wall.simulation_seed,
+                              bars_per_year=bars_per_year).to_dict()
+                for ic in cfg.wall.simulation_ic_grid]
+        ratios = [sim["ratio"] for sim in sims]
+        holds = all(abs(r - 1.0) <= cfg.wall.formula_tolerance for r in ratios)
+        correction = 1.0 if holds else float(np.median(ratios))
+        table = []
+        for h in cfg.wall.horizons_bars:
+            dev_bets = bets[("W_DEV", construction)]
+            gate_bets = bets[("W_GATE", construction)]
+            formula = {
+                "dsr_W_DEV": required_ic(hurdles["W_DEV"]["dsr"], independent_bets=dev_bets,
+                                         horizon_bars=h, bars_per_year=bars_per_year),
+                "t_W_DEV": required_ic(hurdles["W_DEV"]["t"], independent_bets=dev_bets,
+                                       horizon_bars=h, bars_per_year=bars_per_year),
+                "t_W_GATE": required_ic(hurdles["W_GATE"]["t"], independent_bets=gate_bets,
+                                        horizon_bars=h, bars_per_year=bars_per_year),
+            }
+            table.append({"horizon_bars": int(h), "formula": formula,
+                          "wall": {k: v / correction for k, v in formula.items()},
+                          "bets_per_year_W_DEV": dev_bets * bars_per_year / h})
+        constructions[construction] = {
+            "simulations": sims, "ratio_min": min(ratios), "ratio_max": max(ratios),
+            "formula_holds": holds, "correction": correction, "table": table,
+        }
+    return {
+        "hurdles": hurdles,
+        "hurdle_assumptions": "normaliteit: scheefheid 0, kurtosis 3, sr_variance = 1/n_obs",
+        "m_new": int(m_new),
+        "dsr_target": float(dsr_target),
+        "formula_tolerance": cfg.wall.formula_tolerance,
+        "forecast_noise_model": "onafhankelijk over de namen (zie simulate_wall)",
+        "constructions": constructions,
+    }
+
+
+def build_artefact(
+    root: Path,
+    *,
+    market: dict[str, Any],
+    base: dict[str, Any],
+    cfg: BreadthConfig,
+    inference: Any,
+    lock_path: Path,
+    m_new: int,
+    git_sha: str,
+    provenance: dict[str, Any],
+) -> dict[str, Any]:
+    """Stage A t/m C in één artefact: breedte, signaalklok en muur."""
+    usable = market["sigma"].dropna(how="any").index
+    usable = usable[usable.isin(market["adv"].dropna(how="any").index)]
+    windows = split_windows(np.log(market["prices"]).diff().loc[usable], lock_path=lock_path)
+    bars_per_year = float(base["bt"].bars_per_year)
+    breadth = measure_breadth(windows, cfg=cfg, n_boot=inference.n_boot, seed=inference.seed,
+                              ci_level=inference.ci_level, block_length=inference.block_length)
+    return {
+        "git_sha": git_sha,
+        **provenance,
+        "inference": {"n_boot": inference.n_boot, "seed": inference.seed,
+                      "ci_level": inference.ci_level, "block_length": inference.block_length},
+        "risk_policy_hash": None,
+        "risk_policy_note": "geen risicobesluit: alles hier is L0/data (AD-27 n.v.t.)",
+        "trials": 0,
+        "breadth": breadth,
+        "signal_clock": measure_signal_clock(
+            baseline_weight_tracks(root, base, git_sha=git_sha), prices=market["prices"],
+            usable=usable, development_index=windows["W_DEV"].index, cfg=cfg,
+            bars_per_year=bars_per_year),
+        "wall": measure_wall(windows, breadth, cfg=cfg, bars_per_year=bars_per_year,
+                             m_new=m_new, dsr_target=1.0 - float(base["val"].dsr_alpha)),
     }
