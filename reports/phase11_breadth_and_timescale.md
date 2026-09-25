@@ -1,18 +1,24 @@
 # FASE 11 — BREEDTE EN TIJDSCHAAL: DE METING
 
-> **Nul trials.** Dit rapport bevat geen gemiddeld rendement, geen Sharpe van een
+> **Nul trials.** Dit rapport meet geen gemiddeld rendement, geen Sharpe van een
 > signaal en geen IC. Alles hieronder is een tweede moment, een eigenschap van
-> een besluitpaneel of omzet (R-15).
+> een besluitpaneel, omzet, of een simulatie op synthetische rendementen met
+> gemiddelde nul (R-15). Eén Sharpe wordt **geciteerd**: de gepubliceerde
+> L3-Sharpe van `xs_momentum_equal_weight` bij k = 1 uit de ladder, in §3.4.
 
 **Faseopdracht:** `Prompts-fases/fase_11_breedte_en_tijdschaal.md`
 **Bron van elk getal:** `artefacts/governance/phase11_breadth.json`, geproduceerd
 door `apps/run_breadth_measurement.py` op `src/tradebot/validation/breadth.py`,
-`src/tradebot/validation/signal_clock.py` en
-`src/tradebot/validation/phase11_breadth_measurement.py`
-**Parameters:** `conf/research/breadth.yaml`, gezet vóór de eerste meting;
-bootstrap uit `conf/validation/inference.yaml` (10.000 replicaties, seed
-20260905, ci 0,95, bloklengte gekalibreerd)
-**Risicobeleid:** niet van toepassing. Niets hier gaat door de risicolaag.
+`src/tradebot/validation/signal_clock.py`,
+`src/tradebot/validation/phase11_breadth_measurement.py` en
+`src/tradebot/validation/phase11_decision_clock_feasibility.py`
+**Parameters:** `conf/research/breadth.yaml`, gezet vóór de eerste meting van
+elke stap; bootstrap uit `conf/validation/inference.yaml` (10.000 replicaties,
+seed 20260905, ci 0,95, bloklengte gekalibreerd)
+**Risicobeleid:** §1 en §2 gaan niet door de risicolaag. §3 citeert de
+L3-kostenmix van `artefacts/baseline/phase5_revaluation.json`, die beleid
+`1b60cb664fbf9a2a` draagt; het geldende beleid is `9961e1613bc907a5`. Hoe §3
+met dat verschil omgaat, staat in §3.3.
 
 ---
 
@@ -130,6 +136,11 @@ ondergrens. Per naam:
 - **Momentum:** alleen SOL is afgekapt, en SOL ligt boven de mediaan. De
   mediaan (het gemiddelde van de derde en vierde naam, 29,4 en 30,5) hangt er
   niet van af. **De signaalklok van `xs_momentum_equal_weight` is 30 bars.**
+  Die redenering is sinds stap 7 code en geen proza meer:
+  `signal_clock.median_is_determined` zegt of elke afgekapte naam strikt boven
+  de bovenste mediaannaam ligt, en het artefact draagt per track
+  `tau_median_determined` en de τ per naam. Voor beide momentumtracks is het
+  antwoord ja, voor `long_only_risk_parity` nee.
 - **† Risicopariteit long-only:** vier van de zes namen halen het venster niet,
   en de mediaan valt tussen twee afgekapte waarden. Met 600 lags in plaats van
   200 (een gevoeligheidscontrole buiten de config; de config zelf blijft
@@ -199,3 +210,163 @@ gehaald zodra een fase de baseline-unit om een andere reden opnieuw afleidt.
 De equivalentietest slaagde bij de eerste run, omdat beide implementaties al
 bestonden (R-11). De zekerheid komt uit een mutatie: vasthouden met k + 1 in
 plaats van k maakt de test rood.
+
+---
+
+## 3. De haalbaarheidspoort van H-11.2 (stap 7)
+
+> **Uitkomst: ROOD.** H-11.2 wordt niet geregistreerd en kost nul trials. Het
+> rood hangt niet af van de ladder die de zusterfase nog moet leveren (§3.3).
+> Stap 8 vervalt; dat is de vooraf geregistreerde handeling en geen
+> overgeslagen stap.
+
+**De hypothese zoals zij geregistreerd zou zijn.** Op `xs_momentum_equal_weight`
+verhoogt het vasthouden van het besluit gedurende k\* bars de netto Sharpe op L3
+ten opzichte van k = 1, en het verschil overleeft de toets van H-10.1 bij
+M_new = 25.
+
+**k\* = ⌈29,9646⌉ = 30**, de signaalklok van §2, gemeten op het besluitpaneel
+voordat er bij k = 30 een rendement bestond. `k_star_from_clock` weigert een
+klok die oneindig is of waarvan de mediaan van een afgekapte naam afhangt.
+
+### 3.1 De ingrediënten, op `W_DEV` (1.390 bars)
+
+| grootheid | k = 1 | k\* = 30 | bron |
+|---|---:|---:|---|
+| omzet per bar | 0,1537 | 0,0315 (−79,5 %) | `run_vectorized`, kosten nul, instapbar inbegrepen |
+| σ_boek, geannualiseerd | 0,2330 | 0,2355 | `w'Σw`, Σ de covariantie van `W_DEV` |
+
+Het vasthouden gebeurt met `hold_decision`, verankerd op de eerste bruikbare
+bar zoals bij H-10.1, en wordt daarna op `W_DEV` gesneden. De kosten per zijde
+zijn 6,5 bp (`taker_fee_bps` 5,5 + `assumed_half_spread_bps` 1,0, via
+`CostModel.per_side`).
+
+### 3.2 De detectiegrens, met de echte kern (stap 7.2)
+
+200 paden van synthetische rendementen **met gemiddelde nul** uit de
+covariantie van `W_DEV` (seed 20260926). Op elk pad lopen beide
+gewichtspanelen, uitgevoerd met één bar vertraging, door
+`validation/inference.py::sharpe_difference_test`.
+
+| grootheid | waarde |
+|---|---:|
+| gemiddeld verschil onder de nul | 0,030 (standaardfout van dat gemiddelde 0,030: de simulatie is niet scheef) |
+| spreiding van het verschil | 0,430 |
+| mediane standaardfout van de kern (Ledoit–Wolf) | 0,434 |
+| **kleinste zichtbare verschil, tweezijdig 95 %** | **0,850** |
+| kleinste zichtbare verschil, eenzijdig 95 % | 0,713 |
+| idem, tweezijdig, uit de spreiding in plaats van de SE | 0,843 |
+
+De benadering `√((2 − 2ρ) / t_jaar)` uit §3.7 van de faseopdracht gaf 0,438
+voor de standaardfout. De kern geeft 0,434. De benadering was juist tot op 1 %.
+
+**Tweezijdig is de poort.** De toets van H-10.1 vraagt een interval dat nul
+uitsluit. Eenzijdig is de mildste lezing en dient alleen om te laten zien dat
+het rood ook daar standhoudt. Beide grenzen zijn nog **niet** gedefleerd bij
+M_new = 25; deflatie zou de lat hoger leggen. Het ongedefleerde getal is dus de
+gunstigste grens voor de hypothese.
+
+### 3.3 De kostenwinst bij nul signaalverval, en de ladder (stap 7.1)
+
+Op de L0-kostenas levert de omzetdaling bij 6,5 bp per zijde **0,124** Sharpe
+op. Op L3 komt daar impact bij. De verhouding tussen de omzetkosten op L3 (fees
++ impact + spread) en die op de L0-as (fees + spread) is de multiplier m.
+
+**De voorwaarde van stap 7 is niet vervuld.**
+`artefacts/baseline/phase11_revaluation.json` staat niet op `main` (laatst
+nagekeken op `28cc31b`). De enige ladder is `phase5_revaluation.json` onder
+beleid `1b60cb664fbf9a2a`. Onder het geldende beleid is het boek groter. Fees
+en spread zijn lineair in de grootte en vallen in Sharpe-eenheden weg. Impact
+per eenheid schaalt met de wortel van de grootte (`execution/impact_model.py`).
+Hoeveel groter het boek kan zijn, staat in het risicoregister
+(`artefacts/governance/risk_config_registry.json`):
+
+| boek | schaal | bron | m | **kostenwinst op L3** |
+|---|---:|---|---:|---:|
+| de ladder zoals zij is | 1 | `phase5_revaluation.json` | 1,540 | **0,192** |
+| verwacht onder het geldende beleid | 2,5 | `sigma_target` 0,20 / 0,08 | 1,853 | 0,231 |
+| **bovengrens** onder het geldende beleid | 36,0 | `gross_cap` 4,0 / gemeten L1-boek 0,111 | 4,240 | **0,527** |
+
+De poort vraagt m ≥ **6,83** (tweezijdig) of m ≥ 5,74 (eenzijdig). Het grootste
+boek dat het geldende beleid toelaat, geeft m = 4,24. **Geen ladder onder
+`9961e1613bc907a5` kan dit rood dus omdraaien.** `gate_verdict` noemt dat
+`red_under_every_book` en geeft zonder de nieuwe ladder alleen in dat geval een
+definitief `RED`; in elk ander geval `PENDING_7_1`.
+
+Stap 7.1 blijft een openstaande handeling. Zodra de zusterfase haar ladder op
+`main` heeft, wordt `feasibility.ladder_artefact` in
+`conf/research/breadth.yaml` het nieuwe pad en draait de app opnieuw. m wordt
+dan gemeten en niet begrensd. Het oordeel kan daardoor niet meer veranderen,
+alleen scherper worden.
+
+### 3.4 De poort (stap 7.3)
+
+| lezing | kostenwinst | nodig | uitkomst |
+|---|---:|---:|---|
+| ladder, tweezijdig (**de poort**) | 0,192 | 0,850 | **rood**, factor 4,4 te klein |
+| verwacht boek, tweezijdig | 0,231 | 0,850 | rood, factor 3,7 |
+| bovengrens, eenzijdig (de mildste lezing) | 0,527 | 0,713 | rood, factor 1,35 |
+
+**Correctie op de faseopdracht (R-10): het tweede criterium van H-10.1 is geen
+gedefleerd interval.** §7.3 en §8.4 van de opdracht noemen het "het 95 %-CI
+sluit nul uit na deflatie bij M = 25". In
+`conf/experiment/h10_1_decision_frequency.yaml` heet het criterium
+`deflated_interval_includes_zero`, maar zijn metriek is
+`dsr_development_best_k ≥ 0,95`: de DSR van de **niveau**-Sharpe van de
+vastgehouden reeks (`phase10_decision_frequency_measurement.py`, `dsr_gate` op
+de primaire reeks), niet van het verschil. Wie de beslisregel "ongewijzigd"
+overneemt, neemt dus een niveaucriterium over. Dat geeft een tweede,
+onafhankelijke reden voor rood:
+
+| grootheid | waarde | bron |
+|---|---:|---|
+| niveau-Sharpe die de DSR vraagt (M = 25, N = 1.390, normaliteit) | 1,869 | `dsr_hurdle`, §3 van het muurrapport |
+| gepubliceerde L3-Sharpe, k = 1, volle venster, oude beleid | −0,168 | `phase5_revaluation.json`, **geciteerd** |
+| afstand | **2,037** | |
+| grootste kostenwinst onder enig boek | 0,527 | §3.3 |
+
+De Sharpe van −0,168 geldt over het volle venster en niet over `W_DEV`, en onder
+het oude beleid. Een vergelijking op één decimaal draagt zij dus niet. Wel laat
+zij zien in welke orde de afstand ligt: een kostenwinst van hooguit 0,53 tegen
+een afstand van 2,04.
+
+**Wat de poort veronderstelt.** Zij veronderstelt dat vasthouden het signaal
+niet **verbetert**, dus dat de bruto Sharpe bij k\* niet hoger ligt dan bij
+k = 1. Dat is geen stelling. Een signaal met ruis die snel terugvalt, kan van
+vasthouden profiteren, omdat het vasthouden dan middelt. Dat maakt de poort
+niet ongeldig. Een hypothese die alleen haalbaar is als het signaal door
+vasthouden béter wordt, is een andere hypothese dan H-11.2. Zij zou een eigen
+registratie en een eigen haalbaarheid nodig hebben: een bruto-verbetering van
+ten minste 0,85 − 0,19 = 0,66 Sharpe door alleen vasthouden.
+
+### 3.5 Vraag V3, beantwoord als kostenuitspraak
+
+**De beslisklok is op `xs_momentum_equal_weight` een kostenhefboom van 0,12
+Sharpe op de L0-kostenas, 0,19 op de L3-kostenmix van de ladder en naar
+verwachting 0,23 onder het geldende beleid.** Als kostengrootheid is dat
+meetbaar. Als Sharpe-verschil is het op deze sample niet te beslissen: het
+kleinste zichtbare verschil is 0,85.
+
+**De breakeven van H-10.1** (`breakeven_cost_bps`, criterium 4) vraagt het
+bruto Sharpe-verschil, een eerste moment dat deze fase niet meet. Onder de
+aanname van de poort (bruto-verschil nul) is zij per constructie 0 bp: elke
+positieve kost begunstigt dan het vasthouden. Dat getal zegt niets. Wat wel iets
+zegt, is dezelfde functie met het bruto-verschil op minus de detectiegrens. Dat
+geeft de kosten per zijde waarbij de besparing bij nul verval **zichtbaar**
+zou worden:
+
+| grens | kosten per zijde |
+|---|---:|
+| tweezijdig | **44,4 bp** |
+| eenzijdig | 37,3 bp |
+| ter vergelijking: wat deze repository aanneemt, L0 | 6,5 bp |
+| idem, effectief op de L3-mix van de ladder (6,5 × 1,54) | 10,0 bp |
+
+Om het vasthouden op deze sample als Sharpe-verschil te kunnen zien, zouden de
+kosten per zijde **4,4 keer** zo hoog moeten zijn als de effectieve L3-kosten
+van de ladder, en bijna 7 keer de aanname op L0.
+
+**De verwachting van de faseopdracht (R-10)** was rood, 0 trials, een
+kostenwinst van 0,12 tot 0,19 en een eenzijdige grens van 0,72. Gemeten:
+rood, 0 trials, 0,124 tot 0,192, en 0,713. De verwachting klopte, en zij
+steunde op een benadering die de kern nu tot op 1 % bevestigt.

@@ -1,8 +1,8 @@
 {
-  "git_sha": "7b3abb7",
+  "git_sha": "b6365cd",
   "config": {
     "path": "conf/research/breadth.yaml",
-    "sha256": "d35c02de38d948f7f6ae8dd908de7a980a9f7ad1b2d0e8b0f24074dff50447f3"
+    "sha256": "87963bec8f92b1776390b997a6098b4c002ff1e1c1ea3f8bd7fc2738e3903709"
   },
   "data_hashes": {
     "crypto/ohlcv/AVAXUSDT/1d": "af05b4f95d0e282111641f85904c22f9",
@@ -25,7 +25,7 @@
     "block_length": null
   },
   "risk_policy_hash": null,
-  "risk_policy_note": "geen risicobesluit: alles hier is L0/data (AD-27 n.v.t.)",
+  "risk_policy_note": "geen risicobesluit: alles hier is L0/data (AD-27 n.v.t.); de poort van stap 7 citeert de ladder met haar eigen beleid",
   "trials": 0,
   "breadth": {
     "windows": {
@@ -689,6 +689,9 @@
         "ac1_median": null,
         "tau_int_median": null,
         "tau_window_reached_all": true,
+        "tau_median_determined": true,
+        "tau_int_by_name": {},
+        "window_reached_by_name": {},
         "independent_decisions_per_year": 0.0,
         "sign_flips_per_name_per_year": 0.0
       },
@@ -701,6 +704,23 @@
         "ac1_median": 0.9764049721594452,
         "tau_int_median": 84.65481314098636,
         "tau_window_reached_all": false,
+        "tau_median_determined": false,
+        "tau_int_by_name": {
+          "BTCUSDT": 100.61514526568529,
+          "ETHUSDT": 132.69268327778244,
+          "SOLUSDT": 97.73675379832328,
+          "AVAXUSDT": 24.361351569193605,
+          "LINKUSDT": 71.57287248364946,
+          "DOTUSDT": 39.53419589611053
+        },
+        "window_reached_by_name": {
+          "BTCUSDT": false,
+          "ETHUSDT": false,
+          "SOLUSDT": false,
+          "AVAXUSDT": true,
+          "LINKUSDT": false,
+          "DOTUSDT": true
+        },
         "independent_decisions_per_year": 4.311627259658814,
         "sign_flips_per_name_per_year": 0.0
       },
@@ -713,6 +733,23 @@
         "ac1_median": 0.9464972204457893,
         "tau_int_median": 29.964600020426595,
         "tau_window_reached_all": false,
+        "tau_median_determined": true,
+        "tau_int_by_name": {
+          "BTCUSDT": 25.482482213215665,
+          "ETHUSDT": 37.47169169230675,
+          "SOLUSDT": 68.8797613965254,
+          "AVAXUSDT": 29.395323179448607,
+          "LINKUSDT": 30.53387686140458,
+          "DOTUSDT": 19.287818060103383
+        },
+        "window_reached_by_name": {
+          "BTCUSDT": true,
+          "ETHUSDT": true,
+          "SOLUSDT": false,
+          "AVAXUSDT": true,
+          "LINKUSDT": true,
+          "DOTUSDT": true
+        },
         "independent_decisions_per_year": 12.181040285910134,
         "sign_flips_per_name_per_year": 21.926258992805753
       },
@@ -725,6 +762,23 @@
         "ac1_median": 0.9473375209526236,
         "tau_int_median": 31.016042496771252,
         "tau_window_reached_all": false,
+        "tau_median_determined": true,
+        "tau_int_by_name": {
+          "BTCUSDT": 25.480364389729377,
+          "ETHUSDT": 37.92530841472239,
+          "SOLUSDT": 58.86904467119222,
+          "AVAXUSDT": 31.005669440987823,
+          "LINKUSDT": 31.02641555255468,
+          "DOTUSDT": 20.905988851558288
+        },
+        "window_reached_by_name": {
+          "BTCUSDT": true,
+          "ETHUSDT": true,
+          "SOLUSDT": false,
+          "AVAXUSDT": true,
+          "LINKUSDT": true,
+          "DOTUSDT": true
+        },
         "independent_decisions_per_year": 11.76810355602254,
         "sign_flips_per_name_per_year": 21.926258992805753
       }
@@ -1126,5 +1180,76 @@
         ]
       }
     }
+  },
+  "feasibility": {
+    "primary_track": "xs_momentum_equal_weight",
+    "window": "W_DEV",
+    "n_obs": 1390,
+    "k_reference": 1,
+    "k_star": 30,
+    "turnover_per_bar": {
+      "reference": 0.15369704236610712,
+      "held": 0.0315347721822542
+    },
+    "book_volatility_annual": {
+      "reference": 0.23298166557221817,
+      "held": 0.2355196801883534
+    },
+    "cost_per_side": 0.00065,
+    "cost_gain_sharpe_l0": 0.12440034081623964,
+    "null": {
+      "n_paths": 200,
+      "mean_delta": 0.030475961584336127,
+      "sd_delta": 0.4301472653158047,
+      "median_se": 0.43375444408195374,
+      "detectable_two_sided": 0.8501430885348221,
+      "detectable_one_sided": 0.7134625705545211,
+      "detectable_two_sided_from_sd": 0.8430731480673724
+    },
+    "ladder": {
+      "artefact": "artefacts/baseline/phase5_revaluation.json",
+      "track": "xs_momentum_equal_weight",
+      "risk_policy_hash": "1b60cb664fbf9a2a",
+      "fees": 1987.054852702096,
+      "impact": 1267.591928770697,
+      "spread": 361.28079947345526,
+      "funding": 761.40775231785,
+      "net_sharpe_l3_full_window": -0.1681274015163754,
+      "mean_gross_l1": 0.11103139954770874
+    },
+    "book_scales": {
+      "vol_target": 2.5,
+      "gross_cap_bound": 36.025845087913645
+    },
+    "impact_multipliers": {
+      "ladder": 1.5397831130300181,
+      "vol_target": 1.8534720398354847,
+      "gross_cap_bound": 4.239861031432849
+    },
+    "detection_cost_per_side_bps": {
+      "two_sided": 44.420538072633406,
+      "one_sided": 37.27889070219486
+    },
+    "current_risk_policy_hash": "9961e1613bc907a5",
+    "gate": "RED",
+    "cost_gain_sharpe_l3": {
+      "ladder": 0.19154954404402472,
+      "vol_target": 0.2305725534489052,
+      "gross_cap_bound": 0.5274401573237397
+    },
+    "green_on_ladder": false,
+    "red_under_every_book": true,
+    "multiplier_required_two_sided": 6.8339289342512926,
+    "multiplier_required_one_sided": 5.735213954183824,
+    "precondition_met": false,
+    "level_criterion": {
+      "sr_required": 1.8686086235559072,
+      "net_sharpe_l3_k1_full_window": -0.1681274015163754,
+      "gap": 2.0367360250722824,
+      "max_cost_gain_sharpe_l3": 0.5274401573237397,
+      "gap_exceeds_max_cost_gain": true
+    },
+    "trials_spent": 0,
+    "first_moments_computed": false
   }
 }
