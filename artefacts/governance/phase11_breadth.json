@@ -1,5 +1,5 @@
 {
-  "git_sha": "b6365cd",
+  "git_sha": "846e847",
   "config": {
     "path": "conf/research/breadth.yaml",
     "sha256": "87963bec8f92b1776390b997a6098b4c002ff1e1c1ea3f8bd7fc2738e3903709"
@@ -44,6 +44,18 @@
         "first": "2021-11-15",
         "last": "2026-08-23"
       }
+    },
+    "panel": {
+      "quantity": "dagelijkse logrendementen, log(close).diff()",
+      "names": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT",
+        "AVAXUSDT",
+        "LINKUSDT",
+        "DOTUSDT"
+      ],
+      "window_rule": "W_FULL = bars met ex-ante sigma en causale ADV op elke naam"
     },
     "rows": [
       {
