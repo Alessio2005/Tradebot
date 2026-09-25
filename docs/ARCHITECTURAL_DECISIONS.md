@@ -1296,3 +1296,82 @@ risicoparameters buiten `conf/` om, dus het getal is geen eigenschap van deze
 config — maar de vraag welke limiet werkelijk bindt, is open. Een risicolaag
 waarvan de primaire schaalparameter niet bindt, is kapot, en dat oordeel staat
 los van hoe ruim de getallen zijn. Zie `docs/RISK_MANDATE.md` §2.3 en DI-27.
+
+---
+
+## AD-29 — Een pre-registratie noemt haar breedte, haar horizon en de IC die de poort daarbij vraagt
+
+**Fase:** 11, breedte en tijdschaal (stap 6)
+**Status:** actief — additief; verplicht in `freeze_preregistration` pas na DI-37
+**Bewaakt door:** `tests/unit/test_ic_wall.py` (de vijf AD-29-tests, waaronder
+de weigering van een breedte boven het aantal namen en van een IC die niet uit
+de eigen getallen volgt) · `src/tradebot/validation/breadth.py::assert_ic_wall_declared`
+
+### Besluit
+
+Elke nieuwe pre-registratie draagt een blok `ic_wall` met de constructie, het
+aantal namen, het aantal onafhankelijke weddenschappen, de horizon in bars, de
+bars per jaar, de Sharpe die de poort vraagt, de IC die daaruit volgt
+(`required_ic`) en de herkomst van de aannemelijkheid van die IC. Nieuwe apps
+roepen `assert_ic_wall_declared` aan vóór `freeze_preregistration`.
+
+### Waarom
+
+Twee hypothesen van fase 10 waren vóór hun registratie onbeslisbaar, en dat was
+uit te rekenen. H-10.1 legde de beslisfrequentie op een besluitpaneel met één
+unieke rij, dus met temporele breedte nul. H-10.3 registreerde een poort
+waarvan de bezetting vooraf niet te halen was. De muur
+(`reports/phase11_ic_wall.md`) maakt die rekening algemeen. Bij de gemeten
+breedte vraagt de DSR-drempel op `W_DEV` een IC van 0,047 (dollar-neutraal,
+dagklok) tot 0,257 (dollar-neutraal, klok van 30 bars), terwijl de hoogste IC
+die dit domein ooit rapporteerde 0,050 is. Een pre-registratie die haar IC niet
+naast die muur zet, weet niet of zij iets kan meten.
+
+### Het afgewezen alternatief
+
+De controle nu verplicht maken in
+`registry/preregistration.py::freeze_preregistration`. Afgewezen omdat de
+zusterfase (`Prompts-fases/fase_11_meetbasis_en_carry.md`) haar
+pre-registratie van H-11.1 met die functie bevriest terwijl deze fase loopt.
+Een verplichting halverwege breekt die bevriezing. Verplicht maken is DI-37,
+met het ledger-amendement van H-11.1 als voorwaarde.
+
+---
+
+## AD-30 — Onafhankelijke weddenschappen en het ontwerpeffect zijn twee grootheden
+
+**Fase:** 11, breedte en tijdschaal (stap 1 en 6)
+**Status:** actief
+**Bewaakt door:** `tests/unit/test_breadth_definitions.py` (rangbegrenzing,
+delegatie, en het ontwerpeffect vastgepind als `xfail(strict=True)`, DI-35) ·
+`tests/unit/test_breadth.py`
+
+### Besluit
+
+"N_eff" wordt niet meer als één grootheid gebruikt.
+
+* **Onafhankelijke weddenschappen**, de breedte uit de fundamentele wet, is de
+  participatieratio van de eigenwaarden, `(Σλ)² / Σλ²`, begrensd door de rang.
+  In de validatielaag heet zij `validation/breadth.py::independent_bets`. De
+  implementatie is `portfolio/covariance.py::effective_n_assets`, dat door DI-10
+  ongewijzigd blijft.
+* **Het ontwerpeffect** van een gepoold, gelijkgewogen gemiddelde (Kish),
+  `N / (1 + (N-1) ρ̄)`, defleert een gepoolde t in
+  `validation/inference.py::clustered_mean` en is daar juist. Tot DI-35 heet het
+  nog `effective_breadth`.
+
+### Waarom
+
+Op het dollar-neutrale residu van de zes namen (`W_DEV`) geeft het
+ontwerpeffect 123,58, met een 95 %-interval van 45,60 tot 335,91. De
+participatieratio geeft 4,353 [4,144; 4,500], bij rang vijf
+(`reports/phase11_breadth_and_timescale.md` §1). Het eerste getal meet hoe dicht
+de noemer bij nul ligt en niets anders. Het raakte stap 6.1 en 8.1 van de
+zusterfase.
+
+### Het afgewezen alternatief
+
+Eén functie met een vlag die kiest welke grootheid zij teruggeeft. Afgewezen
+omdat dat precies het defect is: één naam voor twee grootheden. Ook afgewezen:
+de participatieratio in `validation/` opnieuw implementeren. Dat zou een tweede
+implementatie van dezelfde grootheid zijn (R-3).
