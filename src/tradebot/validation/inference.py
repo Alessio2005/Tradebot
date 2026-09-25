@@ -930,12 +930,11 @@ def block_bootstrap_ci(
 # §5 — paneelafhankelijkheid: clustering op datum en N_eff-deflatie
 # =========================================================================== #
 def effective_breadth(correlation_matrix: np.ndarray) -> float:
-    """`N_eff = N / (1 + (N-1) rho_bar)` — de effectieve breedte van een paneel.
+    """`N / (1 + (N-1) rho_bar)`: Kish' ontwerpeffect van een gepoold gemiddelde.
 
-    Gemeten op `data/pit_store/`: zes namen met `rho_bar = 0,7442` geven
-    `N_eff = 1,271`. Zes sterk gecorreleerde namen zijn geen cross-sectie maar
-    één gerichte weddenschap met zes tickers erop.
-    """
+    GEEN breedte (AD-30, DI-35): op een paneel dat over de namen tot nul sommeert
+    gaat de noemer naar nul (dollar-neutraal `W_DEV`: 123,58 op zes namen). Tel
+    weddenschappen met `validation/breadth.py::independent_bets`."""
     c = np.asarray(correlation_matrix, dtype=np.float64)
     require(
         c.ndim == 2 and c.shape[0] == c.shape[1] and c.shape[0] >= 2,
@@ -1005,6 +1004,7 @@ class ClusteredMean:
     #: De naïeve t. Referentiekolom, nooit de toets.
     t_stat_pooled: float
     rho_bar: float
+    #: Ontwerpeffect (Kish), geen breedte: groter dan N bij rho_bar < 0 (DI-35).
     n_effective: float
     #: `sqrt(N_eff / N)`, afgekapt op 1,0.
     neff_factor: float
