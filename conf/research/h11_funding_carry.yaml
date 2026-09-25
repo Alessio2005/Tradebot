@@ -1,0 +1,49 @@
+# conf/research/h11_funding_carry.yaml
+#
+# H-11.1 -- de ontwerpgetallen van de carrykandidaat. Fase 11, stap 6.
+#
+# Dit bestand is de BRON van de parameterruimte die bij het bevriezen van
+# `conf/research/preregistration_h11_funding_carry.yaml` wordt ingespoten
+# (`validation/phase11_carry.py::h11_parameters`). De getallen staan hier en
+# niet in `src/tradebot/validation/`, want die map heeft ratchetbudget 0 voor
+# numerieke literals (`scripts/check_hardcoded_params.py`).
+#
+# NA HET BEVRIEZEN VERANDERT HIER NIETS. De pre-registratie-ID is een hash over
+# de ingespoten waarden; wie hier iets wijzigt, krijgt een andere ID en dus een
+# andere, niet-bevroren pre-registratie. De campagne weigert dan te draaien.
+
+h11:
+  # Het rooster. h = 20 zou 69,5 niet-overlappende perioden geven, onder de
+  # vloer van 100: daarom houdt het rooster bij 10 op (stap 6.2).
+  holding_periods: [3, 5, 10]
+
+  # De primaire cel, gekozen door de eigenaar op 2026-09-23, VOOR enige meting
+  # van de constructie. Grond, vooraf te beredeneren uit de gepubliceerde
+  # cijfers van masterprompt fase 11 §3.6 (geen constructieresultaat): 13,0 bps
+  # vaste kosten per round trip, gedeeld door de houdduur, geeft 1,3 bps/dag bij
+  # h = 10 tegen 4,3 bps/dag bij h = 3, en de carryspreiding tussen de namen
+  # ligt in de orde van 1 tot 1,5 bps/dag.
+  primary_holding_period: 10
+
+  # De enige constructie. `beta_hedged` is vervallen VOOR het bevriezen, op
+  # besluit van de eigenaar (2026-09-23): de hedge van dat arm is het
+  # gelijkgewogen mandje van DEZELFDE zes perpetuals, dat dezelfde funding
+  # betaalt die de shorts ontvangen. Netto carry = c_bar * (1 - beta_bar) ~ 0
+  # bij beta_bar ~ 1: het arm meet binnen het meetdomein niets. De
+  # gebruikelijke hedge (spot) valt buiten AD-23.
+  construction: cross_sectional_dollar_neutral
+  dropped_construction: beta_hedged
+
+  # AD-20: nominaal en rho-gedefleerd; het oordeel valt op de conservatieve.
+  adequacy_floor: 100
+
+  # De beslisregel van stop-criterium 2 (DSR bij M = m_new uit ledger_reset).
+  dsr_target: 0.95
+
+  # Negatieve controle 2 (tijd-permutatie): de seed van de permutatie. Vooraf
+  # vastgelegd; een seed kiezen na het zien van de uitkomst is een trial.
+  permutation_seed: 20260923
+
+  # De carry die op bar t bekend is: de afrekeningen tot en met bar t - 1
+  # (masterprompt stap 7.1). Eén bar vertraging op het dagpaneel.
+  signal_lag_bars: 1

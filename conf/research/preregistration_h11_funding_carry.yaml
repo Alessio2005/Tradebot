@@ -1,0 +1,203 @@
+# conf/research/preregistration_h11_funding_carry.yaml
+#
+# H-11.1 — DE CARRYKANDIDAAT. Fase 11, stap 6.
+#
+# Bevroren met `python apps/run_h11_funding_carry.py --freeze-only`, VÓÓR de
+# eerste fit en in een eigen commit (stap 6.3). De parameterruimte staat niet
+# hier maar wordt bij het bevriezen ingespoten
+# (`validation/phase11_carry.py::h11_parameters`, bron
+# `conf/research/h11_funding_carry.yaml`): een tweede kopie zou uit de pas
+# kunnen lopen met de configuratie waarmee wordt gemeten.
+#
+# ───────────────────────────────────────────────────────────────────────────────
+# TWEE AFWIJKINGEN VAN DE LETTER VAN DE STAPOPDRACHT, BEIDE VÓÓR HET BEVRIEZEN
+# EN BEIDE DOOR DE EIGENAAR BESLIST (2026-09-23)
+#
+# (1) Eén constructie, niet twee; 3 geplande trials, niet 6. De stapopdracht
+#     registreert ook `beta_hedged`: de carry op de volledige mand ontvangen en
+#     de prijscomponent hedgen met een causale bèta tegen het gelijkgewogen
+#     mandje. Binnen het meetdomein (AD-23: zes Bybit-perpetuals, geen spot)
+#     is dat mandje een mandje van DEZELFDE zes perpetuals, en die betalen
+#     dezelfde funding die de shorts ontvangen. Short i en long beta_i keer het
+#     mandje geeft per naam een netto positie van -(1 - beta_bar)/6, en dus een
+#     netto carry van c_bar * (1 - beta_bar). Bij beta_bar ~ 1 is dat ~ 0: het
+#     arm meet niets, en drie trials daarop besteden verhoogt alleen de eigen
+#     lat. Het is geschrapt, niet uitgesteld. De gebruikelijke hedge (spot)
+#     valt buiten AD-23.
+#
+# (2) De primaire cel is `cross_sectional_dollar_neutral`, h = 10. Gekozen op
+#     gepubliceerde, beschrijvende cijfers en NIET op een meting van het
+#     carryboek (masterprompt §3.6 en `conf/research/h11_funding_carry.yaml`):
+#     13,0 bps vaste kosten per round trip zijn over tien dagen 1,3 bps/dag, en
+#     de carryspreiding tussen de namen ligt in de orde van 1 tot 1,5 bps/dag.
+#     Bij h = 3 kost alleen het vaste deel al 4,3 bps/dag.
+#
+# ───────────────────────────────────────────────────────────────────────────────
+# EEN VOORSPELLING, VOORAF (R-10). Zij staat hier zodat de meting haar kan
+# weerleggen, niet zodat zij de meting vervangt.
+#
+#   (a) De twee negatieve controles slagen. Funding is persistent (per naam op
+#       73 % (DOTUSDT) tot 92 % (LINKUSDT) van de W_DEV-dagen positief, §3.6),
+#       dus een rangschikking op de bekende carry ontvangt meer gerealiseerde
+#       carry dan haar spiegelbeeld en dan een geschudde rangschikking.
+#   (b) De gerealiseerde carry van het boek is positief, maar klein: in de orde
+#       van de spreiding tussen de namen, ~1 bps/dag op de gross, niet de 1,5
+#       bps/dag van het hele mandje.
+#   (c) De prijscomponent van een dollar-neutraal boek is de SPREIDING tussen
+#       namen die met ρ̄ ~ 0,75 samen bewegen. Haar variantie is veel groter dan
+#       die van de carry, en haar gemiddelde is vooraf onbekend.
+#   (d) Daarom: de primaire cel haalt `ci_low > 0` NIET, de DSR bij M = 25 blijft
+#       ver onder 0,95, het oordeel is UNPROVEN, en het poortsample wordt niet
+#       gelezen.
+# ───────────────────────────────────────────────────────────────────────────────
+
+preregistration:
+  wave: phase11_h11_funding_carry
+
+  title: >-
+    H-11.1 — funding carry, prijsneutraal geconstrueerd als
+    cross-sectioneel dollar-neutraal boek op de zes perpetuals, houdduur
+    h in {3, 5, 10} dagbars, getoetst op netto Sharpe bij `L3_execution` op
+    W_DEV; primaire cel h = 10.
+
+  hypothesis: >-
+    Er bestaat een houdduur h in dagbars waarop een prijsneutraal geconstrueerd
+    carryboek op de zes perpetuals -- short de namen met de hoogste bekende
+    carry, long de namen met de laagste, dollar-neutraal, herbalanceerd elke h
+    bars -- na de kostenbasis van dit project (13,0 bps vast per round trip plus
+    de impactterm, via de authoritative engine) een netto rendement draagt
+    waarvan het 95 %-interval nul uitsluit én waarvan de gedefleerde Sharpe de
+    drempel bij M_new = 25 haalt, en waarvan ten minste de helft van het bruto
+    rendement carry is en geen prijs. Het oordeel valt op de vooraf benoemde
+    primaire cel, h = 10.
+
+  null_hypothesis: >-
+    De carryspreiding tussen de zes namen is na kosten niet te oogsten. Onder
+    deze nulhypothese sluit het 95 %-interval van de netto Sharpe van de
+    primaire cel nul niet uit, of haalt de DSR bij M = 25 de 0,95 niet, of is
+    het bruto rendement voor minder dan de helft carry. In het laatste geval is
+    een eventuele winst een wed op prijsrichting of spreiding en geen
+    carry-edge, en wordt zij als zodanig geboekt. Een positief resultaat op een
+    niet-primaire cel weerlegt de nulhypothese NIET: dat zou selectie zijn.
+
+  universe:
+    - BTCUSDT
+    - ETHUSDT
+    - SOLUSDT
+    - AVAXUSDT
+    - LINKUSDT
+    - DOTUSDT
+
+  granularity: 1d
+
+  period_start: "2021-11-15"
+  period_end: "2025-09-04"
+  evaluation_start: "2021-11-15"
+
+  primary_metric: net_sharpe_l3_cross_sectional_dollar_neutral_h10_w_dev
+
+  # h in {3, 5, 10} op één constructie. Elke houdduur is een trial, ook de twee
+  # niet-primaire: zij worden gemeten en gerapporteerd, en R-2 rekent elke
+  # gemeten tak. Budget: 5 besteed (fase 10) + 3 = 8 van m_new = 25.
+  planned_trials: 3
+
+  data_series:
+    - crypto/funding/AVAXUSDT/8h
+    - crypto/funding/BTCUSDT/8h
+    - crypto/funding/DOTUSDT/8h
+    - crypto/funding/ETHUSDT/8h
+    - crypto/funding/LINKUSDT/8h
+    - crypto/funding/SOLUSDT/8h
+    - crypto/ohlcv/AVAXUSDT/1d
+    - crypto/ohlcv/BTCUSDT/1d
+    - crypto/ohlcv/DOTUSDT/1d
+    - crypto/ohlcv/ETHUSDT/1d
+    - crypto/ohlcv/LINKUSDT/1d
+    - crypto/ohlcv/SOLUSDT/1d
+
+  stop_criteria:
+    - name: no_positive_net_on_development
+      metric: ci_low_net_sharpe_primary
+      operator: "<="
+      threshold: 0.0
+      action: archive
+      rationale: >-
+        Stop-criterium 1 van de stapopdracht, op de PRIMAIRE cel. Sluit het
+        95 %-blokbootstrap-interval van de netto Sharpe op W_DEV nul niet uit,
+        dan is het oordeel UNPROVEN en wordt het poortsample NIET gelezen (R-7).
+        De stapopdracht formuleert dit als "geen enkele cel"; het oordeel valt
+        echter op de vooraf benoemde primaire cel, en een niet-primaire cel die
+        wél nul uitsluit kan het oordeel niet redden zonder selectie. Zij wordt
+        gerapporteerd, gedefleerd bij M = 25, en telt als trial.
+
+    - name: deflated_interval_includes_zero
+      metric: dsr_primary
+      operator: "<"
+      threshold: 0.95
+      action: archive
+      rationale: >-
+        Stop-criterium 2. De gedefleerde Sharpe bij M = m_new = 25 (bevroren in
+        `ledger_reset.json`), met de GEMETEN scheefheid en kurtosis van de
+        rendementsreeks en sr_variance = 1/N (normale benadering). In de
+        Gaussische vorm vraagt dat op W_DEV (N = 1390) een geannualiseerde
+        Sharpe van 1,8686; de ingespoten parameters dragen dat getal. Bindt dit
+        criterium, dan is het oordeel UNPROVEN.
+
+    - name: carry_is_not_the_source
+      metric: carry_share_primary
+      operator: "<"
+      threshold: 0.5
+      action: falsify
+      rationale: >-
+        Stop-criterium 3. carry_share = carry_pnl / (carry_pnl + price_pnl),
+        allebei VÓÓR kosten. carry_pnl is de ontvangen min de betaalde funding
+        (door de engine geboekt). price_pnl is het nettoresultaat plus alle
+        kosten (fees, spread, impact) min carry_pnl. Is het carrydeel kleiner
+        dan de helft, dan is de cel geen carrykandidaat, ongeacht wat de Sharpe
+        zegt: REJECTED als carrykandidaat, en een eventuele winst wordt geboekt
+        als richtings- of spreidingswed. NIET EVALUEERBAAR wanneer het bruto
+        rendement (carry_pnl + price_pnl) niet positief is: dan is er geen
+        opbrengst waarvan de bron te bepalen valt. Het criterium bindt dan
+        niet, criteria 1 en 2 dragen het oordeel, en de campagne schrijft die
+        toestand expliciet in het artefact in plaats van een NaN door te geven
+        (`StopCriterion.binds` geeft op NaN stil False).
+
+    - name: negative_control_fails
+      metric: n_failed_negative_controls
+      operator: ">"
+      threshold: 0.0
+      action: archive
+      rationale: >-
+        Stop-criterium 4. Twee controles op de primaire houdduur, elk op de
+        dagelijkse CARRY-P&L. (1) Teken-omkering: het boek met omgekeerd teken
+        moet aantoonbaar minder carry ontvangen dan het arm, met HAC-t > 2 op
+        het dagverschil. (2) Tijd-permutatie: de bekende carry per symbool
+        geschud in de tijd (vooraf vastgelegde seed); het boek op die ruis moet
+        aantoonbaar minder carry ontvangen, met dezelfde toets. Faalt er een,
+        dan meet de constructie de carry niet: de run is ONGELDIG, er valt GEEN
+        oordeel, en de trials tellen wel. De actie `archive` is hier de
+        registratie van een ongeldige run en geen oordeel over de hypothese.
+
+    - name: adequacy_floor_breached
+      metric: conservative_periods_primary
+      operator: "<"
+      threshold: 100
+      action: descope
+      rationale: >-
+        Stop-criterium 5. De conservatieve telling (AD-20): de kleinste van
+        floor(N/h) niet-overlappende perioden en diezelfde telling maal de op
+        W_DEV gemeten effectieve breedte N_eff. Vooraf uitgerekend en
+        ingespoten: bij h = 10 is het 139 nominaal. Onder de vloer is de cel
+        UNPROVEN -- insufficient data en telt zij niet mee in het oordeel.
+
+    - name: promotion_requires_all_gates_clear
+      metric: n_binding_stop_criteria
+      operator: "<="
+      threshold: 0.0
+      action: promote
+      rationale: >-
+        CONFIRMED op de ontwikkelsample vereist dat geen enkel ander criterium
+        bindt. Pas dan wordt het poortsample W_GATE eenmaal gelezen, voor de
+        primaire cel, met de lezing geregistreerd in `holdout_lock.json` vóór de
+        run (R-7), als tekencontrole. Een geslaagde H-11.1 is geen promotie: de
+        promotiepoorten in `validation/gates.py` staan er los van.
