@@ -83,7 +83,8 @@ class TestAlphaImportsNothingFromRisk:
 
     def test_the_scan_actually_covers_the_whole_package(self) -> None:
         files = _py_files("alpha")
-        assert len(files) >= 25, f"slechts {len(files)} alpha-modules gescand"
+        # 13 sinds de sleeves en de expansie-units op 2026-09-26 zijn verwijderd.
+        assert len(files) >= 13, f"slechts {len(files)} alpha-modules gescand"
 
     @pytest.mark.parametrize(
         "path", _py_files("alpha"), ids=lambda p: p.name

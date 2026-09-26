@@ -377,12 +377,17 @@ class TestTheRederivationBlock:
     """Stap 4.1/4.2: een her-afleiding onder een exogeen gewijzigd beleid kost
     nul trials, en het artefact zegt dat zelf, met de reden erbij."""
 
-    def test_it_names_what_it_supersedes_and_costs_no_trial(self) -> None:
+    def test_it_names_what_it_supersedes_and_costs_no_trial(
+        self, tmp_path: Path
+    ) -> None:
         from tradebot.backtest.phase5_baseline import rederivation_block
+        old = tmp_path / "artefacts" / "baseline" / "ladder.json"
+        old.parent.mkdir(parents=True)
+        old.write_text("{}", encoding="utf-8")
         block = rederivation_block(
-            "artefacts/baseline/phase5_revaluation.json", risk_config_hash(RISK),
-            root=ROOT)
-        assert block["supersedes"] == "artefacts/baseline/phase5_revaluation.json"
+            "artefacts/baseline/ladder.json", risk_config_hash(RISK),
+            root=tmp_path)
+        assert block["supersedes"] == "artefacts/baseline/ladder.json"
         assert block["trials"] == 0
         assert block["risk_policy_hash"] == risk_config_hash(RISK)
         assert "R-2" in block["reason"]

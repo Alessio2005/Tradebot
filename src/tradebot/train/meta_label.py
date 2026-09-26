@@ -70,7 +70,7 @@ import numpy as np
 import pandas as pd
 
 from ..cv.walk_forward import WalkForwardCV, WalkForwardFold
-from ..labeling.phase6_barriers import BarrierLabels
+from ..labeling.vol_barriers import BarrierLabels
 from ..schemas.config import MetaLabelConfig, meta_label_config
 from ..utils.failfast import DataContractError, require, require_dependency
 

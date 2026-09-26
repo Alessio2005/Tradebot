@@ -26,7 +26,7 @@ import pandas as pd
 
 from ..cv.uniqueness import _calculate_average_uniqueness
 from ..cv.walk_forward import WalkForwardCV
-from ..labeling.phase6_barriers import label_triple_barrier
+from ..labeling.vol_barriers import label_triple_barrier
 from ..schemas.config import (
     AdequacyConfig,
     LabelingConfig,

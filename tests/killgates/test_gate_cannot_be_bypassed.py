@@ -48,7 +48,7 @@ from tests.lookahead.d1_harness import (
 from tradebot.registry.catalog import ModelCatalog, ModelRecord
 from tradebot.registry.lifecycle import LifecycleState, ModelLifecycle, TransitionEvidence
 from tradebot.registry.promotion import promote
-from tradebot.registry.trial_counter import TrialCount, live_trial_count
+from tradebot.registry.trial_counter import TrialCount
 from tradebot.schemas.config import ValidationConfig, load_config
 from tradebot.utils.failfast import DataContractError
 from tradebot.validation.dsr import dsr_gate
@@ -291,11 +291,13 @@ class TestThereIsNoBypass:
 
     def test_a_live_m_cannot_carry_a_reported_dsr(self, cfg) -> None:
         """Een live `M` groeit; hetzelfde model zou dan morgen een ander oordeel
-        krijgen op dezelfde data."""
+        krijgen op dezelfde data. De live M wordt hier met de hand gebouwd, want
+        de gecommitte ledger staat sinds de herstart op nul."""
         rng = np.random.default_rng(9)
+        live = TrialCount(value=5, source="live", origin="ledger",
+                          seed_total=0, registered_total=5)
         with pytest.raises(DataContractError, match="LIVE trial-count"):
-            dsr_gate(rng.normal(0.001, 0.02, 200),
-                     trial_count=live_trial_count(), config=cfg)
+            dsr_gate(rng.normal(0.001, 0.02, 200), trial_count=live, config=cfg)
 
     def test_inadequate_data_never_yields_a_promotion(
         self, cfg, leaking_returns

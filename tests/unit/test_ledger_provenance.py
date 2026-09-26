@@ -12,18 +12,15 @@ WAT ER HIERVOOR STOND
 
 Dat is geen contract maar een gewoonte, en een gewoonte kan geen entry weigeren.
 Er was dus geen manier om te weten of een entry uit een reproduceerbare run
-kwam — terwijl deze ledger `M = 2776` telt, en `M` in élke DSR in dit platform
-zit. Een niet-herleidbare entry maakt die telling een bewering.
+kwam — terwijl `M` in élke DSR in dit platform zit. Een niet-herleidbare
+entry maakt die telling een bewering.
 
-DE VEERTIEN HISTORISCHE ENTRIES BLIJVEN ZOALS ZE ZIJN
-=====================================================
-De bestaande entries dragen de vier velden niet, en zij worden NIET aangevuld.
-Een `git_sha` verzinnen voor een in Wave 28 gereconstrueerde entry zou herkomst
-FABRICEREN, en dat is erger dan hem missen: een verzonnen hash is niet van een
-echte te onderscheiden, en de volgende lezer zou hem vertrouwen.
-
-`TestTheGapIsAClosedSet` is daarom een ratchet: het aantal entries zonder
-herkomst mag alleen omlaag. Elke NIEUWE entry draagt hem.
+DE LEDGER IS OP 2026-09-26 OPNIEUW BEGONNEN
+===========================================
+Op besluit van de eigenaar zijn alle eerdere entries verwijderd en staat de
+teller op 0. Er bestaan dus geen entries zonder herkomst meer, en
+`TestTheGapIsAClosedSet` houdt dat zo: het aantal mag alleen omlaag, en het
+staat op nul. Elke NIEUWE entry draagt de vier velden.
 """
 from __future__ import annotations
 
@@ -41,9 +38,9 @@ from tradebot.registry.hypothesis_ledger import (
 
 ROOT = Path(__file__).resolve().parents[2]
 
-#: De gemeten nulstand op 2026-08-29. Entries van vóór het contract. RATCHET:
-#: alleen omlaag.
-LEGACY_ENTRIES_WITHOUT_PROVENANCE = 14
+#: Nulstand na de herstart van de ledger op 2026-09-26. RATCHET: alleen omlaag,
+#: en er is geen omlaag meer.
+LEGACY_ENTRIES_WITHOUT_PROVENANCE = 0
 
 
 def _entry(**over) -> LedgerEntry:
@@ -174,9 +171,9 @@ class TestTheContractHoldsOnEveryWritePath:
 class TestTheGapIsAClosedSet:
     """RATCHET. Het aantal entries zonder herkomst mag alleen omlaag.
 
-    Ze worden niet aangevuld: een `git_sha` verzinnen voor een gereconstrueerde
-    entry is herkomst FABRICEREN, en een verzonnen hash is niet van een echte te
-    onderscheiden.
+    Een `git_sha` verzinnen voor een entry is herkomst FABRICEREN, en een
+    verzonnen hash is niet van een echte te onderscheiden; dus wordt een entry
+    zonder herkomst niet aangevuld maar geweigerd.
     """
 
     def test_no_new_entry_lacks_provenance(self) -> None:
@@ -190,13 +187,14 @@ class TestTheGapIsAClosedSet:
             f"{LEGACY_ENTRIES_WITHOUT_PROVENANCE}. Nieuw sinds de meting: "
             f"{without[LEGACY_ENTRIES_WITHOUT_PROVENANCE:]}")
 
-    def test_the_ledger_still_loads_and_counts(self) -> None:
-        """Achterwaartse compatibiliteit: de historische entries blijven leesbaar
-        en `M` blijft precies wat elke bevroren pre-registratie erover zegt."""
+    def test_the_ledger_loads_and_counts(self) -> None:
+        """De gecommitte ledger is leesbaar en `M` is de som van seed en entries."""
         ledger = HypothesisLedger(ROOT / DEFAULT_LEDGER_PATH)
-        assert ledger.total_n_hypotheses() == 2776
+        doc = ledger.load()
+        assert ledger.total_n_hypotheses() == int(doc["seed_total"]) + sum(
+            int(e["n_trials"]) for e in doc["entries"])
 
-    def test_the_seed_reconstruction_is_documented_in_the_artefact(self) -> None:
+    def test_the_restart_is_documented_in_the_artefact(self) -> None:
         doc = json.loads((ROOT / DEFAULT_LEDGER_PATH).read_text(encoding="utf-8"))
-        assert doc["seed_total"] == 2363
-        assert "WAVE_LOG" in doc.get("seed_note", "")
+        assert doc["seed_total"] == 0
+        assert "2026-09-26" in doc.get("seed_note", "")

@@ -1,0 +1,54 @@
+# tests/fixtures/preregistration_example.yaml
+# SYNTHETISCHE pre-registratie, uitsluitend als testfixture voor het
+# pre-registratiecontract (`registry/preregistration.py`). Zij beschrijft geen
+# hypothese van dit programma en wordt nooit bevroren in artefacts/governance/.
+preregistration:
+  wave: example_wave
+
+  title: >-
+    Voorbeeld: een fictief signaal op het gecertificeerde universum, alleen om
+    het contract te toetsen.
+
+  hypothesis: >-
+    Een fictief signaal levert een positieve netto out-of-sample Sharpe na
+    transactiekosten, gemeten via Purged Walk-Forward met embargo.
+
+  null_hypothesis: >-
+    De netto out-of-sample Sharpe van het fictieve signaal is kleiner dan of
+    gelijk aan nul na transactiekosten.
+
+  universe:
+    - BTCUSDT
+    - ETHUSDT
+
+  granularity: 1d
+
+  period_start: "2021-01-01"
+  period_end: "2025-12-31"
+  evaluation_start: "2022-01-01"
+
+  primary_metric: net_oos_sharpe
+
+  planned_trials: 2
+
+  data_series:
+    - crypto/ohlcv/BTCUSDT/1d
+    - crypto/ohlcv/ETHUSDT/1d
+
+  stop_criteria:
+    - name: no_edge_after_costs
+      metric: net_oos_sharpe
+      operator: "<="
+      threshold: 0.0
+      action: falsify
+      rationale: >-
+        Een niet-positieve netto OOS Sharpe betekent geen edge na kosten.
+
+    - name: dsr_indistinguishable_from_selection_noise
+      metric: dsr_probability
+      operator: "<"
+      threshold: 0.95
+      action: archive
+      rationale: >-
+        Onder DSR 0,95 is de Sharpe niet te onderscheiden van de beste trekking
+        uit M pogingen.

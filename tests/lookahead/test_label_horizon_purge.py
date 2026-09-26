@@ -43,7 +43,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tradebot.labeling.phase6_barriers import BarrierLabels, label_triple_barrier
+from tradebot.labeling.vol_barriers import BarrierLabels, label_triple_barrier
 from tradebot.schemas.config import LabelingConfig, ValidationConfig, load_config
 from tradebot.utils.failfast import ConfigContractError, DataContractError
 from tradebot.validation.walk_forward import (

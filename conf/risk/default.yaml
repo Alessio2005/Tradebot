@@ -14,7 +14,7 @@
 # ===========================================================================
 # Tot deze commit gold de fase-4-regel "WAAR WAARDEN UITEENLIEPEN IS DE
 # STRENGSTE GEKOZEN", en daarbovenop een propfirm-contract dat de dag- en
-# drawdownlijnen dicteerde (`src/tradebot/artefacts/PROPFIRM_PARALLEL_AUDIT.md`:
+# drawdownlijnen dicteerde (de propfirm-audit, verwijderd op 2026-09-26:
 # statisch 10% max-DD + 5% daily, intern gebufferd naar 6%/4,5%).
 #
 # Er wordt niet meer met propfirms gewerkt. Daarmee vervalt de grond onder elke
@@ -210,7 +210,7 @@ risk:
 
   # ── Overig ────────────────────────────────────────────────────────────────
   # daily_var_limit_pct: MANDAATWIJZIGING 0.02 -> 0.05. Houdt de verhouding uit
-  #   PROPFIRM_PARALLEL_AUDIT §4.3 vast ("1-dags 99%-ES < 0.5 x daily-limit"),
+  #   de propfirm-audit §4.3 vast ("1-dags 99%-ES < 0.5 x daily-limit"),
   #   nu tegen de nieuwe daglimiet: 0.5 x 0.10 = 0.05.
   daily_var_limit_pct: 0.05
 
@@ -269,7 +269,7 @@ risk:
   # geldt `effective_relative_cap(1, 0.60) = max(0.60, 1/1) = 1.0`, dus
   # `cluster_cap` bindt nooit meer op dit universum. Hij blijft in
   # `constraint_order` en wordt weer actief zodra er een tweede AANTOONBAAR
-  # cluster bijkomt - een aandelen-, FX- of commodity-sleeve. Tot dat moment is
+  # cluster bijkomt - aandelen, FX of grondstoffen. Tot dat moment is
   # `max_concentration` (0,40) de enige werkzame spreidingsbescherming.
   # Bewaakt door `tests/integration/test_cluster_feasibility.py`.
   clusters:

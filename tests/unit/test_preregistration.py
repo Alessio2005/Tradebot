@@ -2,8 +2,8 @@
 
 Een governance-gate die nooit is aangetoond, is `model_risk_policy.md` opnieuw:
 papier zonder tanden (audit bevinding D-1). Deze tests bewijzen dat de gate
-daadwerkelijk sluit, en dat de bevroren baseline-registratie bestaat en naar
-zichzelf hasht.
+daadwerkelijk sluit. Zij draaien op een synthetische fixture: sinds de herstart
+van 2026-09-26 staat er geen bevroren pre-registratie in de repository.
 """
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-from tradebot.registry.hypothesis_ledger import HypothesisLedger
 from tradebot.registry.preregistration import (
     PreRegistration,
     StopCriterion,
@@ -24,7 +23,7 @@ from tradebot.registry.preregistration import (
 from tradebot.utils.failfast import ConfigContractError, DataContractError
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = ROOT / "conf" / "research" / "preregistration_baseline_phase3.yaml"
+SPEC = ROOT / "tests" / "fixtures" / "preregistration_example.yaml"
 GOVERNANCE = ROOT / "artefacts" / "governance"
 
 GIT_SHA = "abc1234"
@@ -170,38 +169,3 @@ class TestStopCriteriaBind:
         with pytest.raises(ConfigContractError, match="Onbekend stop-criterium"):
             prereg.stop_criterion("a_criterion_invented_after_the_fact")
 
-
-class TestTheBaselineWaveIsActuallyRegistered:
-    """De echte, bevroren registratie — niet een testfixture."""
-
-    def test_frozen_artefact_exists_and_verifies(self) -> None:
-        frozen = sorted(GOVERNANCE.glob("preregistration_*.json"))
-        assert frozen, "er is geen bevroren pre-registratie in artefacts/governance"
-        baseline = [
-            p for p in frozen
-            if json.loads(p.read_text(encoding="utf-8"))
-            .get("content", {}).get("wave") == "phase3_baseline"
-        ]
-        assert len(baseline) == 1, "verwacht precies een phase3_baseline registratie"
-        doc = json.loads(baseline[0].read_text(encoding="utf-8"))
-        prereg = require_preregistration(doc["preregistration_id"],
-                                         directory=GOVERNANCE)
-        assert prereg.wave == "phase3_baseline"
-        assert prereg.planned_trials > 0
-        assert doc["git_sha"] and doc["frozen_utc"]
-        assert doc["ledger_total_at_freeze"] > 0
-
-    def test_planned_trials_are_counted_in_the_ledger(self) -> None:
-        """M wordt VOORAF opgehoogd; een niet-getelde trial is p-hacking."""
-        ledger = HypothesisLedger(GOVERNANCE / "hypothesis_ledger.json")
-        entries = [e for e in ledger.entries() if e["unit"] == "phase3_baseline"]
-        assert len(entries) == 1, "de baseline-golf staat precies eenmaal in de ledger"
-        doc = json.loads(
-            next(
-                p for p in GOVERNANCE.glob("preregistration_*.json")
-                if json.loads(p.read_text(encoding="utf-8"))
-                .get("content", {}).get("wave") == "phase3_baseline"
-            ).read_text(encoding="utf-8")
-        )
-        assert entries[0]["n_trials"] == doc["content"]["planned_trials"]
-        assert doc["preregistration_id"] in entries[0]["notes"]

@@ -1,9 +1,0 @@
-{
-  "archived_total": 2776,
-  "frozen_utc": "2026-09-08T15:10:40.357902+00:00",
-  "git_sha": "4a64731",
-  "m_new": 25,
-  "note": "De oude telling is GEARCHIVEERD, niet gewist. FALSIFICATION_REGISTER.md F1-F20 blijft onverkort bindend; dat is de prijs van deze reset (R2). Het bevroren poortsample (R8) is de enige externe verificatie.",
-  "protocol": "AD-24 R1-R8",
-  "rationale": "AD-24: herstart op dagbars (AD-22) met een kandidaatverzameling die per AD-23 binnen het meetdomein valt en disjunct is van de ruimte waarin het merendeel van de 2776 trials is uitgevoerd. F1-F20 blijft onverkort bindend (R2); het poortsample uit stap 4B is de externe verificatie (R8)."
-}

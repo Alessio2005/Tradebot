@@ -24,7 +24,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tradebot.labeling.phase6_barriers import label_triple_barrier
+from tradebot.labeling.vol_barriers import label_triple_barrier
 from tradebot.schemas.config import LabelingConfig
 from tradebot.utils.failfast import CausalityViolationError
 

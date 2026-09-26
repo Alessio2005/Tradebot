@@ -59,15 +59,28 @@ def _returns(n: int, mu: float, seed: int) -> np.ndarray:
 # --------------------------------------------------------------------------- #
 # M — de trial-teller
 # --------------------------------------------------------------------------- #
+def _booked_ledger(tmp_path: Path) -> Path:
+    """Een ledger met geboekte trials. De gecommitte ledger is sinds de
+    herstart van 2026-09-26 leeg (M = 0, en dat is geen bruikbare M), dus het
+    mechanisme wordt op een eigen ledger getoetst."""
+    path = tmp_path / "hypothesis_ledger.json"
+    path.write_text(json.dumps({
+        "version": 1, "seed_total": 0,
+        "seed_note": "testledger, begonnen op nul",
+        "entries": [{"unit": "a", "n_trials": 3}, {"unit": "b", "n_trials": 2}],
+    }), encoding="utf-8")
+    return path
+
+
 class TestTrialCounter:
-    def test_live_count_matches_the_ledger(self) -> None:
-        tc = live_trial_count()
-        assert tc.value == tc.seed_total + tc.registered_total
+    def test_live_count_matches_the_ledger(self, tmp_path: Path) -> None:
+        tc = live_trial_count(_booked_ledger(tmp_path))
+        assert tc.value == tc.seed_total + tc.registered_total == 5
         assert tc.source == "live"
 
-    def test_a_live_count_is_not_reproducible(self) -> None:
+    def test_a_live_count_is_not_reproducible(self, tmp_path: Path) -> None:
         """De kern van de Phase 3-les: live M mag geen meting dragen."""
-        assert live_trial_count().is_reproducible is False
+        assert live_trial_count(_booked_ledger(tmp_path)).is_reproducible is False
 
     def test_m_below_two_is_refused(self) -> None:
         """Bailey-Lopez de Prado is niet gedefinieerd onder twee trials."""
@@ -84,10 +97,10 @@ class TestTrialCounter:
     def test_uncertainty_travels_with_the_number(self, frozen_m: TrialCount) -> None:
         assert frozen_m.as_dict()["M_uncertainty"] == M_UNCERTAINTY_NOTE
 
-    def test_provenance_quotes_the_reconstruction(self) -> None:
-        prov = reconstruction_provenance()
-        assert prov["seed_total"] == 2363
-        assert "WAVE_LOG" in prov["seed_note"]
+    def test_provenance_quotes_the_reconstruction(self, tmp_path: Path) -> None:
+        prov = reconstruction_provenance(_booked_ledger(tmp_path))
+        assert prov["seed_total"] == 0
+        assert prov["seed_note"] == "testledger, begonnen op nul"
 
     def test_missing_preregistration_crashes(self, tmp_path) -> None:
         with pytest.raises(ConfigContractError, match="bestaat niet"):
@@ -116,11 +129,14 @@ class TestTrialCounter:
 # DSR
 # --------------------------------------------------------------------------- #
 class TestDsrGate:
-    def test_live_m_is_refused_for_a_reported_result(self, cfg: ValidationConfig) -> None:
+    def test_live_m_is_refused_for_a_reported_result(
+        self, cfg: ValidationConfig, tmp_path: Path
+    ) -> None:
         """B2: de DSR weigert te draaien zonder eerlijke, bevroren M."""
         with pytest.raises(DataContractError, match="LIVE trial-count"):
             dsr_gate(_returns(200, 0.001, 1),
-                     trial_count=live_trial_count(), config=cfg)
+                     trial_count=live_trial_count(_booked_ledger(tmp_path)),
+                     config=cfg)
 
     def test_a_bare_integer_is_not_an_m(self, cfg: ValidationConfig) -> None:
         with pytest.raises(DataContractError, match="vereist een TrialCount"):

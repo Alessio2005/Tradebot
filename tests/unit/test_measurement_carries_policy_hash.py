@@ -72,7 +72,6 @@ from tradebot.schemas.config import RiskConfig, load_config
 from tradebot.utils.failfast import DataContractError
 
 CONF = ROOT / "conf"
-LADDER = ROOT / "artefacts" / "baseline" / "phase5_revaluation.json"
 
 #: Het vervallen beleid waaronder fase 5, 6, 9 en 10 hebben gemeten.
 LAPSED = "1b60cb664fbf9a2a"
@@ -91,8 +90,17 @@ def current() -> str:
 
 
 @pytest.fixture(scope="module")
-def ladder() -> dict[str, Any]:
-    return json.loads(LADDER.read_text(encoding="utf-8"))
+def ladder(current: str) -> dict[str, Any]:
+    """Een ladderdocument zoals `backtest/engine.py` het schrijft: per rij een
+    track, een laag, de haltteller (een risicobesluit) en de policy-hash van het
+    geldende beleid. Synthetisch sinds de herstart van 2026-09-26: de oude
+    ladderrapporten zijn verwijderd, en de poort wordt op de vorm getoetst."""
+    return {"rows": [
+        {"track": "track_a", "layer": "L3_execution",
+         "n_sovereign_halted": 0, "risk_policy_hash": current},
+        {"track": "track_b", "layer": "L3_execution",
+         "n_sovereign_halted": 3, "risk_policy_hash": current},
+    ]}
 
 
 def _decision(**extra: Any) -> dict[str, Any]:
@@ -242,8 +250,8 @@ class TestTheGateRefusesAMeasurementWithoutItsPolicy:
                                     current=current) == frozenset()
 
 
-class TestTheNegativeControlOnTheRealLadder:
-    """De poort moet aantoonbaar rood kunnen worden op een ECHT artefact."""
+class TestTheNegativeControlOnTheLadder:
+    """De poort moet aantoonbaar rood kunnen worden op een ladderdocument."""
 
     def test_the_ladder_carries_a_risk_decision(self, ladder: dict) -> None:
         assert carries_risk_decision(ladder)
@@ -252,7 +260,7 @@ class TestTheNegativeControlOnTheRealLadder:
     def test_the_ladder_as_it_stands_passes_the_gate(
         self, ladder: dict, registered: frozenset[str], current: str
     ) -> None:
-        require_policy_carry(ladder, source=str(LADDER),
+        require_policy_carry(ladder, source="ladder",
                              registered=registered, current=current)
 
     def test_the_same_ladder_with_a_wrong_hash_is_rejected(
@@ -395,10 +403,10 @@ class TestEveryMeasurementInTheRepositoryCarriesItsPolicy:
     risicobesluit draagt, gaat door dezelfde poort."""
 
     @staticmethod
-    def _candidates() -> list[Path]:
+    def _candidates(root: Path = ROOT) -> list[Path]:
         out: list[Path] = []
         for base in ("artefacts", "reports"):
-            for path in sorted((ROOT / base).rglob("*.json")):
+            for path in sorted((root / base).rglob("*.json")):
                 try:
                     doc = json.loads(path.read_text(encoding="utf-8"))
                 except (OSError, json.JSONDecodeError):
@@ -407,9 +415,23 @@ class TestEveryMeasurementInTheRepositoryCarriesItsPolicy:
                     out.append(path)
         return out
 
-    def test_the_sweep_actually_finds_something(self) -> None:
-        """Een sweep over nul bestanden is groen en bewijst niets."""
-        assert len(self._candidates()) >= 7
+    def test_the_sweep_actually_finds_something(
+        self, tmp_path: Path, current: str
+    ) -> None:
+        """Een sweep over nul bestanden is groen en bewijst niets. Sinds de
+        herstart van 2026-09-26 staan er geen meetrapporten meer in de repo,
+        dus de sweep wordt bewezen op een geplant meetartefact: hij moet het
+        vinden, en een JSON zonder risicobesluit moet hij laten liggen."""
+        measured = tmp_path / "artefacts" / "baseline" / "run.json"
+        measured.parent.mkdir(parents=True)
+        measured.write_text(json.dumps({"rows": [
+            {"n_sovereign_halted": 0, "risk_policy_hash": current}]}),
+            encoding="utf-8")
+        catalogue = tmp_path / "artefacts" / "governance" / "catalogue.json"
+        catalogue.parent.mkdir(parents=True)
+        catalogue.write_text(json.dumps({"universe": ["BTCUSDT"]}),
+                             encoding="utf-8")
+        assert self._candidates(tmp_path) == [measured]
 
     def test_every_measurement_passes_the_gate(
         self, registered: frozenset[str], current: str

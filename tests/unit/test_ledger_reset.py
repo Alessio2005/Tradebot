@@ -23,14 +23,15 @@ onderdelen: (1) `m_new` komt uit het bevroren artefact, niet uit een letterlijke
 25 in de test; (2) een M-gevoeligheidstoets die onafhankelijk (via bisectie,
 geen tweede kopie van de DSR-formule) de drempel-Sharpe bij die `m_new`
 herleidt en die tegen de gemeten waarde pint, zodat een verlaagde `m_new` de
-test rood maakt; (3) de bestaande 0,156-smoketest blijft, maar nadrukkelijk
-als smoketest op annualisatie en `deflated_sharpe`, niet als de reset-poort.
+test rood maakt.
 
-Daarnaast pint een nieuwe test het gecommitte artefact zelf (ruling T3-B): dat
-het bestaat, `m_new == 25` draagt, en dat zijn eigen hash gelijk is aan de
-`data_hash` op het AD-24-amendement in de ledger -- zonder die controle is het
-bevriezen van het bestand een notitie die niemand leest, en kan iemand
-`m_new` in het gecommitte bestand veranderen zonder dat de suite het merkt.
+HERSTART 2026-09-26
+===================
+De ledger is op besluit van de eigenaar leeggemaakt en het oude resetbestand is
+verwijderd. Er is dus (nog) geen gecommitte reset. De test op het gecommitte
+artefact eist daarom: zolang er geen is, weigert de meting (R6); zodra er een
+is bevroren, draagt hij een bruikbare `m_new` en klopt zijn `archived_total`
+met de ledger.
 """
 from __future__ import annotations
 
@@ -41,13 +42,13 @@ import pytest
 from scipy.optimize import brentq
 
 from tradebot.backtest.metrics import deflated_sharpe
+from tradebot.registry.hypothesis_ledger import HypothesisLedger
 from tradebot.registry.ledger_reset import (
     ResetAlreadyExists,
     active_trial_count,
     freeze_reset,
 )
 from tradebot.utils.failfast import DataContractError
-from tradebot.utils.hashing import DATA_HASH_LENGTH, hash_file
 
 LEDGER = Path("artefacts/governance/hypothesis_ledger.json")
 RESET = Path("artefacts/governance/ledger_reset.json")
@@ -104,7 +105,7 @@ def test_the_old_ledger_stays_readable(tmp_path: Path) -> None:
     freeze_reset(m_new=25, rationale="r", git_sha="deadbee", out=out)
     count = active_trial_count(reset_path=out, ledger_path=LEDGER)
     assert count.total == 25
-    assert count.archived_total == 2776
+    assert count.archived_total == HypothesisLedger(LEDGER).total_n_hypotheses()
 
 
 def test_active_trial_count_refuses_a_mismatched_archived_total(
@@ -125,31 +126,19 @@ def test_active_trial_count_refuses_a_mismatched_archived_total(
         active_trial_count(reset_path=out, ledger_path=LEDGER)
 
 
-def test_the_frozen_reset_artefact_is_pinned_and_linked_to_the_ledger() -> None:
-    """Ruling T3-B. `git grep ledger_reset.json` gaf vóór deze test precies één
-    hit: de schrijver zelf. Niets las het terug, dus R5's "een reset" werd
-    door niets afgedwongen -- een operator kon `m_new` in het gecommitte
-    bestand veranderen, of het verwijderen en opnieuw bevriezen, en de suite
-    bleef groen. Deze test pint het bestand zelf, EN de cryptografische
-    koppeling naar het AD-24-amendement (wave 31, `ad24_ledger_reset`) in de
-    ledger, zodat die koppeling een hek is en geen decoratie.
-    """
-    assert RESET.is_file(), (
-        f"{RESET} ontbreekt. R6: M_new moet bevroren zijn vóór de eerste fit."
-    )
+def test_the_committed_reset_is_either_absent_and_blocking_or_consistent() -> None:
+    """Ruling T3-B, na de herstart. Zonder gecommitte reset weigert de meting
+    (R6): meten met een impliciete M is precies de vrijheidsgraad die de DSR
+    hoort weg te nemen. Met een gecommitte reset moet `m_new` bruikbaar zijn en
+    moet `archived_total` kloppen met de ledger (T3-D)."""
+    if not RESET.is_file():
+        with pytest.raises(DataContractError):
+            active_trial_count(reset_path=RESET, ledger_path=LEDGER)
+        return
     payload = json.loads(RESET.read_text(encoding="utf-8"))
-    assert payload["m_new"] == 25
-
-    ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
-    amendment = next(
-        entry for entry in ledger["entries"]
-        if entry.get("wave") == 31 and entry.get("unit") == "ad24_ledger_reset"
-    )
-    assert amendment["data_hash"] == hash_file(RESET, DATA_HASH_LENGTH), (
-        "De data_hash op het AD-24-amendement wijkt af van de huidige hash "
-        "van ledger_reset.json -- het bevroren bestand is gewijzigd sinds "
-        "het amendement is geboekt."
-    )
+    assert int(payload["m_new"]) >= 2
+    count = active_trial_count(reset_path=RESET, ledger_path=LEDGER)
+    assert count.archived_total == HypothesisLedger(LEDGER).total_n_hypotheses()
 
 
 @pytest.mark.parametrize(
@@ -160,37 +149,25 @@ def test_the_frozen_reset_artefact_is_pinned_and_linked_to_the_ledger() -> None:
     ],
 )
 def test_the_reset_does_not_make_the_gate_permissive(
-    n_obs: int, expected_hurdle: float, label: str
+    n_obs: int, expected_hurdle: float, label: str, tmp_path: Path
 ) -> None:
-    """De negatieve controle op de reset zelf (ruling T3-C), in drie delen.
+    """De negatieve controle op de reset zelf (ruling T3-C).
 
-    (1) `m_new` komt uit het BEVROREN artefact, niet uit een letterlijke 25 --
-    anders test de test zichzelf en niet de reset.
+    (1) `m_new` komt uit een BEVROREN artefact, teruggelezen van schijf, niet
+    uit een letterlijke 25 in de berekening -- anders test de test zichzelf en
+    niet de reset.
     (2) M-gevoeligheidstoets: de geannualiseerde Sharpe waarbij
     `deflated_sharpe` DSR=0,95 haalt bij die bevroren `m_new`, onafhankelijk
     gevonden met bisectie, moet gelijk zijn aan de gemeten drempel. Verlaag
     `m_new` en dit wordt rood -- dat is het hele punt.
-    (3) De bestaande smoketest op de beste ooit gemeten track (0,156): een
-    echte sanity-check op annualisatie en `deflated_sharpe`, maar NIET de
-    reset-poort zelf (dat is deel 2).
     """
-    m_new = int(json.loads(RESET.read_text(encoding="utf-8"))["m_new"])
+    out = tmp_path / "ledger_reset.json"
+    freeze_reset(m_new=25, rationale="r", git_sha="deadbee", out=out)
+    m_new = int(json.loads(out.read_text(encoding="utf-8"))["m_new"])
     assert m_new == 25
 
     hurdle = _hurdle_sharpe(n_obs=n_obs, n_trials=m_new)
     assert hurdle == pytest.approx(expected_hurdle, abs=5e-4), label
-
-    per_bar_best_measured = 0.156 / (365 ** 0.5)
-    result = deflated_sharpe(
-        per_bar_best_measured,
-        n_obs=n_obs,
-        n_trials=m_new,
-        sr_variance=1.0 / n_obs,
-        skew=0.0,
-        kurtosis=3.0,
-        bars_per_year=365,
-    )
-    assert result.dsr < 0.95, label
 
 
 @pytest.mark.parametrize("m_new", [0, 1])

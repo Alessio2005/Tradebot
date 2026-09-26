@@ -92,40 +92,17 @@ jobs:
           python -m pytest -m "not slow and not regression" -p no:randomly \
                  --cov=src/tradebot --cov-report=term -q
 
-      # ── De vingerafdruk ────────────────────────────────────────────────────
+      # ── De killgates ───────────────────────────────────────────────────────
       #
-      # Phase 10, stap 1.8 (Q11) zette de vier pre-geregistreerde killgates op
-      # `xfail(strict=True)`. Zij verschijnen sindsdien als XFAILED, niet als
-      # FAILED -- een guard die nog op "^FAILED" scraapt, scraapt een lege
-      # verzameling en faalt dus ALTIJD, ongeacht of de killgates nog kloppen
-      # (gemeten Phase 10 stap 2: "FAILED lines found: 0, would CI pass? False").
-      # Deze stap toetst daarom XFAILED in plaats van FAILED, met dezelfde
-      # identiteitscontrole op precies deze vier ids, plus twee aanscherpingen
-      # die met de kleurwissel meekwamen:
-      #   1. Niets mag XPASSEN. `strict=True` maakt een onverwachte pass zelf al
-      #      een FAILED-run (pytest rapporteert "[XPASS(strict)]" als failure,
-      #      niet als "XPASS"), dus die faalt al op de identiteitscheck; de
-      #      expliciete XPASS-scan is een tweede, onafhankelijke slot op
-      #      dezelfde deur.
-      #   2. Een killgate die via `gates_completed` in het artefact een
-      #      `pytest.skip(...)` intrigt in plaats van de assert te draaien,
-      #      rapporteert als SKIPPED, niet als XFAILED -- die verschijnt dus
-      #      niet in de XFAILED-verzameling en faalt de identiteitscheck. Een
-      #      killgate kan zich zo niet stilzwijgend uitschakelen door zijn eigen
-      #      artefact te laten "vergeten" dat hij is geëvalueerd.
-      # Dit is strenger dan de oude check, niet losser: "de suite is groen" zou
-      # een killgate die is stilgelegd evengoed doorlaten, en dat is precies
-      # wat deze stap moet tegenhouden.
-      - name: The four pre-registered killgates must still be xfailed
+      # De vier xfail-killgates op de sleeves (`cm_carry`/`cm_tsmom`) zijn op
+      # 2026-09-26 met de sleeves zelf verwijderd. Wat overblijft, is de
+      # killgate op de poort zelf: die moet slagen. Niets mag FAILED zijn, niets
+      # mag XPASSEN, en er mag niets XFAILED zijn dat hier niet is aangekondigd.
+      - name: The killgates must pass, with nothing xfailed or xpassed
         run: |
           python - <<'PY'
           import re, subprocess, sys
-          EXPECTED = {
-              "tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B1 in-sample-cm_carry]",
-              "tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B2 residual alpha-cm_tsmom]",
-              "tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B2 residual alpha-cm_carry]",
-              "tests/killgates/test_expansion_killgates.py::test_futures_unit_against_gate[KG-B3 out-of-sample-cm_carry]",
-          }
+          EXPECTED_XFAILED: set[str] = set()
           out = subprocess.run(
               [sys.executable, "-m", "pytest", "-q", "-p", "no:randomly",
                "--no-header", "-rfxXs", "tests/killgates"],
@@ -134,10 +111,10 @@ jobs:
           got_xpassed = set(re.findall(r"^XPASS (\S+.*?)(?:\s+-|$)", out, re.M))
           got_failed = set(re.findall(r"^FAILED (\S+.*?)(?:\s+-|$)", out, re.M))
           problems = []
-          if got_xfailed != EXPECTED:
+          if got_xfailed != EXPECTED_XFAILED:
               problems.append(
                   "xfailed-verzameling wijkt af\n  verwacht: "
-                  f"{sorted(EXPECTED)}\n  gekregen: {sorted(got_xfailed)}"
+                  f"{sorted(EXPECTED_XFAILED)}\n  gekregen: {sorted(got_xfailed)}"
               )
           if got_xpassed:
               problems.append(f"onverwachte xpass: {sorted(got_xpassed)}")
@@ -147,8 +124,5 @@ jobs:
               print(out)
               print("\n".join(problems))
               sys.exit(1)
-          print(
-              "de vier pre-geregistreerde killgates staan XFAILED, en het zijn "
-              "deze vier; niets XPASST en niets is stilzwijgend geskipt"
-          )
+          print("de killgates slagen; niets XFAILED, niets XPASST")
           PY
