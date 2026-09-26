@@ -105,6 +105,28 @@ def symmetric_cusum_filter(
     return _symmetric_cusum_filter_kernel(prices, thresholds)
 
 
+def directional_cusum_filter(
+    prices: np.ndarray,
+    thresholds_up: np.ndarray,
+    thresholds_down: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Publieke, getypeerde ingang op de directionele kernel.
+
+    Returns
+    -------
+    (up_indices, down_indices) : int32-arrays met de bars waarop de cumulatieve
+        beweging de drempel omhoog resp. omlaag passeerde. Samen zijn zij
+        exact `symmetric_cusum_filter` bij gelijke drempels.
+    """
+    if not (len(prices) == len(thresholds_up) == len(thresholds_down)):
+        raise ValueError("prices en beide drempelreeksen moeten even lang zijn.")
+    return _directional_cusum_filter_kernel(
+        np.ascontiguousarray(prices, dtype=np.float64),
+        np.ascontiguousarray(thresholds_up, dtype=np.float64),
+        np.ascontiguousarray(thresholds_down, dtype=np.float64),
+    )
+
+
 def get_cusum_events(
     df: pd.DataFrame,
     threshold_multiplier: float = 3.5,
