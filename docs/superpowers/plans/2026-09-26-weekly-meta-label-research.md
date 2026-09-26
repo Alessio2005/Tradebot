@@ -2,43 +2,33 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Een reproduceerbare, causaal geteste onderzoekspijplijn die op de gecertificeerde dagdata van zes perps meet of een CUSUM-doorbraak met een licht ML-filter, 1:1-barrières en Kelly-sizing na kosten een edge heeft — en die daar vooraf vastgelegde poorten over laat beslissen.
+**Goal:** Een reproduceerbare, causaal geteste onderzoekspijplijn die op de gecertificeerde dagdata van zes perps meet of een CUSUM-doorbraak met een licht ML-filter, 1:1-barrières en Kelly-sizing na kosten een edge heeft — en die daar vooraf vastgelegde, numerieke poorten over laat beslissen.
 
-**Architecture:** Bestaande bouwstenen doen het zware werk: `labeling/cusum.py` (events), `labeling/vol_barriers.py` (labels), `features/fracdiff.py`, `volatility/ewma.py`, `alpha/kalman_ou.py`, `train/meta_label.py` (dataset, purge, walk-forward), `cv/cpcv.py`, `backtest/pbo.py`, `validation/inference.py` + `validation/dsr.py`, `registry/` (ledger, preregistratie) en `risk/engine.py` (het mandaat). Nieuwe code is lijm of een aantoonbaar ontbrekend stuk: richting uit CUSUM, fillprijzen bij de barrière, een vaste featureset, twee lichte modellen met Platt-kalibratie, binaire Kelly-rekenkunde, een klein tradeboek met exchange-side exits, en het oordeel.
+**Architecture:** Bestaande bouwstenen doen het zware werk: `labeling/cusum.py` (events), `labeling/vol_barriers.py` (labels), `features/fracdiff.py`, `volatility/ewma.py`, `alpha/kalman_ou.py`, `train/meta_label.py` (dataset, purge, walk-forward), `cv/cpcv.py`, `backtest/pbo.py`, `validation/inference.py` + `validation/dsr.py`, `registry/` (ledger, preregistratie), `execution/impact_model.py` en `risk/engine.py` (het mandaat). Nieuwe code is lijm of een aantoonbaar ontbrekend stuk: richting uit CUSUM, de ene kostendefinitie, fills volgens de dagdata-executieconventie, een vaste featureset, twee lichte modellen met inner-walk-forward-kalibratie, binaire kansrekening met een echte Beta-posterior op gerealiseerde uitkomsten, een klein tradeboek, het oordeel, en een numerieke holdout-rooktest.
 
 **Tech Stack:** Python 3.13 (`D:\venv\tradebot`), pandas, numpy, scipy 1.17, scikit-learn 1.9, pydantic, pytest.
 
-**Spec:** `docs/superpowers/specs/2026-09-26-weekly-meta-label-design.md` (lees §17 nadat Taak 1 hem heeft toegevoegd).
+**Spec:** `docs/superpowers/specs/2026-09-26-weekly-meta-label-design.md`. De spec is de bindende autoriteit; §17 somt de herzieningen op (planning én methodologische review). Waar dit plan en de spec botsen, wint de spec.
 
 ## Global Constraints
 
-- Python: `D:/venv/tradebot/Scripts/python.exe`. Tests altijd met `-p no:randomly -q`.
-- Na elke taak: `ruff check src/ tests/` schoon en `pytest -m "not slow" -p no:randomly -q` zonder nieuwe failures (nulmeting 2026-09-26: 2706 passed, 6 skipped, 0 failed).
-- Geen hyperparameter-zoektocht, geen Optuna. Elke instelling staat in `conf/model/weekly_meta.yaml`.
+- Python: `D:/venv/tradebot/Scripts/python.exe`. Tests altijd met `-p no:randomly -q`. De editable install wijst naar deze checkout (branch `feat/weekly-meta-label`).
+- Na elke taak: `ruff check src/ tests/` schoon en `pytest -m "not slow" -p no:randomly -q` zonder nieuwe failures (nulmeting 2026-09-26: 2706 passed, 6 skipped, 0 failed). Draai de volledige suite op de voorgrond (Bash-timeout 600000 ms) en beëindig je beurt niet terwijl er een achtergrondjob loopt.
+- Geen hyperparameter-zoektocht, geen Optuna, geen featureselectie op prestatie. Elke instelling staat in `conf/model/weekly_meta.yaml`.
 - Causaliteit: een waarde op bar `t` gebruikt alleen data t/m de close van `t`; funding en open interest daarbovenop één bar lag. Elke nieuwe feature- of signaalfunctie krijgt een test die de invoer na `t` wijzigt en rij `t` vergelijkt.
-- Instap volgt de bestaande `shift(2)`-conventie van `vol_barriers`: event op de close van `t`, fill op de close van `t+1`, barrières vanaf `t+2`.
-- Kosten: één definitie. Round trip = `2 × (taker_fee_bps + assumed_half_spread_bps) / 1e4` uit `conf/execution/fees.yaml` (= 13 bps), plus stop-slippage op stops, plus funding en impact in het boek.
-- `conf/risk/default.yaml`-waarden worden NIET gewijzigd (policy `9961e1613bc907a5`).
-- `data/pit_store/` wordt niet aangeraakt. Geen netwerktoegang in dit plan.
-- De holdout wordt ten hoogste één keer gelezen, alleen in Taak 14, alleen na `PASS`.
-- Nieuwe bestanden: LF-regeleinden. Bestaande bestanden: behoud hun regeleinde (controleer met `file <pad>` vóór en na).
+- **Executieconventie (spec §12):** event op de close van `t`, entry op de close van `t+1`, barrières vanaf `t+2`; target op niveau (gat → open), stop op niveau (gat → open) × (1 ∓ 5 bps), dubbele touch = stop, verticaal op de close van `e + 10`, risico-exit op de close; elke fill taker + halve spread + impact. Geen post-only/maker-logica.
+- **Kosten: één definitie**, `src/tradebot/execution/trade_costs.py` (spec §6.2): `c_fix = 2·(τ + h)` = 13 bps, gerealiseerde funding `s·Σ f`, impact via `square_root_impact`. Label-, ex-ante- en P&L-kosten komen alle drie uit die module; nergens een tweede kostengetal.
+- **Geen pseudo-posterior.** Onzekerheid in `p` komt uit `Beta(1 + s, 1 + n − s)` op gerealiseerde OOF-uitkomsten per kansbak (spec §10.4).
+- **Drempels en kalibratie uit inner-walk-forward OOF-voorspellingen** (spec §8, §10.3), nooit uit in-sample-kansen.
+- Alle Sharpes op dagelijkse kalenderrendementen met expliciet 0 op vlakke dagen, geannualiseerd met 365.
+- `conf/risk/default.yaml`-waarden worden NIET gewijzigd (policy `9961e1613bc907a5`). `data/pit_store/` wordt niet aangeraakt. Geen netwerktoegang in dit plan.
+- De holdout wordt ten hoogste één keer gelezen, alleen in Taak 14 stap 6, alleen na een ontwikkeloordeel `PASS` en een go van de eigenaar. Taak 13 (bevriezen en meten) draait alleen na een go van de eigenaar.
+- Nieuwe bestanden: LF-regeleinden (Python's `Path.write_text` schrijft op Windows CRLF — gebruik `newline="\n"` of de Write/Edit-tools). Bestaande bestanden: behoud hun regeleinde (`file <pad>` vóór en na).
 - Commit na elke taak, bericht in het Engels, afgesloten met `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Niet pushen.
 
----
+## Opsplitsing
 
-## Wijzigingen ten opzichte van de spec (vastgelegd in Taak 1 als spec §17)
-
-Bij het uitwerken bleek de spec op zeven punten niet uitvoerbaar zoals geschreven. Het plan volgt deze correcties:
-
-1. **Data zoals gecertificeerd, niet bijgewerkt.** De PIT-store is append-only met jaarpartities (`PitStore.write` crasht bij een afwijkende bestaande partitie), dus dagen toevoegen aan 2026 vergt een wijziging aan het apparaat. Plan 1 gebruikt de store zoals hij is (laatste bar: asof 2026-08-23). Bijwerken hoort bij Plan 2 (live).
-2. **Holdout = de laatste 60 bars:** split `2026-06-24T00:00:00+00:00`. Het huidige slot is nooit gelezen (`reads: []`) en wordt opnieuw bevroren.
-3. **M via de lege ledger, niet via `freeze_reset`.** Na een reset eist `active_trial_count` dat de ledger niet meer groeit; een schone ledger telt zelf. Het programma boekt zijn 4 trials als eerste entry en bevriest `M = 4` in de preregistratie; de DSR leest hem met `frozen_trial_count`.
-4. **GARCH valt uit de features.** Een GARCH-fit vraagt per symbool 250–500 bars burn-in (`conf/model/adequacy.yaml`); dat kost SOL en AVAX hun eerste 1–1,5 jaar. EWMA (RiskMetrics) blijft het volatiliteitsmodel voor barrières, CUSUM-drempels, sizing en risicolaag. Het vol-regime komt uit de Yang-Zhang-ratio en vol-of-vol.
-5. **Kalman rollend opnieuw gefit.** `KalmanOUMeanReversion` houdt μ bewust statisch na `fit()`; zonder rollende refit trekt de z-score naar een oud prijsniveau. De OU-halfwaardetijd komt uit dezelfde fit (`current_halflife`).
-6. **Exits op het barrièreniveau, in een klein tradeboek.** `backtest/engine.py` vult alleen op barprijzen en kan een stop bij de exchange niet uitdrukken. `backtest/barrier_book.py` gebruikt dezelfde `RiskEngine.decide`, dezelfde kostenparameters en `square_root_impact`, en wordt bewezen met een boekhoudidentiteit en een causaliteitstest.
-7. **Posterior met uniforme prior:** `Beta(1 + p̂·n, 1 + (1 − p̂)·n)`, zodat hij ook bij `n = 0` gedefinieerd is (dan geen informatie, dus geen inzet boven break-even).
-
-**Opsplitsing:** dit is Plan 1 (onderzoek tot en met oordeel en holdout-rooktest). Plan 2 — data bijwerken, papertrading, SPRT- en Beta-bewaking, orders met stops bij de exchange — wordt pas geschreven na een `PASS`.
+Dit is **Plan 1**: onderzoek tot en met het oordeel en de holdout-rooktest. **Plan 2** — data bijwerken, papertrading, echte orders met stops bij de exchange, live-bewaking met een Beta-posterior op live-uitkomsten en SPRT — wordt pas geschreven na een `PASS` op alle poorten van spec §1 en §9.8.
 
 ---
 
@@ -50,34 +40,34 @@ Bij het uitwerken bleek de spec op zeven punten niet uitvoerbaar zoals geschreve
 | `src/tradebot/schemas/weekly_meta.py` | `WeeklyMetaConfig` + loader | 1 |
 | `src/tradebot/labeling/cusum.py` (wijzig) | publieke `directional_cusum_filter` | 2 |
 | `src/tradebot/labeling/breakout.py` | richting per bar, k-kalibratie op frequentie | 2 |
-| `src/tradebot/labeling/barrier_fills.py` | fillrendementen bij de barrière, kostenbewust doel | 3 |
+| `src/tradebot/execution/trade_costs.py` | de ene kostendefinitie: label, ex ante, per been | 3 |
+| `src/tradebot/labeling/barrier_fills.py` | fills volgens de executieconventie, doel netto na kosten | 3 |
 | `src/tradebot/data/weekly_market.py` | gecertificeerde dagmarkt op één raster | 4 |
 | `tests/weekly_fixtures.py` | synthetische markt voor tests | 4 |
 | `src/tradebot/features/weekly_set.py` | de vaste featureset | 5 |
-| `src/tradebot/train/weekly_dataset.py` | events + labels + features → `MetaLabelDataset` | 6 |
+| `src/tradebot/train/weekly_dataset.py` | events + labels + kosten + features → `MetaLabelDataset` | 6 |
 | `src/tradebot/train/meta_label.py` (wijzig) | generieke `walk_forward_fit_predict`, `extras` op `FoldPredictions` | 7 |
-| `src/tradebot/train/light_models.py` | LR, RF, ensemble, Platt op gepurgede binnensplit | 7 |
-| `src/tradebot/risk/binary_kelly.py` | barrièretheorie, break-even, Kelly, posterior, correlatie, drawdown | 8 |
-| `src/tradebot/backtest/barrier_book.py` | tradeboek met exchange-side exits en `RiskEngine` | 9 |
+| `src/tradebot/train/light_models.py` | LR, RF, ensemble; Platt op inner-walk-forward OOF | 7 |
+| `src/tradebot/risk/binary_kelly.py` | barrièretheorie, break-even, Kelly, Beta-posterior op uitkomsten, correlatie, drawdown | 8 |
+| `src/tradebot/backtest/barrier_book.py` | tradeboek volgens de executieconventie, met `RiskEngine` en per-trade netto-rendement | 9 |
 | `src/tradebot/cv/event_space.py` | exitposities in eventruimte voor CPCV | 10 |
 | `src/tradebot/validation/weekly_verdict.py` | oordeel uit de bevroren stop-criteria | 10 |
 | `src/tradebot/validation/weekly_campaign.py` | de meting op de ontwikkelsample | 11 |
 | `conf/research/preregistration_weekly_meta.yaml` | de preregistratie | 12 |
 | `src/tradebot/registry/weekly_programme.py` | holdout herbevriezen, trials boeken, preregistratie bevriezen | 12 |
-| `src/tradebot/validation/weekly_holdout.py` | de eenmalige holdout-rooktest | 14 |
+| `src/tradebot/validation/weekly_holdout.py` | de eenmalige, numerieke holdout-rooktest | 14 |
 
 ---
 
-### Task 1: Configuratie, schema en spec-wijzigingen
+### Task 1: Configuratie en schema
 
 **Files:**
 - Create: `conf/model/weekly_meta.yaml`
 - Create: `src/tradebot/schemas/weekly_meta.py`
-- Modify: `docs/superpowers/specs/2026-09-26-weekly-meta-label-design.md` (voeg §17 toe)
 - Test: `tests/unit/test_weekly_meta_config.py`
 
 **Interfaces:**
-- Produces: `WeeklyMetaConfig` (frozen pydantic model) en `weekly_meta_config(path=WEEKLY_META_CONFIG_PATH) -> WeeklyMetaConfig`. Velden zoals in de YAML hieronder.
+- Produces: `WeeklyMetaConfig` (frozen pydantic model) en `weekly_meta_config(path=WEEKLY_META_CONFIG_PATH) -> WeeklyMetaConfig`. Velden zoals in de YAML hieronder. Latere taken lezen o.a. `barrier_sigma`, `horizon_bars`, `stop_slippage_bps`, `funding_lookback_bars`, `inner_wf_blocks`, `n_probability_bins`, `posterior_quantile`, `kelly_multiple`, `baseline_risk_fraction`, `resize_band`, `holdout_*`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -108,12 +98,19 @@ def test_the_committed_config_loads() -> None:
     assert cfg.symbols == ("BTCUSDT", "ETHUSDT", "SOLUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT")
     assert cfg.barrier_sigma == pytest.approx(math.sqrt(5.0))
     assert cfg.planned_trials == 4
+    assert cfg.inner_wf_blocks == 4
+    assert cfg.n_probability_bins == 5
 
 
 def test_one_barrier_width_means_one_to_one_by_construction() -> None:
     fields = set(WeeklyMetaConfig.model_fields)
     assert "barrier_sigma" in fields
     assert not {"profit_target_sigma", "stop_loss_sigma"} & fields
+
+
+def test_there_is_no_pseudo_posterior_knob() -> None:
+    """Spec §10.4: de posterior telt gerealiseerde uitkomsten; er is geen 'kalibratiefractie' meer."""
+    assert "calibration_fraction" not in WeeklyMetaConfig.model_fields
 
 
 @pytest.mark.parametrize(
@@ -125,6 +122,7 @@ def test_one_barrier_width_means_one_to_one_by_construction() -> None:
         ("trades_per_week_target", 9.0, "meer events"),
         ("cpcv_n_test_groups", 4, "deelbaar"),
         ("shuffle_auc_band", [0.55, 0.60], "omsluiten"),
+        ("inner_wf_blocks", 1, "inner_wf_blocks"),
         ("unknown_key", 1, "unknown_key"),
     ],
 )
@@ -154,40 +152,44 @@ Expected: FAIL, `ModuleNotFoundError: No module named 'tradebot.schemas.weekly_m
 # preregistratie wordt bevroren; een tweede waarde is een nieuwe trial.
 symbols: [BTCUSDT, ETHUSDT, SOLUSDT, AVAXUSDT, LINKUSDT, DOTUSDT]
 
-# Walk-forward: eerste testkwartaal en de holdout-grens (spec §9, §17.2).
+# Walk-forward: eerste testkwartaal en de holdout-grens (spec §9.1, §9.3).
 first_test_start_utc: "2022-01-01T00:00:00+00:00"
 holdout_split_utc: "2026-06-24T00:00:00+00:00"
 test_bars: 91
 
-# Events: k wordt uit dit rooster gekozen op frequentie, nooit op rendement.
+# Events: k wordt uit dit rooster gekozen op frequentie, nooit op rendement (spec §5).
 events_per_week_target: 5.5
 k_grid: [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]
 
-# Eén barrièrebreedte, dus 1:1 per constructie. sqrt(5) daggrootte = één week.
+# Eén barrièrebreedte, dus 1:1 per constructie. sqrt(5) daggrootte = één week (spec §6.1).
 barrier_sigma: 2.2360679774997896
 horizon_bars: 10
-stop_slippage_bps: 5.0
 
-# Handelen: 1-2 trades per week voor het hele boek, via de kansdrempel.
+# Kosten (spec §6.2): de vaste delen komen uit conf/execution/fees.yaml; hier
+# alleen wat daar niet staat.
+stop_slippage_bps: 5.0
+funding_lookback_bars: 7
+
+# Handelen: 1-2 trades per week voor het hele boek, via de OOF-drempel (spec §10.3).
 trades_per_week_target: 1.5
 
-# Modellen: licht en niet getuned (spec §8).
+# Modellen: licht en niet getuned; kalibratie op inner walk-forward (spec §8).
 logreg_c: 0.1
 forest_n_estimators: 500
 forest_max_depth: 3
 forest_min_samples_leaf: 50
-calibration_fraction: 0.25
+inner_wf_blocks: 4
 
-# Sizing (spec §10).
+# Sizing (spec §10.4): Beta-posterior op gerealiseerde OOF-uitkomsten per kansbak.
 kelly_multiple: 0.25
 posterior_quantile: 0.25
-n_probability_bins: 10
+n_probability_bins: 5
 baseline_risk_fraction: 0.01
 resize_band: 0.25
 corr_window: 60
 account_equity: 100000.0
 
-# Poorten (spec §1, §14). Moeten gelijk zijn aan de preregistratie (Taak 12 toetst dat).
+# Poorten (spec §1, §9, §14). Moeten gelijk zijn aan de preregistratie (Taak 12 toetst dat).
 mc_paths: 10000
 mc_max_drawdown: 0.25
 mc_max_probability_1y: 0.10
@@ -197,7 +199,13 @@ pbo_max: 0.25
 min_trades: 100
 n_shuffle_replicates: 5
 shuffle_auc_band: [0.45, 0.55]
-holdout_brier_margin: 0.0
+n_selection_permutations: 100
+
+# De holdout-rooktest, numeriek (spec §9.8).
+holdout_brier_margin: 0.01
+holdout_mean_shift_max: 0.05
+holdout_ks_alpha: 0.01
+holdout_return_quantile: 0.01
 
 planned_trials: 4
 seed: 20260926
@@ -243,12 +251,13 @@ class WeeklyMetaConfig(StrictModel):
     barrier_sigma: Positive
     horizon_bars: Annotated[int, Field(ge=1)]
     stop_slippage_bps: Annotated[float, Field(ge=0.0)]
+    funding_lookback_bars: Annotated[int, Field(ge=1)]
     trades_per_week_target: Positive
     logreg_c: Positive
     forest_n_estimators: Annotated[int, Field(ge=10)]
     forest_max_depth: Annotated[int, Field(ge=1, le=5)]
     forest_min_samples_leaf: Annotated[int, Field(ge=1)]
-    calibration_fraction: Fraction
+    inner_wf_blocks: int
     kelly_multiple: Annotated[float, Field(gt=0.0, le=0.5)]
     posterior_quantile: Fraction
     n_probability_bins: Annotated[int, Field(ge=2)]
@@ -265,7 +274,11 @@ class WeeklyMetaConfig(StrictModel):
     min_trades: Annotated[int, Field(ge=1)]
     n_shuffle_replicates: Annotated[int, Field(ge=1)]
     shuffle_auc_band: tuple[float, float]
+    n_selection_permutations: Annotated[int, Field(ge=1)]
     holdout_brier_margin: Annotated[float, Field(ge=0.0)]
+    holdout_mean_shift_max: Fraction
+    holdout_ks_alpha: Fraction
+    holdout_return_quantile: Annotated[float, Field(gt=0.0, lt=0.5)]
     planned_trials: Annotated[int, Field(ge=2)]
     seed: Annotated[int, Field(ge=0)]
 
@@ -283,6 +296,8 @@ class WeeklyMetaConfig(StrictModel):
             raise ValueError("er moeten meer events dan trades zijn: het filter kiest")
         if self.cpcv_n_groups % self.cpcv_n_test_groups != 0:
             raise ValueError("cpcv_n_groups moet deelbaar zijn door cpcv_n_test_groups")
+        if self.inner_wf_blocks < 2:
+            raise ValueError("inner_wf_blocks moet ten minste 2 zijn: blok 1 traint, de rest wordt out-of-fold voorspeld")
         lo, hi = self.shuffle_auc_band
         if not 0.0 < lo < 0.5 < hi < 1.0:
             raise ValueError("shuffle_auc_band moet 0,5 omsluiten")
@@ -290,34 +305,24 @@ class WeeklyMetaConfig(StrictModel):
 
 
 def weekly_meta_config(path: Path | str = WEEKLY_META_CONFIG_PATH) -> WeeklyMetaConfig:
-    """Laad en valideer `conf/model/weekly_meta.yaml` (plat document, geen wrapper)."""
+    """Laad en valideer `conf/model/weekly_meta.yaml` (plat document, geen wrapper).
+
+    `load_config` pelt alleen een wrapper-sleutel af die in `DOMAIN_SCHEMAS` staat;
+    dit domein staat daar bewust niet in, dus de YAML is plat.
+    """
     return load_config(path, WeeklyMetaConfig)
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_weekly_meta_config.py -p no:randomly -q`
-Expected: PASS (9 tests). Als een `match` faalt: kijk naar de exacte tekst die `validate_mapping` om de pydantic-fout zet en pas de test NIET aan maar de foutmelding in de validator, zodat hij het woord uit de test bevat.
+Expected: PASS (11 tests). Als een `match` faalt: `validate_mapping` zet de pydantic-fout om in een `ConfigContractError`; pas de foutmelding in de validator aan zodat hij het woord uit de test bevat — verzwak de test niet.
 
-- [ ] **Step 5: Voeg spec §17 toe**
-
-Voeg onderaan `docs/superpowers/specs/2026-09-26-weekly-meta-label-design.md` toe (letterlijk de zeven punten uit de sectie "Wijzigingen ten opzichte van de spec" van dit plan), onder de kop:
-
-```markdown
-## 17. Wijzigingen bij het uitwerken (2026-09-26)
-
-De implementatieplanning (`docs/superpowers/plans/2026-09-26-weekly-meta-label-research.md`)
-liep op zeven punten tegen de werkelijkheid van de repository aan. Deze sectie gaat
-voor waar zij §4, §7, §9, §10.4 of §12 tegenspreekt.
-```
-
-gevolgd door de zeven genummerde punten en de alinea over Plan 1 / Plan 2.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add conf/model/weekly_meta.yaml src/tradebot/schemas/weekly_meta.py tests/unit/test_weekly_meta_config.py docs/superpowers/specs/2026-09-26-weekly-meta-label-design.md
-git commit -m "feat(weekly): the strategy's config contract, 1:1 by construction, and the seven spec corrections"
+git add conf/model/weekly_meta.yaml src/tradebot/schemas/weekly_meta.py tests/unit/test_weekly_meta_config.py
+git commit -m "feat(weekly): the strategy's config contract, 1:1 by construction, with numeric holdout gates"
 ```
 
 ---
@@ -607,25 +612,110 @@ git commit -m "feat(labeling): the breakout side from the existing directional C
 
 ---
 
-### Task 3: Fillrendementen bij de barrière en een kostenbewust doel
+### Task 3: De ene kostendefinitie en de fills volgens de executieconventie
 
 **Files:**
+- Create: `src/tradebot/execution/trade_costs.py`
 - Create: `src/tradebot/labeling/barrier_fills.py`
+- Test: `tests/unit/test_trade_costs.py`
 - Test: `tests/unit/test_barrier_fills.py`
 
 **Interfaces:**
-- Consumes: `BarrierLabels`, `label_triple_barrier` uit `labeling/vol_barriers.py`; `LabelingConfig`, `ExecutionConfig` uit `schemas/config.py`.
+- Consumes: `square_root_impact(*, order_notional, adv_notional, sigma_daily, params) -> ImpactEstimate` en `ImpactParams`, `ImpactStatus` (`execution/impact_model.py`); `ExecutionConfig`, `ImpactConfig`, `LabelingConfig`, `load_config` (`schemas/config.py`); `BarrierLabels`, `label_triple_barrier` (`labeling/vol_barriers.py`).
 - Produces:
-  - `round_trip_cost(exec_cfg: ExecutionConfig) -> float` (fractie, 0,0013)
+  - `TradeCostModel(taker_fee, half_spread, stop_slippage, impact)` (fracties), met
+    `TradeCostModel.from_config(exec_cfg, *, stop_slippage_bps, impact)`,
+    `.per_leg`, `.fixed_round_trip`,
+    `.impact_fraction(notional, *, adv, sigma_daily) -> float`,
+    `.label_costs(side, entry_bar, exit_bar, *, funding, adv, sigma_daily, reference_notional) -> np.ndarray` (spec §6.2a),
+    `.ex_ante_cost(*, side, funding_recent_mean, horizon_bars, max_notional, adv, sigma_daily) -> float` (spec §6.2b).
+  - `load_impact_params(path: Path) -> ImpactParams`
   - `barrier_fill_returns(labels, open_, close, cfg: LabelingConfig, *, stop_slippage_bps: float) -> np.ndarray`
-  - `with_cost_aware_target(labels, fill_returns, *, round_trip_cost: float) -> BarrierLabels` (vervangt `realized_return` en `meta_label`)
+  - `with_cost_aware_target(labels, fill_returns, *, costs: np.ndarray) -> BarrierLabels` (vervangt `realized_return` en `meta_label`)
   - `select_events(labels, mask) -> BarrierLabels`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
+
+```python
+# tests/unit/test_trade_costs.py
+"""Spec §6.2: één kostendefinitie, drie toepassingen."""
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from tradebot.execution.impact_model import square_root_impact
+from tradebot.execution.trade_costs import TradeCostModel, load_impact_params
+from tradebot.schemas.config import ExecutionConfig, load_config
+from tradebot.utils.failfast import DataContractError
+
+ROOT = Path(__file__).resolve().parents[2]
+EXEC = load_config(ROOT / "conf/execution/fees.yaml", ExecutionConfig)
+
+
+def _model(impact=None) -> TradeCostModel:
+    return TradeCostModel.from_config(EXEC, stop_slippage_bps=5.0, impact=impact)
+
+
+def test_the_fixed_part_is_13_bps_from_the_fee_config() -> None:
+    m = _model()
+    assert m.per_leg == pytest.approx(0.00065)
+    assert m.fixed_round_trip == pytest.approx(0.0013)
+    assert m.stop_slippage == pytest.approx(0.0005)
+
+
+def test_label_costs_add_the_funding_of_the_held_bars_only() -> None:
+    funding = np.zeros(8)
+    funding[1] = 0.05   # de entrybar zelf: de positie hield die bar niet vast
+    funding[3] = 0.001  # binnen de houdtijd
+    funding[5] = 0.07   # na de exit
+    n = 1
+    kw = dict(funding=funding, adv=np.full(8, 1e9), sigma_daily=np.full(8, 0.03),
+              reference_notional=np.full(n, 1e4))
+    long_cost = _model().label_costs([1.0], [1], [4], **kw)
+    short_cost = _model().label_costs([-1.0], [1], [4], **kw)
+    assert long_cost[0] == pytest.approx(0.0013 + 0.001)
+    assert short_cost[0] == pytest.approx(0.0013 - 0.001)
+
+
+def test_missing_funding_inside_the_hold_crashes() -> None:
+    funding = np.zeros(8)
+    funding[2] = np.nan
+    with pytest.raises(DataContractError, match="Funding"):
+        _model().label_costs([1.0], [1], [4], funding=funding, adv=np.full(8, 1e9),
+                             sigma_daily=np.full(8, 0.03), reference_notional=np.full(1, 1e4))
+
+
+def test_the_ex_ante_bound_never_counts_funding_income() -> None:
+    m = _model()
+    kw = dict(horizon_bars=10, max_notional=8e4, adv=1e9, sigma_daily=0.03)
+    receives = m.ex_ante_cost(side=-1.0, funding_recent_mean=0.0002, **kw)
+    pays = m.ex_ante_cost(side=1.0, funding_recent_mean=0.0002, **kw)
+    assert receives == pytest.approx(0.0013 + 0.0005)
+    assert pays == pytest.approx(0.0013 + 0.0005 + 10 * 0.0002)
+
+
+def test_impact_is_the_square_root_model_or_zero_without_parameters() -> None:
+    assert _model().impact_fraction(1e6, adv=1e9, sigma_daily=0.03) == 0.0
+    params = load_impact_params(ROOT / "conf/execution/impact.yaml")
+    m = _model(params)
+    expected = square_root_impact(order_notional=1e6, adv_notional=1e9, sigma_daily=0.03,
+                                  params=params).impact_fraction
+    assert m.impact_fraction(1e6, adv=1e9, sigma_daily=0.03) == pytest.approx(expected)
+    assert m.impact_fraction(-1e6, adv=1e9, sigma_daily=0.03) == pytest.approx(expected)
+
+
+def test_impact_without_a_valid_adv_crashes() -> None:
+    m = _model(load_impact_params(ROOT / "conf/execution/impact.yaml"))
+    with pytest.raises(DataContractError, match="ADV"):
+        m.impact_fraction(1e6, adv=float("nan"), sigma_daily=0.03)
+```
 
 ```python
 # tests/unit/test_barrier_fills.py
-"""Een 1:1-trade met stops bij de exchange vult op het barrièreniveau, niet op de slotkoers."""
+"""Spec §12: een 1:1-trade vult op het barrièreniveau, niet op de slotkoers."""
 from __future__ import annotations
 
 import math
@@ -635,12 +725,11 @@ import pytest
 
 from tradebot.labeling.barrier_fills import (
     barrier_fill_returns,
-    round_trip_cost,
     select_events,
     with_cost_aware_target,
 )
 from tradebot.labeling.vol_barriers import label_triple_barrier
-from tradebot.schemas.config import ExecutionConfig, LabelingConfig
+from tradebot.schemas.config import LabelingConfig
 
 CFG = LabelingConfig(profit_target_sigma=math.sqrt(5.0), stop_loss_sigma=math.sqrt(5.0),
                      horizon_bars=10, entry_lag_bars=1, min_sigma_obs=60)
@@ -663,8 +752,7 @@ def _one_event(o2: float, h2: float, l2: float, c2: float, side: float = 1.0):
 def test_a_long_target_fills_at_the_level() -> None:
     labels, o, c = _one_event(100.1, 105.0, 99.9, 104.0)
     assert labels.barrier_outcome[0] == 1
-    ret = barrier_fill_returns(labels, o, c, CFG, stop_slippage_bps=SLIP)
-    assert ret[0] == pytest.approx(B)
+    assert barrier_fill_returns(labels, o, c, CFG, stop_slippage_bps=SLIP)[0] == pytest.approx(B)
 
 
 def test_a_long_stop_fills_at_the_level_minus_slippage() -> None:
@@ -676,22 +764,26 @@ def test_a_long_stop_fills_at_the_level_minus_slippage() -> None:
 
 def test_a_gap_through_the_target_fills_at_the_open() -> None:
     labels, o, c = _one_event(106.0, 107.0, 105.5, 106.0)
+    assert barrier_fill_returns(labels, o, c, CFG, stop_slippage_bps=SLIP)[0] == pytest.approx(0.06)
+
+
+def test_a_gap_through_the_stop_fills_at_the_open_minus_slippage() -> None:
+    labels, o, c = _one_event(94.0, 94.5, 93.0, 94.0)
+    assert labels.barrier_outcome[0] == -1
     ret = barrier_fill_returns(labels, o, c, CFG, stop_slippage_bps=SLIP)
-    assert ret[0] == pytest.approx(0.06)
+    assert ret[0] == pytest.approx(0.94 * (1.0 - SLIP / 1e4) - 1.0)
 
 
 def test_both_barriers_in_one_bar_is_a_stop() -> None:
     labels, o, c = _one_event(100.0, 105.0, 95.0, 100.0)
     assert labels.barrier_outcome[0] == -1
-    ret = barrier_fill_returns(labels, o, c, CFG, stop_slippage_bps=SLIP)
-    assert ret[0] < 0.0
+    assert barrier_fill_returns(labels, o, c, CFG, stop_slippage_bps=SLIP)[0] < 0.0
 
 
 def test_the_vertical_barrier_exits_at_the_close() -> None:
     labels, o, c = _one_event(100.0, 100.2, 99.8, 100.0)
     assert labels.barrier_outcome[0] == 0
-    ret = barrier_fill_returns(labels, o, c, CFG, stop_slippage_bps=SLIP)
-    assert ret[0] == pytest.approx(0.0)
+    assert barrier_fill_returns(labels, o, c, CFG, stop_slippage_bps=SLIP)[0] == pytest.approx(0.0)
 
 
 def test_a_short_is_the_mirror_image() -> None:
@@ -704,43 +796,151 @@ def test_a_short_is_the_mirror_image() -> None:
     assert barrier_fill_returns(labels, o, c, CFG, stop_slippage_bps=SLIP)[0] == pytest.approx(expected)
 
 
-def test_the_target_is_net_of_the_round_trip() -> None:
-    labels, o, c = _one_event(100.0, 100.2, 99.8, 100.0)
-    out = with_cost_aware_target(labels, np.array([0.0012]), round_trip_cost=0.0013)
+def test_the_target_is_net_of_the_trade_specific_cost() -> None:
+    labels, _, _ = _one_event(100.0, 100.2, 99.8, 100.0)
+    out = with_cost_aware_target(labels, np.array([0.0012]), costs=np.array([0.0013]))
     assert out.meta_label[0] == 0 and out.realized_return[0] == pytest.approx(0.0012)
-    out = with_cost_aware_target(labels, np.array([0.0014]), round_trip_cost=0.0013)
+    out = with_cost_aware_target(labels, np.array([0.0014]), costs=np.array([0.0013]))
     assert out.meta_label[0] == 1
-
-
-def test_the_round_trip_comes_from_the_fee_config() -> None:
-    exec_cfg = ExecutionConfig(maker_fee_bps=2.0, taker_fee_bps=5.5, assumed_half_spread_bps=1.0)
-    assert round_trip_cost(exec_cfg) == pytest.approx(0.0013)
 
 
 def test_select_events_keeps_every_field_aligned() -> None:
     labels, _, _ = _one_event(100.0, 100.2, 99.8, 100.0)
-    kept = select_events(labels, np.array([True]))
-    dropped = select_events(labels, np.array([False]))
-    assert len(kept) == 1 and len(dropped) == 0
+    assert len(select_events(labels, np.array([True]))) == 1
+    assert len(select_events(labels, np.array([False]))) == 0
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
-Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_barrier_fills.py -p no:randomly -q`
-Expected: FAIL, `ModuleNotFoundError: No module named 'tradebot.labeling.barrier_fills'`
+Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_trade_costs.py tests/unit/test_barrier_fills.py -p no:randomly -q`
+Expected: FAIL, `ModuleNotFoundError: No module named 'tradebot.execution.trade_costs'`
 
 - [ ] **Step 3: Implement**
 
 ```python
-# src/tradebot/labeling/barrier_fills.py
-"""Wat een 1:1-trade met stops bij de exchange werkelijk oplevert (spec §6, §17.6).
+# src/tradebot/execution/trade_costs.py
+"""De ene kostendefinitie van de wekelijkse strategie (spec §6.2).
 
-`vol_barriers.label_triple_barrier` bepaalt WELKE barrière eerst raakt en op welke
-bar. Zijn `realized_return` rekent met de slotkoers van die bar. Een stop of
-take-profit bij de exchange vult op het barrièreniveau -- of op de open, als de
-bar er met een gat voorbij opent. Een stop vult bovendien als marktorder, met
-slippage tegen de positie in. Deze module rekent die fill uit, en zet het doel
-op "netto na de round trip positief".
+    C_i = c_fix + c_fund,i + c_imp,i     (rendementseenheden van het notioneel)
+
+De stopslippage zit in de fillprijs (`labeling/barrier_fills.py`), niet in C_i.
+Drie toepassingen, één bron:
+
+* `label_costs`   -- (a) achteraf, voor het trainingsdoel: gerealiseerde funding
+  en impact bij het referentie-notioneel, zodat het label niet van de eigen
+  sizing van het model afhangt.
+* `ex_ante_cost`  -- (b) bij het besluit, alleen data <= t: een conservatieve,
+  trade-specifieke bovengrens (slechtste slippage, maximale houdtijd, alleen
+  betaalde funding, impact bij het maximale notioneel).
+* `per_leg`, `impact_fraction` -- (c) de P&L in het tradeboek, per order.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+
+from ..schemas.config import ExecutionConfig, ImpactConfig, load_config
+from ..utils.failfast import DataContractError, require
+from .impact_model import ImpactParams, ImpactStatus, square_root_impact
+
+__all__ = ["TradeCostModel", "load_impact_params"]
+
+BPS = 1e-4
+
+
+def load_impact_params(path: Path) -> ImpactParams:
+    """`conf/execution/impact.yaml` als `ImpactParams`, op één plek."""
+    imp = load_config(path, ImpactConfig)
+    return ImpactParams(
+        eta=imp.eta, kappa_d=imp.kappa_d, status=ImpactStatus(imp.status), method=imp.method,
+        data_hash=imp.data_hash, sample_size=imp.sample_size, period_start=imp.period_start,
+        period_end=imp.period_end, instruments=imp.instruments, eta_ci_low=imp.eta_ci_low,
+        eta_ci_high=imp.eta_ci_high)
+
+
+@dataclass(frozen=True)
+class TradeCostModel:
+    taker_fee: float
+    half_spread: float
+    stop_slippage: float
+    impact: ImpactParams | None
+
+    @classmethod
+    def from_config(cls, exec_cfg: ExecutionConfig, *, stop_slippage_bps: float,
+                    impact: ImpactParams | None) -> TradeCostModel:
+        return cls(taker_fee=exec_cfg.taker_fee_bps * BPS,
+                   half_spread=exec_cfg.assumed_half_spread_bps * BPS,
+                   stop_slippage=float(stop_slippage_bps) * BPS, impact=impact)
+
+    @property
+    def per_leg(self) -> float:
+        """Taker fee plus halve spread: elk been, geen maker-aanname (spec §12)."""
+        return self.taker_fee + self.half_spread
+
+    @property
+    def fixed_round_trip(self) -> float:
+        return 2.0 * self.per_leg
+
+    def impact_fraction(self, notional: float, *, adv: float, sigma_daily: float) -> float:
+        """Impact van één order als fractie van zijn notioneel; 0 zonder impactparameters."""
+        if self.impact is None or notional == 0.0:
+            return 0.0
+        require(bool(np.isfinite(adv) and adv > 0.0 and np.isfinite(sigma_daily) and sigma_daily > 0.0),
+                "Impact zonder geldige ADV of sigma.", DataContractError,
+                adv=adv, sigma_daily=sigma_daily)
+        return float(square_root_impact(order_notional=abs(notional), adv_notional=adv,
+                                        sigma_daily=sigma_daily, params=self.impact).impact_fraction)
+
+    def label_costs(
+        self, side, entry_bar, exit_bar, *, funding: np.ndarray, adv: np.ndarray,
+        sigma_daily: np.ndarray, reference_notional: np.ndarray,
+    ) -> np.ndarray:
+        """C_i^label (spec §6.2a): vast + gerealiseerde funding op bars e+1..x + impact bij N_ref."""
+        side = np.asarray(side, dtype=np.float64)
+        e = np.asarray(entry_bar, dtype=np.int64)
+        x = np.asarray(exit_bar, dtype=np.int64)
+        ref = np.asarray(reference_notional, dtype=np.float64)
+        f = np.asarray(funding, dtype=np.float64)
+        adv = np.asarray(adv, dtype=np.float64)
+        sig = np.asarray(sigma_daily, dtype=np.float64)
+        require(side.size == e.size == x.size == ref.size, "Eén waarde per trade.",
+                DataContractError)
+        out = np.empty(side.size, dtype=np.float64)
+        for i in range(side.size):
+            window = f[e[i] + 1: x[i] + 1]
+            require(bool(np.isfinite(window).all()),
+                    "Funding ontbreekt binnen de houdtijd van een trade.", DataContractError,
+                    entry_bar=int(e[i]), exit_bar=int(x[i]))
+            fund = side[i] * float(window.sum())
+            imp = (self.impact_fraction(ref[i], adv=adv[e[i]], sigma_daily=sig[e[i]])
+                   + self.impact_fraction(ref[i], adv=adv[x[i]], sigma_daily=sig[x[i]]))
+            out[i] = self.fixed_round_trip + fund + imp
+        return out
+
+    def ex_ante_cost(
+        self, *, side: float, funding_recent_mean: float, horizon_bars: int,
+        max_notional: float, adv: float, sigma_daily: float,
+    ) -> float:
+        """Ĉ_i (spec §6.2b): een conservatieve bovengrens met alleen data <= t."""
+        require(bool(np.isfinite(funding_recent_mean)), "Ex-ante funding onbekend.",
+                DataContractError)
+        paid_funding = horizon_bars * max(0.0, float(side) * float(funding_recent_mean))
+        return (self.fixed_round_trip + self.stop_slippage + paid_funding
+                + 2.0 * self.impact_fraction(max_notional, adv=adv, sigma_daily=sigma_daily))
+```
+
+```python
+# src/tradebot/labeling/barrier_fills.py
+"""Fills van een 1:1-trade volgens de dagdata-executieconventie (spec §12).
+
+`vol_barriers.label_triple_barrier` bepaalt WELKE barrière eerst raakt en op
+welke bar. Zijn `realized_return` rekent met de slotkoers van die bar. De
+conventie van Plan 1 vult een target op het barrièreniveau (of op de open als
+de bar er met een gat voorbij opent), een stop op het niveau of de open,
+maal (1 ∓ slippage) tegen de positie in, en de verticale barrière op de close.
+Het doel wordt "netto na de trade-specifieke kosten van spec §6.2a positief".
 """
 from __future__ import annotations
 
@@ -748,17 +948,11 @@ import dataclasses
 
 import numpy as np
 
-from ..schemas.config import ExecutionConfig, LabelingConfig
+from ..schemas.config import LabelingConfig
 from ..utils.failfast import DataContractError, require
 from .vol_barriers import BarrierLabels
 
-__all__ = ["barrier_fill_returns", "round_trip_cost", "select_events",
-           "with_cost_aware_target"]
-
-
-def round_trip_cost(exec_cfg: ExecutionConfig) -> float:
-    """Eén definitie van de round trip: twee keer taker plus halve spread."""
-    return 2.0 * (exec_cfg.taker_fee_bps + exec_cfg.assumed_half_spread_bps) / 1e4
+__all__ = ["barrier_fill_returns", "select_events", "with_cost_aware_target"]
 
 
 def barrier_fill_returns(
@@ -769,7 +963,7 @@ def barrier_fill_returns(
     *,
     stop_slippage_bps: float,
 ) -> np.ndarray:
-    """Positierendement per event bij een fill op de barrière (richting verrekend)."""
+    """Positierendement per event bij een fill volgens spec §12 (richting verrekend)."""
     open_ = np.asarray(open_, dtype=np.float64)
     close = np.asarray(close, dtype=np.float64)
     require(open_.size == close.size, "open en close zijn niet even lang.", DataContractError)
@@ -785,7 +979,7 @@ def barrier_fill_returns(
             fill = float(close[j])
         else:
             o = float(open_[j])
-            require(np.isfinite(o), "Een barrière-exit op een bar zonder open.",
+            require(bool(np.isfinite(o)), "Een barrière-exit op een bar zonder open.",
                     DataContractError, exit_idx=j)
             if outcome == 1:
                 level = entry * (1.0 + s * cfg.profit_target_sigma * float(labels.sigma[i]))
@@ -800,16 +994,17 @@ def barrier_fill_returns(
 
 
 def with_cost_aware_target(
-    labels: BarrierLabels, fill_returns: np.ndarray, *, round_trip_cost: float,
+    labels: BarrierLabels, fill_returns: np.ndarray, *, costs: np.ndarray,
 ) -> BarrierLabels:
-    """Labels met het fillrendement en het doel "netto na de round trip > 0"."""
+    """Labels met het fillrendement en het doel `fill - C_i^label > 0` (spec §6.1)."""
     fill_returns = np.asarray(fill_returns, dtype=np.float64)
-    require(fill_returns.size == len(labels), "Een fillrendement per event.",
-            DataContractError, n=fill_returns.size, n_events=len(labels))
+    costs = np.asarray(costs, dtype=np.float64)
+    require(fill_returns.size == costs.size == len(labels), "Eén fill en één kost per event.",
+            DataContractError, n_fill=fill_returns.size, n_cost=costs.size, n_events=len(labels))
     return dataclasses.replace(
         labels,
         realized_return=fill_returns,
-        meta_label=((fill_returns - float(round_trip_cost)) > 0.0).astype(np.int8),
+        meta_label=((fill_returns - costs) > 0.0).astype(np.int8),
     )
 
 
@@ -822,16 +1017,18 @@ def select_events(labels: BarrierLabels, mask: np.ndarray) -> BarrierLabels:
                             for f in dataclasses.fields(labels)})
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+Controleer vóór stap 4 dat `load_impact_params` exact de velden van `ImpactConfig` gebruikt (vergelijk met `backtest/ladder_inputs.py::load_ladder_inputs`, waar dezelfde constructie staat); wijkt een veldnaam af, volg `ImpactConfig`.
 
-Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_barrier_fills.py -p no:randomly -q`
-Expected: PASS (10 tests).
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_trade_costs.py tests/unit/test_barrier_fills.py -p no:randomly -q`
+Expected: PASS (6 + 10 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tradebot/labeling/barrier_fills.py tests/unit/test_barrier_fills.py
-git commit -m "feat(labeling): fill 1:1 exits at the barrier, with stop slippage, and label net of the round trip"
+git add src/tradebot/execution/trade_costs.py src/tradebot/labeling/barrier_fills.py tests/unit/test_trade_costs.py tests/unit/test_barrier_fills.py
+git commit -m "feat(execution): one cost definition for label, decision and P&L; fills per the daily execution convention"
 ```
 
 ---
@@ -1426,11 +1623,12 @@ git commit -m "feat(features): the fixed weekly feature set on existing fracdiff
 - Test: `tests/unit/test_weekly_dataset.py`
 
 **Interfaces:**
-- Consumes: `breakout_side` (Taak 2); `label_triple_barrier`, `barrier_fill_returns`, `with_cost_aware_target`, `select_events`, `round_trip_cost` (Taak 3); `build_feature_panel` (Taak 5); `build_dataset(features, labels) -> MetaLabelDataset` (`train/meta_label.py`).
+- Consumes: `breakout_side` (Taak 2); `TradeCostModel` (Taak 3); `label_triple_barrier`, `barrier_fill_returns`, `with_cost_aware_target`, `select_events` (Taak 3); `WeeklyMarket` (Taak 4); `build_feature_panel` (Taak 5); `build_dataset(features, labels) -> MetaLabelDataset` (`train/meta_label.py`).
 - Produces:
-  - `WeeklyDataset` (frozen): `dataset: MetaLabelDataset`, `events: pd.DataFrame` (kolommen `symbol, event_bar, exit_bar, side, fill_return, sigma, target`, rij-voor-rij gelijk aan `dataset`), `grid`, `k`, `d_star`, `n_dropped_nan: dict[str, int]`.
+  - `WeeklyDataset` (frozen): `dataset: MetaLabelDataset`, `events: pd.DataFrame`, `labels: dict[str, BarrierLabels]`, `grid`, `k`, `d_star`, `n_dropped_nan: dict[str, int]`.
+  - `events` heeft per rij, in exact dezelfde volgorde als `dataset`: `symbol, event_bar, exit_bar, side, fill_return, sigma, barrier, label_cost, target, funding_recent_mean, adv_usd, sigma_daily_event` — de laatste drie zijn de ex-ante invoer van spec §6.2b, allemaal bekend op de eventbar.
   - `labeling_config(cfg: WeeklyMetaConfig) -> LabelingConfig`
-  - `build_weekly_dataset(market, cfg, *, k, d_star, cost_rt, side_sign=1.0) -> WeeklyDataset`
+  - `build_weekly_dataset(market, cfg, *, k, d_star, costs: TradeCostModel, side_sign=1.0) -> WeeklyDataset`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1438,48 +1636,69 @@ git commit -m "feat(features): the fixed weekly feature set on existing fracdiff
 # tests/unit/test_weekly_dataset.py
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
 from tests.weekly_fixtures import synthetic_market
+from tradebot.execution.trade_costs import TradeCostModel
+from tradebot.schemas.config import ExecutionConfig, load_config
 from tradebot.schemas.weekly_meta import weekly_meta_config
 from tradebot.train.weekly_dataset import build_weekly_dataset
 
+ROOT = Path(__file__).resolve().parents[2]
 CFG = weekly_meta_config()
+COSTS = TradeCostModel.from_config(load_config(ROOT / "conf/execution/fees.yaml", ExecutionConfig),
+                                   stop_slippage_bps=CFG.stop_slippage_bps, impact=None)
 
 
 @pytest.fixture(scope="module")
 def built():
     market = synthetic_market(n=700)
-    return market, build_weekly_dataset(market, CFG, k=2.0, d_star=0.4, cost_rt=0.0013)
+    return market, build_weekly_dataset(market, CFG, k=2.0, d_star=0.4, costs=COSTS)
 
 
 def test_events_align_row_for_row_with_the_dataset(built) -> None:
     _, wd = built
     ds, ev = wd.dataset, wd.events
     assert len(ev) == len(ds) > 50
-    assert np.array_equal(ev["event_bar"].to_numpy(), ds.event_bar)
-    assert np.array_equal(ev["exit_bar"].to_numpy(), ds.exit_bar)
-    assert np.array_equal(ev["side"].to_numpy(), ds.side)
-    assert np.array_equal(ev["target"].to_numpy(), ds.target)
+    for col, arr in (("event_bar", ds.event_bar), ("exit_bar", ds.exit_bar),
+                     ("side", ds.side), ("target", ds.target)):
+        assert np.array_equal(ev[col].to_numpy(), arr), col
     assert np.array_equal(ds.features["side"].to_numpy(), ds.side)
 
 
-def test_every_training_row_is_finite(built) -> None:
+def test_every_training_row_is_finite_and_the_burn_in_is_counted(built) -> None:
     _, wd = built
     assert np.isfinite(wd.dataset.features.to_numpy(dtype=float)).all()
-    assert sum(wd.n_dropped_nan.values()) > 0  # de burn-in kost events, en dat wordt geteld
+    assert sum(wd.n_dropped_nan.values()) > 0
 
 
-def test_the_target_is_net_of_costs(built) -> None:
-    _, wd = built
+def test_the_target_is_net_of_the_trade_specific_label_cost(built) -> None:
+    market, wd = built
     ev = wd.events
-    assert ((ev["fill_return"] - 0.0013 > 0.0).astype(int) == ev["target"]).all()
+    assert ((ev["fill_return"] - ev["label_cost"] > 0.0).astype(int) == ev["target"]).all()
+    row = ev.iloc[0]
+    f = market.funding[row["symbol"]].to_numpy()
+    held = f[int(row["event_bar"]) + 2: int(row["exit_bar"]) + 1]
+    assert row["label_cost"] == pytest.approx(COSTS.fixed_round_trip + row["side"] * held.sum())
+
+
+def test_the_ex_ante_inputs_are_known_on_the_event_bar(built) -> None:
+    market, wd = built
+    row = wd.events.iloc[5]
+    t, s = int(row["event_bar"]), row["symbol"]
+    f = market.funding[s].to_numpy()
+    lb = CFG.funding_lookback_bars
+    assert row["funding_recent_mean"] == pytest.approx(f[t - lb: t].mean())
+    assert row["adv_usd"] == pytest.approx(market.adv_usd[s].iloc[t])
+    assert row["barrier"] == pytest.approx(CFG.barrier_sigma * row["sigma"])
 
 
 def test_reversing_the_side_flips_the_events(built) -> None:
     market, wd = built
-    rev = build_weekly_dataset(market, CFG, k=2.0, d_star=0.4, cost_rt=0.0013, side_sign=-1.0)
+    rev = build_weekly_dataset(market, CFG, k=2.0, d_star=0.4, costs=COSTS, side_sign=-1.0)
     a = wd.events.set_index(["symbol", "event_bar"])["side"]
     b = rev.events.set_index(["symbol", "event_bar"])["side"]
     common = a.index.intersection(b.index)
@@ -1490,7 +1709,7 @@ def test_reversing_the_side_flips_the_events(built) -> None:
 def test_no_label_reaches_past_a_truncated_market(built) -> None:
     market, _ = built
     cut = market.truncate(market.grid[500])
-    wd = build_weekly_dataset(cut, CFG, k=2.0, d_star=0.4, cost_rt=0.0013)
+    wd = build_weekly_dataset(cut, CFG, k=2.0, d_star=0.4, costs=COSTS)
     assert int(wd.dataset.exit_bar.max()) < 500
 ```
 
@@ -1507,7 +1726,8 @@ Expected: FAIL, `ModuleNotFoundError: No module named 'tradebot.train.weekly_dat
 
 De volgorde van rijen is die van `train.meta_label.build_dataset`: symbolen
 alfabetisch, binnen een symbool op eventbar. `events` volgt precies die
-volgorde, zodat het tradeboek per rij de fill en de sigma terugvindt.
+volgorde en draagt per event wat het tradeboek en de ex-ante kosten nodig
+hebben; die laatste lezen uitsluitend data t/m de eventbar.
 """
 from __future__ import annotations
 
@@ -1517,6 +1737,7 @@ import numpy as np
 import pandas as pd
 
 from ..data.weekly_market import WeeklyMarket
+from ..execution.trade_costs import TradeCostModel
 from ..features.weekly_set import build_feature_panel
 from ..labeling.barrier_fills import barrier_fill_returns, select_events, with_cost_aware_target
 from ..labeling.breakout import breakout_side
@@ -1552,33 +1773,52 @@ def build_weekly_dataset(
     *,
     k: float,
     d_star: float,
-    cost_rt: float,
+    costs: TradeCostModel,
     side_sign: float = 1.0,
 ) -> WeeklyDataset:
-    """Events, 1:1-labels met barrièrefills, en features; rijen met een NaN-feature vallen af."""
+    """Events, 1:1-labels met fills en trade-specifieke kosten, en features.
+
+    Een event met een niet-eindige feature valt af en wordt per symbool geteld.
+    """
     lab_cfg = labeling_config(cfg)
+    lag = int(lab_cfg.entry_lag_bars)
     sides = {s: side_sign * breakout_side(market.ohlcv[s]["close"], market.sigma_daily[s], k)
              for s in market.symbols}
     features = build_feature_panel(market, sides, d_star=d_star, corr_window=cfg.corr_window)
+    lb = cfg.funding_lookback_bars
+    funding_mean = market.funding.rolling(lb, min_periods=lb).mean().shift(1)
     labels: dict[str, BarrierLabels] = {}
     dropped: dict[str, int] = {}
     rows: list[pd.DataFrame] = []
     for s in sorted(market.symbols):
         o = market.ohlcv[s]
-        raw = label_triple_barrier(
-            o["high"].to_numpy(), o["low"].to_numpy(), o["close"].to_numpy(),
-            market.sigma_daily[s].to_numpy(), sides[s].to_numpy(), lab_cfg)
+        sigma = market.sigma_daily[s].to_numpy()
+        raw = label_triple_barrier(o["high"].to_numpy(), o["low"].to_numpy(),
+                                   o["close"].to_numpy(), sigma, sides[s].to_numpy(), lab_cfg)
         fills = barrier_fill_returns(raw, o["open"].to_numpy(), o["close"].to_numpy(),
                                      lab_cfg, stop_slippage_bps=cfg.stop_slippage_bps)
-        lab = with_cost_aware_target(raw, fills, round_trip_cost=cost_rt)
-        finite = np.isfinite(features[s].iloc[lab.event_idx].to_numpy(dtype=float)).all(axis=1)
+        barrier = cfg.barrier_sigma * raw.sigma
+        label_cost = costs.label_costs(
+            raw.side, raw.event_idx + lag, raw.exit_idx,
+            funding=market.funding[s].to_numpy(), adv=market.adv_usd[s].to_numpy(),
+            sigma_daily=sigma,
+            reference_notional=(cfg.baseline_risk_fraction / barrier) * cfg.account_equity)
+        lab = with_cost_aware_target(raw, fills, costs=label_cost)
+        ev_idx = lab.event_idx
+        finite = (np.isfinite(features[s].iloc[ev_idx].to_numpy(dtype=float)).all(axis=1)
+                  & np.isfinite(funding_mean[s].to_numpy()[ev_idx]))
         dropped[s] = int((~finite).sum())
         lab = select_events(lab, finite)
+        keep_cost = label_cost[finite]
         labels[s] = lab
         rows.append(pd.DataFrame({
             "symbol": s, "event_bar": lab.event_idx, "exit_bar": lab.exit_idx,
             "side": lab.side, "fill_return": lab.realized_return, "sigma": lab.sigma,
+            "barrier": cfg.barrier_sigma * lab.sigma, "label_cost": keep_cost,
             "target": lab.meta_label.astype(np.int64),
+            "funding_recent_mean": funding_mean[s].to_numpy()[lab.event_idx],
+            "adv_usd": market.adv_usd[s].to_numpy()[lab.event_idx],
+            "sigma_daily_event": sigma[lab.event_idx],
         }))
     dataset = build_dataset(features, labels)
     return WeeklyDataset(dataset=dataset, events=pd.concat(rows, ignore_index=True),
@@ -1586,21 +1826,23 @@ def build_weekly_dataset(
                          d_star=float(d_star), n_dropped_nan=dropped)
 ```
 
+Let op de test `test_the_target_is_net_of_the_trade_specific_label_cost`: de entrybar is `event_bar + 1`, dus de funding van de houdtijd loopt over bars `event_bar + 2 … exit_bar` — precies `TradeCostModel.label_costs` met `entry_bar = event_bar + lag`.
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_weekly_dataset.py -p no:randomly -q`
-Expected: PASS (5 tests).
+Expected: PASS (6 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/tradebot/train/weekly_dataset.py tests/unit/test_weekly_dataset.py
-git commit -m "feat(train): the weekly meta-label dataset from breakout events, barrier fills and the fixed features"
+git commit -m "feat(train): the weekly dataset, labelled net of trade-specific costs, with the ex-ante cost inputs per event"
 ```
 
 ---
 
-### Task 7: Lichte modellen en een generieke purged walk-forward
+### Task 7: Lichte modellen, OOF-kalibratie en een generieke purged walk-forward
 
 **Files:**
 - Modify: `src/tradebot/train/meta_label.py` (`FoldPredictions.extras`, nieuwe `walk_forward_fit_predict`, `walk_forward_predictions` delegeert)
@@ -1609,13 +1851,15 @@ git commit -m "feat(train): the weekly meta-label dataset from breakout events, 
 - Regressie: `tests/unit/test_meta_label.py` blijft ongewijzigd groen
 
 **Interfaces:**
-- Consumes: `MetaLabelDataset`, `purged_training_index(dataset, fold, *, embargo_bars)`, `WalkForwardCV` (`cv/walk_forward.py`).
+- Consumes: `MetaLabelDataset`, `purged_training_index(dataset, fold, *, embargo_bars)`, `WalkForwardCV` (`cv/walk_forward.py`); `WeeklyMetaConfig` (Taak 1).
 - Produces:
   - `FoldPredictions.extras: Mapping[str, Any]` (default `{}`)
   - `walk_forward_fit_predict(dataset, cv, fit: Callable[[np.ndarray, np.ndarray], Any], *, n_bars: int, embargo_bars: int, target: np.ndarray | None = None) -> list[FoldPredictions]` — `fit(train_rows, labels)` geeft een model met `predict_proba(X)` en `feature_importance` (of `get_feature_importance()`), optioneel `fold_extras`.
   - `MODEL_KINDS = ("logreg", "forest", "ensemble")`
-  - `inner_calibration_split(event_bar, exit_bar, *, fraction) -> (fit_pos, cal_pos)`
-  - `fit_light_model(dataset, rows, labels, kind, cfg) -> CalibratedModel`; `CalibratedModel.predict_proba(X) -> (n, 2)`, `.feature_importance`, `.fold_extras` met `calibration_probability`, `calibration_target`, `train_events_per_week`, `n_fit`, `n_calibration`.
+  - `inner_walk_forward_splits(event_bar, exit_bar, *, n_blocks, embargo_bars) -> list[tuple[np.ndarray, np.ndarray]]` — (fit-, voorspel-)posities binnen de trainrijen voor blokken 2..K.
+  - `fit_light_model(dataset, rows, labels, kind, cfg, *, embargo_bars) -> CalibratedModel`; `CalibratedModel.predict_proba(X) -> (n, 2)`, `.feature_importance`, `.fold_extras` met `oof_probability` (gekalibreerd), `oof_target`, `oof_event_bar`, `oof_events_per_week`, `n_oof`.
+
+**Het contract (spec §8):** binnen de trainrijen, op tijd gesorteerd, `K = inner_wf_blocks` blokken met gelijk aantal events. Voor `k = 2..K`: fit op blokken `< k` met `exit_bar < start_k` en `event_bar < start_k − embargo_bars`; voorspel blok `k`. Platt op die OOF-scores. Het eindmodel wordt op alle trainrijen gefit; testkans = kalibrator(eindscore). Het ensemble middelt de gekalibreerde kansen van zijn twee leden, ook de OOF-kansen.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1630,11 +1874,12 @@ from sklearn.metrics import roc_auc_score
 
 from tradebot.cv.walk_forward import WalkForwardCV
 from tradebot.schemas.weekly_meta import weekly_meta_config
-from tradebot.train.light_models import MODEL_KINDS, fit_light_model, inner_calibration_split
+from tradebot.train.light_models import MODEL_KINDS, fit_light_model, inner_walk_forward_splits
 from tradebot.train.meta_label import MetaLabelDataset, shuffled_targets, walk_forward_fit_predict
 from tradebot.utils.failfast import DataContractError
 
 CFG = weekly_meta_config().model_copy(update={"forest_n_estimators": 60})
+EMBARGO = 6
 
 
 def _dataset(n: int = 900, signal: float = 1.2, seed: int = 3) -> MetaLabelDataset:
@@ -1651,22 +1896,26 @@ def _dataset(n: int = 900, signal: float = 1.2, seed: int = 3) -> MetaLabelDatas
 
 def _cv() -> WalkForwardCV:
     return WalkForwardCV(train_size=400, test_size=100, step=100, mode="anchored",
-                         min_train=400, embargo_bars=6)
+                         min_train=400, embargo_bars=EMBARGO)
 
 
 def _run(ds, kind, target=None):
     return walk_forward_fit_predict(
-        ds, _cv(), lambda rows, y: fit_light_model(ds, rows, y, kind, CFG),
-        n_bars=int(ds.exit_bar.max()) + 1, embargo_bars=6, target=target)
+        ds, _cv(), lambda rows, y: fit_light_model(ds, rows, y, kind, CFG, embargo_bars=EMBARGO),
+        n_bars=int(ds.exit_bar.max()) + 1, embargo_bars=EMBARGO, target=target)
 
 
-def test_the_inner_split_is_chronological_and_purged() -> None:
-    ev = np.arange(100)
+def test_inner_splits_are_chronological_purged_and_embargoed() -> None:
+    ev = np.arange(200)
     ex = ev + 5
-    fit, cal = inner_calibration_split(ev, ex, fraction=0.25)
-    assert ev[cal].min() > ev[fit].max()
-    assert (ex[fit] < ev[cal].min()).all()
-    assert cal.size == 25
+    splits = inner_walk_forward_splits(ev, ex, n_blocks=4, embargo_bars=EMBARGO)
+    assert len(splits) == 3
+    predicted = np.concatenate([p for _, p in splits])
+    assert np.array_equal(np.sort(predicted), np.arange(50, 200))
+    for fit, pred in splits:
+        start = int(ev[pred].min())
+        assert (ex[fit] < start).all()
+        assert (ev[fit] < start - EMBARGO).all()
 
 
 @pytest.mark.parametrize("kind", MODEL_KINDS)
@@ -1702,12 +1951,15 @@ def test_a_non_permutation_target_is_refused() -> None:
         _run(ds, "logreg", target=np.ones_like(ds.target))
 
 
-def test_fold_extras_carry_the_calibration_set() -> None:
+def test_the_oof_set_is_out_of_fold_and_carries_realized_labels() -> None:
     ds = _dataset()
     folds = _run(ds, "ensemble")
-    extras = folds[0].extras
-    assert extras["calibration_probability"].size == extras["n_calibration"] > 0
-    assert extras["train_events_per_week"] > 0.0
+    ex = folds[0].extras
+    assert ex["oof_probability"].size == ex["oof_target"].size == ex["n_oof"] > 0
+    # Het eerste blok wordt nooit voorspeld: de OOF-events liggen na het eerste kwart van de trainrijen.
+    assert ex["oof_event_bar"].min() > 0
+    assert set(np.unique(ex["oof_target"])) <= {0, 1}
+    assert ex["oof_events_per_week"] > 0.0
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1717,15 +1969,15 @@ Expected: FAIL, `ImportError: cannot import name 'walk_forward_fit_predict'`
 
 - [ ] **Step 3a: Refactor `train/meta_label.py` zonder gedragswijziging**
 
-Wijzig de import `from dataclasses import dataclass` naar `from dataclasses import dataclass, field`, voeg `from collections.abc import Callable` toe aan de bestaande `collections.abc`-import, en zet `"walk_forward_fit_predict"` in `__all__`. Voeg aan `FoldPredictions` als laatste veld toe:
+Wijzig `from dataclasses import dataclass` naar `from dataclasses import dataclass, field`, voeg `Callable` toe aan de bestaande `collections.abc`-import, en zet `"walk_forward_fit_predict"` in `__all__`. Voeg aan `FoldPredictions` als laatste veld toe:
 
 ```python
     feature_importance: np.ndarray
-    #: Wat de fit naast zijn kansen meegeeft (bijv. de kalibratieset). Leeg voor CatBoost.
+    #: Wat de fit naast zijn kansen meegeeft (bijv. de OOF-set). Leeg voor CatBoost.
     extras: Mapping[str, Any] = field(default_factory=dict)
 ```
 
-Vervang de body van `walk_forward_predictions` en voeg de generieke functie en een helper toe:
+Vervang de body van `walk_forward_predictions` (laat haar docstring staan) en voeg de generieke functie en een helper toe:
 
 ```python
 def _importance(model: Any) -> np.ndarray:
@@ -1788,22 +2040,11 @@ def walk_forward_fit_predict(
         DataContractError, n_bars=n_bars,
     )
     return out
+```
 
+en als body van `walk_forward_predictions`:
 
-def walk_forward_predictions(
-    dataset: MetaLabelDataset,
-    cv: WalkForwardCV,
-    spec: MetaLabelSpec,
-    cfg: MetaLabelConfig,
-    *,
-    n_bars: int,
-    embargo_bars: int,
-    target: np.ndarray | None = None,
-) -> list[FoldPredictions]:
-    """Purged walk-forward over de bar-as; één CatBoost-fit per fold.
-
-    (Docstring van de oorspronkelijke functie hier ongewijzigd laten staan.)
-    """
+```python
     def fit(rows: np.ndarray, labels: np.ndarray) -> Any:
         return fit_secondary_model(dataset.features.iloc[rows], labels[rows],
                                    dataset.uniqueness[rows], spec, cfg)
@@ -1819,16 +2060,21 @@ Expected: PASS, exact hetzelfde aantal tests als vóór de wijziging.
 
 ```python
 # src/tradebot/train/light_models.py
-"""Lichte, niet-getunede secondary models met Platt-kalibratie (spec §8).
+"""Lichte, niet-getunede secondary models met Platt-kalibratie op OOF-scores (spec §8).
 
-Twee modellen, instellingen vast in `conf/model/weekly_meta.yaml`:
-een L2-logistische regressie en een ondiepe random forest met
-`max_features=1` en `max_samples` = gemiddelde uniqueness (AFML hoofdstuk 4/6).
-Het ensemble middelt hun GEKALIBREERDE kansen.
+Twee modellen, instellingen vast in `conf/model/weekly_meta.yaml`: een
+L2-logistische regressie en een ondiepe random forest met `max_features=1` en
+`max_samples` = gemiddelde uniqueness. Het ensemble middelt hun GEKALIBREERDE
+kansen.
 
-Kalibratie gebeurt op het laatste deel van het trainvenster, chronologisch en
-gepurged: geen fitrij waarvan het label de kalibratieset in loopt. Een K-fold
-kalibratie zou toekomst binnen het trainvenster gebruiken.
+Kalibratie op out-of-fold-scores uit een inner walk-forward binnen het
+trainvenster: K blokken op tijd, voor blok k >= 2 een fit op de eerdere blokken
+(gepurged op de exit, met embargo), voorspelling van blok k. Een Platt-kalibrator
+(2 parameters) op die OOF-scores; het eindmodel op alle trainrijen. Dat is
+`CalibratedClassifierCV(ensemble=False)` met gepurgede tijdsplits. De gekalibreerde
+OOF-kansen en hun GEREALISEERDE labels gaan mee als `fold_extras`: de
+handelsdrempel (spec §10.3) en de Beta-posterior (spec §10.4) lezen die, en nooit
+in-sample-kansen.
 """
 from __future__ import annotations
 
@@ -1845,7 +2091,7 @@ from ..schemas.weekly_meta import WeeklyMetaConfig
 from ..utils.failfast import DataContractError, require
 from .meta_label import MetaLabelDataset
 
-__all__ = ["MODEL_KINDS", "CalibratedModel", "fit_light_model", "inner_calibration_split"]
+__all__ = ["MODEL_KINDS", "CalibratedModel", "fit_light_model", "inner_walk_forward_splits"]
 
 ModelKind = Literal["logreg", "forest", "ensemble"]
 MODEL_KINDS: tuple[ModelKind, ...] = ("logreg", "forest", "ensemble")
@@ -1853,16 +2099,21 @@ _EPS = 1e-6
 _DAYS_PER_WEEK = 7.0
 
 
-def inner_calibration_split(
-    event_bar: np.ndarray, exit_bar: np.ndarray, *, fraction: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    """(fit-, kalibratie-)posities binnen de trainrijen: laatste `fraction` op tijd, gepurged."""
+def inner_walk_forward_splits(
+    event_bar: np.ndarray, exit_bar: np.ndarray, *, n_blocks: int, embargo_bars: int,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """(fit-, voorspel-)posities binnen de trainrijen voor blokken 2..K, gepurged en ge-embargood."""
+    require(n_blocks >= 2, "Ten minste twee blokken.", DataContractError, n_blocks=n_blocks)
     order = np.argsort(event_bar, kind="stable")
-    n_cal = max(1, int(round(fraction * order.size)))
-    cal = order[-n_cal:]
-    cal_start = int(event_bar[cal].min())
-    fit = order[:-n_cal]
-    return fit[exit_bar[fit] < cal_start], cal
+    blocks = np.array_split(order, n_blocks)
+    out: list[tuple[np.ndarray, np.ndarray]] = []
+    for k in range(1, n_blocks):
+        pred = blocks[k]
+        start = int(event_bar[pred].min())
+        prior = np.concatenate(blocks[:k])
+        fit = prior[(exit_bar[prior] < start) & (event_bar[prior] < start - embargo_bars)]
+        out.append((fit, pred))
+    return out
 
 
 def _logit(p: np.ndarray) -> np.ndarray:
@@ -1880,11 +2131,30 @@ class _Platt:
 
 def _fit_platt(p_raw: np.ndarray, y: np.ndarray, w: np.ndarray) -> _Platt:
     require(np.unique(y).size == 2,
-            "Een kalibratieset met één klasse; er valt geen Platt-schaling te schatten.",
+            "Een OOF-set met één klasse; er valt geen Platt-schaling te schatten.",
             DataContractError)
     model = LogisticRegression(C=1e6, max_iter=1000)  # praktisch ongestraft
     model.fit(_logit(p_raw).reshape(-1, 1), y, sample_weight=w)
     return _Platt(model)
+
+
+def _fit_member(kind: str, x: np.ndarray, y: np.ndarray, w: np.ndarray,
+                cfg: WeeklyMetaConfig) -> tuple[Any, np.ndarray]:
+    require(np.unique(y).size == 2, "Een fitvenster met één klasse.", DataContractError)
+    if kind == "logreg":
+        model = make_pipeline(StandardScaler(),
+                              LogisticRegression(C=cfg.logreg_c, max_iter=2000))
+        model.fit(x, y, logisticregression__sample_weight=w)
+        coef = np.abs(model.named_steps["logisticregression"].coef_[0])
+        return model, coef / coef.sum()
+    model = RandomForestClassifier(
+        n_estimators=cfg.forest_n_estimators, max_depth=cfg.forest_max_depth,
+        max_features=1, min_samples_leaf=cfg.forest_min_samples_leaf,
+        max_samples=float(np.clip(w.mean(), 0.05, 1.0)),
+        class_weight="balanced_subsample", bootstrap=True,
+        random_state=cfg.seed, n_jobs=1)
+    model.fit(x, y, sample_weight=w)
+    return model, np.asarray(model.feature_importances_, dtype=np.float64)
 
 
 @dataclass
@@ -1902,54 +2172,44 @@ class CalibratedModel:
         return np.column_stack([1.0 - p, p])
 
 
-def _fit_member(kind: str, x: np.ndarray, y: np.ndarray, w: np.ndarray,
-                cfg: WeeklyMetaConfig) -> tuple[Any, np.ndarray]:
-    if kind == "logreg":
-        model = make_pipeline(StandardScaler(),
-                              LogisticRegression(C=cfg.logreg_c, max_iter=2000))
-        model.fit(x, y, logisticregression__sample_weight=w)
-        coef = np.abs(model.named_steps["logisticregression"].coef_[0])
-        return model, coef / coef.sum()
-    model = RandomForestClassifier(
-        n_estimators=cfg.forest_n_estimators, max_depth=cfg.forest_max_depth,
-        max_features=1, min_samples_leaf=cfg.forest_min_samples_leaf,
-        max_samples=float(np.clip(w.mean(), 0.05, 1.0)),
-        class_weight="balanced_subsample", bootstrap=True,
-        random_state=cfg.seed, n_jobs=1)
-    model.fit(x, y, sample_weight=w)
-    return model, np.asarray(model.feature_importances_, dtype=np.float64)
-
-
 def fit_light_model(
     dataset: MetaLabelDataset, rows: np.ndarray, labels: np.ndarray,
-    kind: ModelKind, cfg: WeeklyMetaConfig,
+    kind: ModelKind, cfg: WeeklyMetaConfig, *, embargo_bars: int,
 ) -> CalibratedModel:
-    """Fit op `rows`, kalibreer op hun laatste deel; ziet niets buiten `rows`."""
+    """Fit op `rows` met OOF-kalibratie binnen `rows`; ziet niets buiten `rows`."""
     require(kind in MODEL_KINDS, "Onbekend modeltype.", DataContractError, kind=kind)
     rows = np.asarray(rows, dtype=np.int64)
-    fit_pos, cal_pos = inner_calibration_split(
-        dataset.event_bar[rows], dataset.exit_bar[rows], fraction=cfg.calibration_fraction)
-    fit_rows, cal_rows = rows[fit_pos], rows[cal_pos]
     x = dataset.features.to_numpy(dtype=np.float64)
     y = np.asarray(labels, dtype=np.int64)
     w = dataset.uniqueness
-    require(np.unique(y[fit_rows]).size == 2,
-            "Een fitvenster met één klasse.", DataContractError)
-    members, cals, imps = [], [], []
+    splits = inner_walk_forward_splits(dataset.event_bar[rows], dataset.exit_bar[rows],
+                                       n_blocks=cfg.inner_wf_blocks, embargo_bars=embargo_bars)
+    oof_pos = np.concatenate([pred for _, pred in splits])
+    oof_rows = rows[oof_pos]
+    members, cals, imps, oof_cal = [], [], [], []
     for member in (("logreg", "forest") if kind == "ensemble" else (kind,)):
-        model, imp = _fit_member(member, x[fit_rows], y[fit_rows], w[fit_rows], cfg)
-        cals.append(_fit_platt(model.predict_proba(x[cal_rows])[:, 1], y[cal_rows], w[cal_rows]))
-        members.append(model)
+        raw = np.empty(oof_pos.size, dtype=np.float64)
+        at = 0
+        for fit_pos, pred_pos in splits:
+            fr = rows[fit_pos]
+            inner, _ = _fit_member(member, x[fr], y[fr], w[fr], cfg)
+            raw[at: at + pred_pos.size] = inner.predict_proba(x[rows[pred_pos]])[:, 1]
+            at += pred_pos.size
+        cal = _fit_platt(raw, y[oof_rows], w[oof_rows])
+        final, imp = _fit_member(member, x[rows], y[rows], w[rows], cfg)
+        members.append(final)
+        cals.append(cal)
         imps.append(imp)
+        oof_cal.append(cal(raw))
     out = CalibratedModel(kind, members, cals, np.mean(imps, axis=0))
-    ev = dataset.event_bar[rows]
-    weeks = (int(ev.max()) - int(ev.min()) + 1) / _DAYS_PER_WEEK
+    oof_ev = dataset.event_bar[oof_rows]
+    weeks = (int(oof_ev.max()) - int(oof_ev.min()) + 1) / _DAYS_PER_WEEK
     out.fold_extras = {
-        "calibration_probability": out.predict_proba(x[cal_rows])[:, 1],
-        "calibration_target": y[cal_rows],
-        "train_events_per_week": float(rows.size / weeks),
-        "n_fit": int(fit_rows.size),
-        "n_calibration": int(cal_rows.size),
+        "oof_probability": np.mean(oof_cal, axis=0),
+        "oof_target": y[oof_rows],
+        "oof_event_bar": oof_ev,
+        "oof_events_per_week": float(oof_rows.size / weeks),
+        "n_oof": int(oof_rows.size),
     }
     return out
 ```
@@ -1957,13 +2217,13 @@ def fit_light_model(
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_light_models.py tests/unit/test_meta_label.py -p no:randomly -q`
-Expected: PASS. Faalt de kalibratietest op het ensemble met een afwijking boven 0,05: meld het getal, verhoog de tolerantie niet.
+Expected: PASS. Faalt de kalibratietest met een afwijking boven 0,05: meld het getal, verhoog de tolerantie niet.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/tradebot/train/meta_label.py src/tradebot/train/light_models.py tests/unit/test_light_models.py
-git commit -m "feat(train): light LR/RF models with purged Platt calibration, through a generic purged walk-forward"
+git commit -m "feat(train): light LR/RF models calibrated on inner walk-forward OOF scores, through a generic purged walk-forward"
 ```
 
 ---
@@ -1981,10 +2241,14 @@ git commit -m "feat(train): light LR/RF models with purged Platt calibration, th
   - `no_exit_probability(a: float, n_terms: int = 50) -> float`
   - `break_even_probability(barrier: float, cost: float) -> float`
   - `kelly_fraction_binary(p: float, barrier: float, cost: float) -> float`
-  - `posterior_lower_probability(p_hat: float, n: float, quantile: float) -> float`
+  - `beta_posterior_lower(successes: int, trials: int, quantile: float) -> float` — `Beta(1 + s, 1 + n − s)` op **gerealiseerde** uitkomsten
+  - `EmpiricalBins` (frozen) met `edges: np.ndarray` (inwendige grenzen), `successes`, `trials`, `p_low` (per bak) en `bin_of(p: float) -> int`
+  - `empirical_bins(oof_probability, oof_target, *, n_bins, quantile) -> EmpiricalBins` — bakken met gelijk aantal op de OOF-kansen, posterior per bak
   - `correlation_scale(k_same: int, rho: float) -> float`
   - `drawdown_probability(kelly_multiple: float, drawdown: float) -> float`
-  - `monte_carlo_drawdown_probability(r_multiples: np.ndarray, *, risk_fraction: float, n_trades: int, drawdown: float, block_length: int, n_paths: int, seed: int) -> float`
+  - `monte_carlo_drawdown_probability(r_multiples, *, risk_fraction, n_trades, drawdown, block_length, n_paths, seed) -> float`
+
+**Het contract (spec §10.4):** er bestaat in deze module geen functie die een posterior uit modelkansen als pseudo-waarnemingen bouwt. Kalibratie bepaalt in welke bak een trade valt; de posterior op het succespercentage van die bak telt uitsluitend gerealiseerde OOF-uitkomsten.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1992,20 +2256,23 @@ git commit -m "feat(train): light LR/RF models with purged Platt calibration, th
 # tests/unit/test_binary_kelly.py
 from __future__ import annotations
 
+import inspect
 import math
 
 import numpy as np
 import pytest
 
+import tradebot.risk.binary_kelly as bk
 from tradebot.risk.binary_kelly import (
+    beta_posterior_lower,
     break_even_probability,
     correlation_scale,
     drawdown_probability,
+    empirical_bins,
     first_passage_up_probability,
     kelly_fraction_binary,
     monte_carlo_drawdown_probability,
     no_exit_probability,
-    posterior_lower_probability,
 )
 
 
@@ -2019,11 +2286,11 @@ def test_without_drift_the_barrier_is_a_coin() -> None:
 def test_first_passage_matches_a_simulated_brownian_motion() -> None:
     rng = np.random.default_rng(0)
     mu, sigma, b, dt = 0.5, 1.0, 0.5, 1e-3
-    n_paths, n_steps = 4000, 20000
+    n_paths = 4000
     x = np.zeros(n_paths)
     hit = np.zeros(n_paths)
     alive = np.ones(n_paths, dtype=bool)
-    for _ in range(n_steps):
+    for _ in range(20000):
         x[alive] += mu * dt + sigma * math.sqrt(dt) * rng.normal(size=int(alive.sum()))
         up, down = alive & (x >= b), alive & (x <= -b)
         hit[up] = 1.0
@@ -2039,18 +2306,42 @@ def test_the_vertical_barrier_share_of_the_spec() -> None:
 
 
 def test_break_even_and_kelly_meet_at_zero() -> None:
-    p_be = break_even_probability(0.09, 0.0025)
-    assert p_be == pytest.approx(0.5 + 0.0025 / 0.18)
-    assert kelly_fraction_binary(p_be, 0.09, 0.0025) == pytest.approx(0.0, abs=1e-12)
+    p_be = break_even_probability(0.09, 0.0033)
+    assert p_be == pytest.approx(0.5 + 0.0033 / 0.18)
+    assert kelly_fraction_binary(p_be, 0.09, 0.0033) == pytest.approx(0.0, abs=1e-12)
     assert kelly_fraction_binary(0.6, 0.09, 0.0) == pytest.approx(0.2)
     assert kelly_fraction_binary(0.4, 0.09, 0.0) == 0.0
 
 
-def test_the_posterior_lower_bound_shrinks_toward_the_estimate_with_data() -> None:
-    lo_small = posterior_lower_probability(0.58, 10, 0.25)
-    lo_big = posterior_lower_probability(0.58, 2000, 0.25)
-    assert lo_small < lo_big < 0.58
-    assert posterior_lower_probability(0.58, 0, 0.25) == pytest.approx(0.25)
+def test_the_beta_posterior_counts_realized_outcomes() -> None:
+    assert beta_posterior_lower(0, 0, 0.25) == pytest.approx(0.25)  # Beta(1, 1)
+    few = beta_posterior_lower(6, 10, 0.25)
+    many = beta_posterior_lower(600, 1000, 0.25)
+    assert few < many < 0.6
+    assert many == pytest.approx(0.6, abs=0.02)
+
+
+def test_there_is_no_pseudo_posterior_from_predictions() -> None:
+    """Spec §10.4, harde eis: geen publieke functie neemt een modelkans als pseudo-waarneming."""
+    for name, fn in inspect.getmembers(bk, inspect.isfunction):
+        if fn.__module__ == bk.__name__ and not name.startswith("_"):
+            params = set(inspect.signature(fn).parameters)
+            assert not ({"p_hat", "pseudo_n"} & params), name
+
+
+def test_empirical_bins_have_equal_counts_and_realized_posteriors() -> None:
+    rng = np.random.default_rng(4)
+    p = rng.uniform(0.3, 0.7, 2000)
+    y = (rng.uniform(size=2000) < p).astype(int)
+    bins = empirical_bins(p, y, n_bins=5, quantile=0.25)
+    assert bins.trials.tolist() == [400] * 5
+    which = np.searchsorted(bins.edges, p, side="right")
+    for j in range(5):
+        assert bins.successes[j] == int(y[which == j].sum())
+    assert (np.diff(bins.p_low) > 0).all()             # hogere bak, hoger gerealiseerd succes
+    rate = bins.successes / bins.trials
+    assert (bins.p_low < rate).all()
+    assert bins.bin_of(0.31) == 0 and bins.bin_of(0.69) == 4
 
 
 def test_the_equicorrelated_kelly_correction() -> None:
@@ -2065,11 +2356,9 @@ def test_the_fractional_kelly_drawdown_formula() -> None:
 
 
 def test_monte_carlo_drawdown_is_certain_or_impossible_at_the_extremes() -> None:
-    losses = np.full(50, -1.0)
-    wins = np.full(50, 1.0)
     kw = dict(risk_fraction=0.1, n_trades=10, drawdown=0.25, block_length=2, n_paths=500, seed=1)
-    assert monte_carlo_drawdown_probability(losses, **kw) == 1.0
-    assert monte_carlo_drawdown_probability(wins, **kw) == 0.0
+    assert monte_carlo_drawdown_probability(np.full(50, -1.0), **kw) == 1.0
+    assert monte_carlo_drawdown_probability(np.full(50, 1.0), **kw) == 0.0
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -2081,18 +2370,25 @@ Expected: FAIL, `ModuleNotFoundError: No module named 'tradebot.risk.binary_kell
 
 ```python
 # src/tradebot/risk/binary_kelly.py
-"""Kansrekening voor een 1:1-barrière (spec §10, §17.7).
+"""Kansrekening voor een 1:1-barrière (spec §10).
 
 Een trade met symmetrische barrières op ±b is een binaire weddenschap. Zonder
 drift is de kans om eerst boven uit te komen precies 1/2; met drift mu en
-volatiliteit sigma is zij 1 / (1 + exp(-2 mu b / sigma^2)). Break-even, Kelly,
-de onzekerheid in p, de correlatie tussen gelijktijdige trades en de kans op
-een drawdown volgen daaruit in gesloten vorm; de Monte Carlo controleert de
-laatste op de echte tradeverdeling.
+volatiliteit sigma is zij 1 / (1 + exp(-2 mu b / sigma^2)). Break-even en Kelly
+volgen daaruit in gesloten vorm.
+
+DE ONZEKERHEID IN p KOMT UIT UITKOMSTEN, NIET UIT VOORSPELLINGEN
+===============================================================
+Kalibratie bepaalt de kans en daarmee de bak waarin een trade valt. De
+onzekerheid over het werkelijke succespercentage van die bak is een Beta-
+posterior op GEREALISEERDE out-of-fold-uitkomsten: Beta(1 + s, 1 + n - s) met
+een uniforme prior. Een posterior die modelkansen als pseudo-waarnemingen telt,
+bestaat in deze module niet (spec §10.4, harde eis).
 """
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 from scipy import stats
@@ -2102,10 +2398,10 @@ from ..utils.failfast import DataContractError, require
 from ..validation.inference import circular_block_indices
 
 __all__ = [
-    "break_even_probability", "correlation_scale", "drawdown_probability",
+    "EmpiricalBins", "beta_posterior_lower", "break_even_probability",
+    "correlation_scale", "drawdown_probability", "empirical_bins",
     "first_passage_up_probability", "kelly_fraction_binary",
     "monte_carlo_drawdown_probability", "no_exit_probability",
-    "posterior_lower_probability",
 ]
 
 
@@ -2125,7 +2421,7 @@ def no_exit_probability(a: float, n_terms: int = 50) -> float:
 
 
 def break_even_probability(barrier: float, cost: float) -> float:
-    """p_be = 1/2 + c / (2b): winst b - c, verlies b + c."""
+    """p_be = 1/2 + c / (2b): winst b - c, verlies b + c (spec §10.2)."""
     require(barrier > 0.0 and 0.0 <= cost < barrier, "Nodig: 0 <= cost < barrier.",
             DataContractError, barrier=barrier, cost=cost)
     return 0.5 + cost / (2.0 * barrier)
@@ -2141,11 +2437,42 @@ def kelly_fraction_binary(p: float, barrier: float, cost: float) -> float:
     return float(max(f, 0.0))
 
 
-def posterior_lower_probability(p_hat: float, n: float, quantile: float) -> float:
-    """Kwantiel van Beta(1 + p_hat n, 1 + (1 - p_hat) n): uniforme prior plus n waarnemingen."""
-    require(0.0 <= p_hat <= 1.0 and n >= 0.0 and 0.0 < quantile < 1.0,
-            "Ongeldige posterior-invoer.", DataContractError, p_hat=p_hat, n=n, q=quantile)
-    return float(stats.beta.ppf(quantile, 1.0 + p_hat * n, 1.0 + (1.0 - p_hat) * n))
+def beta_posterior_lower(successes: int, trials: int, quantile: float) -> float:
+    """Kwantiel van Beta(1 + s, 1 + n - s): uniforme prior, gerealiseerde uitkomsten."""
+    require(0 <= successes <= trials and 0.0 < quantile < 1.0,
+            "Ongeldige posterior-invoer.", DataContractError,
+            successes=successes, trials=trials, quantile=quantile)
+    return float(stats.beta.ppf(quantile, 1.0 + successes, 1.0 + trials - successes))
+
+
+@dataclass(frozen=True)
+class EmpiricalBins:
+    #: Inwendige grenzen (n_bins - 1), uit de OOF-kansen van het trainvenster.
+    edges: np.ndarray
+    successes: np.ndarray
+    trials: np.ndarray
+    p_low: np.ndarray
+
+    def bin_of(self, p: float) -> int:
+        return int(np.searchsorted(self.edges, p, side="right"))
+
+
+def empirical_bins(
+    oof_probability: np.ndarray, oof_target: np.ndarray, *, n_bins: int, quantile: float,
+) -> EmpiricalBins:
+    """Bakken met gelijk aantal op de OOF-kansen; per bak een posterior op de uitkomsten."""
+    p = np.asarray(oof_probability, dtype=np.float64)
+    y = np.asarray(oof_target, dtype=np.int64)
+    require(p.size == y.size and p.size >= n_bins, "Te weinig OOF-events voor de bakken.",
+            DataContractError, n=int(p.size), n_bins=n_bins)
+    require(bool(np.isin(y, (0, 1)).all()), "Een OOF-doel buiten {0, 1}.", DataContractError)
+    edges = np.quantile(p, np.linspace(0.0, 1.0, n_bins + 1)[1:-1])
+    which = np.searchsorted(edges, p, side="right")
+    trials = np.bincount(which, minlength=n_bins)
+    successes = np.bincount(which, weights=y, minlength=n_bins).astype(np.int64)
+    p_low = np.array([beta_posterior_lower(int(s), int(n), quantile)
+                      for s, n in zip(successes, trials, strict=True)])
+    return EmpiricalBins(edges=edges, successes=successes, trials=trials, p_low=p_low)
 
 
 def correlation_scale(k_same: int, rho: float) -> float:
@@ -2178,9 +2505,9 @@ def monte_carlo_drawdown_probability(
 ) -> float:
     """Kans op een maximale drawdown >= `drawdown` binnen `n_trades` trades.
 
-    `r_multiples` is het rendement per eenheid risico, in tijdvolgorde (winst
-    ~ +1, verlies ~ -1). Circulaire blokbootstrap uit `validation.inference`,
-    zodat trades die dicht op elkaar liggen hun samenhang houden.
+    `r_multiples`: gerealiseerd netto rendement per eenheid risico, in
+    tijdvolgorde. Circulaire blokbootstrap, zodat trades die dicht op elkaar
+    liggen hun samenhang houden.
     """
     r = np.asarray(r_multiples, dtype=np.float64)
     require(r.size > 0 and bool(np.isfinite(r).all()), "Lege of niet-eindige trades.",
@@ -2199,37 +2526,39 @@ def monte_carlo_drawdown_probability(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_binary_kelly.py -p no:randomly -q`
-Expected: PASS (8 tests). De Brownse-bewegingstest duurt enkele seconden.
+Expected: PASS (11 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/tradebot/risk/binary_kelly.py tests/unit/test_binary_kelly.py
-git commit -m "feat(risk): closed-form probability for a 1:1 barrier -- the null, break-even, Kelly, posterior, correlation, drawdown"
+git commit -m "feat(risk): closed-form 1:1 barrier probability, and a Beta posterior on realized OOF outcomes per probability bin"
 ```
 
 ---
 
-### Task 9: Het tradeboek met exits op de barrière
+### Task 9: Het tradeboek volgens de executieconventie
 
 **Files:**
 - Create: `src/tradebot/backtest/barrier_book.py`
 - Test: `tests/unit/test_barrier_book.py`
 
 **Interfaces:**
-- Consumes: `RiskEngine.decide(desired_exposure, market_state, risk_state) -> RiskDecision` (`risk/engine.py`), `MarketState`, `RiskState` (`risk/contract.py`), `square_root_impact(*, order_notional, adv_notional, sigma_daily, params) -> ImpactEstimate` en `ImpactParams` (`execution/impact_model.py`), `kelly_fraction_binary`, `correlation_scale` (Taak 8), `WeeklyMarket` (Taak 4).
+- Consumes: `RiskEngine.decide(desired_exposure, market_state, risk_state) -> RiskDecision` (`risk/engine.py`), `MarketState`, `RiskState` (`risk/contract.py`), `TradeCostModel` (Taak 3), `kelly_fraction_binary`, `correlation_scale` (Taak 8), `WeeklyMarket` (Taak 4).
 - Produces:
-  - `CANDIDATE_COLUMNS = ("symbol", "entry_bar", "exit_bar", "side", "fill_return", "barrier", "p", "p_low", "p_trade")`
-  - `SizingRule(mode: Literal["kelly", "fixed"], kelly_multiple: float, fixed_risk_fraction: float, resize_band: float, cost_rt: float)`
-  - `BookInputs(market: WeeklyMarket, avg_corr: pd.DataFrame, cost_rate: float, impact: ImpactParams | None)` — `cost_rate` is per kant (taker + halve spread).
-  - `BookResult(returns: pd.Series, equity: pd.Series, trades: pd.DataFrame, total_fees: float, total_funding: float, total_impact: float, total_pnl: float, n_resizes: int, halted: bool)`
-  - `run_barrier_book(candidates: pd.DataFrame, inputs: BookInputs, risk: RiskEngine, sizing: SizingRule, *, equity0: float) -> BookResult`
+  - `CANDIDATE_COLUMNS = ("symbol", "entry_bar", "exit_bar", "side", "fill_return", "barrier", "cost_hat", "p", "p_low", "p_trade")`
+  - `SizingRule(mode: Literal["kelly", "fixed"], kelly_multiple: float, fixed_risk_fraction: float, resize_band: float)`
+  - `BookInputs(market: WeeklyMarket, avg_corr: pd.DataFrame, costs: TradeCostModel)`
+  - `BookResult(returns: pd.Series, equity: pd.Series, trades: pd.DataFrame, total_fees, total_funding, total_impact, total_pnl: float, n_resizes: int, halted: bool)`. `trades` heeft per genomen trade o.a. `symbol, entry_bar, exit_bar, side, qty, entry_price, weight, risk_fraction, barrier, cost_hat, p, p_low, exit_reason ∈ {"barrier", "risk", "open"}, net_return` (netto P&L van de trade — prijs, fees, impact, funding — gedeeld door het entry-notioneel; `NaN` zolang `exit_reason == "open"`).
+  - `run_barrier_book(candidates, inputs, risk, sizing, *, equity0) -> BookResult`
+
+**Het contract (spec §10.4, §11, §12):** een kandidaat wordt alleen gelezen op zijn entrybar (`p`, `p_low`, `p_trade`, `barrier`, `cost_hat`) en zijn exitvelden alleen op zijn exitbar. Kelly: `f = kelly_multiple · kelly_fraction_binary(p_low, barrier, cost_hat) · correlation_scale(k, ρ)`; vast: `f = fixed_risk_fraction · correlation_scale(k, ρ)`. Gewicht `= side · f / barrier`, begrensd op [−1, 1], daarna `RiskEngine.decide`. Elke fill kost `costs.per_leg` plus `costs.impact_fraction`; funding per bar op de positie die de bar in ging.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # tests/unit/test_barrier_book.py
-"""Het boek: juiste P&L bij een fill op de barrière, kosten, funding, filters, en geen blik vooruit."""
+"""Het boek: P&L bij een fill op de barrière, kosten, funding, filters, per-trade netto, en geen blik vooruit."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -2240,11 +2569,15 @@ import pytest
 
 from tests.weekly_fixtures import synthetic_market
 from tradebot.backtest.barrier_book import BookInputs, SizingRule, run_barrier_book
+from tradebot.execution.trade_costs import TradeCostModel
 from tradebot.risk.engine import RiskEngine
 from tradebot.schemas.config import RiskConfig, load_config
 
 ROOT = Path(__file__).resolve().parents[2]
 RISK = load_config(ROOT / "conf/risk/default.yaml", RiskConfig)
+FREE = TradeCostModel(taker_fee=0.0, half_spread=0.0, stop_slippage=0.0, impact=None)
+PAID = TradeCostModel(taker_fee=0.00055, half_spread=0.0001, stop_slippage=0.0005, impact=None)
+FIXED = SizingRule(mode="fixed", kelly_multiple=0.25, fixed_risk_fraction=0.01, resize_band=0.25)
 
 
 def _market():
@@ -2257,20 +2590,16 @@ def _market():
     return m
 
 
-def _inputs(m, cost_rate=0.0):
-    corr = pd.DataFrame(0.0, index=m.grid, columns=list(m.symbols))
-    return BookInputs(market=m, avg_corr=corr, cost_rate=cost_rate, impact=None)
+def _inputs(m, costs=FREE, rho=0.0):
+    return BookInputs(market=m, avg_corr=pd.DataFrame(rho, index=m.grid, columns=list(m.symbols)),
+                      costs=costs)
 
 
 def _cand(**over) -> pd.DataFrame:
     row = dict(symbol="BTCUSDT", entry_bar=100, exit_bar=104, side=1.0, fill_return=0.05,
-               barrier=0.05, p=0.6, p_low=0.58, p_trade=0.52)
+               barrier=0.05, cost_hat=0.0018, p=0.6, p_low=0.58, p_trade=0.52)
     row.update(over)
     return pd.DataFrame([row])
-
-
-FIXED = SizingRule(mode="fixed", kelly_multiple=0.25, fixed_risk_fraction=0.01,
-                   resize_band=0.25, cost_rt=0.0)
 
 
 def test_a_target_hit_books_exactly_the_barrier_move() -> None:
@@ -2280,19 +2609,20 @@ def test_a_target_hit_books_exactly_the_barrier_move() -> None:
     entry = m.ohlcv["BTCUSDT"]["close"].iloc[100]
     assert t["entry_price"] == pytest.approx(entry)
     assert res.equity.iloc[-1] - 100_000.0 == pytest.approx(t["qty"] * entry * 0.05)
+    assert t["exit_reason"] == "barrier"
+    assert t["net_return"] == pytest.approx(0.05)
 
 
-def test_costs_are_charged_on_both_legs() -> None:
+def test_costs_are_charged_on_both_legs_and_land_in_the_trade() -> None:
     m = _market()
     free = run_barrier_book(_cand(), _inputs(m), RiskEngine(RISK), FIXED, equity0=100_000.0)
-    paid = run_barrier_book(_cand(), _inputs(m, cost_rate=0.00065), RiskEngine(RISK), FIXED,
-                            equity0=100_000.0)
+    paid = run_barrier_book(_cand(), _inputs(m, PAID), RiskEngine(RISK), FIXED, equity0=100_000.0)
     t = paid.trades.iloc[0]
     entry = t["entry_price"]
-    fill = entry * 1.05
-    expected = abs(t["qty"]) * (entry + fill) * 0.00065
+    expected = abs(t["qty"]) * (entry + entry * 1.05) * PAID.per_leg
     assert paid.total_fees == pytest.approx(expected)
     assert free.equity.iloc[-1] - paid.equity.iloc[-1] == pytest.approx(expected, rel=1e-9)
+    assert t["net_return"] == pytest.approx(0.05 - expected / (abs(t["qty"]) * entry))
 
 
 def test_a_long_pays_positive_funding() -> None:
@@ -2300,6 +2630,7 @@ def test_a_long_pays_positive_funding() -> None:
     m.funding.loc[m.grid[102], "BTCUSDT"] = 0.001
     res = run_barrier_book(_cand(), _inputs(m), RiskEngine(RISK), FIXED, equity0=100_000.0)
     assert res.total_funding > 0.0
+    assert res.trades.iloc[0]["net_return"] < 0.05
 
 
 def test_the_books_balance() -> None:
@@ -2307,11 +2638,13 @@ def test_the_books_balance() -> None:
     m.funding.loc[:, :] = 1e-4
     cands = pd.concat([_cand(), _cand(symbol="ETHUSDT", side=-1.0, fill_return=-0.05,
                                       entry_bar=101, exit_bar=103)], ignore_index=True)
-    res = run_barrier_book(cands, _inputs(m, cost_rate=0.00065), RiskEngine(RISK), FIXED,
-                           equity0=100_000.0)
+    res = run_barrier_book(cands, _inputs(m, PAID), RiskEngine(RISK), FIXED, equity0=100_000.0)
     change = res.equity.iloc[-1] - 100_000.0
     assert change == pytest.approx(res.total_pnl - res.total_fees - res.total_funding
                                    - res.total_impact, rel=1e-9)
+    notional = (res.trades["qty"].abs() * res.trades["entry_price"]).to_numpy()
+    assert change == pytest.approx(float((res.trades["net_return"].to_numpy() * notional).sum()),
+                                   rel=1e-9)
 
 
 def test_the_filter_and_the_one_position_per_symbol_rule() -> None:
@@ -2323,12 +2656,21 @@ def test_the_filter_and_the_one_position_per_symbol_rule() -> None:
     assert len(res.trades) == 1
 
 
+def test_kelly_sizes_on_the_posterior_lower_bound_and_skips_below_break_even() -> None:
+    m = _market()
+    kelly = SizingRule(mode="kelly", kelly_multiple=0.25, fixed_risk_fraction=0.01, resize_band=0.25)
+    res = run_barrier_book(_cand(), _inputs(m), RiskEngine(RISK), kelly, equity0=1e5)
+    eps = 0.0018 / 0.05
+    f_star = (0.58 * (1 - eps) - 0.42 * (1 + eps)) / ((1 - eps) * (1 + eps))
+    assert res.trades.iloc[0]["risk_fraction"] == pytest.approx(0.25 * f_star)
+    none = run_barrier_book(_cand(p_low=0.50), _inputs(m), RiskEngine(RISK), kelly, equity0=1e5)
+    assert none.trades.empty
+
+
 def test_simultaneous_same_direction_trades_are_scaled_for_correlation() -> None:
     m = _market()
-    inputs = _inputs(m)
-    inputs.avg_corr.loc[:, :] = 0.75
     pair = pd.concat([_cand(), _cand(symbol="ETHUSDT")], ignore_index=True)
-    res = run_barrier_book(pair, inputs, RiskEngine(RISK), FIXED, equity0=1e5)
+    res = run_barrier_book(pair, _inputs(m, rho=0.75), RiskEngine(RISK), FIXED, equity0=1e5)
     solo = run_barrier_book(_cand(), _inputs(m), RiskEngine(RISK), FIXED, equity0=1e5)
     assert res.trades["risk_fraction"].iloc[0] == pytest.approx(
         solo.trades["risk_fraction"].iloc[0] / 1.75)
@@ -2352,40 +2694,42 @@ Expected: FAIL, `ModuleNotFoundError: No module named 'tradebot.backtest.barrier
 
 ```python
 # src/tradebot/backtest/barrier_book.py
-"""Een tradeboek met stops en take-profits bij de exchange (spec §10-§12, §17.6).
+"""Een tradeboek volgens de dagdata-executieconventie (spec §10-§12).
 
 WAAROM NIET `backtest/engine.py`
 ================================
-De authoritative engine vult orders op de prijs van een bar. Een 1:1-trade met
-stops bij de exchange sluit op het BARRIÈRENIVEAU, midden in een bar; dat kan de
+De authoritative engine vult orders op de prijs van een bar. De conventie van
+Plan 1 sluit een trade op het BARRIÈRENIVEAU, midden in een bar; dat kan de
 engine niet uitdrukken zonder zijn fillmodel te veranderen. Dit boek gebruikt
-wel dezelfde soevereine risicolaag (`RiskEngine.decide`), dezelfde
-kostenparameters en `square_root_impact`. `tests/unit/test_barrier_book.py`
-bewijst de boekhouding (P&L, kosten, funding sluiten op de equity) en de
-causaliteit (een exit wordt pas op zijn exitbar gelezen).
+wel dezelfde soevereine risicolaag (`RiskEngine.decide`) en de ene
+kostendefinitie (`execution/trade_costs.py`). `tests/unit/test_barrier_book.py`
+bewijst de boekhouding (P&L, kosten, funding sluiten op de equity én op de som
+van de per-trade netto-rendementen) en de causaliteit (een exit wordt pas op
+zijn exitbar gelezen).
 
 DE VOLGORDE OP BAR d
 ====================
 1. Mark-to-market van close d-1 naar close d, of naar de fill als de trade op d
    sluit. Funding over bar d op de positie van d-1 (long betaalt positieve funding).
-2. Nieuwe trades met entry op d (event op d-1): toegelaten als p >= p_trade en
-   het symbool geen open positie heeft; grootte uit binaire Kelly of een vaste
-   risicofractie, maal de correlatiecorrectie.
+2. Nieuwe trades met entry op d (event op d-1): toegelaten als p >= p_trade en het
+   symbool geen open positie heeft; grootte uit binaire Kelly op p_low met de
+   ex-ante kosten van de trade, of een vaste risicofractie, maal de
+   correlatiecorrectie.
 3. Het gewenste boek gaat door `RiskEngine.decide`; toegestane exposures worden
    posities, tegen kosten. Bestaande posities worden alleen herschaald buiten
-   `resize_band`, of naar nul.
+   `resize_band`, of naar nul (risico-exit op de close).
 """
 from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 
 from ..data.weekly_market import WeeklyMarket
-from ..execution.impact_model import ImpactParams, square_root_impact
+from ..execution.trade_costs import TradeCostModel
 from ..risk.binary_kelly import correlation_scale, kelly_fraction_binary
 from ..risk.contract import MarketState, RiskState
 from ..risk.engine import RiskEngine
@@ -2393,8 +2737,8 @@ from ..utils.failfast import DataContractError, require
 
 __all__ = ["CANDIDATE_COLUMNS", "BookInputs", "BookResult", "SizingRule", "run_barrier_book"]
 
-CANDIDATE_COLUMNS = ("symbol", "entry_bar", "exit_bar", "side", "fill_return",
-                     "barrier", "p", "p_low", "p_trade")
+CANDIDATE_COLUMNS = ("symbol", "entry_bar", "exit_bar", "side", "fill_return", "barrier",
+                     "cost_hat", "p", "p_low", "p_trade")
 
 
 @dataclass(frozen=True)
@@ -2403,17 +2747,13 @@ class SizingRule:
     kelly_multiple: float
     fixed_risk_fraction: float
     resize_band: float
-    #: De round trip die Kelly als kosten ziet (fractie).
-    cost_rt: float
 
 
 @dataclass(frozen=True)
 class BookInputs:
     market: WeeklyMarket
     avg_corr: pd.DataFrame
-    #: Kosten per kant: taker + halve spread, als fractie van het notioneel.
-    cost_rate: float
-    impact: ImpactParams | None
+    costs: TradeCostModel
 
 
 @dataclass(frozen=True)
@@ -2429,27 +2769,47 @@ class BookResult:
     halted: bool
 
 
-class _Ledger:
-    def __init__(self, equity: float) -> None:
-        self.equity = equity
-        self.fees = self.funding = self.impact = self.pnl = 0.0
+def _risk_fraction(row: pd.Series, sizing: SizingRule) -> float:
+    if sizing.mode == "fixed":
+        return sizing.fixed_risk_fraction
+    return sizing.kelly_multiple * kelly_fraction_binary(
+        float(row.p_low), float(row.barrier), float(row.cost_hat))
 
-    def trade_cost(self, notional: float, inputs: BookInputs, adv: float, sigma: float) -> None:
-        fee = abs(notional) * inputs.cost_rate
-        imp = 0.0
-        if inputs.impact is not None and abs(notional) > 0.0:
-            imp = square_root_impact(order_notional=abs(notional), adv_notional=adv,
-                                     sigma_daily=sigma, params=inputs.impact).cost(abs(notional))
+
+class _Book:
+    """Kas, posities en de toerekening van elke euro aan een trade."""
+
+    def __init__(self, equity: float, inputs: BookInputs) -> None:
+        self.equity = equity
+        self.inputs = inputs
+        self.fees = self.funding = self.impact = self.pnl = 0.0
+        self.qty: dict[str, float] = {}
+        self.trade_of: dict[str, dict[str, Any]] = {}
+
+    def charge_order(self, sym: str, notional: float, adv: float, sigma: float) -> None:
+        costs = self.inputs.costs
+        fee = abs(notional) * costs.per_leg
+        imp = abs(notional) * costs.impact_fraction(notional, adv=adv, sigma_daily=sigma)
         self.fees += fee
         self.impact += imp
         self.equity -= fee + imp
+        self.trade_of[sym]["net_pnl"] -= fee + imp
 
+    def move(self, sym: str, amount: float) -> None:
+        self.pnl += amount
+        self.equity += amount
+        self.trade_of[sym]["net_pnl"] += amount
 
-def _base_fraction(row: pd.Series, sizing: SizingRule) -> float:
-    if sizing.mode == "fixed":
-        return sizing.fixed_risk_fraction
-    return sizing.kelly_multiple * kelly_fraction_binary(float(row.p_low), float(row.barrier),
-                                                         sizing.cost_rt)
+    def pay_funding(self, sym: str, amount: float) -> None:
+        self.funding += amount
+        self.equity -= amount
+        self.trade_of[sym]["net_pnl"] -= amount
+
+    def close(self, sym: str, reason: str) -> None:
+        t = self.trade_of.pop(sym)
+        t["exit_reason"] = reason
+        t["net_return"] = t["net_pnl"] / (abs(t["qty"]) * t["entry_price"])
+        del self.qty[sym]
 
 
 def run_barrier_book(
@@ -2464,26 +2824,24 @@ def run_barrier_book(
     missing = sorted(set(CANDIDATE_COLUMNS) - set(candidates.columns))
     require(not missing, "Kandidaten missen kolommen.", DataContractError, missing=missing)
     m = inputs.market
-    cols = {s: j for j, s in enumerate(m.symbols)}
-    close = pd.DataFrame({s: m.ohlcv[s]["close"] for s in m.symbols}).to_numpy(np.float64)
-    fund = m.funding.reindex(columns=list(m.symbols)).to_numpy(np.float64)
-    sig_a = m.sigma_annual.reindex(columns=list(m.symbols)).to_numpy(np.float64)
-    sig_d = m.sigma_daily.reindex(columns=list(m.symbols)).to_numpy(np.float64)
-    adv = m.adv_usd.reindex(columns=list(m.symbols)).to_numpy(np.float64)
-    corr = inputs.avg_corr.reindex(index=m.grid, columns=list(m.symbols)).to_numpy(np.float64)
+    syms = list(m.symbols)
+    col = {s: j for j, s in enumerate(syms)}
+    close = pd.DataFrame({s: m.ohlcv[s]["close"] for s in syms}).to_numpy(np.float64)
+    fund = m.funding.reindex(columns=syms).to_numpy(np.float64)
+    sig_a = m.sigma_annual.reindex(columns=syms).to_numpy(np.float64)
+    sig_d = m.sigma_daily.reindex(columns=syms).to_numpy(np.float64)
+    adv = m.adv_usd.reindex(columns=syms).to_numpy(np.float64)
+    corr = inputs.avg_corr.reindex(index=m.grid, columns=syms).to_numpy(np.float64)
     cand = candidates.reset_index(drop=True)
     by_entry: dict[int, list[int]] = {}
     for i, e in enumerate(cand["entry_bar"].to_numpy(dtype=np.int64)):
         by_entry.setdefault(int(e), []).append(i)
 
     n = len(m.grid)
-    book = _Ledger(float(equity0))
+    book = _Book(float(equity0), inputs)
     state = RiskState(equity=book.equity, high_water_mark=book.equity,
                       day_start_equity=book.equity)
-    qty: dict[str, float] = {}
-    open_row: dict[str, int] = {}
-    entry_px: dict[str, float] = {}
-    trades: list[dict] = []
+    all_trades: list[dict[str, Any]] = []
     returns = np.zeros(n)
     equity = np.full(n, float(equity0))
     resizes = 0
@@ -2491,64 +2849,65 @@ def run_barrier_book(
     for d in range(1, n):
         start = book.equity
         # 1. Mark-to-market, funding en exits op de barrière of de verticale close.
-        for sym in list(qty):
-            j, q = cols[sym], qty[sym]
+        for sym in list(book.qty):
+            j, q = col[sym], book.qty[sym]
             prev = close[d - 1, j]
-            row = cand.loc[open_row[sym]]
-            if int(row.exit_bar) == d:
-                fill = entry_px[sym] * (1.0 + float(row.fill_return) * float(row.side))
-                move = q * (fill - prev)
-                book.trade_cost(q * fill, inputs, adv[d, j], sig_d[d, j])
-                del qty[sym], open_row[sym], entry_px[sym]
-            else:
-                move = q * (close[d, j] - prev)
-            book.pnl += move
-            book.equity += move
+            t = book.trade_of[sym]
+            if t["exit_bar"] == d:
+                fill = t["entry_price"] * (1.0 + t["fill_return"] * t["side"])
+                book.move(sym, q * (fill - prev))
+                if np.isfinite(fund[d, j]):
+                    book.pay_funding(sym, q * prev * fund[d, j])
+                book.charge_order(sym, q * fill, adv[d, j], sig_d[d, j])
+                book.close(sym, "barrier")
+                continue
+            book.move(sym, q * (close[d, j] - prev))
             if np.isfinite(fund[d, j]):
-                paid = q * prev * fund[d, j]
-                book.funding += paid
-                book.equity -= paid
+                book.pay_funding(sym, q * prev * fund[d, j])
         if state.halted:
             returns[d] = (book.equity - start) / start
             equity[d] = book.equity
             continue
 
         # 2. Het gewenste boek: bestaande posities plus toegelaten nieuwe trades.
-        desired = {s: qty[s] * close[d, cols[s]] / book.equity for s in qty}
+        desired = {s: book.qty[s] * close[d, col[s]] / book.equity for s in book.qty}
+        chosen: list[int] = []
+        for i in by_entry.get(d, []):
+            row = cand.loc[i]
+            s = row.symbol
+            if (s in book.qty or s in {cand.loc[k].symbol for k in chosen}
+                    or float(row.p) < float(row.p_trade)
+                    or not np.isfinite(adv[d, col[s]]) or not np.isfinite(sig_a[d, col[s]])):
+                continue
+            chosen.append(i)
         pending: dict[str, tuple[int, float]] = {}
-        chosen = [i for i in by_entry.get(d, [])
-                  if cand.loc[i].symbol not in qty
-                  and float(cand.loc[i].p) >= float(cand.loc[i].p_trade)
-                  and np.isfinite(adv[d, cols[cand.loc[i].symbol]])
-                  and np.isfinite(sig_a[d, cols[cand.loc[i].symbol]])]
-        seen: set[str] = set()
-        chosen = [i for i in chosen if not (cand.loc[i].symbol in seen or seen.add(cand.loc[i].symbol))]
         for i in chosen:
             row = cand.loc[i]
-            same = (sum(1 for q in qty.values() if np.sign(q) == row.side)
+            same = (sum(1 for q in book.qty.values() if np.sign(q) == row.side)
                     + sum(1 for k in chosen if cand.loc[k].side == row.side))
-            rho = corr[d - 1, cols[row.symbol]]
-            f = _base_fraction(row, sizing) * correlation_scale(same, rho if np.isfinite(rho) else 1.0)
+            rho = corr[d - 1, col[row.symbol]]
+            f = _risk_fraction(row, sizing) * correlation_scale(same, rho if np.isfinite(rho) else 1.0)
             if f <= 0.0:
                 continue
             desired[row.symbol] = float(np.clip(row.side * f / float(row.barrier), -1.0, 1.0))
             pending[row.symbol] = (i, f)
         if desired:
             market = MarketState(asof_ts=m.grid[d],
-                                 sigma_hat={s: float(sig_a[d, cols[s]]) for s in desired},
-                                 adv_usd={s: float(adv[d, cols[s]]) for s in desired})
+                                 sigma_hat={s: float(sig_a[d, col[s]]) for s in desired},
+                                 adv_usd={s: float(adv[d, col[s]]) for s in desired})
             state = dataclasses.replace(state, equity=book.equity,
                                         high_water_mark=max(state.high_water_mark, book.equity),
                                         day_start_equity=start)
             decision = risk.decide(desired, market, state)
             state = decision.risk_state_out
             # 3. Toegestane exposures worden posities.
-            for sym in sorted(set(desired) | set(qty)):
-                j = cols[sym]
+            for sym in sorted(set(desired) | set(book.qty)):
+                j = col[sym]
                 px = close[d, j]
                 target_w = float(decision.permitted_exposure.get(sym, 0.0))
-                cur_q = qty.get(sym, 0.0)
-                if sym in qty and sym not in pending and target_w != 0.0:
+                cur_q = book.qty.get(sym, 0.0)
+                is_new = sym in pending
+                if sym in book.qty and not is_new and target_w != 0.0:
                     cur_w = cur_q * px / book.equity
                     if abs(target_w - cur_w) <= sizing.resize_band * abs(cur_w):
                         continue
@@ -2556,54 +2915,55 @@ def run_barrier_book(
                 delta = target_q - cur_q
                 if delta == 0.0:
                     continue
-                book.trade_cost(delta * px, inputs, adv[d, j], sig_d[d, j])
-                if target_q == 0.0:
-                    qty.pop(sym, None)
-                    open_row.pop(sym, None)
-                    entry_px.pop(sym, None)
-                    continue
-                qty[sym] = target_q
-                if sym in pending:
+                if is_new:
                     i, f = pending[sym]
-                    open_row[sym] = i
-                    entry_px[sym] = px
-                    trades.append({"row": i, "symbol": sym, "entry_bar": d,
-                                   "exit_bar": int(cand.loc[i].exit_bar),
-                                   "side": float(cand.loc[i].side), "qty": target_q,
-                                   "entry_price": px, "weight": target_w,
-                                   "risk_fraction": abs(target_w) * float(cand.loc[i].barrier),
-                                   "requested_risk_fraction": f,
-                                   "fill_return": float(cand.loc[i].fill_return),
-                                   "barrier": float(cand.loc[i].barrier),
-                                   "p": float(cand.loc[i].p), "p_low": float(cand.loc[i].p_low)})
-                else:
+                    row = cand.loc[i]
+                    trade = {"row": i, "symbol": sym, "entry_bar": d,
+                             "exit_bar": int(row.exit_bar), "side": float(row.side),
+                             "qty": target_q, "entry_price": px, "weight": target_w,
+                             "risk_fraction": abs(target_w) * float(row.barrier),
+                             "requested_risk_fraction": f, "fill_return": float(row.fill_return),
+                             "barrier": float(row.barrier), "cost_hat": float(row.cost_hat),
+                             "p": float(row.p), "p_low": float(row.p_low),
+                             "exit_reason": "open", "net_pnl": 0.0, "net_return": np.nan}
+                    book.trade_of[sym] = trade
+                    all_trades.append(trade)
+                book.charge_order(sym, delta * px, adv[d, j], sig_d[d, j])
+                if target_q == 0.0:
+                    book.close(sym, "risk")
+                    continue
+                book.qty[sym] = target_q
+                if not is_new:
                     resizes += 1
         returns[d] = (book.equity - start) / start
         equity[d] = book.equity
 
+    trades = pd.DataFrame(all_trades)
+    if not trades.empty:
+        trades = trades.drop(columns=["net_pnl"])
     return BookResult(
         returns=pd.Series(returns, index=m.grid, name="book_return"),
         equity=pd.Series(equity, index=m.grid, name="equity"),
-        trades=pd.DataFrame(trades),
-        total_fees=book.fees, total_funding=book.funding, total_impact=book.impact,
-        total_pnl=book.pnl, n_resizes=resizes, halted=bool(state.halted),
+        trades=trades, total_fees=book.fees, total_funding=book.funding,
+        total_impact=book.impact, total_pnl=book.pnl, n_resizes=resizes,
+        halted=bool(state.halted),
     )
 ```
 
 Twee punten om bij de uitvoering te controleren, niet te raden:
-1. `RiskEngine.decide` kan voor een symbool zonder cluster in `conf/risk/default.yaml` crashen; de tests gebruiken daarom echte symboolnamen. Crasht hij op iets anders (bijv. een verplicht `cluster`-veld in `MarketState`), lees `risk/engine.py::_validated` en geef precies wat hij vraagt.
-2. Een positie die `decide` naar nul zet terwijl haar trade nog open is (halt, drawdown), sluit hier op de close van d. Dat is een risico-exit en geen barrière-exit; de trade blijft in `trades` staan met zijn geplande `exit_bar`. Voeg in dat geval `"risk_exit_bar": d` toe aan de betreffende trade-dict en laat de verdictcode trades met een `risk_exit_bar` meetellen tegen hun werkelijke P&L, niet tegen `fill_return`.
+1. `RiskEngine.decide` kan crashen voor een symbool zonder cluster in `conf/risk/default.yaml`; de tests gebruiken daarom echte symboolnamen. Crasht hij op iets anders (bijv. een verplicht veld in `MarketState`), lees `risk/engine.py::_validated` en geef precies wat hij vraagt.
+2. De per-trade netto-P&L laat de boekhouding op twee manieren sluiten (`test_the_books_balance`): op de totalen, en op `Σ net_return · entry-notioneel`. Een herschaling van een open positie verandert het notioneel; de tweede identiteit geldt dan niet meer exact. Blijft de risicolaag in de test niet-bindend (lage vol, diepe ADV), dan geldt zij wel; bindt hij toch, meld het in je rapport in plaats van de test aan te passen.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_barrier_book.py -p no:randomly -q`
-Expected: PASS (7 tests).
+Expected: PASS (8 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/tradebot/backtest/barrier_book.py tests/unit/test_barrier_book.py
-git commit -m "feat(backtest): a trade book that exits at the barrier, sized by binary Kelly, through the sovereign RiskEngine"
+git commit -m "feat(backtest): a trade book per the daily execution convention, Kelly on the posterior bound, net return per trade"
 ```
 
 ---
@@ -2619,9 +2979,12 @@ git commit -m "feat(backtest): a trade book that exits at the barrier, sized by 
 - Consumes: `StopCriterion` met `.name`, `.metric`, `.action`, `.binds(value)` (`registry/preregistration.py`).
 - Produces:
   - `event_space_t1(event_bar: np.ndarray, exit_bar: np.ndarray) -> np.ndarray`
-  - `DEVELOPMENT_METRICS: tuple[str, ...]` en `HOLDOUT_METRICS: tuple[str, ...]`
+  - `DEVELOPMENT_METRICS = ("max_abs_shuffle_auc_deviation", "ensemble_net_sharpe", "filter_sharpe_diff_ci_low", "sharpe_ci_low", "dsr", "hit_rate_ci_low_minus_break_even", "pbo", "mc_drawdown_probability_1y", "n_trades")`
+  - `HOLDOUT_METRICS = ("holdout_brier_diff", "holdout_brier_diff_ci_low", "holdout_mean_prob_shift_abs", "holdout_ks_pvalue", "holdout_return_minus_dev_q01")`
   - `Verdict(status: Literal["PASS", "INVALID", "UNPROVEN", "FALSIFIED"], binding: tuple[str, ...], values: dict[str, float])` met `.as_dict()`
   - `judge(criteria: Sequence[StopCriterion], values: Mapping[str, float], *, stage: Literal["development", "holdout"]) -> Verdict`
+
+**Het contract (spec §9.4, §14):** alleen criteria waarvan de naam met `negative_control` begint, kunnen `INVALID` opleveren. Voorrang: `INVALID` > `UNPROVEN` (een bindend `descope`-criterium, te weinig data) > `FALSIFIED` (een bindend `falsify`-criterium) > `UNPROVEN` (elk ander bindend criterium). Criteria waarvan de naam met `holdout_` begint, horen bij `stage="holdout"`; de rest bij `"development"`; `promote` wordt nooit geëvalueerd. Een criterium zonder meting, of een niet-eindige meting, crasht.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2637,18 +3000,23 @@ from tradebot.registry.preregistration import StopCriterion
 from tradebot.utils.failfast import DataContractError
 from tradebot.validation.weekly_verdict import judge
 
+
+def _c(name, metric, op, threshold, action):
+    return StopCriterion(name=name, metric=metric, operator=op, threshold=threshold,
+                         action=action, rationale="r")
+
+
 C = [
-    StopCriterion("negative_control_shuffle", "max_abs_shuffle_auc_deviation", ">", 0.05, "archive", "r"),
-    StopCriterion("negative_control_reversed", "reversed_minus_baseline_sharpe", ">=", 0.0, "archive", "r"),
-    StopCriterion("no_edge_after_costs", "ensemble_net_sharpe", "<=", 0.0, "falsify", "r"),
-    StopCriterion("filter_adds_nothing", "sharpe_diff_ci_low", "<=", 0.0, "archive", "r"),
-    StopCriterion("dsr_below_threshold", "dsr", "<", 0.95, "archive", "r"),
-    StopCriterion("insufficient_trades", "n_trades", "<", 100.0, "descope", "r"),
-    StopCriterion("holdout_brier_worse", "holdout_brier_diff_ci_low", ">", 0.0, "archive", "r"),
-    StopCriterion("promotion_requires_all_clear", "n_binding_stop_criteria", "<=", 0.0, "promote", "r"),
+    _c("negative_control_shuffle", "max_abs_shuffle_auc_deviation", ">", 0.05, "archive"),
+    _c("no_edge_after_costs", "ensemble_net_sharpe", "<=", 0.0, "falsify"),
+    _c("filter_adds_nothing", "filter_sharpe_diff_ci_low", "<=", 0.0, "archive"),
+    _c("dsr_below_threshold", "dsr", "<", 0.95, "archive"),
+    _c("insufficient_trades", "n_trades", "<", 100.0, "descope"),
+    _c("holdout_brier_worse", "holdout_brier_diff", ">", 0.01, "archive"),
+    _c("promotion_requires_all_clear", "n_binding_stop_criteria", "<=", 0.0, "promote"),
 ]
-GOOD = {"max_abs_shuffle_auc_deviation": 0.01, "reversed_minus_baseline_sharpe": -0.4,
-        "ensemble_net_sharpe": 1.4, "sharpe_diff_ci_low": 0.1, "dsr": 0.97, "n_trades": 250.0}
+GOOD = {"max_abs_shuffle_auc_deviation": 0.01, "ensemble_net_sharpe": 1.4,
+        "filter_sharpe_diff_ci_low": 0.1, "dsr": 0.97, "n_trades": 250.0}
 
 
 def test_all_clear_is_a_pass() -> None:
@@ -2660,9 +3028,8 @@ def test_all_clear_is_a_pass() -> None:
     ("metric", "value", "status"),
     [
         ("max_abs_shuffle_auc_deviation", 0.08, "INVALID"),
-        ("reversed_minus_baseline_sharpe", 0.1, "INVALID"),
         ("ensemble_net_sharpe", -0.2, "FALSIFIED"),
-        ("sharpe_diff_ci_low", -0.1, "UNPROVEN"),
+        ("filter_sharpe_diff_ci_low", -0.1, "UNPROVEN"),
         ("dsr", 0.90, "UNPROVEN"),
         ("n_trades", 40.0, "UNPROVEN"),
     ],
@@ -2673,16 +3040,30 @@ def test_each_gate_can_go_red(metric, value, status) -> None:
     assert len(v.binding) == 1
 
 
-def test_a_missing_measurement_crashes() -> None:
+def test_too_few_trades_outranks_no_edge() -> None:
+    v = judge(C, {**GOOD, "n_trades": 3.0, "ensemble_net_sharpe": -0.5}, stage="development")
+    assert v.status == "UNPROVEN"
+    assert set(v.binding) == {"insufficient_trades", "no_edge_after_costs"}
+
+
+def test_an_invalid_run_outranks_everything() -> None:
+    v = judge(C, {**GOOD, "max_abs_shuffle_auc_deviation": 0.2, "n_trades": 3.0,
+                  "ensemble_net_sharpe": -0.5}, stage="development")
+    assert v.status == "INVALID"
+
+
+def test_a_missing_or_non_finite_measurement_crashes() -> None:
     values = dict(GOOD)
     del values["dsr"]
     with pytest.raises(DataContractError, match="meting"):
         judge(C, values, stage="development")
+    with pytest.raises(DataContractError, match="eindig"):
+        judge(C, {**GOOD, "dsr": float("nan")}, stage="development")
 
 
 def test_the_holdout_stage_reads_only_holdout_criteria() -> None:
-    assert judge(C, {"holdout_brier_diff_ci_low": -0.01}, stage="holdout").status == "PASS"
-    assert judge(C, {"holdout_brier_diff_ci_low": 0.02}, stage="holdout").status == "UNPROVEN"
+    assert judge(C, {"holdout_brier_diff": 0.005}, stage="holdout").status == "PASS"
+    assert judge(C, {"holdout_brier_diff": 0.02}, stage="holdout").status == "UNPROVEN"
 
 
 def test_event_space_t1_points_at_the_last_event_inside_the_label() -> None:
@@ -2702,7 +3083,7 @@ Expected: FAIL, `ModuleNotFoundError: No module named 'tradebot.cv.event_space'`
 
 ```python
 # src/tradebot/cv/event_space.py
-"""Exitposities in eventruimte voor `CombinatorialPurgedCV.split`.
+"""Exitposities in eventruimte voor `CombinatorialPurgedCV.split` (spec §9.5).
 
 De splitter verwacht `t1` als POSITIE in de eventreeks, niet als bar. Voor een
 op tijd gesorteerd paneel is dat voor event i de positie van het laatste event
@@ -2731,10 +3112,11 @@ def event_space_t1(event_bar: np.ndarray, exit_bar: np.ndarray) -> np.ndarray:
 # src/tradebot/validation/weekly_verdict.py
 """Het oordeel valt op de BEVROREN stop-criteria van de preregistratie (spec §14).
 
-Geen drempel staat in deze module. Een negatieve controle die bindt maakt de run
-ongeldig; een falsify-criterium falsifieert; elk ander bindend criterium laat de
-hypothese onbewezen. Een criterium zonder meting crasht: een ontbrekend getal
-mag nooit als "niet bindend" worden gelezen.
+Geen drempel staat in deze module. Alleen een negatieve controle (labelpermutatie)
+kan een run ongeldig maken; een economische uitkomst nooit. Te weinig data gaat
+vóór "geen edge": met weinig trades is een niet-positieve Sharpe geen bewijs.
+Een criterium zonder meting crasht: een ontbrekend getal mag nooit als "niet
+bindend" worden gelezen.
 """
 from __future__ import annotations
 
@@ -2750,12 +3132,14 @@ from ..utils.failfast import DataContractError, require
 __all__ = ["DEVELOPMENT_METRICS", "HOLDOUT_METRICS", "Verdict", "judge"]
 
 DEVELOPMENT_METRICS = (
-    "max_abs_shuffle_auc_deviation", "reversed_minus_baseline_sharpe",
-    "ensemble_net_sharpe", "sharpe_diff_ci_low", "sharpe_ci_low", "dsr",
-    "hit_rate_ci_low_minus_break_even", "pbo", "mc_drawdown_probability_1y",
-    "n_trades",
+    "max_abs_shuffle_auc_deviation", "ensemble_net_sharpe", "filter_sharpe_diff_ci_low",
+    "sharpe_ci_low", "dsr", "hit_rate_ci_low_minus_break_even", "pbo",
+    "mc_drawdown_probability_1y", "n_trades",
 )
-HOLDOUT_METRICS = ("holdout_brier_diff_ci_low",)
+HOLDOUT_METRICS = (
+    "holdout_brier_diff", "holdout_brier_diff_ci_low", "holdout_mean_prob_shift_abs",
+    "holdout_ks_pvalue", "holdout_return_minus_dev_q01",
+)
 Status = Literal["PASS", "INVALID", "UNPROVEN", "FALSIFIED"]
 
 
@@ -2787,6 +3171,8 @@ def judge(
     binding = [c for c in in_stage if c.binds(measured[c.metric])]
     if any(c.name.startswith("negative_control") for c in binding):
         status: Status = "INVALID"
+    elif any(c.action == "descope" for c in binding):
+        status = "UNPROVEN"
     elif any(c.action == "falsify" for c in binding):
         status = "FALSIFIED"
     elif binding:
@@ -2796,18 +3182,16 @@ def judge(
     return Verdict(status=status, binding=tuple(c.name for c in binding), values=measured)
 ```
 
-Controleer dat `StopCriterion(name, metric, operator, threshold, action, rationale)` positioneel werkt (dataclass-volgorde in `registry/preregistration.py`); zo niet, zet de test om naar keywords.
-
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_weekly_verdict.py -p no:randomly -q`
-Expected: PASS (10 tests).
+Expected: PASS (11 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/tradebot/cv/event_space.py src/tradebot/validation/weekly_verdict.py tests/unit/test_weekly_verdict.py
-git commit -m "feat(validation): judge on the frozen stop criteria, and event-space t1 for CPCV"
+git commit -m "feat(validation): judge on the frozen stop criteria -- only permutation controls invalidate, too few trades outranks no edge"
 ```
 
 ---
@@ -2819,18 +3203,29 @@ git commit -m "feat(validation): judge on the frozen stop criteria, and event-sp
 - Test: `tests/unit/test_weekly_campaign.py`
 
 **Interfaces:**
-- Consumes: alles uit Taak 2–10; `WalkForwardCV`; `shuffled_targets`; `CombinatorialPurgedCV`, `build_cpcv_return_paths` (`cv/cpcv.py`); `compute_pbo` (`backtest/pbo.py`); `sharpe_with_se`, `block_bootstrap_ci`, `sharpe_difference_test` (`validation/inference.py`); `dsr_gate` (`validation/dsr.py`); `TrialCount`, `frozen_trial_count` (`registry/trial_counter.py`); `require_preregistration`, `development_slice`; `ExecutionConfig`, `ValidationConfig`, `RiskConfig`, `ImpactConfig`; `risk_config_hash`.
+- Consumes: alles uit Taak 2–10; `WalkForwardCV`; `shuffled_targets`; `CombinatorialPurgedCV`, `build_cpcv_return_paths` (`cv/cpcv.py`); `compute_pbo(returns_matrix, n_subsets, metric_fn)` (`backtest/pbo.py`); `sharpe_with_se`, `block_bootstrap_ci`, `sharpe_difference_test` (`validation/inference.py`); `dsr_gate` (`validation/dsr.py`); `TrialCount`, `frozen_trial_count`; `require_preregistration`; `development_slice`; `expected_calibration_error`; `ValidationConfig`, `RiskConfig` (`RiskConfig.max_position_pct`), `ExecutionConfig`; `risk_config_hash`.
 - Produces:
-  - `trade_candidates(events: pd.DataFrame, folds: Sequence[FoldPredictions], *, cfg, cost_rt: float) -> pd.DataFrame` (kolommen `CANDIDATE_COLUMNS` + `p_be`, `fold_id`)
+  - `trade_candidates(events, folds, *, cfg, costs, max_notional) -> pd.DataFrame` — `CANDIDATE_COLUMNS` + `p_be`, `fold_id`; `p_trade = max(p_be, q_f)` met `q_f` het `(1 − φ_f)`-kwantiel van de OOF-kansen (spec §10.3), `p_low` uit `empirical_bins` op de OOF-uitkomsten (spec §10.4), `cost_hat` uit `costs.ex_ante_cost` (spec §6.2b).
+  - `unfiltered_candidates(events, *, cfg, costs, max_notional) -> pd.DataFrame` — elk event, `p = p_low = 1`, `p_trade = 0`.
+  - `development_values(*, kelly, filtered_fixed, unfiltered, fixed_variants, window, shuffle_aucs, trial_count, val_cfg, cfg) -> dict[str, float]` — precies de sleutels van `DEVELOPMENT_METRICS`, allemaal eindig (ruling R1a).
   - `CampaignResult(values: dict[str, float], verdict: Verdict, record: dict)`
-  - `run_campaign_on_market(market, cfg, *, criteria, trial_count, exec_cfg, val_cfg, risk_cfg, impact) -> CampaignResult`
+  - `run_campaign_on_market(market, cfg, *, criteria, trial_count, costs, val_cfg, risk_cfg) -> CampaignResult`
   - `main() -> None` (CLI: `python -m tradebot.validation.weekly_campaign`)
+
+**Het contract:**
+- **G2 (spec §9.7):** `fixed["ensemble"]` en `unfiltered` zijn allebei vaste-risicoboeken (`baseline_risk_fraction`), met dezelfde kosten, risicolaag en conventie; beide rendementsreeksen lopen over elke kalenderdag van `window` met 0 op vlakke dagen; toets `sharpe_difference_test(..., align="common_valid")`.
+- **G3/G4/G5/G7** gaan over het Kelly-boek van het ensemble. G5 en G7 gebruiken de gesloten trades (`exit_reason != "open"`) en hun `net_return`.
+- **G6 (spec §9.5):** `compute_pbo` op de `T × 4`-matrix [ongefilterd, logreg, forest, ensemble], alle vaste risicofractie, met een Sharpe-maatstaf die 0 geeft voor een vlakke kolom.
+- **Omgekeerd signaal:** alleen diagnose in het record.
+- **Selectie-nul:** `n_selection_permutations` permutaties van de kansen binnen elke fold; p-waarde `(1 + #{≥}) / (1 + R)`; alleen in het record.
+- **CPCV (spec §9.5):** zie `cpcv_report` hieronder: groepvensters geknipt op de dag vóór het eerste event van de volgende groep; per pad de Sharpe van alle vier varianten en de rang van het ensemble.
+- **Record voor de holdout (Taak 14):** `dev_oos_probabilities` (de gekalibreerde OOS-kansen van het ensemble) en `dev_kelly_rolling60_q01` (het `holdout_return_quantile`-kwantiel van de 60-daagse rollende rendementen van het Kelly-boek in de OOS).
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # tests/unit/test_weekly_campaign.py
-"""De campagne van begin tot eind op een synthetische markt: elke poortmeting bestaat en is eindig."""
+"""De campagne van begin tot eind op een synthetische markt, plus de randgevallen van de maatstaven."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -2840,14 +3235,27 @@ import pandas as pd
 import pytest
 
 from tests.weekly_fixtures import synthetic_market
+from tradebot.backtest.barrier_book import BookResult
+from tradebot.execution.trade_costs import TradeCostModel
 from tradebot.registry.preregistration import StopCriterion
 from tradebot.registry.trial_counter import TrialCount
+from tradebot.risk.binary_kelly import empirical_bins
 from tradebot.schemas.config import ExecutionConfig, RiskConfig, ValidationConfig, load_config
 from tradebot.schemas.weekly_meta import weekly_meta_config
-from tradebot.validation.weekly_campaign import run_campaign_on_market, trade_candidates
+from tradebot.train.meta_label import FoldPredictions
+from tradebot.validation.weekly_campaign import (
+    development_values,
+    run_campaign_on_market,
+    trade_candidates,
+)
 from tradebot.validation.weekly_verdict import DEVELOPMENT_METRICS
 
 ROOT = Path(__file__).resolve().parents[2]
+COSTS = TradeCostModel.from_config(load_config(ROOT / "conf/execution/fees.yaml", ExecutionConfig),
+                                   stop_slippage_bps=5.0, impact=None)
+VAL = load_config(ROOT / "conf/validation/default.yaml", ValidationConfig)
+RISK = load_config(ROOT / "conf/risk/default.yaml", RiskConfig)
+M4 = TrialCount(value=4, source="frozen", origin="test", seed_total=0, registered_total=4)
 
 
 @pytest.fixture(scope="module")
@@ -2857,50 +3265,78 @@ def result():
         "first_test_start_utc": str(market.grid[500]),
         "holdout_split_utc": str(market.grid[-1] + pd.Timedelta(days=1)),
         "forest_n_estimators": 40, "n_shuffle_replicates": 1, "mc_paths": 1000,
-        "k_grid": (1.0, 1.5, 2.0),
+        "n_selection_permutations": 3, "k_grid": (1.0, 1.5, 2.0),
     })
-    criteria = [StopCriterion(f"c_{m}", m, "<", -1e9, "archive", "synthetic")
+    criteria = [StopCriterion(name=f"c_{m}", metric=m, operator="<", threshold=-1e9,
+                              action="archive", rationale="synthetic")
                 for m in DEVELOPMENT_METRICS]
-    return run_campaign_on_market(
-        market, cfg, criteria=criteria,
-        trial_count=TrialCount(value=4, source="frozen", origin="test",
-                               seed_total=0, registered_total=4),
-        exec_cfg=load_config(ROOT / "conf/execution/fees.yaml", ExecutionConfig),
-        val_cfg=load_config(ROOT / "conf/validation/default.yaml", ValidationConfig),
-        risk_cfg=load_config(ROOT / "conf/risk/default.yaml", RiskConfig),
-        impact=None)
+    return run_campaign_on_market(market, cfg, criteria=criteria, trial_count=M4, costs=COSTS,
+                                  val_cfg=VAL, risk_cfg=RISK)
 
 
 def test_every_gate_metric_is_measured_and_finite(result) -> None:
-    for metric in DEVELOPMENT_METRICS:
-        assert metric in result.values
-        assert np.isfinite(result.values[metric]), metric
+    assert set(result.values) == set(DEVELOPMENT_METRICS)
+    for metric, value in result.values.items():
+        assert np.isfinite(value), metric
 
 
-def test_the_record_carries_its_policy_and_its_choices(result) -> None:
+def test_the_record_carries_its_policy_choices_and_diagnostics(result) -> None:
     rec = result.record
-    assert rec["risk_policy_hash"]
     assert rec["risk_audit_header"]["config_hash"] == rec["risk_policy_hash"]
     assert rec["k"] > 0.0 and 0.0 < rec["d_star"] <= 0.9
     assert rec["verdict"]["status"] in {"PASS", "INVALID", "UNPROVEN", "FALSIFIED"}
+    assert 0.0 < rec["selection_null_pvalue"] <= 1.0
+    assert "reversed" in rec["sharpe"]
+    for variant in ("unfiltered", "logreg", "forest", "ensemble"):
+        assert len(rec["cpcv"]["path_sharpes"][variant]) == 5
+    assert len(rec["cpcv"]["ensemble_rank_per_path"]) == 5
+    assert len(rec["dev_oos_probabilities"]) > 0
+    assert np.isfinite(rec["dev_kelly_rolling60_q01"])
 
 
-def test_candidates_never_use_a_threshold_below_break_even() -> None:
-    from tradebot.train.meta_label import FoldPredictions
-    events = pd.DataFrame({"symbol": ["BTCUSDT"] * 3, "event_bar": [10, 11, 12],
-                           "exit_bar": [15, 16, 17], "side": [1.0, -1.0, 1.0],
-                           "fill_return": [0.05, -0.05, 0.0], "sigma": [0.03] * 3,
-                           "target": [1, 0, 0]})
+def test_a_book_without_trades_yields_finite_values() -> None:
+    idx = pd.date_range("2022-01-01", periods=400, freq="D", tz="UTC")
+    empty = BookResult(returns=pd.Series(0.0, index=idx), equity=pd.Series(1e5, index=idx),
+                       trades=pd.DataFrame(), total_fees=0.0, total_funding=0.0,
+                       total_impact=0.0, total_pnl=0.0, n_resizes=0, halted=False)
+    values = development_values(kelly=empty, filtered_fixed=empty, unfiltered=empty,
+                                fixed_variants=[empty] * 4, window=slice(idx[0], idx[-1]),
+                                shuffle_aucs=[0.5], trial_count=M4, val_cfg=VAL,
+                                cfg=weekly_meta_config())
+    assert set(values) == set(DEVELOPMENT_METRICS)
+    assert all(np.isfinite(v) for v in values.values())
+    assert values["n_trades"] == 0.0 and values["ensemble_net_sharpe"] == 0.0
+    assert values["filter_sharpe_diff_ci_low"] == 0.0 and values["dsr"] == 0.0
+
+
+def test_candidates_use_oof_thresholds_realized_posteriors_and_ex_ante_costs() -> None:
+    cfg = weekly_meta_config()
+    rng = np.random.default_rng(2)
+    oof_p = np.linspace(0.3, 0.7, 200)
+    oof_y = (rng.uniform(size=200) < oof_p).astype(int)
+    events = pd.DataFrame({
+        "symbol": ["BTCUSDT"] * 3, "event_bar": [10, 11, 12], "exit_bar": [15, 16, 17],
+        "side": [1.0, -1.0, 1.0], "fill_return": [0.05, -0.05, 0.0], "sigma": [0.03] * 3,
+        "barrier": [cfg.barrier_sigma * 0.03] * 3, "label_cost": [0.0013] * 3,
+        "target": [1, 0, 0], "funding_recent_mean": [0.0002, 0.0002, -0.0001],
+        "adv_usd": [1e9] * 3, "sigma_daily_event": [0.03] * 3})
     fold = FoldPredictions(fold_id=0, row_index=np.array([0, 1, 2]),
                            probability=np.array([0.40, 0.55, 0.70]), target=np.array([1, 0, 0]),
                            uniqueness=np.ones(3), n_train=100, purge={},
                            feature_importance=np.ones(19),
-                           extras={"calibration_probability": np.linspace(0.3, 0.7, 50),
-                                   "train_events_per_week": 5.5})
-    cands = trade_candidates(events, [fold], cfg=weekly_meta_config(), cost_rt=0.0013)
-    assert (cands["p_trade"] >= cands["p_be"]).all()
+                           extras={"oof_probability": oof_p, "oof_target": oof_y,
+                                   "oof_events_per_week": 5.5})
+    cands = trade_candidates(events, [fold], cfg=cfg, costs=COSTS, max_notional=8e4)
+    bins = empirical_bins(oof_p, oof_y, n_bins=cfg.n_probability_bins,
+                          quantile=cfg.posterior_quantile)
+    for _, c in cands.iterrows():
+        assert c["p_low"] == pytest.approx(bins.p_low[bins.bin_of(c["p"])])
+        assert c["p_trade"] >= c["p_be"]
     assert (cands["entry_bar"] == events["event_bar"] + 1).all()
-    assert (cands["p_low"] < cands["p"]).all()
+    long_pays = cands[(cands["side"] > 0) & (cands["entry_bar"] == 11)].iloc[0]
+    assert long_pays["cost_hat"] == pytest.approx(0.0013 + 0.0005 + 10 * 0.0002)
+    short_receives = cands[cands["side"] < 0].iloc[0]
+    assert short_receives["cost_hat"] == pytest.approx(0.0013 + 0.0005)
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -2916,19 +3352,21 @@ Expected: FAIL, `ModuleNotFoundError: No module named 'tradebot.validation.weekl
 
 Volgorde, en waarom zij vastligt:
 1. d* en k worden gekozen op data vóór de eerste testperiode; k op frequentie.
-2. Drie modellen door dezelfde purged walk-forward (Taak 7).
-3. Kandidaten per model; het ensemble met Kelly, de referentie ongefilterd met
-   een vaste risicofractie; allemaal door hetzelfde boek en dezelfde risicolaag.
-4. Negatieve controles: geschudde labels en de omgekeerde richting.
-5. Inferentie: Lo-SE, blokbootstrap, Ledoit-Wolf-verschil, DSR bij de bevroren M,
-   Wilson-interval op de trefkans, PBO over de vier varianten, Monte Carlo-drawdown.
-6. Het oordeel komt uit de bevroren stop-criteria (Taak 10).
-CPCV-paden worden gerapporteerd, niet gepoort.
+2. Drie modellen door dezelfde purged walk-forward; elk trainvenster kalibreert
+   en kiest zijn drempel op inner-walk-forward OOF-voorspellingen.
+3. Vier vaste-risicoboeken (ongefilterd, logreg, forest, ensemble) voor de
+   vergelijking en de PBO; één Kelly-boek (ensemble) voor de strategie zelf.
+   Allemaal door hetzelfde tradeboek, dezelfde kostendefinitie en dezelfde
+   risicolaag, op dezelfde kalenderas.
+4. Negatieve controle: labelpermutatie. Het omgekeerde signaal is diagnose.
+5. Inferentie en het oordeel op de bevroren stop-criteria.
+6. Gerapporteerd, niet gepoort: selectie-nul, CPCV-paden met rangorde.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -2938,23 +3376,26 @@ import pandas as pd
 from scipy import stats
 from sklearn.metrics import roc_auc_score
 
-from ..backtest.barrier_book import BookInputs, SizingRule, run_barrier_book
+from ..backtest.barrier_book import BookInputs, BookResult, SizingRule, run_barrier_book
 from ..backtest.pbo import compute_pbo
 from ..cv.cpcv import CombinatorialPurgedCV, build_cpcv_return_paths
 from ..cv.event_space import event_space_t1
 from ..cv.walk_forward import WalkForwardCV
 from ..data.weekly_market import WeeklyMarket, load_weekly_market
-from ..execution.impact_model import ImpactParams, ImpactStatus
+from ..execution.trade_costs import TradeCostModel, load_impact_params
 from ..features.registry import current_git_sha
 from ..features.weekly_set import fit_common_d_star, market_features
-from ..labeling.barrier_fills import round_trip_cost
 from ..labeling.breakout import calibrate_k
 from ..monitoring.prob_calibration import expected_calibration_error
 from ..registry.preregistration import StopCriterion, require_preregistration
 from ..registry.trial_counter import TrialCount, frozen_trial_count
-from ..risk.binary_kelly import break_even_probability, monte_carlo_drawdown_probability, posterior_lower_probability
+from ..risk.binary_kelly import (
+    break_even_probability,
+    empirical_bins,
+    monte_carlo_drawdown_probability,
+)
 from ..risk.engine import RiskEngine, risk_config_hash
-from ..schemas.config import ExecutionConfig, ImpactConfig, RiskConfig, ValidationConfig, load_config
+from ..schemas.config import ExecutionConfig, RiskConfig, ValidationConfig, load_config
 from ..schemas.weekly_meta import WeeklyMetaConfig, weekly_meta_config
 from ..train.light_models import MODEL_KINDS, fit_light_model
 from ..train.meta_label import FoldPredictions, shuffled_targets, walk_forward_fit_predict
@@ -2965,10 +3406,13 @@ from .holdout import development_slice
 from .inference import block_bootstrap_ci, sharpe_difference_test, sharpe_with_se
 from .weekly_verdict import Verdict, judge
 
-__all__ = ["CampaignResult", "main", "run_campaign_on_market", "trade_candidates"]
+__all__ = ["CampaignResult", "development_values", "main", "run_campaign_on_market",
+           "trade_candidates", "unfiltered_candidates"]
 
 BARS_PER_YEAR = 365.0
+ROLLING_DAYS = 60
 ARTEFACT = Path("artefacts/governance/weekly_meta_campaign.json")
+VARIANTS = ("unfiltered",) + MODEL_KINDS
 
 
 @dataclass(frozen=True)
@@ -2978,43 +3422,74 @@ class CampaignResult:
     record: dict[str, Any]
 
 
-def trade_candidates(
-    events: pd.DataFrame, folds: Sequence[FoldPredictions], *, cfg: WeeklyMetaConfig,
-    cost_rt: float,
-) -> pd.DataFrame:
-    """Per OOS-event: kans, posterior-ondergrens, break-even en de handelsdrempel van zijn fold."""
-    edges = np.linspace(0.0, 1.0, cfg.n_probability_bins + 1)
+# --------------------------------------------------------------------------- #
+# Kandidaten
+# --------------------------------------------------------------------------- #
+def _static(ev: pd.Series, cfg: WeeklyMetaConfig, costs: TradeCostModel,
+            max_notional: float) -> dict[str, Any]:
+    barrier = float(ev["barrier"])
+    c_hat = costs.ex_ante_cost(
+        side=float(ev["side"]), funding_recent_mean=float(ev["funding_recent_mean"]),
+        horizon_bars=cfg.horizon_bars, max_notional=max_notional,
+        adv=float(ev["adv_usd"]), sigma_daily=float(ev["sigma_daily_event"]))
+    return {"symbol": ev["symbol"], "entry_bar": int(ev["event_bar"]) + 1,
+            "exit_bar": int(ev["exit_bar"]), "side": float(ev["side"]),
+            "fill_return": float(ev["fill_return"]), "barrier": barrier, "cost_hat": c_hat,
+            "p_be": break_even_probability(barrier, c_hat)}
+
+
+def _frame(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    return (pd.DataFrame(rows).sort_values(["entry_bar", "symbol"], kind="stable")
+            .reset_index(drop=True))
+
+
+def trade_candidates(events: pd.DataFrame, folds: Sequence[FoldPredictions], *,
+                     cfg: WeeklyMetaConfig, costs: TradeCostModel,
+                     max_notional: float) -> pd.DataFrame:
+    """Per OOS-event: kans, posterior-ondergrens op gerealiseerde OOF-uitkomsten, drempel, kosten."""
     rows: list[dict[str, Any]] = []
     for fold in folds:
-        cal = np.asarray(fold.extras["calibration_probability"], dtype=np.float64)
-        phi = min(1.0, cfg.trades_per_week_target / max(float(fold.extras["train_events_per_week"]), 1e-9))
-        q = float(np.quantile(cal, 1.0 - phi))
-        counts = np.histogram(cal, bins=edges)[0]
+        extras = fold.extras
+        oof_p = np.asarray(extras["oof_probability"], dtype=np.float64)
+        bins = empirical_bins(oof_p, np.asarray(extras["oof_target"]),
+                              n_bins=cfg.n_probability_bins, quantile=cfg.posterior_quantile)
+        phi = min(1.0, cfg.trades_per_week_target / max(float(extras["oof_events_per_week"]), 1e-9))
+        q = float(np.quantile(oof_p, 1.0 - phi))
         for r, p in zip(fold.row_index, fold.probability, strict=True):
-            ev = events.iloc[int(r)]
-            barrier = cfg.barrier_sigma * float(ev["sigma"])
-            p_be = break_even_probability(barrier, cost_rt)
-            b = min(int(np.searchsorted(edges, p, side="right")) - 1, len(counts) - 1)
-            rows.append({
-                "symbol": ev["symbol"], "entry_bar": int(ev["event_bar"]) + 1,
-                "exit_bar": int(ev["exit_bar"]), "side": float(ev["side"]),
-                "fill_return": float(ev["fill_return"]), "barrier": barrier,
-                "p": float(p),
-                "p_low": posterior_lower_probability(float(p), float(counts[b]), cfg.posterior_quantile),
-                "p_be": p_be, "p_trade": max(p_be, q), "fold_id": int(fold.fold_id),
-            })
-    return pd.DataFrame(rows).sort_values(["entry_bar", "symbol"], kind="stable").reset_index(drop=True)
+            row = _static(events.iloc[int(r)], cfg, costs, max_notional)
+            row.update(p=float(p), p_low=float(bins.p_low[bins.bin_of(float(p))]),
+                       p_trade=max(row["p_be"], q), fold_id=int(fold.fold_id))
+            rows.append(row)
+    return _frame(rows)
 
 
-def _unfiltered(events: pd.DataFrame, cfg: WeeklyMetaConfig, lo: int, hi: int) -> pd.DataFrame:
-    ev = events[(events["event_bar"] >= lo) & (events["event_bar"] <= hi)]
-    return pd.DataFrame({
-        "symbol": ev["symbol"].to_numpy(), "entry_bar": ev["event_bar"].to_numpy() + 1,
-        "exit_bar": ev["exit_bar"].to_numpy(), "side": ev["side"].to_numpy(),
-        "fill_return": ev["fill_return"].to_numpy(),
-        "barrier": cfg.barrier_sigma * ev["sigma"].to_numpy(),
-        "p": 1.0, "p_low": 1.0, "p_trade": 0.0,
-    }).sort_values(["entry_bar", "symbol"], kind="stable").reset_index(drop=True)
+def unfiltered_candidates(events: pd.DataFrame, *, cfg: WeeklyMetaConfig,
+                          costs: TradeCostModel, max_notional: float) -> pd.DataFrame:
+    """Elk event wordt een kandidaat; alleen voor vaste-risicoboeken bedoeld."""
+    rows = []
+    for _, ev in events.iterrows():
+        row = _static(ev, cfg, costs, max_notional)
+        row.update(p=1.0, p_low=1.0, p_trade=0.0, fold_id=-1)
+        rows.append(row)
+    return _frame(rows)
+
+
+# --------------------------------------------------------------------------- #
+# Maatstaven
+# --------------------------------------------------------------------------- #
+def _flat(r: pd.Series) -> bool:
+    x = r.to_numpy(dtype=np.float64)
+    return x.size < 2 or float(np.std(x)) == 0.0
+
+
+def _sharpe(r: pd.Series) -> float:
+    """Sharpe op dagelijkse kalenderrendementen; 0 voor een boek zonder variantie (spec §9.6)."""
+    return 0.0 if _flat(r) else float(sharpe_with_se(r, bars_per_year=BARS_PER_YEAR).sharpe)
+
+
+def _bar_sharpe(x: np.ndarray) -> float:
+    sd = float(np.std(x))
+    return 0.0 if sd == 0.0 else float(np.mean(x) / sd)
 
 
 def _oos_auc(folds: Sequence[FoldPredictions]) -> float:
@@ -3024,51 +3499,132 @@ def _oos_auc(folds: Sequence[FoldPredictions]) -> float:
     return float(roc_auc_score(y, p, sample_weight=w))
 
 
-def _cpcv_path_sharpes(wd: WeeklyDataset, cfg: WeeklyMetaConfig, inputs: BookInputs,
-                       risk_cfg: RiskConfig, fixed: SizingRule) -> list[float]:
-    ds = wd.dataset
+def development_values(
+    *, kelly: BookResult, filtered_fixed: BookResult, unfiltered: BookResult,
+    fixed_variants: Sequence[BookResult], window: slice, shuffle_aucs: Sequence[float],
+    trial_count: TrialCount, val_cfg: ValidationConfig, cfg: WeeklyMetaConfig,
+) -> dict[str, float]:
+    """De negen poortmaatstaven van spec §1, eindig ook voor een boek zonder trades."""
+    ens = kelly.returns.loc[window]
+    filt = filtered_fixed.returns.loc[window]
+    base = unfiltered.returns.loc[window]
+    if _flat(ens):
+        sharpe, ci_low, dsr = 0.0, 0.0, 0.0
+    else:
+        sharpe = float(sharpe_with_se(ens, bars_per_year=BARS_PER_YEAR).sharpe)
+        ci_low = float(block_bootstrap_ci(ens, bars_per_year=BARS_PER_YEAR, seed=cfg.seed).low)
+        dsr = float(dsr_gate(ens.to_numpy(), trial_count=trial_count, config=val_cfg).dsr)
+    diff_low = 0.0 if (_flat(filt) or _flat(base)) else float(sharpe_difference_test(
+        filt, base, bars_per_year=BARS_PER_YEAR, seed=cfg.seed, align="common_valid").ci_low)
+    trades = kelly.trades
+    closed = trades[trades["exit_reason"] != "open"] if not trades.empty else trades
+    n = int(len(closed))
+    if n:
+        wins = int((closed["net_return"] > 0.0).sum())
+        hit_low = float(stats.binomtest(wins, n).proportion_ci(
+            confidence_level=0.95, method="wilson").low)
+        p_be = float(np.mean([break_even_probability(b, c)
+                              for b, c in zip(closed["barrier"], closed["cost_hat"], strict=True)]))
+        per_year = n / ((window.stop - window.start) / pd.Timedelta(days=365))
+        mc = monte_carlo_drawdown_probability(
+            (closed["net_return"] / closed["barrier"]).to_numpy(),
+            risk_fraction=float(closed["risk_fraction"].median()),
+            n_trades=min(n, max(1, int(round(per_year)))), drawdown=cfg.mc_max_drawdown,
+            block_length=max(1, int(round(per_year / 26.0))), n_paths=cfg.mc_paths,
+            seed=cfg.seed)
+    else:
+        hit_low, p_be, mc = 0.0, 1.0, 1.0
+    matrix = np.column_stack([b.returns.loc[window].to_numpy() for b in fixed_variants])
+    pbo = float(compute_pbo(matrix, n_subsets=16, metric_fn=_bar_sharpe)["pbo"])
+    return {
+        "max_abs_shuffle_auc_deviation": float(max(abs(a - 0.5) for a in shuffle_aucs)),
+        "ensemble_net_sharpe": sharpe,
+        "filter_sharpe_diff_ci_low": diff_low,
+        "sharpe_ci_low": ci_low,
+        "dsr": dsr,
+        "hit_rate_ci_low_minus_break_even": hit_low - p_be,
+        "pbo": pbo if np.isfinite(pbo) else 1.0,
+        "mc_drawdown_probability_1y": float(mc),
+        "n_trades": float(n),
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Gerapporteerd, niet gepoort
+# --------------------------------------------------------------------------- #
+BookFn = Callable[[pd.DataFrame, str], BookResult]
+
+
+def selection_null_pvalue(events: pd.DataFrame, folds: Sequence[FoldPredictions], *,
+                          cfg: WeeklyMetaConfig, costs: TradeCostModel, max_notional: float,
+                          book: BookFn, window: slice, observed: float) -> float:
+    """Permuteer de kansen binnen elke fold; hoe vaak doet willekeurige selectie het even goed?"""
+    rng = np.random.default_rng(cfg.seed)
+    hits = 0
+    for _ in range(cfg.n_selection_permutations):
+        perm = [dataclasses.replace(f, probability=rng.permutation(f.probability)) for f in folds]
+        res = book(trade_candidates(events, perm, cfg=cfg, costs=costs, max_notional=max_notional),
+                   "fixed")
+        hits += int(_sharpe(res.returns.loc[window]) >= observed)
+    return float((1 + hits) / (1 + cfg.n_selection_permutations))
+
+
+def cpcv_report(wd: WeeklyDataset, cfg: WeeklyMetaConfig, *, costs: TradeCostModel,
+                max_notional: float, book: BookFn, embargo_bars: int) -> dict[str, Any]:
+    """Spec §9.5: 15 splits, 5 paden, per pad de Sharpe van vier varianten en de rang van het ensemble."""
+    ds, grid = wd.dataset, wd.grid
     order = np.argsort(ds.event_bar, kind="stable")
     ev, ex = ds.event_bar[order], ds.exit_bar[order]
-    cv = CombinatorialPurgedCV(n_groups=cfg.cpcv_n_groups, n_test_groups=cfg.cpcv_n_test_groups,
+    n_groups = cfg.cpcv_n_groups
+    size = len(order) // n_groups
+    bounds = [(g * size, len(order) if g == n_groups - 1 else (g + 1) * size)
+              for g in range(n_groups)]
+    windows = []
+    for g, (lo, hi) in enumerate(bounds):
+        end = grid[int(ex[lo:hi].max())]
+        if g + 1 < n_groups:
+            end = min(end, grid[int(ev[bounds[g + 1][0]])] - pd.Timedelta(days=1))
+        windows.append((grid[int(ev[lo])], end))
+    cv = CombinatorialPurgedCV(n_groups=n_groups, n_test_groups=cfg.cpcv_n_test_groups,
                                purge_bars=0)
-    size = len(order) // cfg.cpcv_n_groups
-    bounds = [(g * size, len(order) if g == cfg.cpcv_n_groups - 1 else (g + 1) * size)
-              for g in range(cfg.cpcv_n_groups)]
-    fold_returns: dict[tuple, pd.Series] = {}
-    for train_pos, test_pos, groups in cv.split(pd.DatetimeIndex(wd.grid[ev]),
+    fold_returns: dict[str, dict[tuple, pd.Series]] = {v: {} for v in VARIANTS}
+    for train_pos, test_pos, groups in cv.split(pd.DatetimeIndex(grid[ev]),
                                                pd.Series(event_space_t1(ev, ex))):
-        model = fit_light_model(ds, order[train_pos], ds.target, "ensemble", cfg)
         rows = order[test_pos]
-        prob = model.predict_proba(ds.features.iloc[rows].to_numpy(dtype=np.float64))[:, 1]
-        fp = FoldPredictions(fold_id=0, row_index=rows, probability=prob,
-                             target=ds.target[rows], uniqueness=ds.uniqueness[rows],
-                             n_train=int(train_pos.size), purge={},
-                             feature_importance=model.feature_importance,
-                             extras=model.fold_extras)
-        cands = trade_candidates(wd.events, [fp], cfg=cfg, cost_rt=fixed.cost_rt)
-        res = run_barrier_book(cands, inputs, RiskEngine(risk_cfg), fixed, equity0=cfg.account_equity)
-        pieces = []
-        for g in groups:
-            lo, hi = bounds[g]
-            start, end = wd.grid[ev[lo]], wd.grid[int(ex[lo:hi].max())]
-            pieces.append(res.returns.loc[start:end])
-        fold_returns[tuple(groups)] = pd.concat(pieces)
-    paths = build_cpcv_return_paths(fold_returns, n_groups=cfg.cpcv_n_groups)
-    return [sharpe_with_se(p, bars_per_year=BARS_PER_YEAR).sharpe for p in paths]
+        results = {"unfiltered": book(unfiltered_candidates(
+            wd.events.iloc[rows], cfg=cfg, costs=costs, max_notional=max_notional), "fixed")}
+        for kind in MODEL_KINDS:
+            model = fit_light_model(ds, order[train_pos], ds.target, kind, cfg,
+                                    embargo_bars=embargo_bars)
+            prob = model.predict_proba(ds.features.iloc[rows].to_numpy(dtype=np.float64))[:, 1]
+            fp = FoldPredictions(fold_id=0, row_index=rows, probability=prob,
+                                 target=ds.target[rows], uniqueness=ds.uniqueness[rows],
+                                 n_train=int(train_pos.size), purge={},
+                                 feature_importance=model.feature_importance,
+                                 extras=model.fold_extras)
+            results[kind] = book(trade_candidates(wd.events, [fp], cfg=cfg, costs=costs,
+                                                  max_notional=max_notional), "fixed")
+        for variant, res in results.items():
+            fold_returns[variant][tuple(groups)] = pd.concat(
+                [res.returns.loc[windows[g][0]:windows[g][1]] for g in groups])
+    sharpes = {v: [_sharpe(p) for p in build_cpcv_return_paths(fold_returns[v], n_groups=n_groups)]
+               for v in VARIANTS}
+    ranks = [int(1 + sum(sharpes[v][i] > sharpes["ensemble"][i] for v in VARIANTS))
+             for i in range(len(sharpes["ensemble"]))]
+    ens = np.asarray(sharpes["ensemble"])
+    return {"path_sharpes": sharpes, "ensemble_rank_per_path": ranks,
+            "ensemble_summary": {"min": float(ens.min()), "median": float(np.median(ens)),
+                                 "max": float(ens.max()), "share_positive": float((ens > 0).mean())}}
 
 
+# --------------------------------------------------------------------------- #
+# De campagne
+# --------------------------------------------------------------------------- #
 def run_campaign_on_market(
-    market: WeeklyMarket,
-    cfg: WeeklyMetaConfig,
-    *,
-    criteria: Sequence[StopCriterion],
-    trial_count: TrialCount,
-    exec_cfg: ExecutionConfig,
-    val_cfg: ValidationConfig,
+    market: WeeklyMarket, cfg: WeeklyMetaConfig, *, criteria: Sequence[StopCriterion],
+    trial_count: TrialCount, costs: TradeCostModel, val_cfg: ValidationConfig,
     risk_cfg: RiskConfig,
-    impact: ImpactParams | None,
 ) -> CampaignResult:
-    cost_rt = round_trip_cost(exec_cfg)
     first_test = pd.Timestamp(cfg.first_test_start_utc)
     closes = {s: market.ohlcv[s]["close"] for s in market.symbols}
     d_star = fit_common_d_star({s: np.log(c) for s, c in closes.items()}, until=first_test)
@@ -3076,18 +3632,19 @@ def run_campaign_on_market(
     k, rates = calibrate_k(closes, {s: market.sigma_daily[s] for s in market.symbols},
                            k_grid=cfg.k_grid, target_per_week=cfg.events_per_week_target,
                            start=start, end=first_test)
-    wd = build_weekly_dataset(market, cfg, k=k, d_star=d_star, cost_rt=cost_rt)
+    wd = build_weekly_dataset(market, cfg, k=k, d_star=d_star, costs=costs)
     ds = wd.dataset
-    first_pos = int(market.grid.searchsorted(first_test))
     embargo = cfg.horizon_bars + 1
+    first_pos = int(market.grid.searchsorted(first_test))
     cv = WalkForwardCV(train_size=first_pos, test_size=cfg.test_bars, step=cfg.test_bars,
                        mode="anchored", min_train=first_pos, embargo_bars=embargo)
     n_bars = len(market.grid)
     oos_last = max(int(f.test_idx[-1]) for f in cv.split(n_bars))
+    window = slice(market.grid[first_pos], market.grid[oos_last])
 
     def run(kind: str, target: np.ndarray | None = None) -> list[FoldPredictions]:
         return walk_forward_fit_predict(
-            ds, cv, lambda rows, y: fit_light_model(ds, rows, y, kind, cfg),
+            ds, cv, lambda rows, y: fit_light_model(ds, rows, y, kind, cfg, embargo_bars=embargo),
             n_bars=n_bars, embargo_bars=embargo, target=target)
 
     folds = {kind: run(kind) for kind in MODEL_KINDS}
@@ -3095,97 +3652,68 @@ def run_campaign_on_market(
                     for perm in shuffled_targets(ds, cfg.seed, cfg.n_shuffle_replicates)]
 
     corr = market_features(np.log(pd.DataFrame(closes)).diff(), window=cfg.corr_window)["avg_corr60"]
-    inputs = BookInputs(market=market, avg_corr=corr, cost_rate=cost_rt / 2.0, impact=impact)
-    kelly = SizingRule("kelly", cfg.kelly_multiple, cfg.baseline_risk_fraction, cfg.resize_band, cost_rt)
-    fixed = SizingRule("fixed", cfg.kelly_multiple, cfg.baseline_risk_fraction, cfg.resize_band, cost_rt)
-    window = slice(market.grid[first_pos], market.grid[oos_last])
+    inputs = BookInputs(market=market, avg_corr=corr, costs=costs)
+    max_notional = risk_cfg.max_position_pct * cfg.account_equity
+    rules = {mode: SizingRule(mode, cfg.kelly_multiple, cfg.baseline_risk_fraction, cfg.resize_band)
+             for mode in ("kelly", "fixed")}
 
-    def book(cands: pd.DataFrame, sizing: SizingRule):
-        return run_barrier_book(cands, inputs, RiskEngine(risk_cfg), sizing, equity0=cfg.account_equity)
+    def book(cands: pd.DataFrame, mode: str) -> BookResult:
+        return run_barrier_book(cands, inputs, RiskEngine(risk_cfg), rules[mode],
+                                equity0=cfg.account_equity)
 
-    books = {kind: book(trade_candidates(wd.events, folds[kind], cfg=cfg, cost_rt=cost_rt), kelly)
-             for kind in MODEL_KINDS}
-    baseline = book(_unfiltered(wd.events, cfg, first_pos, oos_last), fixed)
-    reversed_wd = build_weekly_dataset(market, cfg, k=k, d_star=d_star, cost_rt=cost_rt, side_sign=-1.0)
-    reversed_book = book(_unfiltered(reversed_wd.events, cfg, first_pos, oos_last), fixed)
+    def oos(events: pd.DataFrame) -> pd.DataFrame:
+        return events[(events["event_bar"] >= first_pos) & (events["event_bar"] <= oos_last)]
 
-    ens = books["ensemble"].returns.loc[window]
-    base = baseline.returns.loc[window]
-    ens_se = sharpe_with_se(ens, bars_per_year=BARS_PER_YEAR)
-    base_se = sharpe_with_se(base, bars_per_year=BARS_PER_YEAR)
-    rev_se = sharpe_with_se(reversed_book.returns.loc[window], bars_per_year=BARS_PER_YEAR)
-    diff = sharpe_difference_test(ens, base, bars_per_year=BARS_PER_YEAR, seed=cfg.seed,
-                                  align="common_valid")
-    ci = block_bootstrap_ci(ens, bars_per_year=BARS_PER_YEAR, seed=cfg.seed)
-    dsr = dsr_gate(ens.to_numpy(), trial_count=trial_count, config=val_cfg)
+    cands = {kind: trade_candidates(wd.events, folds[kind], cfg=cfg, costs=costs,
+                                    max_notional=max_notional) for kind in MODEL_KINDS}
+    unfiltered = book(unfiltered_candidates(oos(wd.events), cfg=cfg, costs=costs,
+                                            max_notional=max_notional), "fixed")
+    fixed = {kind: book(cands[kind], "fixed") for kind in MODEL_KINDS}
+    kelly = book(cands["ensemble"], "kelly")
+    reversed_wd = build_weekly_dataset(market, cfg, k=k, d_star=d_star, costs=costs, side_sign=-1.0)
+    reversed_book = book(unfiltered_candidates(oos(reversed_wd.events), cfg=cfg, costs=costs,
+                                               max_notional=max_notional), "fixed")
 
-    taken = books["ensemble"].trades
-    n_trades = int(len(taken))
-    if n_trades:
-        wins = int(((taken["fill_return"] - cost_rt) > 0.0).sum())
-        hit_low = float(stats.binomtest(wins, n_trades).proportion_ci(0.95, method="wilson").low)
-        p_be_mean = float(np.mean([break_even_probability(b, cost_rt) for b in taken["barrier"]]))
-        r_mult = ((taken["fill_return"] - cost_rt) / taken["barrier"]).to_numpy()
-        years = (window.stop - window.start) / pd.Timedelta(days=365)
-        per_year = n_trades / years
-        mc = monte_carlo_drawdown_probability(
-            r_mult, risk_fraction=float(taken["risk_fraction"].median()),
-            n_trades=min(n_trades, max(1, int(round(per_year)))),
-            drawdown=cfg.mc_max_drawdown, block_length=max(1, int(round(per_year / 26.0))),
-            n_paths=cfg.mc_paths, seed=cfg.seed)
-    else:
-        hit_low, p_be_mean, mc = 0.0, 1.0, 1.0
-
-    variants = np.column_stack([base.to_numpy()] + [books[k].returns.loc[window].to_numpy()
-                                                    for k in MODEL_KINDS])
-    pbo = float(compute_pbo(variants, n_subsets=16)["pbo"])
-    cpcv = _cpcv_path_sharpes(wd, cfg, inputs, risk_cfg, fixed)
+    values = development_values(
+        kelly=kelly, filtered_fixed=fixed["ensemble"], unfiltered=unfiltered,
+        fixed_variants=[unfiltered] + [fixed[kind] for kind in MODEL_KINDS], window=window,
+        shuffle_aucs=shuffle_aucs, trial_count=trial_count, val_cfg=val_cfg, cfg=cfg)
+    verdict = judge(criteria, values, stage="development")
 
     ens_folds = folds["ensemble"]
     y = np.concatenate([f.target for f in ens_folds])
     p = np.concatenate([f.probability for f in ens_folds])
-    lo, _hi = cfg.shuffle_auc_band
-    values = {
-        "max_abs_shuffle_auc_deviation": float(max(abs(a - 0.5) for a in shuffle_aucs)),
-        "reversed_minus_baseline_sharpe": float(rev_se.sharpe - base_se.sharpe),
-        "ensemble_net_sharpe": float(ens_se.sharpe),
-        "sharpe_diff_ci_low": float(diff.ci_low),
-        "sharpe_ci_low": float(ci.low),
-        "dsr": float(dsr.dsr),
-        "hit_rate_ci_low_minus_break_even": float(hit_low - p_be_mean),
-        "pbo": pbo,
-        "mc_drawdown_probability_1y": float(mc),
-        "n_trades": float(n_trades),
-    }
-    verdict = judge(criteria, values, stage="development")
-    engine = RiskEngine(risk_cfg)
+    kelly_oos = kelly.returns.loc[window]
+    rolling = ((1.0 + kelly_oos).rolling(ROLLING_DAYS).apply(np.prod, raw=True) - 1.0).dropna()
     record = {
         "verdict": verdict.as_dict(),
         "k": float(k), "k_rates": {str(kk): v for kk, v in rates.items()},
-        "d_star": float(d_star),
-        "n_events": int(len(ds)), "effective_n": float(ds.effective_n),
+        "d_star": float(d_star), "n_events": int(len(ds)), "effective_n": float(ds.effective_n),
         "n_dropped_nan": wd.n_dropped_nan,
         "oos_window": [str(window.start), str(window.stop)],
         "oos_auc": {kind: _oos_auc(folds[kind]) for kind in MODEL_KINDS},
-        "shuffle_aucs": shuffle_aucs, "shuffle_auc_band_low": lo,
+        "shuffle_aucs": shuffle_aucs,
         "brier_model": float(np.mean((p - y) ** 2)),
         "brier_base_rate": float(np.mean((y.mean() - y) ** 2)),
         "ece": float(expected_calibration_error(p, y)),
-        "sharpe": {"ensemble": ens_se.sharpe, "ensemble_se": ens_se.se,
-                   "baseline": base_se.sharpe, "reversed": rev_se.sharpe,
-                   **{kind: sharpe_with_se(books[kind].returns.loc[window],
-                                           bars_per_year=BARS_PER_YEAR).sharpe
+        "sharpe": {"kelly_ensemble": values["ensemble_net_sharpe"],
+                   "unfiltered": _sharpe(unfiltered.returns.loc[window]),
+                   "reversed": _sharpe(reversed_book.returns.loc[window]),
+                   **{f"fixed_{kind}": _sharpe(fixed[kind].returns.loc[window])
                       for kind in MODEL_KINDS}},
-        "sharpe_difference": {"delta": float(diff.delta_sharpe), "ci_low": float(diff.ci_low),
-                              "ci_high": float(diff.ci_high), "p_value": float(diff.p_value)},
-        "dsr": {"dsr": float(dsr.dsr), "passed": bool(dsr.passed), "M": int(trial_count.value)},
-        "cpcv_path_sharpes": cpcv,
-        "costs": {"fees": books["ensemble"].total_fees, "funding": books["ensemble"].total_funding,
-                  "impact": books["ensemble"].total_impact, "round_trip": cost_rt},
+        "selection_null_pvalue": selection_null_pvalue(
+            wd.events, ens_folds, cfg=cfg, costs=costs, max_notional=max_notional, book=book,
+            window=window, observed=_sharpe(fixed["ensemble"].returns.loc[window])),
+        "cpcv": cpcv_report(wd, cfg, costs=costs, max_notional=max_notional, book=book,
+                            embargo_bars=embargo),
+        "costs": {"fees": kelly.total_fees, "funding": kelly.total_funding,
+                  "impact": kelly.total_impact, "fixed_round_trip": costs.fixed_round_trip},
+        "dev_oos_probabilities": p.tolist(),
+        "dev_kelly_rolling60_q01": (float(np.quantile(rolling, cfg.holdout_return_quantile))
+                                    if len(rolling) else 0.0),
         "risk_policy_hash": risk_config_hash(risk_cfg),
-        "risk_audit_header": engine.audit_header(),
-        "n_risk_resizes": books["ensemble"].n_resizes,
-        "halted": books["ensemble"].halted,
+        "risk_audit_header": RiskEngine(risk_cfg).audit_header(),
+        "n_risk_resizes": kelly.n_resizes, "halted": kelly.halted,
     }
     return CampaignResult(values=values, verdict=verdict, record=record)
 
@@ -3194,34 +3722,30 @@ def main() -> None:
     """Draai de campagne op de gecertificeerde ontwikkelsample en schrijf het artefact."""
     root = Path.cwd()
     cfg = weekly_meta_config()
-    lock = root / "artefacts/governance/holdout_lock.json"
-    prereg_files = sorted((root / "artefacts/governance").glob("preregistration_*.json"))
+    gov = root / "artefacts/governance"
+    prereg_files = sorted(gov.glob("preregistration_*.json"))
     require(len(prereg_files) == 1, "Verwacht precies één bevroren preregistratie.",
             DataContractError, found=[p.name for p in prereg_files])
     prereg_path = prereg_files[0]
     prereg_id = json.loads(prereg_path.read_text(encoding="utf-8"))["preregistration_id"]
-    prereg = require_preregistration(prereg_id, directory=root / "artefacts/governance")
+    prereg = require_preregistration(prereg_id, directory=gov)
     full = load_weekly_market(root, cfg.symbols)
-    dev_index = development_slice(pd.DataFrame(index=full.grid), lock_path=lock).index
+    dev_index = development_slice(pd.DataFrame(index=full.grid),
+                                  lock_path=gov / "holdout_lock.json").index
     market = full.truncate(dev_index[-1] + pd.Timedelta(hours=1))
-    imp = load_config(root / "conf/execution/impact.yaml", ImpactConfig)
-    impact = ImpactParams(
-        eta=imp.eta, kappa_d=imp.kappa_d, status=ImpactStatus(imp.status), method=imp.method,
-        data_hash=imp.data_hash, sample_size=imp.sample_size, period_start=imp.period_start,
-        period_end=imp.period_end, instruments=imp.instruments, eta_ci_low=imp.eta_ci_low,
-        eta_ci_high=imp.eta_ci_high)
+    costs = TradeCostModel.from_config(
+        load_config(root / "conf/execution/fees.yaml", ExecutionConfig),
+        stop_slippage_bps=cfg.stop_slippage_bps,
+        impact=load_impact_params(root / "conf/execution/impact.yaml"))
     result = run_campaign_on_market(
-        market, cfg, criteria=prereg.stop_criteria,
-        trial_count=frozen_trial_count(prereg_path),
-        exec_cfg=load_config(root / "conf/execution/fees.yaml", ExecutionConfig),
-        val_cfg=load_config(root / "conf/validation/default.yaml", ValidationConfig),
-        risk_cfg=load_config(root / "conf/risk/default.yaml", RiskConfig),
-        impact=impact)
+        market, cfg, criteria=prereg.stop_criteria, trial_count=frozen_trial_count(prereg_path),
+        costs=costs, val_cfg=load_config(root / "conf/validation/default.yaml", ValidationConfig),
+        risk_cfg=load_config(root / "conf/risk/default.yaml", RiskConfig))
     record = {**result.record, "values": result.values, "preregistration_id": prereg_id,
               "git_sha": current_git_sha(), "source_hashes": full.source_hashes,
               "dev_last_bar": str(market.grid[-1])}
-    (root / ARTEFACT).write_text(json.dumps(record, indent=2, sort_keys=True, default=float) + "\n",
-                                 encoding="utf-8")
+    with open(root / ARTEFACT, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(record, indent=2, sort_keys=True, default=float) + "\n")
     print(json.dumps(result.verdict.as_dict(), indent=2))
 
 
@@ -3232,16 +3756,16 @@ if __name__ == "__main__":
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_weekly_campaign.py -p no:randomly -q`
-Expected: PASS (3 tests), binnen enkele minuten. Crasht `compute_pbo` op een te korte reeks of `dsr_gate` op `MIN_OBS_FOR_DSR`: vergroot `n` in de fixture, verzwak de functies niet. Crasht `CombinatorialPurgedCV` op zijn embargo-eis, lees de melding: `embargo_bars=None` hoort `t_max + 1` af te leiden.
+Expected: PASS (4 tests), binnen enkele minuten. Crasht `dsr_gate` op `MIN_OBS_FOR_DSR`, vergroot `n` in de fixture — verzwak de functie niet. Crasht `CombinatorialPurgedCV` op zijn embargo-eis: `embargo_bars` staat bewust op `None`, zodat hij `t_max + 1` afleidt; lees de melding. Crasht `compute_pbo` op `metric_fn`, lees zijn signatuur (`compute_pbo(returns_matrix, n_subsets=16, metric_fn=None)`).
 
 - [ ] **Step 5: Run the full suite and commit**
 
-Run: `D:/venv/tradebot/Scripts/python.exe -m pytest -m "not slow" -p no:randomly -q` en `ruff check src/ tests/`
+Run: `D:/venv/tradebot/Scripts/python.exe -m pytest -m "not slow" -p no:randomly -q` (voorgrond, timeout 600000 ms) en `ruff check src/ tests/`
 Expected: geen nieuwe failures, ruff schoon.
 
 ```bash
 git add src/tradebot/validation/weekly_campaign.py tests/unit/test_weekly_campaign.py
-git commit -m "feat(validation): the weekly campaign -- purged walk-forward, controls, inference, PBO, CPCV paths, and the frozen verdict"
+git commit -m "feat(validation): the weekly campaign -- fixed-risk comparison on one calendar axis, Kelly book on realized posteriors, CPCV paths, verdict"
 ```
 
 ---
@@ -3254,7 +3778,7 @@ git commit -m "feat(validation): the weekly campaign -- purged walk-forward, con
 - Test: `tests/unit/test_weekly_programme.py`
 
 **Interfaces:**
-- Consumes: `freeze_holdout(*, split_utc, out, git_sha)` (`validation/holdout.py`); `load_preregistration_spec(path, *, data_hashes, parameters)`, `freeze_preregistration(prereg, *, git_sha, ledger_total_at_freeze, directory)`; `HypothesisLedger`, `LedgerEntry.from_config(...)`; `DataRegister.certified_hash(asset_class, dataset, symbol, granularity)`; `hash_config` (`utils/hashing.py`); `current_git_sha`.
+- Consumes: `freeze_holdout(*, split_utc, out, git_sha)` (`validation/holdout.py`); `load_preregistration_spec(path, *, data_hashes, parameters)`, `freeze_preregistration(prereg, *, git_sha, ledger_total_at_freeze, directory)`; `HypothesisLedger`, `LedgerEntry.from_config(...)`; `DataRegister.certified_hash(asset_class, dataset, symbol, granularity)`; `hash_config` (`utils/hashing.py`); `current_git_sha`; `DEVELOPMENT_METRICS`, `HOLDOUT_METRICS` (Taak 10).
 - Produces:
   - `PROGRAMME_UNIT = "weekly_meta_programme"`
   - `refreeze_unread_holdout(lock_path: Path, *, split_utc: str, git_sha: str) -> HoldoutLock`
@@ -3268,27 +3792,31 @@ git commit -m "feat(validation): the weekly campaign -- purged walk-forward, con
 ```yaml
 # conf/research/preregistration_weekly_meta.yaml
 # PRE-REGISTRATIE — wekelijkse meta-label-strategie, Plan 1.
+# Spec: docs/superpowers/specs/2026-09-26-weekly-meta-label-design.md
 # Bevroren door `python -m tradebot.registry.weekly_programme freeze`, VOOR de
 # eerste fit op echte data. `parameters` staat hier bewust niet: die worden bij
 # het bevriezen uit conf/model/weekly_meta.yaml ingespoten, samen met M = 4.
 wave: weekly_meta_v1
 
 title: >-
-  CUSUM-doorbraak met een licht, gekalibreerd ML-filter op 1:1-barrières en
-  binaire Kelly-sizing, op zes crypto-perpetuals op dagbars.
+  CUSUM-doorbraak met een licht, op out-of-fold-voorspellingen gekalibreerd
+  ML-filter, 1:1-barrières en Kelly-sizing op een Beta-posterior van
+  gerealiseerde uitkomsten, op zes crypto-perpetuals op dagbars.
 
 hypothesis: >-
-  Een ensemble van een L2-logistische regressie en een ondiepe random forest,
-  gekalibreerd met Platt op een gepurgede binnensplit, dat alleen de doorbraken
-  handelt waarvan de gekalibreerde kans boven break-even en boven de
-  frequentiedrempel ligt, levert na kosten, funding en impact een hogere netto
-  Sharpe dan hetzelfde CUSUM-signaal zonder filter, met een DSR van ten minste
-  0,95 bij M = 4, onder purged walk-forward met embargo.
+  (1) Een ensemble van een L2-logistische regressie en een ondiepe random forest,
+  Platt-gekalibreerd op inner-walk-forward OOF-voorspellingen, selecteert
+  doorbraken zo dat het gefilterde boek bij dezelfde vaste risicofractie, op
+  dezelfde kalenderas met nul op vlakke dagen en onder dezelfde kosten en
+  risicolaag, een hogere netto Sharpe heeft dan het ongefilterde boek; en
+  (2) het Kelly-boek van dat ensemble heeft na de kosten van spec §6.2 een
+  positieve netto Sharpe met een DSR van ten minste 0,95 bij M = 4, onder purged
+  walk-forward met embargo.
 
 null_hypothesis: >-
-  Het filter voegt na kosten niets toe aan het ongefilterde CUSUM-signaal, of
-  de gefilterde strategie heeft geen netto Sharpe die zich onderscheidt van de
-  beste van vier pogingen.
+  De selectie door het filter is niet beter dan het ongefilterde signaal bij
+  gelijke risiconormalisatie, of het Kelly-boek heeft geen netto Sharpe die zich
+  onderscheidt van de beste van vier pogingen.
 
 universe: [BTCUSDT, ETHUSDT, SOLUSDT, AVAXUSDT, LINKUSDT, DOTUSDT]
 granularity: 1d
@@ -3327,36 +3855,31 @@ stop_criteria:
     threshold: 0.05
     action: archive
     rationale: >-
-      Op geschudde labels hoort de OOS-AUC binnen 0,45-0,55 te liggen. Daarbuiten
-      lekt de pijplijn informatie en is de run ongeldig.
-  - name: negative_control_reversed
-    metric: reversed_minus_baseline_sharpe
-    operator: ">="
-    threshold: 0.0
-    action: archive
-    rationale: >-
-      Het omgekeerde primaire signaal moet slechter zijn dan het echte. Is het dat
-      niet, dan meet de constructie de doorbraak niet.
+      Op geschudde labels hoort de OOS-AUC in elke replicatie binnen 0,45-0,55 te
+      liggen. Daarbuiten lekt de pijplijn informatie en is de run ongeldig. Dit is
+      de enige controle die een run INVALID kan maken; het omgekeerde signaal is
+      diagnose, geen controle.
   - name: no_edge_after_costs
     metric: ensemble_net_sharpe
     operator: "<="
     threshold: 0.0
     action: falsify
-    rationale: Een niet-positieve netto Sharpe betekent geen edge na kosten.
+    rationale: Een niet-positieve netto Sharpe van het Kelly-boek betekent geen edge na kosten.
   - name: filter_adds_nothing
-    metric: sharpe_diff_ci_low
+    metric: filter_sharpe_diff_ci_low
     operator: "<="
     threshold: 0.0
     action: archive
     rationale: >-
-      De ondergrens van het Ledoit-Wolf-interval op (ensemble - ongefilterd) moet
-      boven nul liggen; anders is niet aangetoond dat het ML-filter iets toevoegt.
+      Ledoit-Wolf-interval op SR(gefilterd) - SR(ongefilterd), beide met de vaste
+      risicofractie, op dezelfde kalenderas met nul op vlakke dagen: de ondergrens
+      moet boven nul liggen, anders is niet aangetoond dat de selectie iets toevoegt.
   - name: sharpe_interval_includes_zero
     metric: sharpe_ci_low
     operator: "<="
     threshold: 0.0
     action: archive
-    rationale: De blokbootstrap-ondergrens van de netto Sharpe moet boven nul liggen.
+    rationale: De blokbootstrap-ondergrens van de netto Sharpe van het Kelly-boek moet boven nul liggen.
   - name: dsr_below_threshold
     metric: dsr
     operator: "<"
@@ -3369,38 +3892,65 @@ stop_criteria:
     threshold: 0.0
     action: archive
     rationale: >-
-      De Wilson-ondergrens van het trefpercentage moet boven het gemiddelde
-      break-even-percentage 1/2 + c/(2b) van de genomen trades liggen.
+      De Wilson-ondergrens van het gerealiseerde netto trefpercentage van de
+      gesloten Kelly-trades moet boven hun gemiddelde ex-ante p_be = 1/2 + Ĉ/(2b) liggen.
   - name: overfit_probability
     metric: pbo
     operator: ">="
     threshold: 0.25
     action: archive
-    rationale: Een PBO van 0,25 of meer over de vier varianten is te veel overfitkans.
+    rationale: >-
+      CSCV-PBO over de vier vaste-risicovarianten. Grof bij vier varianten; een
+      ondersteunend criterium, geen precieze overfitmaat.
   - name: drawdown_risk
     metric: mc_drawdown_probability_1y
     operator: ">"
     threshold: 0.10
     action: archive
     rationale: >-
-      De Monte Carlo-kans op een drawdown van 25 % (de mandaatgrens) binnen een jaar
-      mag bij kwart-Kelly niet boven 10 % liggen. De fractie wordt daarna NIET
-      bijgesteld; een andere fractie is een nieuwe preregistratie.
+      De Monte Carlo-kans op een drawdown van 25 % (de mandaatgrens) binnen een jaar,
+      op de gerealiseerde R-multiples, mag bij kwart-Kelly niet boven 10 % liggen. De
+      fractie wordt daarna NIET bijgesteld; een andere fractie is een nieuwe preregistratie.
   - name: insufficient_trades
     metric: n_trades
     operator: "<"
     threshold: 100
     action: descope
-    rationale: Onder 100 OOS-trades is geen enkele trefkansuitspraak te dragen.
+    rationale: >-
+      Onder 100 gesloten OOS-trades is geen trefkansuitspraak te dragen. Gaat vóór
+      no_edge_after_costs.
   - name: holdout_brier_worse
+    metric: holdout_brier_diff
+    operator: ">"
+    threshold: 0.01
+    action: archive
+    rationale: Brier(model) - Brier(basisfrequentie) op alle holdout-events mag niet meer dan 0,01 zijn.
+  - name: holdout_brier_significantly_worse
     metric: holdout_brier_diff_ci_low
     operator: ">"
     threshold: 0.0
     action: archive
+    rationale: Ligt de 95 %-ondergrens van die Brier-verslechtering boven nul, dan is het model aantoonbaar slechter dan niets weten.
+  - name: holdout_probability_shift
+    metric: holdout_mean_prob_shift_abs
+    operator: ">"
+    threshold: 0.05
+    action: archive
+    rationale: Het gemiddelde van de holdout-kansen mag niet meer dan 0,05 afwijken van dat van de ontwikkel-OOS.
+  - name: holdout_distribution_shift
+    metric: holdout_ks_pvalue
+    operator: "<"
+    threshold: 0.01
+    action: archive
+    rationale: Tweesteekproef-KS tussen holdout- en ontwikkel-OOS-kansen; p < 0,01 is een verschoven model.
+  - name: holdout_catastrophic_return
+    metric: holdout_return_minus_dev_q01
+    operator: "<"
+    threshold: 0.0
+    action: archive
     rationale: >-
-      Rooktest op de holdout: ligt het 95 %-interval van (Brier model - Brier
-      basisfrequentie) volledig boven nul, dan is het model daar aantoonbaar
-      slechter dan niets weten, en gaat het niet naar papertrading.
+      Het 60-daagse rendement van het Kelly-boek op de holdout mag niet onder het
+      1e percentiel van de 60-daagse rollende rendementen in de ontwikkel-OOS liggen.
   - name: promotion_requires_all_clear
     metric: n_binding_stop_criteria
     operator: "<="
@@ -3420,6 +3970,7 @@ from pathlib import Path
 
 import pytest
 
+from tradebot.features.base import DataRegister
 from tradebot.registry.hypothesis_ledger import HypothesisLedger
 from tradebot.registry.preregistration import load_preregistration_spec
 from tradebot.registry.trial_counter import frozen_trial_count
@@ -3430,13 +3981,18 @@ from tradebot.registry.weekly_programme import (
     refreeze_unread_holdout,
 )
 from tradebot.schemas.weekly_meta import weekly_meta_config
-from tradebot.features.base import DataRegister
 from tradebot.utils.failfast import DataContractError
 from tradebot.validation.weekly_verdict import DEVELOPMENT_METRICS, HOLDOUT_METRICS
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = ROOT / "conf/research/preregistration_weekly_meta.yaml"
 CFG = weekly_meta_config()
+REGISTER = DataRegister(ROOT / "artefacts/governance/data_hashes.json")
+
+
+def _prereg():
+    return load_preregistration_spec(SPEC, data_hashes=certified_data_hashes(REGISTER, CFG.symbols),
+                                     parameters=programme_parameters(CFG))
 
 
 def _empty_ledger(tmp_path: Path) -> Path:
@@ -3446,36 +4002,36 @@ def _empty_ledger(tmp_path: Path) -> Path:
     return path
 
 
-def test_the_spec_loads_with_every_criterion_measured() -> None:
-    register = DataRegister(ROOT / "artefacts/governance/data_hashes.json")
-    prereg = load_preregistration_spec(SPEC, data_hashes=certified_data_hashes(register, CFG.symbols),
-                                       parameters=programme_parameters(CFG))
-    decisive = {c.metric for c in prereg.stop_criteria if c.action != "promote"}
+def test_every_measured_metric_has_exactly_the_criteria_it_needs() -> None:
+    decisive = {c.metric for c in _prereg().stop_criteria if c.action != "promote"}
     assert decisive == set(DEVELOPMENT_METRICS) | set(HOLDOUT_METRICS)
-    assert prereg.planned_trials == CFG.planned_trials
+    assert _prereg().planned_trials == CFG.planned_trials
+
+
+def test_only_the_permutation_control_can_invalidate() -> None:
+    names = [c.name for c in _prereg().stop_criteria if c.name.startswith("negative_control")]
+    assert names == ["negative_control_shuffle"]
 
 
 def test_the_thresholds_match_the_config() -> None:
-    register = DataRegister(ROOT / "artefacts/governance/data_hashes.json")
-    prereg = load_preregistration_spec(SPEC, data_hashes=certified_data_hashes(register, CFG.symbols),
-                                       parameters=programme_parameters(CFG))
-    by = {c.name: c.threshold for c in prereg.stop_criteria}
+    by = {c.name: c.threshold for c in _prereg().stop_criteria}
     assert by["overfit_probability"] == CFG.pbo_max
     assert by["drawdown_risk"] == CFG.mc_max_probability_1y
     assert by["insufficient_trades"] == CFG.min_trades
     assert by["negative_control_shuffle"] == pytest.approx(0.5 - CFG.shuffle_auc_band[0])
     assert by["holdout_brier_worse"] == CFG.holdout_brier_margin
+    assert by["holdout_probability_shift"] == CFG.holdout_mean_shift_max
+    assert by["holdout_distribution_shift"] == CFG.holdout_ks_alpha
 
 
 def test_booking_then_freezing_fixes_m(tmp_path) -> None:
     ledger = _empty_ledger(tmp_path)
-    register = DataRegister(ROOT / "artefacts/governance/data_hashes.json")
-    path = book_and_freeze(spec_path=SPEC, cfg=CFG, register=register, ledger_path=ledger,
+    path = book_and_freeze(spec_path=SPEC, cfg=CFG, register=REGISTER, ledger_path=ledger,
                            prereg_dir=tmp_path, git_sha="abc1234")
     assert HypothesisLedger(ledger).total_n_hypotheses() == 4
     assert frozen_trial_count(path).value == 4
     with pytest.raises(DataContractError, match="eerste"):
-        book_and_freeze(spec_path=SPEC, cfg=CFG, register=register, ledger_path=ledger,
+        book_and_freeze(spec_path=SPEC, cfg=CFG, register=REGISTER, ledger_path=ledger,
                         prereg_dir=tmp_path, git_sha="abc1234")
 
 
@@ -3484,8 +4040,8 @@ def test_an_unread_holdout_can_be_refrozen_and_a_read_one_cannot(tmp_path) -> No
     lock.write_text(json.dumps({"split_utc": "2025-09-05T00:00:00+00:00", "git_sha": "x",
                                 "frozen_utc": "t", "reads": []}), encoding="utf-8")
     refreeze_unread_holdout(lock, split_utc=CFG.holdout_split_utc, git_sha="abc1234")
-    assert json.loads(lock.read_text(encoding="utf-8"))["split_utc"] == CFG.holdout_split_utc
     data = json.loads(lock.read_text(encoding="utf-8"))
+    assert data["split_utc"] == CFG.holdout_split_utc
     data["reads"] = [{"hypothesis_id": "h"}]
     lock.write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(DataContractError, match="gelezen"):
@@ -3501,7 +4057,7 @@ Expected: FAIL, `ModuleNotFoundError: No module named 'tradebot.registry.weekly_
 
 ```python
 # src/tradebot/registry/weekly_programme.py
-"""Het bevriezen van het wekelijkse programma, vóór de eerste fit (spec §9, §17.2-3).
+"""Het bevriezen van het wekelijkse programma, vóór de eerste fit (spec §9.1-9.2).
 
 Drie handelingen, in deze volgorde en elk precies één keer:
 1. Het ongelezen holdout-slot krijgt de nieuwe split (2026-06-24).
@@ -3611,14 +4167,14 @@ Expected: PASS. `test_ledger_provenance` blijft groen omdat de echte ledger in d
 
 ```bash
 git add conf/research/preregistration_weekly_meta.yaml src/tradebot/registry/weekly_programme.py tests/unit/test_weekly_programme.py
-git commit -m "feat(registry): the weekly preregistration, and a freeze that books M = 4 before the first fit"
+git commit -m "feat(registry): the weekly preregistration with numeric criteria, and a freeze that books M = 4 before the first fit"
 ```
 
 ---
 
 ### Task 13: Bevriezen en meten (operationeel, eenmalig)
 
-Geen nieuwe code. Deze taak raakt de echte governance-artefacten en draait de campagne één keer. **Vraag de eigenaar om een expliciete go voordat stap 2 begint**: vanaf daar is de ontwikkelsample geboekt.
+Geen nieuwe code. Deze taak raakt de echte governance-artefacten en draait de campagne één keer. **Vraag de eigenaar om een expliciete go voordat stap 2 begint**: vanaf daar is de ontwikkelsample geboekt, en een meting die gezien is, kan niet meer ongezien worden.
 
 **Files:**
 - Modify (door de CLI): `artefacts/governance/holdout_lock.json`, `artefacts/governance/hypothesis_ledger.json`
@@ -3637,7 +4193,7 @@ Expected: `holdout split 2026-06-24T00:00:00+00:00; preregistratie preregistrati
 - [ ] **Step 3: Controleer en commit het bevriezen apart**
 
 Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_ledger_provenance.py tests/unit/test_ledger_reset.py tests/unit/test_measurement_carries_policy_hash.py tests/unit/test_holdout.py -p no:randomly -q`
-Expected: PASS. (`test_the_restart_is_documented_in_the_artefact` blijft groen: `seed_total` is nog 0.)
+Expected: PASS.
 
 ```bash
 git add artefacts/governance/holdout_lock.json artefacts/governance/hypothesis_ledger.json artefacts/governance/preregistration_*.json
@@ -3646,12 +4202,10 @@ git commit -m "governance(weekly): freeze the holdout split, book M = 4, and fre
 
 - [ ] **Step 4: Draai de campagne**
 
-Run: `D:/venv/tradebot/Scripts/python.exe -m tradebot.validation.weekly_campaign`
+Run: `D:/venv/tradebot/Scripts/python.exe -m tradebot.validation.weekly_campaign` (reken op tientallen minuten: drie modellen met inner walk-forward, vijf permutaties, 15 CPCV-splits en de selectie-nul)
 Expected: een JSON-oordeel met `status` in `PASS | INVALID | UNPROVEN | FALSIFIED` en de bindende criteria.
 
 - [ ] **Step 5: Boek het oordeel als amendement en commit**
-
-Voeg met één Python-aanroep een amendement toe (`n_trials=0`, `amends` = de `config_hash` van de `weekly_meta_programme`-entry), met `result` = `interim` bij PASS, `falsified` bij FALSIFIED, anders `archived`, en `metrics = {"verdict": <status>, **values}`:
 
 ```python
 import json
@@ -3685,21 +4239,26 @@ git commit -m "governance(weekly): the development verdict, booked as an amendme
 
 - [ ] **Step 6: Rapporteer aan de eigenaar**
 
-Geef het oordeel, de bindende criteria, de netto Sharpe met SE, de DSR, het aantal trades, het trefpercentage tegen break-even, de PBO, de Monte Carlo-drawdownkans en de CPCV-padverdeling. Bij iets anders dan `PASS`: stop hier (spec §14); Taak 14 wordt niet uitgevoerd en er wordt aan geen enkele parameter gedraaid.
+Geef: het oordeel en de bindende criteria; per poort G1–G8 het gemeten getal naast de drempel; de netto Sharpe van het Kelly-boek met SE en interval; de DSR; ΔSR gefilterd − ongefilterd met interval; de selectie-nul-p-waarde; het aantal gesloten trades en hun trefpercentage tegen het gemiddelde ex-ante `p_be`; de PBO; de Monte Carlo-drawdownkans; de CPCV-padsharpes per variant en de rang van het ensemble per pad; het omgekeerde signaal als diagnose. Bij iets anders dan `PASS`: stop hier (spec §14); Taak 14 stap 6 wordt niet uitgevoerd en er wordt aan geen enkele parameter gedraaid.
 
 ---
 
-### Task 14: De holdout-rooktest (alleen na `PASS`)
+### Task 14: De holdout-rooktest (code nu; lezen alleen na `PASS`)
 
 **Files:**
 - Create: `src/tradebot/validation/weekly_holdout.py`
 - Test: `tests/unit/test_weekly_holdout.py`
 
 **Interfaces:**
-- Consumes: `gate_slice(frame, *, lock_path, hypothesis_id)` (`validation/holdout.py`); `build_weekly_dataset`, `fit_light_model`, `trade_candidates`, `run_barrier_book`, `judge`; `circular_block_indices`.
+- Consumes: `gate_slice(frame, *, lock_path, hypothesis_id)` (`validation/holdout.py`); `build_weekly_dataset` (Taak 6); `fit_light_model` (Taak 7); `trade_candidates` (Taak 11); `run_barrier_book`, `BookInputs`, `SizingRule` (Taak 9); `judge` (Taak 10); `TradeCostModel`, `load_impact_params` (Taak 3); `circular_block_indices` (`validation/inference.py`); `scipy.stats.ks_2samp`.
 - Produces:
-  - `holdout_brier_difference(p: np.ndarray, y: np.ndarray, base_rate: float, *, seed: int, n_boot: int = 2000) -> tuple[float, float]` (punt, 95%-ondergrens van Brier(model) − Brier(basisfrequentie))
+  - `require_pass(campaign_path: Path) -> dict`
+  - `holdout_brier_difference(p, y, base_rate, *, seed, n_boot=2000) -> tuple[float, float]` — punt en 95 %-ondergrens van `Brier(model) − Brier(basisfrequentie)`
+  - `probability_shift(p_holdout, p_dev) -> tuple[float, float]` — `|gemiddelde verschil|` en de KS-p-waarde
+  - `holdout_values(*, p, y, base_rate, p_dev, holdout_return, dev_q01, seed) -> dict[str, float]` — precies de sleutels van `HOLDOUT_METRICS`
   - `run_holdout_smoke(root: Path) -> dict` en CLI `python -m tradebot.validation.weekly_holdout`
+
+**Het contract (spec §9.8):** alleen na een ontwikkeloordeel `PASS`. De lezing wordt geregistreerd vóór er een uitkomst wordt bekeken (`gate_slice`). Het ensemble wordt gefit op alle ontwikkelevents met `exit_bar < split` (met OOF-kalibratie binnen die events) en scoort ALLE holdout-events voor H1 en H2; het Kelly-boek handelt de holdout-events met de drempels en posteriors uit die fit voor H3. `k` en `d*` komen uit het campagne-artefact, niet opnieuw geschat.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3713,7 +4272,13 @@ import numpy as np
 import pytest
 
 from tradebot.utils.failfast import DataContractError
-from tradebot.validation.weekly_holdout import holdout_brier_difference, require_pass
+from tradebot.validation.weekly_holdout import (
+    holdout_brier_difference,
+    holdout_values,
+    probability_shift,
+    require_pass,
+)
+from tradebot.validation.weekly_verdict import HOLDOUT_METRICS
 
 
 def test_a_perfect_model_beats_the_base_rate() -> None:
@@ -3726,6 +4291,25 @@ def test_a_confidently_wrong_model_is_significantly_worse() -> None:
     y = np.array([0, 1] * 30)
     point, low = holdout_brier_difference(1.0 - y.astype(float), y, 0.5, seed=1)
     assert point > 0.0 and low > 0.0
+
+
+def test_the_probability_shift_sees_a_moved_distribution() -> None:
+    rng = np.random.default_rng(3)
+    dev = rng.uniform(0.4, 0.6, 1000)
+    same_mean, same_p = probability_shift(rng.uniform(0.4, 0.6, 60), dev)
+    moved_mean, moved_p = probability_shift(rng.uniform(0.55, 0.75, 60), dev)
+    assert same_mean < 0.05 and same_p > 0.01
+    assert moved_mean > 0.05 and moved_p < 0.01
+
+
+def test_the_holdout_values_are_exactly_the_holdout_metrics() -> None:
+    y = np.array([0, 1] * 30)
+    values = holdout_values(p=np.full(60, 0.5), y=y, base_rate=0.5,
+                            p_dev=np.full(100, 0.5) + np.linspace(-0.01, 0.01, 100),
+                            holdout_return=0.02, dev_q01=-0.15, seed=1)
+    assert set(values) == set(HOLDOUT_METRICS)
+    assert values["holdout_return_minus_dev_q01"] == pytest.approx(0.17)
+    assert all(np.isfinite(v) for v in values.values())
 
 
 def test_the_holdout_is_refused_without_a_pass(tmp_path) -> None:
@@ -3745,13 +4329,18 @@ Expected: FAIL, `ModuleNotFoundError: No module named 'tradebot.validation.weekl
 
 ```python
 # src/tradebot/validation/weekly_holdout.py
-"""De eenmalige holdout-rooktest (spec §9, R7).
+"""De eenmalige holdout-rooktest (spec §9.8, R7).
 
 Alleen na een ontwikkeloordeel PASS. De lezing wordt geregistreerd VOORDAT er
-een uitkomst wordt bekeken (`gate_slice`). Het model wordt gefit op alle
-ontwikkelevents waarvan het label vóór de split eindigt, en scoort ALLE
-holdout-events: bij 4-16 trades is een trefkans geen bewijs, een
-kalibratietoets op ~50 events wel een rooktest.
+een uitkomst wordt bekeken (`gate_slice`). Drie numerieke toetsen, elk een
+bevroren stop-criterium:
+
+* H1 -- Brier(model) - Brier(basisfrequentie) op ALLE holdout-events: niet meer
+  dan de marge, en niet significant boven nul;
+* H2 -- de verdeling van de holdout-kansen tegen die van de ontwikkel-OOS:
+  verschil in gemiddelde en een tweesteekproef-KS;
+* H3 -- het 60-daagse rendement van het Kelly-boek tegen het 1e percentiel van
+  de 60-daagse rollende rendementen in de ontwikkel-OOS.
 """
 from __future__ import annotations
 
@@ -3761,23 +4350,31 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
+from ..backtest.barrier_book import BookInputs, SizingRule, run_barrier_book
 from ..data.weekly_market import load_weekly_market
+from ..execution.trade_costs import TradeCostModel, load_impact_params
 from ..features.registry import current_git_sha
-from ..labeling.barrier_fills import round_trip_cost
+from ..features.weekly_set import market_features
 from ..registry.preregistration import require_preregistration
-from ..schemas.config import ExecutionConfig, load_config
+from ..risk.engine import RiskEngine
+from ..schemas.config import ExecutionConfig, RiskConfig, load_config
 from ..schemas.weekly_meta import weekly_meta_config
 from ..train.light_models import fit_light_model
+from ..train.meta_label import FoldPredictions
 from ..train.weekly_dataset import build_weekly_dataset
 from ..utils.failfast import DataContractError, require
 from .holdout import gate_slice
 from .inference import circular_block_indices
+from .weekly_campaign import trade_candidates
 from .weekly_verdict import judge
 
-__all__ = ["holdout_brier_difference", "require_pass", "run_holdout_smoke"]
+__all__ = ["holdout_brier_difference", "holdout_values", "probability_shift",
+           "require_pass", "run_holdout_smoke"]
 
 CAMPAIGN = Path("artefacts/governance/weekly_meta_campaign.json")
+RESULT = Path("artefacts/governance/weekly_meta_holdout.json")
 
 
 def require_pass(campaign_path: Path) -> dict[str, Any]:
@@ -3791,39 +4388,75 @@ def require_pass(campaign_path: Path) -> dict[str, Any]:
 def holdout_brier_difference(
     p: np.ndarray, y: np.ndarray, base_rate: float, *, seed: int, n_boot: int = 2000,
 ) -> tuple[float, float]:
-    """Brier(model) - Brier(basisfrequentie): punt en 95%-ondergrens (circulaire blokbootstrap)."""
+    """Brier(model) - Brier(basisfrequentie): punt en 95 %-ondergrens (circulaire blokbootstrap)."""
     p, y = np.asarray(p, dtype=np.float64), np.asarray(y, dtype=np.float64)
     d = (p - y) ** 2 - (base_rate - y) ** 2
     idx = circular_block_indices(d.size, max(1, d.size // 10), n_boot, np.random.default_rng(seed))
     return float(d.mean()), float(np.quantile(d[idx].mean(axis=1), 0.05))
 
 
+def probability_shift(p_holdout: np.ndarray, p_dev: np.ndarray) -> tuple[float, float]:
+    """(|gemiddelde(holdout) - gemiddelde(dev)|, tweesteekproef-KS-p-waarde)."""
+    ph, pd_ = np.asarray(p_holdout, dtype=np.float64), np.asarray(p_dev, dtype=np.float64)
+    return float(abs(ph.mean() - pd_.mean())), float(stats.ks_2samp(ph, pd_).pvalue)
+
+
+def holdout_values(
+    *, p: np.ndarray, y: np.ndarray, base_rate: float, p_dev: np.ndarray,
+    holdout_return: float, dev_q01: float, seed: int,
+) -> dict[str, float]:
+    point, low = holdout_brier_difference(p, y, base_rate, seed=seed)
+    shift, ks_p = probability_shift(p, p_dev)
+    return {"holdout_brier_diff": point, "holdout_brier_diff_ci_low": low,
+            "holdout_mean_prob_shift_abs": shift, "holdout_ks_pvalue": ks_p,
+            "holdout_return_minus_dev_q01": float(holdout_return - dev_q01)}
+
+
 def run_holdout_smoke(root: Path) -> dict[str, Any]:
     cfg = weekly_meta_config()
     record = require_pass(root / CAMPAIGN)
     prereg_id = record["preregistration_id"]
-    prereg = require_preregistration(prereg_id, directory=root / "artefacts/governance")
+    gov = root / "artefacts/governance"
+    prereg = require_preregistration(prereg_id, directory=gov)
     market = load_weekly_market(root, cfg.symbols)
-    gate = gate_slice(pd.DataFrame(index=market.grid),
-                      lock_path=root / "artefacts/governance/holdout_lock.json",
+    gate = gate_slice(pd.DataFrame(index=market.grid), lock_path=gov / "holdout_lock.json",
                       hypothesis_id=prereg_id)
     split_pos = int(market.grid.searchsorted(gate.index[0]))
-    cost_rt = round_trip_cost(load_config(root / "conf/execution/fees.yaml", ExecutionConfig))
-    wd = build_weekly_dataset(market, cfg, k=record["k"], d_star=record["d_star"], cost_rt=cost_rt)
+    risk_cfg = load_config(root / "conf/risk/default.yaml", RiskConfig)
+    costs = TradeCostModel.from_config(
+        load_config(root / "conf/execution/fees.yaml", ExecutionConfig),
+        stop_slippage_bps=cfg.stop_slippage_bps,
+        impact=load_impact_params(root / "conf/execution/impact.yaml"))
+    wd = build_weekly_dataset(market, cfg, k=record["k"], d_star=record["d_star"], costs=costs)
     ds = wd.dataset
     train = np.flatnonzero(ds.exit_bar < split_pos)
     test = np.flatnonzero(ds.event_bar >= split_pos)
     require(test.size > 0, "Geen enkel volledig gelabeld event in de holdout.", DataContractError)
-    model = fit_light_model(ds, train, ds.target, "ensemble", cfg)
+    model = fit_light_model(ds, train, ds.target, "ensemble", cfg,
+                            embargo_bars=cfg.horizon_bars + 1)
     p = model.predict_proba(ds.features.iloc[test].to_numpy(dtype=np.float64))[:, 1]
-    y = ds.target[test]
-    point, low = holdout_brier_difference(p, y, float(ds.target[train].mean()), seed=cfg.seed)
-    verdict = judge(prereg.stop_criteria, {"holdout_brier_diff_ci_low": low}, stage="holdout")
-    out = {"verdict": verdict.as_dict(), "n_events": int(test.size),
-           "brier_difference": point, "brier_difference_ci_low": low,
-           "preregistration_id": prereg_id, "git_sha": current_git_sha()}
-    (root / "artefacts/governance/weekly_meta_holdout.json").write_text(
-        json.dumps(out, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    fp = FoldPredictions(fold_id=0, row_index=test, probability=p, target=ds.target[test],
+                         uniqueness=ds.uniqueness[test], n_train=int(train.size), purge={},
+                         feature_importance=model.feature_importance, extras=model.fold_extras)
+    closes = pd.DataFrame({s: market.ohlcv[s]["close"] for s in market.symbols})
+    corr = market_features(np.log(closes).diff(), window=cfg.corr_window)["avg_corr60"]
+    kelly = run_barrier_book(
+        trade_candidates(wd.events, [fp], cfg=cfg, costs=costs,
+                         max_notional=risk_cfg.max_position_pct * cfg.account_equity),
+        BookInputs(market=market, avg_corr=corr, costs=costs), RiskEngine(risk_cfg),
+        SizingRule("kelly", cfg.kelly_multiple, cfg.baseline_risk_fraction, cfg.resize_band),
+        equity0=cfg.account_equity)
+    holdout_return = float(np.prod(1.0 + kelly.returns.iloc[split_pos:].to_numpy()) - 1.0)
+    values = holdout_values(p=p, y=ds.target[test], base_rate=float(ds.target[train].mean()),
+                            p_dev=np.asarray(record["dev_oos_probabilities"]),
+                            holdout_return=holdout_return,
+                            dev_q01=float(record["dev_kelly_rolling60_q01"]), seed=cfg.seed)
+    verdict = judge(prereg.stop_criteria, values, stage="holdout")
+    out = {"verdict": verdict.as_dict(), "values": values, "n_events": int(test.size),
+           "n_trades": int(len(kelly.trades)), "preregistration_id": prereg_id,
+           "git_sha": current_git_sha()}
+    with open(root / RESULT, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(out, indent=2, sort_keys=True) + "\n")
     return out
 
 
@@ -3834,24 +4467,24 @@ if __name__ == "__main__":
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `D:/venv/tradebot/Scripts/python.exe -m pytest tests/unit/test_weekly_holdout.py -p no:randomly -q`
-Expected: PASS (3 tests).
+Expected: PASS (5 tests).
 
 - [ ] **Step 5: Commit de code**
 
 ```bash
 git add src/tradebot/validation/weekly_holdout.py tests/unit/test_weekly_holdout.py
-git commit -m "feat(validation): the one-shot holdout smoke test, refused without a development PASS"
+git commit -m "feat(validation): the one-shot holdout smoke test -- Brier, probability shift, return floor -- refused without a PASS"
 ```
 
-- [ ] **Step 6 (alleen bij PASS, na go van de eigenaar): Lees de holdout één keer**
+- [ ] **Step 6 (alleen bij `PASS`, na go van de eigenaar): Lees de holdout één keer**
 
 Run: `D:/venv/tradebot/Scripts/python.exe -m tradebot.validation.weekly_holdout`
-Commit `artefacts/governance/holdout_lock.json` (nu met één lezing) en `artefacts/governance/weekly_meta_holdout.json`, en boek een ledger-amendement zoals in Taak 13 stap 5 met `unit="weekly_meta_holdout"`. Rapporteer. Bij `PASS` volgt het schrijven van Plan 2 (live); bij iets anders stopt het programma hier.
+Commit `artefacts/governance/holdout_lock.json` (nu met één lezing) en `artefacts/governance/weekly_meta_holdout.json`, en boek een ledger-amendement zoals in Taak 13 stap 5 met `unit="weekly_meta_holdout"`. Rapporteer H1–H3 met hun getallen. Alle drie groen: Plan 2 (live) wordt geschreven. Eén rood: het programma stopt hier.
 
 ---
 
-## Self-review (uitgevoerd bij het schrijven)
+## Self-review (uitgevoerd bij het schrijven, herzien na de methodologische review)
 
-- **Spec-dekking:** §4 data → T4; §5 events en k → T2; §6 labels, 1:1, pessimistische dubbele touch (bestaand in `vol_barriers`), kostenbewust doel, uniqueness (bestaand in `build_dataset`) → T3, T6; §7 features → T5 (GARCH vervallen, §17.4); §8 modellen en kalibratie → T7; §9 holdout, M, walk-forward, CPCV, negatieve controles, inferentie → T11, T12, T13, T14; §10 barrièretheorie, break-even, handelsdrempel, Kelly, posterior, correlatie, drawdown → T8, T9, T11; §11 mandaat via `RiskEngine`, exits op de barrière → T9; §12 kosten → T3, T9; §13 live-bewaking → Plan 2; §14 stopregels → T10, T12, T13.
-- **Bewust niet in Plan 1:** SPRT en Beta-posterior-bewaking live, papertrading, orders bij de exchange, data bijwerken (Plan 2).
-- **Typeconsistentie:** `fit_light_model(dataset, rows, labels, kind, cfg)` in T7, T11, T14; `trade_candidates(events, folds, *, cfg, cost_rt)` in T11 en de CPCV-helper; `run_barrier_book(candidates, inputs, risk, sizing, *, equity0)` in T9, T11; `judge(criteria, values, *, stage)` in T10, T11, T14; `build_weekly_dataset(market, cfg, *, k, d_star, cost_rt, side_sign)` in T6, T11, T14.
+- **Spec-dekking:** §4 data → T4; §5 events en k → T2; §6.1 labels → T3, T6; §6.2 de ene kostendefinitie (label, ex ante, P&L) → T3, T6, T9, T11; §7 features → T5; §8 modellen en OOF-kalibratie → T7; §9.1–9.2 holdout en M → T12, T13; §9.3 walk-forward → T11; §9.4 labelpermutatie als enige ongeldigheidscontrole, omgekeerd als diagnose → T10, T11, T12; §9.5 CPCV-paden, rangorde en PBO → T11; §9.6 inferentie en nul-guards → T11; §9.7 vergelijking op één kalenderas en selectie-nul → T11; §9.8 numerieke holdout → T12, T14; §10.1–10.3 barrièretheorie, break-even, OOF-drempel → T8, T11; §10.4 Kelly op een Beta-posterior van gerealiseerde OOF-uitkomsten, correlatie → T8, T9, T11; §10.5 Monte Carlo → T8, T11; §11–12 risicolaag en executieconventie → T3, T9; §14 stopregels en voorrang → T10, T12.
+- **Bewust niet in Plan 1:** papertrading, echte orders bij de exchange, live Beta-posterior op live-uitkomsten en SPRT, data bijwerken (Plan 2).
+- **Typeconsistentie:** `TradeCostModel` in T3, T6, T9, T11, T14; `fit_light_model(dataset, rows, labels, kind, cfg, *, embargo_bars)` in T7, T11, T14; `trade_candidates(events, folds, *, cfg, costs, max_notional)` in T11, T14; `run_barrier_book(candidates, inputs, risk, sizing, *, equity0)` met `BookInputs(market, avg_corr, costs)` en `SizingRule(mode, kelly_multiple, fixed_risk_fraction, resize_band)` in T9, T11, T14; `judge(criteria, values, *, stage)` in T10, T11, T14; `build_weekly_dataset(market, cfg, *, k, d_star, costs, side_sign)` in T6, T11, T14; `empirical_bins(oof_probability, oof_target, *, n_bins, quantile)` in T8, T11; events-kolommen `barrier, funding_recent_mean, adv_usd, sigma_daily_event` uit T6 in T11.
