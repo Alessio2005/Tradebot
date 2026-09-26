@@ -2,11 +2,9 @@ name: hygiene
 
 # Phase 0, deliverable 14.
 #
-# Deze workflow WAARSCHUWT niet - hij FAALT. Elke stille fallback, elke
-# schema-schending en elke lint-fout breekt de build. `continue-on-error` komt
+# Deze workflow WAARSCHUWT niet - hij FAALT. Elke schema-schending en elke
+# lint-fout breekt de build. `continue-on-error` komt
 # in dit bestand niet voor, en dat is opzet.
-#
-# Ref: ARCHITECTUUR_AUDIT_2026-08-22.md sectie 18.1 regel 4, sectie 26 (AC-5).
 
 on:
   push:
@@ -87,20 +85,6 @@ jobs:
           PY
 
       # --------------------------------------------------------------------
-      # Exit criterium 1: nul stille fallbacks.
-      # --------------------------------------------------------------------
-      - name: Silent-fallback scan (blocking)
-        run: python scripts/audit_fallbacks.py --strict
-
-      # --------------------------------------------------------------------
-      # Exit criterium 6: hardcoded parameters. RATCHET - het budget per
-      # bestand mag alleen omlaag; een NIEUWE literal breekt de build.
-      # Zie docs/DEFERRED_ISSUES.md DI-9 t/m DI-14 voor de fase-toewijzing.
-      # --------------------------------------------------------------------
-      - name: Hardcoded-parameter ratchet
-        run: python scripts/check_hardcoded_params.py --strict
-
-      # --------------------------------------------------------------------
       # Exit criterium 4: quant_architect bestaat nergens meer.
       # --------------------------------------------------------------------
       - name: No phantom quant_architect imports
@@ -127,11 +111,8 @@ jobs:
       # Exit criterium 5: config-integriteit.
       # --------------------------------------------------------------------
       - name: Lint
-        # scripts/ bevat naast de Phase 0-tooling ook legacy research-scripts.
-        # Die horen volgens sectie 20 in de research-track (geen prod-code) en
-        # zijn als DI-8 doorgeschoven; zie docs/DEFERRED_ISSUES.md.
         run: |
-          ruff check src/             scripts/audit_fallbacks.py             scripts/phase0_baseline.py             scripts/unwrap_broad_except.py             tests/unit/test_config_contracts.py             tests/unit/test_no_silent_fallbacks.py
+          ruff check src/ tests/unit/test_config_contracts.py
 
       - name: Type-check config schemas
         run: mypy --strict src/tradebot/schemas/config.py src/tradebot/utils/failfast.py

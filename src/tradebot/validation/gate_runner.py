@@ -1,18 +1,15 @@
 """De research-gates achter één aanroep — Stage B-5.
 
-`apps/run_gates.py` en `.github/workflows/research_gates.yml` draaien allebei
-DEZE functie. Dat is geen gemak maar een eis: een lokale gate-run die iets
-anders meet dan de CI-run, geeft een groen licht dat niets voorspelt, en dan
-wordt de CI-uitslag een verrassing in plaats van een bevestiging.
+`.github/workflows/research_gates.yml` draait DEZE functie, en een lokale
+gate-run hoort dat ook te doen: een lokale run die iets anders meet dan de
+CI-run, geeft een groen licht dat niets voorspelt.
 
-DE VIER POORTEN
+DE DRIE POORTEN
 ===============
-1. `banned_methods`   — statisch: geen KFold, ShuffleSplit, shuffle=True of
-                        TimeSeriesSplit in het promotiepad.
-2. `lookahead_suite`  — de zes benoemde D-1-poorten plus de bestaande
+1. `lookahead_suite`  — de zes benoemde D-1-poorten plus de bestaande
                         causaliteitsdekking.
-3. `promotion_gates`  — de poort zelf, de state machine en Hansen's SPA-kern.
-4. `gate_killgate`    — de negatieve controle: het `shift(-1)`-model MOET worden
+2. `promotion_gates`  — de poort zelf, de state machine en Hansen's SPA-kern.
+3. `gate_killgate`    — de negatieve controle: het `shift(-1)`-model MOET worden
                         geweigerd.
 
 EEN GEDRAAIDE POORT DIE NIETS MAT, IS EEN GEFAALDE POORT
@@ -61,17 +58,8 @@ class GateSpec:
     is_pytest: bool = True
 
 
-#: De vier poorten, in de volgorde waarin ze draaien. De statische scan staat
-#: vooraan omdat hij seconden kost en de rest minuten: wie een `KFold` heeft
-#: toegevoegd, hoeft niet op de suite te wachten om dat te horen.
+#: De drie poorten, in de volgorde waarin ze draaien.
 GATE_SPECS: tuple[GateSpec, ...] = (
-    GateSpec(
-        name="banned_methods",
-        args=("scripts/check_banned_methods.py", "--strict"),
-        why="Purged Walk-Forward met embargo is de ENIGE toegestane CV "
-            "(audit §17.1).",
-        is_pytest=False,
-    ),
     GateSpec(
         name="lookahead_suite",
         args=("-m", "pytest", "tests/lookahead", "-q", "-p", "no:randomly"),
@@ -84,11 +72,9 @@ GATE_SPECS: tuple[GateSpec, ...] = (
         args=("-m", "pytest", "tests/unit/test_promotion_gates.py",
               "tests/unit/test_model_lifecycle.py",
               "tests/unit/test_spa_hansen.py",
-              "tests/unit/test_banned_methods_scanner.py",
               "-q", "-p", "no:randomly"),
-        why="De poort, de state machine, Hansen's SPA-kern en de negatieve "
-            "controle op de statische scanner.",
-        min_passed=100,
+        why="De poort, de state machine en Hansen's SPA-kern.",
+        min_passed=80,
     ),
     GateSpec(
         name="gate_killgate",

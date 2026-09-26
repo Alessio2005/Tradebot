@@ -15,7 +15,6 @@ on:
       - "src/tradebot/live/**"
       - "src/tradebot/oms/**"
       - "src/tradebot/compliance/**"
-      - "apps/live_trader.py"
       - "conf/**"
       - ".github/workflows/paper-trade-ci.yml"
 
@@ -53,7 +52,7 @@ jobs:
 
       - name: Install runtime deps
         # Gepind (DI-16). De `ingestion`-extra staat hier NIET meer: hij levert
-        # alleen ccxt, en `grep -rn "import ccxt" src/ apps/ tests/ scripts/`
+        # alleen ccxt, en `grep -rn "import ccxt" src/ tests/`
         # geeft nul treffers -- pyproject.toml regel 76 zegt ook met zoveel
         # woorden dat geen ingestion-pad ervan afhangt. dvc zit al in
         # requirements.lock als harde dependency.
@@ -68,7 +67,7 @@ jobs:
           path: |
             artefacts/
             .dvc/cache
-          key: paper-trade-artefacts-${{ runner.os }}-${{ hashFiles('dvc.yaml','params.yaml') }}
+          key: paper-trade-artefacts-${{ runner.os }}-${{ hashFiles('params.yaml') }}
           restore-keys: |
             paper-trade-artefacts-${{ runner.os }}-
 
@@ -78,31 +77,11 @@ jobs:
           path: ${{ env.NUMBA_CACHE_DIR }}
           key: numba-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('src/tradebot/bars/_kernels.py','src/tradebot/cv/uniqueness.py') }}
 
-      - name: Doctor pre-flight
-        run: python -m apps.doctor
-
-      - name: DVC repro (pull cached artefacts)
-        run: |
-          dvc repro || dvc repro --force
-        env:
-          DVC_NO_ANALYTICS: "1"
-
       - name: Run paper-trade smoke (24 h)
         run: |
           mkdir -p "${TRADEBOT_LIVE_STATE_DIR}"
           pytest -m e2e tests/e2e/test_paper_trade_smoke.py -q --tb=short \
             --timeout=3600 -o log_cli=true -o log_cli_level=INFO
-
-      # Bewust gemaskeerd: dit is een RAPPORTgenerator, geen poort. De poort is
-      # de stap eronder (`Verify circuit-breaker not triggered`) en de smoke-test
-      # erboven; beide zijn ongemaskeerd. Het rapport draait op `if: always()`
-      # zodat het er ook is als de smoke rood staat -- juist dan is het nuttig.
-      - name: Generate post-trade report
-        if: always()
-        run: |
-          python scripts/paper_trade_report.py \
-            --state-dir "${TRADEBOT_LIVE_STATE_DIR}" \
-            --output     paper_trade_report.md || true
 
       - name: Verify circuit-breaker not triggered
         run: |
@@ -128,9 +107,7 @@ jobs:
         if: always()
         with:
           name: paper-trade-state-${{ github.run_id }}
-          path: |
-            ${{ env.TRADEBOT_LIVE_STATE_DIR }}/
-            paper_trade_report.md
+          path: ${{ env.TRADEBOT_LIVE_STATE_DIR }}/
           retention-days: 30
 
       - name: Slack notification on failure

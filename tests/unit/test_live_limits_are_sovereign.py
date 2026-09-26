@@ -179,14 +179,6 @@ class TestModelConfidenceIsGoneFromLive:
             f"`min_confidence` leeft nog als code in: {offenders}. Audit §14 "
             f"sluit modelvertrouwen als sizingparameter uit; no-go 8.")
 
-    def test_no_app_constructs_a_runner_with_min_confidence(self) -> None:
-        """De poort is pas dicht als ook de aanroepers hem niet meer zetten."""
-        offenders = [
-            hit for path in sorted((ROOT / "apps").glob("*.py"))
-            for hit in _confidence_identifiers(path)
-        ]
-        assert not offenders, f"`min_confidence` wordt nog gezet in: {offenders}"
-
     def test_the_detector_itself_can_go_red(self, tmp_path: Path) -> None:
         """Negatieve controle op de detector.
 
@@ -254,15 +246,6 @@ class TestTheBreakerThresholdsAreNotDuplicatedInCode:
     aanscherpte, liet deze app stilzwijgend op de oude limieten doorhandelen.
     `live/engine.py` was hier al voor gerepareerd; de app niet.
     """
-
-    def test_no_app_hardcodes_a_policy_owned_threshold(self) -> None:
-        offenders = [
-            hit for path in sorted((ROOT / "apps").glob("*.py"))
-            for hit in _hardcoded_breaker_thresholds(path)
-        ]
-        assert not offenders, (
-            f"Deze aanroepers zetten een breaker-drempel die de policy bezit: "
-            f"{offenders}. Gebruik `CircuitBreakerConfig.from_risk_config()`.")
 
     def test_no_live_module_hardcodes_one_either(self) -> None:
         offenders = [

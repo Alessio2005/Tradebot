@@ -280,7 +280,6 @@ class TestThePromotionPathUsesThePerFoldFit:
 
     @pytest.mark.parametrize("rel", [
         "src/tradebot/tune/objective.py",
-        "apps/train_cpcv.py",
     ])
     def test_no_global_orthogonalizer_fit_in_the_training_path(
         self, rel: str
@@ -295,7 +294,6 @@ class TestThePromotionPathUsesThePerFoldFit:
 
     @pytest.mark.parametrize("rel", [
         "src/tradebot/tune/objective.py",
-        "apps/train_cpcv.py",
     ])
     def test_the_training_path_does_call_the_per_fold_fit(self, rel: str) -> None:
         """Anders zou het bestand ook slagen door helemaal niet te schalen."""

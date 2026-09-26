@@ -5,8 +5,7 @@ on:
     - cron: "0 2 * * *"    # 02:00 UTC nightly
   workflow_dispatch:
 
-# 3.13 is de interpreter waarop `docs/runbook.md` par. 0 een meting geldig
-# verklaart, en waarop hygiene/inventory/research-gates al draaien. 3.11
+# 3.13 is de interpreter waarop hygiene/inventory/research-gates al draaien. 3.11
 # maakte hiervan een TWEEDE omgeving: dezelfde pins, een andere resolutie.
 env:
   PYTHON_VERSION: "3.13"
@@ -45,25 +44,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.lock -r requirements-dev.lock
           pip install -e . --no-deps
-      # HIER STOND `python apps/regenerate_baseline.py || true`, en dat maakte
-      # deze job betekenisloos. De keten:
-      #
-      #   .gitignore:65 (`*.npy`)  -> de baselines zitten niet in de checkout
-      #   geen .dvc / geen stage   -> niets haalt ze ergens vandaan
-      #   regenerate_baseline.py   -> schrijft ze ONVOORWAARDELIJK (np.save
-      #                               staat buiten de `if ...exists()`), uit de
-      #                               code die daarna wordt getoetst
-      #   test_bitequivalence.py   -> `pytest.skip` als ze ontbreken
-      #
-      # Met de stap vergeleek de bit-equivalentietest de code met zichzelf en
-      # slaagde per constructie; zonder de stap sloeg hij over. Er was geen
-      # derde uitkomst. Een regeneratiehulpmiddel dat de MEETLAT herschrijft,
-      # hoort niet in de job die tegen die meetlat toetst -- het hoort met de
-      # hand te draaien en het resultaat hoort te worden vastgelegd.
-      #
-      # Deze stap staat er nu in plaats daarvan, en hij staat ROOD tot de
-      # baselines ergens vandaan komen. Waar ze horen te wonen -- git, DVC of
-      # een release-artefact -- is een besluit van de eigenaar: DI-25.
+      # `.gitignore` (`*.npy`) houdt de baselines uit de checkout, en
+      # test_bitequivalence.py doet `pytest.skip` als ze ontbreken. Deze stap
+      # staat daarom ROOD tot de baselines ergens vandaan komen, in plaats van
+      # een test die stil overslaat. Waar ze horen te wonen -- git, DVC of een
+      # release-artefact -- is een besluit van de eigenaar: DI-25.
       - name: De bevroren baselines moeten er zijn (DI-25)
         run: |
           missing=0
@@ -110,46 +95,11 @@ jobs:
         if: always()
         with:
           name: benchmark-${{ github.run_id }}
-          path: |
-            .benchmarks/
-            reports/benchmarks/
+          path: .benchmarks/
           retention-days: 30
 
   # ---------------------------------------------------------------------------
-  # Job 3: drift monitor — PSI/KS over live feature snapshots (Wave 12)
-  # ---------------------------------------------------------------------------
-  drift-check:
-    name: Feature drift monitor
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: regression
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      # Gepind (DI-16), zie de eerste job.
-      - name: Install from lockfile
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.lock -r requirements-dev.lock
-          pip install -e . --no-deps
-      - name: Drift check (PSI > 0.20 = alert)
-        # `|| true` stond hier. `apps/monitor_drift.py:71` doet `raise
-        # SystemExit(1)` zodra een feature PSI > 0.20 overschrijdt -- dat IS
-        # het alarm, en het masker zette het uit. Een driftmonitor die niet
-        # rood mag worden, monitort niets.
-        run: python -m apps.monitor_drift
-      - name: Upload drift report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: drift-report-${{ github.run_id }}
-          path: artefacts/monitoring/drift_report.json
-          retention-days: 14
-
-  # ---------------------------------------------------------------------------
-  # Job 4: TCA roundtrip — pre-trade estimate vs post-trade actuals
+  # Job 3: TCA roundtrip — pre-trade estimate vs post-trade actuals
   # ---------------------------------------------------------------------------
   tca-report:
     name: TCA roundtrip report

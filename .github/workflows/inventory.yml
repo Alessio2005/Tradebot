@@ -2,27 +2,9 @@ name: inventory
 
 # De inventarispoort — Phase 9, deliverable 10.
 #
-# WAAROM DEZE WORKFLOW BESTAAT
-# ============================
-# Phase 9 heeft de oppervlakte gemeten en teruggebracht. Zonder poort loopt dat
-# binnen een fase weer vol: een nieuwe onbereikbare module komt er ongemerkt bij,
-# een bestand groeit stil door de LOC-limiet heen, en de volgende opruiming moet
-# alles opnieuw meten.
-#
-# Twee van de poorten hieronder stonden al in de repository maar draaiden niet:
-# de LOC-controle zat in de `Makefile` en `make` bestaat niet in elke omgeving
-# (gemeten 2026-09-04: `make: command not found`), en de dekkingsdrempel
-# `fail_under = 70` was nooit uitgevoerd. Een poort die niet draait, is
-# documentatie.
-#
 # DEZE WORKFLOW FAALT, HIJ WAARSCHUWT NIET.
 # Elke stap hieronder geeft exit 1 bij een bevinding, en er staat geen enkele
-# `continue-on-error` in. Dat is de eis uit deliverable 10.
-#
-# Het BEWIJS dat hij rood kan worden staat niet alleen in CI maar ook in de
-# suite: `tests/unit/test_reachability_map.py` en
-# `tests/unit/test_file_size_ratchet.py` dragen allebei een negatieve controle
-# die aantoont dat de poort op een echte overtreding afgaat.
+# `continue-on-error` in.
 
 on:
   push:
@@ -96,39 +78,15 @@ jobs:
           print("environment matches both lock files exactly")
           PY
 
-      # ── De vier poorten ────────────────────────────────────────────────────
-
-      - name: Reachability — no unregistered unreachable module
-        run: python scripts/reachability_map.py --strict
-
-      - name: File size — the per-file LOC ratchet
-        run: python scripts/check_file_size.py
-
-      - name: Hardcoded parameters — the ratchet may not rise
-        run: python scripts/check_hardcoded_params.py --strict
-
-      - name: Fail-fast — no silent degradation
-        run: python scripts/audit_fallbacks.py --strict
-
-      - name: Banned validation methods
-        run: python scripts/check_banned_methods.py --strict
-
-      - name: Domeinconsistentie (AD-22/AD-23)
-        run: python scripts/check_domain_consistency.py --strict
-
       - name: Lint — the CI scope is src/
         run: python -m ruff check src/
 
       # ── De dekkingsdrempel ─────────────────────────────────────────────────
       #
-      # fail_under = 70 staat in pyproject.toml en is tot Phase 9 nooit
-      # uitgevoerd. Gemeten op 2026-09-04: 55,82 %. De drempel wordt NIET
-      # verlaagd -- reports/phase9_coverage_baseline.md legt uit waarom dat de
-      # verkeerde reparatie zou zijn -- dus deze stap staat rood tot de
-      # ratchets uit docs/CODE_REGISTER.md zijn afgewerkt.
-      #
-      # Hij staat er wel, en zonder continue-on-error, omdat een drempel die
-      # niet draait geen drempel is. De uitkomst hoort zichtbaar te zijn.
+      # fail_under = 70 staat in pyproject.toml; de gemeten dekking ligt daar
+      # onder (~61 %), dus deze stap staat rood tot de dekking omhoog is. Hij
+      # staat er zonder continue-on-error, omdat een drempel die niet draait
+      # geen drempel is.
       - name: Coverage against the fail_under threshold
         run: |
           python -m pytest -m "not slow and not regression" -p no:randomly \

@@ -76,33 +76,3 @@ def test_factorsets_match_mandate_g4() -> None:
     }
     assert set(G4_FACTORSETS["fx"]) == {"DOLLAR", "CARRY", "TREND"}
     assert set(G4_FACTORSETS["commodities"]) == {"MKT", "CARRY", "MOM"}
-
-
-@pytest.mark.skipif(
-    not (ROOT / "artefacts/broad_perp_daily_close.parquet").exists(),
-    reason="cached broad-perp panel not present",
-)
-def test_audit_section9_reproduction() -> None:
-    """Audit §9 book: alpha ≈ +20%/yr, t ≈ 2.65, p ≈ 0.008 vs MKT+TSMOM.
-
-    Loose tolerances: the audit number came from the full sleeve pipeline;
-    this guards the regression machinery, not the sleeves.
-    """
-    import importlib.util
-    import sys
-
-    sys.path.insert(0, str(ROOT / "src"))
-    spec = importlib.util.spec_from_file_location(
-        "tag", ROOT / "research/true_alpha_gates.py"
-    )
-    tag = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(tag)
-
-    vb = tag.vb
-    c, s, l, _ = vb.sleeves(5.0)
-    combo = vb.causal_rp(c, s, l).dropna()
-    facs = pd.concat([tag.BTC.rename("MKT"), tag.f_tsmom()], axis=1)
-    res = factor_residual_alpha(combo, facs, unit="mn_book", market="crypto")
-    assert res.alpha_ann == pytest.approx(0.20, abs=0.08)
-    assert res.t_alpha == pytest.approx(2.65, abs=0.6)
-    assert res.passes

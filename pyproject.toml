@@ -80,20 +80,6 @@ ingestion = [
     "ccxt>=4.1",
 ]
 
-[project.scripts]
-tb-data-sync          = "apps.data_sync:main"
-tb-build-features     = "apps.build_features:main"
-tb-tune-hparams       = "apps.tune_hparams:main"
-tb-train-cpcv         = "apps.train_cpcv:main"
-# tb-backtest-portfolio en tb-make-tearsheet zijn VERWIJDERD in Phase 7/8
-# Stage E-1. Zij wezen naar apps/backtest_portfolio.py en
-# apps/make_tearsheet.py, die Phase 5 heeft verwijderd na het
-# pariteitsbewijs. `pip install -e .` maakte er commando's van die bij
-# aanroep crashten met ModuleNotFoundError -- een gedocumenteerd
-# commandopad dat niet werkt. De opvolger is apps/run_phase5_baseline.py.
-tb-run-baseline       = "apps.run_phase5_baseline:main"
-tb-monitor-drift      = "apps.monitor_drift:main"
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Setuptools — src-layout (PEP 621 src-layout convention).
 # ─────────────────────────────────────────────────────────────────────────────
@@ -125,7 +111,7 @@ markers = [
     "lookahead:  lookahead / causality guard tests",
     "benchmark:  performance benchmark tests",
     "integration: end-to-end pipeline smoke tests",
-    "killgate:   pre-registered go/no-go gates for a unit or setup (docs/EXPANSION_RESEARCH_2026-08-10.md §3B)",
+    "killgate:   pre-registered go/no-go gates for a unit or setup",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:pandera.*",
@@ -139,7 +125,7 @@ filterwarnings = [
 [tool.ruff]
 line-length    = 100
 target-version = "py310"
-src            = ["src", "apps", "tests"]
+src            = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "PL", "RUF"]
@@ -191,26 +177,10 @@ ignore = [
 "src/tradebot/volatility/*.py"   = ["E741"]
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Mypy — strict on schemas/utils/apps; relaxed on legacy ports.
+# Mypy — strict on schemas/utils; relaxed on legacy ports.
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.mypy]
 python_version       = "3.10"
-# `apps/` IS GEEN PACKAGE -- geen `__init__.py`, en
-# [tool.setuptools.packages.find] pakt alleen `tradebot*`. Maar
-# `apps/paper_multi_sleeve.py:35` doet `from apps.paper_neutral_trader import
-# PaperBroker`. Daardoor zag mypy datzelfde bestand onder TWEE namen,
-# `paper_neutral_trader` en `apps.paper_neutral_trader`, meldde "Source file
-# found twice under different module names" en stopte met "errors prevented
-# further checking".
-#
-# Gevolg: de Mypy-stap in ci.yml stond rood op EEN melding en had op dat
-# moment NUL bestanden getypecheckt. Een poort die niets meet en toch rood
-# staat, verbergt precies wat hij hoort te laten zien.
-#
-# Deze twee regels geven mypy de wortel die de `apps.*`-override hieronder al
-# aanneemt. Gemeten: `hygiene.yml`s `mypy --strict
-# src/tradebot/schemas/config.py src/tradebot/utils/failfast.py` blijft groen,
-# en de ci.yml-stap controleert nu 64 bestanden in plaats van nul.
 explicit_package_bases = true
 mypy_path              = "src:."
 warn_unused_configs  = true
@@ -220,7 +190,7 @@ no_implicit_optional = true
 check_untyped_defs   = true
 
 [[tool.mypy.overrides]]
-module = ["tradebot.schemas.*", "tradebot.utils.arrays", "apps.*"]
+module = ["tradebot.schemas.*", "tradebot.utils.arrays"]
 strict = true
 
 [[tool.mypy.overrides]]

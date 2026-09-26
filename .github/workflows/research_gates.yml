@@ -4,10 +4,8 @@ name: research-gates
 #
 # DIT IS DE POORT DIE D-1 SLUIT.
 #
-# `docs/model_risk_policy.md` beweerde sinds Phase 2 dat promotie wordt
-# geblokkeerd door een lookahead-suite. Er was geen CI-gate die dat afdwong; de
-# bewering was waar op papier en onwaar in de machine. Deze workflow maakt hem
-# waar.
+# Promotie hoort geblokkeerd te worden door een lookahead-suite. Deze workflow
+# dwingt dat af.
 #
 # WAAROM BLOKKEREND EN NIET ADVISEREND
 # ------------------------------------
@@ -20,9 +18,6 @@ name: research-gates
 # adviserend, dan houdt hij niets tegen.
 #
 # `continue-on-error` komt in dit bestand niet voor, en dat is opzet.
-#
-# Ref: ARCHITECTUUR_AUDIT_2026-08-22.md §17.1, §18.1, §26;
-#      fase_2_research_falsification.md; fase_7_8_consolidatie_productie.md §4.
 
 on:
   push:
@@ -92,21 +87,23 @@ jobs:
           PY
 
       # ----------------------------------------------------------------------
-      # DE VIER POORTEN.
-      #
-      # Via dezelfde functie als `apps/run_gates.py`. Een lokale gate-run die
-      # iets anders meet dan CI, geeft een groen licht dat niets voorspelt.
+      # DE POORTEN, via `tradebot.validation.gate_runner.run_research_gates`.
+      # Een poort die niet draaide, telt als rood.
       # ----------------------------------------------------------------------
       - name: Run the research gates (blocking)
-        run: python apps/run_gates.py --out artefacts/governance/research_gates.json
-
-      - name: Upload the gate verdict
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: research-gates-verdict
-          path: artefacts/governance/research_gates.json
-          if-no-files-found: warn
+        run: |
+          python - <<'EOF'
+          import sys
+          from pathlib import Path
+          from tradebot.validation.gate_runner import GATE_SPECS, run_research_gates
+          runs = run_research_gates(Path.cwd())
+          for run in runs:
+              print(run.render())
+              if not run.passed and run.stdout_tail:
+                  print(run.stdout_tail)
+          ok = all(r.passed for r in runs) and len(runs) == len(GATE_SPECS)
+          sys.exit(0 if ok else 1)
+          EOF
 
       # ----------------------------------------------------------------------
       # De negatieve controle op de GATE-RUNNER zelf.

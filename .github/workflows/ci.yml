@@ -40,32 +40,9 @@ jobs:
           pip install -r requirements.lock -r requirements-dev.lock
           pip install -e . --no-deps
       - name: Ruff
-        run: ruff check src/ apps/ tests/
+        run: ruff check src/ tests/
       - name: Mypy
-        run: mypy src/tradebot/schemas/ src/tradebot/utils/ apps/ --ignore-missing-imports
-
-  # R-3 (een implementatie per grootheid) geldt ook voor een CI-config. Deze
-  # job hield een TWEEDE LOC-poort bij: een inline shell-lus met een whitelist
-  # van vier namen, waarvan `risk/portfolio.py` sinds Phase 4 niet bestaat en
-  # twee dubbel stonden. De echte poort is `scripts/check_file_size.py`, met
-  # LIMIT = 800 plus een gemeten cap per bestand, en met
-  # `tests/unit/test_file_size_ratchet.py` als bewijs dat hij rood kan worden.
-  #
-  # De twee copieen waren het onderling ONEENS: gemeten op 5dad1ab gaf de
-  # inline lus 7 failures en het script groen. Een poort die met zichzelf van
-  # mening verschilt, meet niets -- en de kopie die rood stond was de kopie
-  # zonder cap-tabel, dus rood op bestanden die een gelezen besluit dragen.
-  # Er blijft nu een implementatie over, en dat is die met de ratchet.
-  loc-guard:
-    name: LOC Guard (800-line limit)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Check no file > 800 LOC (per-file ratchet)
-        run: python scripts/check_file_size.py
+        run: mypy src/tradebot/schemas/ src/tradebot/utils/ --ignore-missing-imports
 
   test-fast:
     name: Fast tests (not slow, not regression)

@@ -13,15 +13,11 @@ Twee beweringen worden hier bewezen:
    andere `feature_hash` op. Een hash die NIET meebeweegt is gevaarlijker dan
    geen hash: hij wekt de indruk van provenance die er niet is.
 
-Het merendeel van de toetsen draait op een synthetisch frame en is daarmee
-hermetisch. De parquet-toets aan het einde draait het echte
-`scripts/build_feature_store.py` tweemaal en vergelijkt de BYTES.
+De toetsen draaien op een synthetisch frame en zijn daarmee hermetisch.
 """
 from __future__ import annotations
 
 import json
-import subprocess
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -273,59 +269,3 @@ class TestManifestDescribesTheArtefact:
         assert a.output_columns == b.output_columns
         with pytest.raises(DataContractError, match="Botsende outputkolommen"):
             FeaturePipeline([a, b])
-
-
-# --------------------------------------------------------------------------- #
-# 5. Het echte artefact: twee runs, dezelfde bytes
-# --------------------------------------------------------------------------- #
-def _pit_store_available() -> bool:
-    from tradebot.data.pit_store import PitStore
-    from tradebot.schemas.config import DataConfig
-
-    cfg = load_config(ROOT / "conf" / "data" / "default.yaml", DataConfig)
-    store = PitStore(ROOT / cfg.pit_store_root)
-    return bool(store.partitions("crypto", "ohlcv", "BTCUSDT", "1d"))
-
-
-@pytest.mark.skipif(
-    not _pit_store_available(),
-    reason="PIT-store is leeg; draai eerst de Phase 1-ingestion.",
-)
-class TestBuildScriptIsByteDeterministic:
-    """Exit criterium 3, letterlijk: bit-exact identieke Parquet-bestanden."""
-
-    @staticmethod
-    def _run(out_dir: Path) -> None:
-        result = subprocess.run(
-            [sys.executable, str(ROOT / "scripts" / "build_feature_store.py"),
-             "--symbols", "BTCUSDT", "--out", str(out_dir)],
-            capture_output=True, text=True, cwd=str(ROOT), check=False,
-        )
-        assert result.returncode == 0, result.stdout + result.stderr
-
-    def test_two_runs_produce_identical_bytes(self, tmp_path: Path) -> None:
-        first, second = tmp_path / "run_a", tmp_path / "run_b"
-        self._run(first)
-        self._run(second)
-
-        parquets = sorted(p.name for p in first.glob("*.parquet"))
-        assert parquets, "de build produceerde geen artefact"
-        assert parquets == sorted(p.name for p in second.glob("*.parquet")), (
-            "de matrix_hash verschilt tussen twee runs op ongewijzigde data"
-        )
-        for name in parquets:
-            assert (first / name).read_bytes() == (second / name).read_bytes(), (
-                f"{name} verschilt op byte-niveau tussen twee identieke runs"
-            )
-            manifest_a = json.loads((first / name).with_suffix(".json").read_text())
-            manifest_b = json.loads((second / name).with_suffix(".json").read_text())
-            assert manifest_a == manifest_b
-
-    def test_rerun_into_an_existing_store_is_a_no_op(self, tmp_path: Path) -> None:
-        """Append-only: hetzelfde artefact opnieuw schrijven mag niets wijzigen."""
-        out = tmp_path / "store"
-        self._run(out)
-        before = {p.name: p.read_bytes() for p in out.glob("*.parquet")}
-        self._run(out)
-        after = {p.name: p.read_bytes() for p in out.glob("*.parquet")}
-        assert before == after

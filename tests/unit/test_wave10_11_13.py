@@ -96,10 +96,9 @@ def test_wave11_namespace_has_restricted_pod_security():
     [
         ".github/workflows/paper-trade-ci.yml",
         ".github/workflows/nightly-regression.yml",
-        "scripts/paper_trade_report.py",
     ],
 )
-def test_wave12_workflows_and_scripts_exist(rel_path: str):
+def test_wave12_workflows_exist(rel_path: str):
     assert (_ROOT / rel_path).exists(), f"Missing Wave 12 file: {rel_path}"
 
 
@@ -112,34 +111,6 @@ def test_wave12_paper_trade_workflow_schedules_weekly():
 # ---------------------------------------------------------------------------
 # Wave 13 — Documentation
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize(
-    "rel_path",
-    [
-        "docs/architecture.md",
-        "docs/data_dictionary.md",
-        "docs/runbook.md",
-        "docs/tca_methodology.md",
-        "docs/model_risk_policy.md",
-        "docs/adr/0006-hrp-over-markowitz.md",
-        "docs/adr/0007-event-loop-asyncio.md",
-        "docs/adr/0008-shadow-before-live.md",
-        "docs/adr/0009-feature-store-design.md",
-        "docs/adr/0010-audit-log-schema.md",
-        "CHANGELOG.md",
-    ],
-)
-def test_wave13_docs_exist(rel_path: str):
-    p = _ROOT / rel_path
-    assert p.exists(), f"Missing Wave 13 doc: {rel_path}"
-    assert p.stat().st_size > 200, f"Doc too short: {rel_path}"
-
-
-def test_wave13_runbook_lists_circuit_breaker_section():
-    text = (_ROOT / "docs/runbook.md").read_text(encoding="utf-8")
-    assert "CIRCUIT_BREAKER" in text or "circuit_breaker" in text.lower()
-    assert "FEED_TIMEOUT" in text or "feed timeout" in text.lower()
-
-
 def test_wave13_changelog_mentions_audit_fixes():
     text = (_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "AUDIT A-1" in text

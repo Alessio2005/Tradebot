@@ -18,12 +18,8 @@ Covered:
 - D-2 CPCV: ValueError when purge_bars is omitted under intraday default.
 - E-2 Triple Barrier: half_spread_arr widens ask_high/bid_low proxies.
 - E-4 Funding features: causal (shift(1) applied) and correct shape.
-- Wave 12: paper_trade_report.py builds a report from JSONL state.
 """
 from __future__ import annotations
-
-import json
-import pathlib
 
 import numpy as np
 import pandas as pd
@@ -309,40 +305,3 @@ def test_funding_features_are_causal_and_shaped():
     assert df["feat_micro_funding_rate"].iloc[0] == pytest.approx(0.0)
     # 24h sum is bounded by 3 * max(abs(rate)).
     assert df["feat_meso_funding_cum_24h"].abs().max() <= 3.5 * 0.0001 + 1e-9
-
-
-# ---------------------------------------------------------------------------
-# Wave 12 — paper_trade_report.py
-# ---------------------------------------------------------------------------
-# Path-robust import: 'scripts' is not a package; resolve by file location so
-# collection works regardless of cwd/sys.path (Wave-20 runner fix).
-import importlib.util as _ilu
-
-_ptr_spec = _ilu.spec_from_file_location(
-    "paper_trade_report",
-    pathlib.Path(__file__).resolve().parents[2] / "scripts" / "paper_trade_report.py",
-)
-ptr = _ilu.module_from_spec(_ptr_spec)
-_ptr_spec.loader.exec_module(ptr)
-
-
-def test_paper_trade_report_builds_summary(tmp_path: pathlib.Path):
-    state = tmp_path / "state"
-    state.mkdir()
-    audit_path = state / "audit_log.jsonl"
-    audit_path.write_text(
-        json.dumps({
-            "event_ts": "2026-05-13T00:00:00Z",
-            "order_id": "ord-1",
-            "symbol":   "BTCUSDT",
-            "side":     "BUY",
-            "qty_base": 0.01,
-            "notional_usdt": 600.0,
-            "fill_ts":  "2026-05-13T00:00:01Z",
-        }) + "\n",
-        encoding="utf-8",
-    )
-    report = ptr.build_report(state)
-    assert "Audit log summary" in report
-    assert "Circuit breaker" in report
-    assert "no halts" in report

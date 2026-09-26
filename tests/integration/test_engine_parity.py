@@ -287,7 +287,7 @@ def _modules_importing(needle: str) -> list[str]:
     moduledocstring de afhankelijkheid beschrijft.
     """
     hits: set[str] = set()
-    for path in list((ROOT / "src").rglob("*.py")) + list((ROOT / "apps").rglob("*.py")):
+    for path in (ROOT / "src").rglob("*.py"):
         if "__pycache__" in str(path) or path.stem == needle:
             continue
         try:

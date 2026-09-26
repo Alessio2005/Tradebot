@@ -19,7 +19,7 @@ jobs:
       # scanner laat de releasedatum het oordeel bepalen.
       - run: pip install -r requirements-security.lock
       - name: Run Bandit
-        run: bandit -r src/ apps/ -ll -q
+        run: bandit -r src/ -ll -q
 
   pip-audit:
     name: pip-audit (dependency CVEs)
@@ -38,7 +38,7 @@ jobs:
       #
       # Hij draait nu tegen de twee lockfiles -- dat zijn de versies die CI
       # en de referentie-venv daadwerkelijk installeren -- en hij mag rood
-      # worden. Een CVE die hij vindt is een BEVINDING die in
-      # docs/DEFERRED_ISSUES.md hoort, niet iets om te onderdrukken.
+      # worden. Een CVE die hij vindt is een BEVINDING, niet iets om te
+      # onderdrukken.
       - name: Audit dependencies
         run: pip-audit -r requirements.lock -r requirements-dev.lock

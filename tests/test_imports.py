@@ -47,21 +47,6 @@ def test_tradebot_module_imports(modname: str) -> None:
     importlib.import_module(modname)
 
 
-def test_apps_build_features_imports() -> None:
-    """Stage 1 entrypoint imports."""
-    importlib.import_module("apps.build_features")
-
-
-def test_apps_tune_hparams_imports() -> None:
-    """Stage 2 entrypoint imports."""
-    importlib.import_module("apps.tune_hparams")
-
-
-def test_apps_train_cpcv_imports() -> None:
-    """Stage 3 entrypoint imports."""
-    importlib.import_module("apps.train_cpcv")
-
-
 def test_the_legacy_backtest_engines_are_gone() -> None:
     """Phase 5: exact een authoritative engine (audit sectie 16.1, sectie 24).
 
@@ -82,7 +67,6 @@ def test_the_legacy_backtest_engines_are_gone() -> None:
         "tradebot.backtest.tracks",
         "tradebot.schemas.tracks",
         "tradebot.schemas.portfolio",
-        "apps.backtest_portfolio",
     ):
         with pytest.raises(ModuleNotFoundError):
             importlib.import_module(name)
