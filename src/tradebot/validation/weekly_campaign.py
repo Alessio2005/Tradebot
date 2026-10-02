@@ -306,6 +306,10 @@ def run_campaign_on_market(
                               "ci_high": float(diff.ci_high), "p_value": float(diff.p_value)},
         "dsr": {"dsr": float(dsr.dsr), "passed": bool(dsr.passed), "M": int(trial_count.value)},
         "cpcv_path_sharpes": cpcv,
+        # compute_pbo waarschuwt zelf: onder S=50 varianten is de PBO "bimodale ruis". Hier zijn er
+        # vier (referentie + drie modellen); lees `pbo` als indicatie, niet als bewijs.
+        "pbo_n_variants": int(variants.shape[1]),
+        "pbo_below_stability_floor": bool(variants.shape[1] < 50),
         "costs": {"fees": books["ensemble"].total_fees, "funding": books["ensemble"].total_funding,
                   "impact": books["ensemble"].total_impact, "round_trip": cost_rt},
         "n_risk_exits": int((taken["risk_exit_bar"] >= 0).sum()) if n_trades else 0,
