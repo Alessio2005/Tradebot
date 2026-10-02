@@ -134,3 +134,30 @@ def test_a_risk_halt_closes_the_open_trade_at_its_real_return() -> None:
     assert t["risk_exit_bar"] == 101 < t["exit_bar"]
     assert t["realized_return"] == pytest.approx(-0.4)
     assert t["realized_return"] != pytest.approx(t["fill_return"])
+
+
+def test_a_long_drawdown_does_not_shrink_a_position_to_dust() -> None:
+    """De breaker schaalt de BEDOELDE exposure, niet het al verkleinde gewicht, elke dag opnieuw.
+
+    Het huidige gewicht als `desired` terugvoeren liet de breakerfactor dagelijks op zichzelf
+    werken: 53 herschalingen, en op dag 157 een valse risico-exit met het stof dat overbleef
+    (-15% in plaats van de echte -5%). Het scenario is geleidelijk (-4% per dag, 4 dagen, dan
+    vlak): een eendaagse klap haalt de dagverlieslimiet en halt in plaats van te schalen.
+    """
+    m = _market()
+    entry = float(m.ohlcv["BTCUSDT"]["close"].iloc[100])
+    frame = m.ohlcv["BTCUSDT"].copy()
+    px = frame["close"].to_numpy().copy()
+    for i in range(101, len(px)):
+        px[i] = entry * 0.96 ** min(i - 100, 4)
+    frame["close"] = px
+    m = type(m)(**{**m.__dict__, "ohlcv": {**m.ohlcv, "BTCUSDT": frame}})
+    big = SizingRule(mode="fixed", kelly_multiple=0.25, fixed_risk_fraction=0.9,
+                     resize_band=0.25, cost_rt=0.0)
+    res = run_barrier_book(_cand(exit_bar=160, fill_return=-0.05), _inputs(m), RiskEngine(RISK),
+                           big, equity0=1e5)
+    t = res.trades.iloc[0]
+    assert not res.halted
+    assert res.n_resizes < 5
+    assert t["risk_exit_bar"] == -1  # de positie leefde door tot haar barrière
+    assert t["realized_return"] == pytest.approx(-0.05)

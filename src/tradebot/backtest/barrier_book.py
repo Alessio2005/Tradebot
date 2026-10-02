@@ -21,6 +21,16 @@ DE VOLGORDE OP BAR d
    posities, tegen kosten. Bestaande posities worden alleen herschaald buiten
    `resize_band`, of naar nul.
 
+WAT `desired` IS
+================
+Voor een open positie is `desired` haar BEDOELDE exposure (de grootte bij entry), niet
+haar huidige, al teruggeschaalde gewicht. Het huidige gewicht terugvoeren laat elke
+schaling van de risicolaag (drawdown-breaker, vol-target) elke dag opnieuw op zichzelf
+werken: bij een breakerfactor van 0,6 is de positie na ~25 dagen numeriek stof (~1e-10)
+en crasht de engine terecht op een concentratie die door dat stof afdrijft. Gemeten op
+de synthetische campagnetest. `test_a_long_drawdown_does_not_shrink_a_position_to_dust`
+bewaakt dit.
+
 RISICO-EXITS
 ============
 Zet `decide` een open positie op nul (halt, drawdown, limiet), dan sluit zij op
@@ -141,6 +151,7 @@ def run_barrier_book(
     open_row: dict[str, int] = {}
     entry_px: dict[str, float] = {}
     trade_idx: dict[str, int] = {}
+    intent: dict[str, float] = {}
     trades: list[dict[str, Any]] = []
     returns = np.zeros(n)
     equity = np.full(n, float(equity0))
@@ -158,7 +169,7 @@ def run_barrier_book(
                 move = q * (fill - prev)
                 book.trade_cost(q * fill, inputs, adv[d, j], sig_d[d, j])
                 trades[trade_idx.pop(sym)]["realized_return"] = float(row.fill_return)
-                del qty[sym], open_row[sym], entry_px[sym]
+                del qty[sym], open_row[sym], entry_px[sym], intent[sym]
             else:
                 move = q * (close[d, j] - prev)
             book.pnl += move
@@ -173,7 +184,7 @@ def run_barrier_book(
             continue
 
         # 2. Het gewenste boek: bestaande posities plus toegelaten nieuwe trades.
-        desired = {s: qty[s] * close[d, cols[s]] / book.equity for s in qty}
+        desired = dict(intent)
         pending: dict[str, tuple[int, float]] = {}
         chosen = [i for i in by_entry.get(d, [])
                   if cand.loc[i].symbol not in qty
@@ -225,12 +236,14 @@ def run_barrier_book(
                     qty.pop(sym, None)
                     open_row.pop(sym, None)
                     entry_px.pop(sym, None)
+                    intent.pop(sym, None)
                     continue
                 qty[sym] = target_q
                 if sym in pending:
                     i, f = pending[sym]
                     open_row[sym] = i
                     entry_px[sym] = px
+                    intent[sym] = desired[sym]
                     trade_idx[sym] = len(trades)
                     trades.append({"row": i, "symbol": sym, "entry_bar": d,
                                    "exit_bar": int(cand.loc[i].exit_bar),
