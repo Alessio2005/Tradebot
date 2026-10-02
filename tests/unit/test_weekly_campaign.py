@@ -68,3 +68,18 @@ def test_candidates_never_use_a_threshold_below_break_even() -> None:
     assert (cands["p_trade"] >= cands["p_be"]).all()
     assert (cands["entry_bar"] == events["event_bar"] + 1).all()
     assert (cands["p_low"] < cands["p"]).all()
+
+
+def test_the_small_account_impact_swaps_only_eta_and_keeps_the_uncalibrated_label() -> None:
+    from tradebot.execution.impact_model import ImpactParams, ImpactStatus
+    from tradebot.validation.weekly_campaign import small_account_impact
+    base = ImpactParams(eta=2.99, kappa_d=0.67, status=ImpactStatus.IMPACT_UNCALIBRATED, method="m",
+                        data_hash="h", sample_size=10, period_start="a", period_end="b",
+                        instruments=("BTCUSDT",), eta_ci_low=1.9, eta_ci_high=4.2)
+    cfg = weekly_meta_config()
+    out = small_account_impact(base, cfg)
+    assert (out.eta, out.eta_ci_low, out.eta_ci_high) == (cfg.impact_eta, cfg.impact_eta_low,
+                                                          cfg.impact_eta_high)
+    assert out.status is ImpactStatus.IMPACT_UNCALIBRATED
+    assert (out.kappa_d, out.data_hash) == (base.kappa_d, base.data_hash)
+    assert "ongekalibreerd" in out.method

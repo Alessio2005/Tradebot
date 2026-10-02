@@ -13,6 +13,7 @@ CPCV-paden worden gerapporteerd, niet gepoort.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -152,6 +153,17 @@ def _cpcv_path_sharpes(wd: WeeklyDataset, cfg: WeeklyMetaConfig, inputs: BookInp
         fold_returns[tuple(groups)] = pd.concat(pieces)
     paths = build_cpcv_return_paths(fold_returns, n_groups=cfg.cpcv_n_groups)
     return [sharpe_with_se(p, bars_per_year=BARS_PER_YEAR).sharpe for p in paths]
+
+
+def _order_to_adv(market: WeeklyMarket, taken: pd.DataFrame) -> dict[str, float]:
+    """Orderomvang als fractie van de gemiddelde dagomzet, bij de entry van elke trade."""
+    adv = market.adv_usd.reindex(columns=list(market.symbols)).to_numpy(np.float64)
+    cols = {s: j for j, s in enumerate(market.symbols)}
+    ratio = np.array([abs(float(r.qty) * float(r.entry_price)) / adv[int(r.entry_bar), cols[r.symbol]]
+                      for r in taken.itertuples()])
+    ratio = ratio[np.isfinite(ratio)]
+    return {"median": float(np.median(ratio)), "p95": float(np.quantile(ratio, 0.95)),
+            "max": float(ratio.max())}
 
 
 def _sharpe_or_none(returns: pd.Series) -> float | None:
@@ -304,6 +316,10 @@ def run_campaign_on_market(
         "pbo_below_stability_floor": bool(variants.shape[1] < 50),
         "costs": {"fees": books["ensemble"].total_fees, "funding": books["ensemble"].total_funding,
                   "impact": books["ensemble"].total_impact, "round_trip": cost_rt},
+        "order_to_adv": _order_to_adv(market, taken) if n_trades else None,
+        "impact_basis": None if impact is None else {
+            "eta": impact.eta, "status": impact.status.value, "method": impact.method},
+        "account_equity": cfg.account_equity,
         "n_risk_exits": int((taken["risk_exit_bar"] >= 0).sum()) if n_trades else 0,
         "risk_policy_hash": risk_config_hash(risk_cfg),
         "risk_audit_header": engine.audit_header(),
@@ -311,6 +327,14 @@ def run_campaign_on_market(
         "halted": books["ensemble"].halted,
     }
     return CampaignResult(values=values, verdict=verdict, record=record)
+
+
+def small_account_impact(base: ImpactParams, cfg: WeeklyMetaConfig) -> ImpactParams:
+    """De impactparameters voor het kleine account: de eta uit de config, status ongewijzigd."""
+    return dataclasses.replace(
+        base, eta=cfg.impact_eta, eta_ci_low=cfg.impact_eta_low, eta_ci_high=cfg.impact_eta_high,
+        method=(f"literatuurprior eta={cfg.impact_eta} (Bouchaud-Bonart, BTC-perps) voor een "
+                f"account van {cfg.account_equity:,.0f}; geen orderboekdata, dus ongekalibreerd"))
 
 
 def main() -> None:
@@ -328,11 +352,11 @@ def main() -> None:
     dev_index = development_slice(pd.DataFrame(index=full.grid), lock_path=lock).index
     market = full.truncate(dev_index[-1] + pd.Timedelta(hours=1))
     imp = load_config(root / "conf/execution/impact.yaml", ImpactConfig)
-    impact = ImpactParams(
+    impact = small_account_impact(ImpactParams(
         eta=imp.eta, kappa_d=imp.kappa_d, status=ImpactStatus(imp.status), method=imp.method,
         data_hash=imp.data_hash, sample_size=imp.sample_size, period_start=imp.period_start,
         period_end=imp.period_end, instruments=imp.instruments, eta_ci_low=imp.eta_ci_low,
-        eta_ci_high=imp.eta_ci_high)
+        eta_ci_high=imp.eta_ci_high), cfg)
     result = run_campaign_on_market(
         market, cfg, criteria=prereg.stop_criteria,
         exec_cfg=load_config(root / "conf/execution/fees.yaml", ExecutionConfig),

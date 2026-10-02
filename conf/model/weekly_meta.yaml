@@ -40,7 +40,16 @@ n_probability_bins: 10
 baseline_risk_fraction: 0.01
 resize_band: 0.25
 corr_window: 60
-account_equity: 100000.0
+account_equity: 20000.0
+
+# Marktimpact voor een klein account (10-20k). De repo-bovengrens in conf/execution/impact.yaml
+# (eta 2,99, afgeleid uit de dagrange, ruim maar weinig informatief) hoort bij onbekende
+# ordergroottes. Hier zijn orders ~1e-5 tot 1e-3 van de dagomzet; de campagne meet dat en schrijft
+# het weg. eta 0,142 is de literatuurwaarde voor BTC-perps (Bouchaud-Bonart); de band is de
+# gebruikelijke spreiding. Het blijft IMPACT_UNCALIBRATED: er is geen orderboekdata.
+impact_eta: 0.142
+impact_eta_low: 0.07
+impact_eta_high: 0.30
 
 # Poorten (spec §1, §14). Moeten gelijk zijn aan de preregistratie (Taak 12 toetst dat).
 mc_paths: 10000
