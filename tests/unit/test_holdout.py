@@ -131,12 +131,15 @@ def test_the_frozen_holdout_header_is_pinned() -> None:
     )
     import json
     payload = json.loads(LOCK.read_text(encoding="utf-8"))
-    assert payload["split_utc"] == "2025-09-05T00:00:00+00:00", (
-        "De splitdatum is pre-geregistreerd (ruling P23) en hoort na het "
+    # Her-bevroren op 2026-10-02 voor het wekelijkse programma (spec §17.2): het eerdere slot
+    # (2025-09-05, ruling P23) was nooit gelezen, en `refreeze_unread_holdout` weigert elk slot
+    # met een lezing. Deze pin hoort nu bij de nieuwe split en verandert niet meer.
+    assert payload["split_utc"] == "2026-06-24T00:00:00+00:00", (
+        "De splitdatum is pre-geregistreerd (spec §17.2) en hoort na het "
         "bevriezen nooit meer te veranderen."
     )
     assert payload["git_sha"], "git_sha ontbreekt op het bevroren artefact."
-    assert payload["frozen_utc"] == "2026-09-09T18:55:43.793046+00:00", (
+    assert payload["frozen_utc"] == "2026-10-02T13:16:29.406131+00:00", (
         "frozen_utc is de timestamp van het EENMALIGE bevriezen (stap 4B.4) "
         "en hoort na dat moment nooit meer te veranderen."
     )

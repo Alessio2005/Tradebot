@@ -91,7 +91,8 @@ def _fit_member(kind: str, x: np.ndarray, y: np.ndarray, w: np.ndarray,
         return model, coef / coef.sum()
     model = RandomForestClassifier(
         n_estimators=cfg.forest_n_estimators, max_depth=cfg.forest_max_depth,
-        max_features=1, min_samples_leaf=cfg.forest_min_samples_leaf,
+        max_features=min(cfg.forest_max_features, x.shape[1]),
+        min_samples_leaf=cfg.forest_min_samples_leaf,
         max_samples=float(np.clip(w.mean(), 0.05, 1.0)),
         class_weight="balanced_subsample", bootstrap=True,
         random_state=cfg.seed, n_jobs=1)

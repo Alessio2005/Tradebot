@@ -12,7 +12,9 @@ holdout_split_utc: "2026-06-24T00:00:00+00:00"
 test_bars: 91
 
 # Events: k wordt uit dit rooster gekozen op frequentie, nooit op rendement.
-events_per_week_target: 5.5
+# Hoog CUSUM-filter: ~2,5 doorbraken per week voor het hele boek (k = 3,0 op de
+# kalibratiedata: 2,33/week), zodat er na het kansfilter 1-2x per week wordt gehandeld.
+events_per_week_target: 2.5
 k_grid: [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]
 
 # Eén barrièrebreedte, dus 1:1 per constructie. sqrt(5) daggrootte = één week.
@@ -28,6 +30,7 @@ logreg_c: 0.1
 forest_n_estimators: 500
 forest_max_depth: 3
 forest_min_samples_leaf: 50
+forest_max_features: 1
 calibration_fraction: 0.25
 
 # Sizing (spec §10).
@@ -37,7 +40,16 @@ n_probability_bins: 10
 baseline_risk_fraction: 0.01
 resize_band: 0.25
 corr_window: 60
-account_equity: 100000.0
+account_equity: 20000.0
+
+# Marktimpact voor een klein account (10-20k). De repo-bovengrens in conf/execution/impact.yaml
+# (eta 2,99, afgeleid uit de dagrange, ruim maar weinig informatief) hoort bij onbekende
+# ordergroottes. Hier zijn orders ~1e-5 tot 1e-3 van de dagomzet; de campagne meet dat en schrijft
+# het weg. eta 0,142 is de literatuurwaarde voor BTC-perps (Bouchaud-Bonart); de band is de
+# gebruikelijke spreiding. Het blijft IMPACT_UNCALIBRATED: er is geen orderboekdata.
+impact_eta: 0.142
+impact_eta_low: 0.07
+impact_eta_high: 0.30
 
 # Poorten (spec §1, §14). Moeten gelijk zijn aan de preregistratie (Taak 12 toetst dat).
 mc_paths: 10000

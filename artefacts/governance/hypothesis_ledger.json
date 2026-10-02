@@ -2,5 +2,21 @@
   "version": 1,
   "seed_total": 0,
   "seed_note": "Nieuwe ledger, gestart 2026-09-26. Alle eerdere entries zijn op besluit van de eigenaar verwijderd; de teller begint op 0. Elke trial vanaf nu wordt hier via HypothesisLedger.append geboekt.",
-  "entries": []
+  "entries": [
+    {
+      "wave": 1,
+      "unit": "weekly_meta_programme",
+      "market": "crypto",
+      "config_hash": "6f4ae7b56d0dd12b",
+      "n_trials": 4,
+      "result": "interim",
+      "git_sha": "704eaa3",
+      "data_hash": "df1f46dab3a3f7a7",
+      "preregistration_id": "5d8322bf6701eccc7698702e3ac0a5aa",
+      "ts_utc": "2026-10-02T13:16:29.413303+00:00",
+      "metrics": {},
+      "notes": "Vier geplande trials, geboekt vóór de eerste fit: referentie, logreg, forest, ensemble.",
+      "amends": ""
+    }
+  ]
 }

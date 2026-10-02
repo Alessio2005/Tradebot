@@ -20,7 +20,7 @@ __all__ = ["DEVELOPMENT_METRICS", "HOLDOUT_METRICS", "Verdict", "judge"]
 
 DEVELOPMENT_METRICS = (
     "max_abs_shuffle_auc_deviation", "reversed_minus_baseline_sharpe",
-    "ensemble_net_sharpe", "sharpe_diff_ci_low", "sharpe_ci_low", "dsr",
+    "ensemble_net_sharpe", "sharpe_diff_ci_low", "sharpe_ci_low",
     "hit_rate_ci_low_minus_break_even", "pbo", "mc_drawdown_probability_1y",
     "n_trades",
 )
