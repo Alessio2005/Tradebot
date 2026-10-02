@@ -1,0 +1,141 @@
+# conf/research/preregistration_weekly_meta.yaml
+# PRE-REGISTRATIE — wekelijkse meta-label-strategie, Plan 1.
+# Bevroren door `python -m tradebot.registry.weekly_programme freeze`, VOOR de
+# eerste fit op echte data. `parameters` staat hier bewust niet: die worden bij
+# het bevriezen uit conf/model/weekly_meta.yaml ingespoten, samen met M = 4.
+wave: weekly_meta_v1
+
+title: >-
+  CUSUM-doorbraak met een licht, gekalibreerd ML-filter op 1:1-barrières en
+  binaire Kelly-sizing, op zes crypto-perpetuals op dagbars.
+
+hypothesis: >-
+  Een ensemble van een L2-logistische regressie en een ondiepe random forest,
+  gekalibreerd met Platt op een gepurgede binnensplit, dat alleen de doorbraken
+  handelt waarvan de gekalibreerde kans boven break-even en boven de
+  frequentiedrempel ligt, levert na kosten, funding en impact een hogere netto
+  Sharpe dan hetzelfde CUSUM-signaal zonder filter, met een DSR van ten minste
+  0,95 bij M = 4, onder purged walk-forward met embargo.
+
+null_hypothesis: >-
+  Het filter voegt na kosten niets toe aan het ongefilterde CUSUM-signaal, of
+  de gefilterde strategie heeft geen netto Sharpe die zich onderscheidt van de
+  beste van vier pogingen.
+
+universe: [BTCUSDT, ETHUSDT, SOLUSDT, AVAXUSDT, LINKUSDT, DOTUSDT]
+granularity: 1d
+period_start: "2020-03-26"
+period_end: "2026-06-23"
+evaluation_start: "2022-01-01"
+primary_metric: ensemble_net_sharpe
+
+# referentie (ongefilterd), logreg, forest, ensemble.
+planned_trials: 4
+
+data_series:
+  - crypto/ohlcv/BTCUSDT/1d
+  - crypto/ohlcv/ETHUSDT/1d
+  - crypto/ohlcv/SOLUSDT/1d
+  - crypto/ohlcv/AVAXUSDT/1d
+  - crypto/ohlcv/LINKUSDT/1d
+  - crypto/ohlcv/DOTUSDT/1d
+  - crypto/funding/BTCUSDT/8h
+  - crypto/funding/ETHUSDT/8h
+  - crypto/funding/SOLUSDT/8h
+  - crypto/funding/AVAXUSDT/8h
+  - crypto/funding/LINKUSDT/8h
+  - crypto/funding/DOTUSDT/8h
+  - crypto/open_interest/BTCUSDT/1d
+  - crypto/open_interest/ETHUSDT/1d
+  - crypto/open_interest/SOLUSDT/1d
+  - crypto/open_interest/AVAXUSDT/1d
+  - crypto/open_interest/LINKUSDT/1d
+  - crypto/open_interest/DOTUSDT/1d
+
+stop_criteria:
+  - name: negative_control_shuffle
+    metric: max_abs_shuffle_auc_deviation
+    operator: ">"
+    threshold: 0.05
+    action: archive
+    rationale: >-
+      Op geschudde labels hoort de OOS-AUC binnen 0,45-0,55 te liggen. Daarbuiten
+      lekt de pijplijn informatie en is de run ongeldig.
+  - name: negative_control_reversed
+    metric: reversed_minus_baseline_sharpe
+    operator: ">="
+    threshold: 0.0
+    action: archive
+    rationale: >-
+      Het omgekeerde primaire signaal moet slechter zijn dan het echte. Is het dat
+      niet, dan meet de constructie de doorbraak niet.
+  - name: no_edge_after_costs
+    metric: ensemble_net_sharpe
+    operator: "<="
+    threshold: 0.0
+    action: falsify
+    rationale: Een niet-positieve netto Sharpe betekent geen edge na kosten.
+  - name: filter_adds_nothing
+    metric: sharpe_diff_ci_low
+    operator: "<="
+    threshold: 0.0
+    action: archive
+    rationale: >-
+      De ondergrens van het Ledoit-Wolf-interval op (ensemble - ongefilterd) moet
+      boven nul liggen; anders is niet aangetoond dat het ML-filter iets toevoegt.
+  - name: sharpe_interval_includes_zero
+    metric: sharpe_ci_low
+    operator: "<="
+    threshold: 0.0
+    action: archive
+    rationale: De blokbootstrap-ondergrens van de netto Sharpe moet boven nul liggen.
+  - name: dsr_below_threshold
+    metric: dsr
+    operator: "<"
+    threshold: 0.95
+    action: archive
+    rationale: Onder DSR 0,95 bij M = 4 is de Sharpe niet te onderscheiden van selectieruis.
+  - name: hit_rate_not_above_break_even
+    metric: hit_rate_ci_low_minus_break_even
+    operator: "<="
+    threshold: 0.0
+    action: archive
+    rationale: >-
+      De Wilson-ondergrens van het trefpercentage moet boven het gemiddelde
+      break-even-percentage 1/2 + c/(2b) van de genomen trades liggen.
+  - name: overfit_probability
+    metric: pbo
+    operator: ">="
+    threshold: 0.25
+    action: archive
+    rationale: Een PBO van 0,25 of meer over de vier varianten is te veel overfitkans.
+  - name: drawdown_risk
+    metric: mc_drawdown_probability_1y
+    operator: ">"
+    threshold: 0.10
+    action: archive
+    rationale: >-
+      De Monte Carlo-kans op een drawdown van 25 % (de mandaatgrens) binnen een jaar
+      mag bij kwart-Kelly niet boven 10 % liggen. De fractie wordt daarna NIET
+      bijgesteld; een andere fractie is een nieuwe preregistratie.
+  - name: insufficient_trades
+    metric: n_trades
+    operator: "<"
+    threshold: 100
+    action: descope
+    rationale: Onder 100 OOS-trades is geen enkele trefkansuitspraak te dragen.
+  - name: holdout_brier_worse
+    metric: holdout_brier_diff_ci_low
+    operator: ">"
+    threshold: 0.0
+    action: archive
+    rationale: >-
+      Rooktest op de holdout: ligt het 95 %-interval van (Brier model - Brier
+      basisfrequentie) volledig boven nul, dan is het model daar aantoonbaar
+      slechter dan niets weten, en gaat het niet naar papertrading.
+  - name: promotion_requires_all_clear
+    metric: n_binding_stop_criteria
+    operator: "<="
+    threshold: 0
+    action: promote
+    rationale: Doorgaan naar Plan 2 vereist dat geen enkel criterium hierboven bindt.
