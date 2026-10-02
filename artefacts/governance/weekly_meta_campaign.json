@@ -1,0 +1,173 @@
+{
+  "brier_base_rate": 0.24857001624179084,
+  "brier_model": 0.2536387582786537,
+  "costs": {
+    "fees": 2383.2126616174824,
+    "funding": 1288.1308375930853,
+    "impact": 3255.460263488704,
+    "round_trip": 0.0013
+  },
+  "cpcv_path_sharpes": [
+    -0.09931776957211792,
+    -0.4744510053301178,
+    -0.2441753507856399,
+    -0.46499489738471156,
+    -0.4517291298883676,
+    -0.5342213056314525,
+    0.17341910467798613,
+    0.2638127365578923,
+    0.043796997951337575,
+    0.07897524304355642,
+    0.19434003150706294,
+    0.2772089801735554,
+    -0.5081895700965675,
+    -0.47334846996468805,
+    -0.21035800721750186
+  ],
+  "d_star": 0.7143745899200438,
+  "dev_last_bar": "2026-06-23 00:00:00+00:00",
+  "dsr": {
+    "M": 4,
+    "dsr": 0.0038898308684338647,
+    "passed": false
+  },
+  "ece": 0.050364357326795714,
+  "effective_n": 1025.746548821549,
+  "git_sha": "a65dc51",
+  "halted": false,
+  "k": 3.0,
+  "k_rates": {
+    "1.0": 8.146757679180888,
+    "1.5": 5.578498293515358,
+    "2.0": 4.049488054607509,
+    "2.5": 2.8907849829351537,
+    "3.0": 2.3054607508532423,
+    "3.5": 1.9112627986348125,
+    "4.0": 1.5648464163822526,
+    "5.0": 1.075085324232082
+  },
+  "n_dropped_nan": {
+    "AVAXUSDT": 10,
+    "BTCUSDT": 40,
+    "DOTUSDT": 14,
+    "ETHUSDT": 19,
+    "LINKUSDT": 20,
+    "SOLUSDT": 18
+  },
+  "n_events": 1137,
+  "n_risk_exits": 0,
+  "n_risk_resizes": 142,
+  "oos_auc": {
+    "ensemble": 0.4906297085263655,
+    "forest": 0.4756700466591925,
+    "logreg": 0.5195474116727391
+  },
+  "oos_window": [
+    "2022-01-01 00:00:00+00:00",
+    "2026-03-27 00:00:00+00:00"
+  ],
+  "pbo_below_stability_floor": true,
+  "pbo_n_variants": 4,
+  "preregistration_id": "5d8322bf6701eccc7698702e3ac0a5aa",
+  "risk_audit_header": {
+    "asof_ts": null,
+    "config_hash": "9961e1613bc907a5",
+    "constraint_order": [
+      "halted",
+      "daily_loss_governor",
+      "drawdown_breaker",
+      "vol_target",
+      "per_asset_cap",
+      "adv_cap",
+      "concentration_cap",
+      "cluster_cap",
+      "gross_cap",
+      "net_cap"
+    ],
+    "daily_loss_limit": 0.1,
+    "gross_cap": 4.0,
+    "max_drawdown_pct": 0.25,
+    "max_leverage": 4.0,
+    "net_cap": 2.0,
+    "sigma_target": 0.2
+  },
+  "risk_policy_hash": "9961e1613bc907a5",
+  "sharpe": {
+    "baseline": -0.0044327434205694285,
+    "ensemble": -0.7799046373942328,
+    "ensemble_se": 0.4963266396618061,
+    "forest": -0.8554971875690333,
+    "logreg": -0.21691156765027297,
+    "reversed": -1.1085767830277509
+  },
+  "sharpe_difference": {
+    "ci_high": 0.2543214858391281,
+    "ci_low": -1.80445640834353,
+    "delta": -0.7757226528788345,
+    "p_value": 0.139
+  },
+  "shuffle_auc_band_low": 0.45,
+  "shuffle_aucs": [
+    0.4452799236878376,
+    0.4787174064435047,
+    0.49192379814151516,
+    0.4827726137583705,
+    0.5393207855795115
+  ],
+  "source_hashes": {
+    "crypto/funding/AVAXUSDT/8h": "8edfe83d0a02f02a6871a9a95877d054",
+    "crypto/funding/BTCUSDT/8h": "a69aa5fbc2c0e0c3a214c4b672b8f4e8",
+    "crypto/funding/DOTUSDT/8h": "28f49d9a617fd93f36023efc35b568be",
+    "crypto/funding/ETHUSDT/8h": "02aef54a332ac99c5f93205d375f8737",
+    "crypto/funding/LINKUSDT/8h": "ce6cfcd63ddd681178ebb611b87fd621",
+    "crypto/funding/SOLUSDT/8h": "8f2c70dbf68f1fe635c937b2e6b67c36",
+    "crypto/ohlcv/AVAXUSDT/1d": "af05b4f95d0e282111641f85904c22f9",
+    "crypto/ohlcv/BTCUSDT/1d": "4f21f2c7ab071ddc19da5eb3f38172f3",
+    "crypto/ohlcv/DOTUSDT/1d": "17be1f4206997f12fd7e1825f123299b",
+    "crypto/ohlcv/ETHUSDT/1d": "d67c9bb18b2c794ba416067556227a5a",
+    "crypto/ohlcv/LINKUSDT/1d": "8d6a82f316253c2626d016bbbad804d4",
+    "crypto/ohlcv/SOLUSDT/1d": "1d64b001993b575f34ef04ce548616c5",
+    "crypto/open_interest/AVAXUSDT/1d": "5f642bd6e318ad795103682c530dd952",
+    "crypto/open_interest/BTCUSDT/1d": "4fe481c71f8237e9ba2bbd80f0d84e96",
+    "crypto/open_interest/DOTUSDT/1d": "1795c58ed7ab641fd80219a26272b313",
+    "crypto/open_interest/ETHUSDT/1d": "be986e9314c9f28ef3fd147b01bfefd4",
+    "crypto/open_interest/LINKUSDT/1d": "9024d7e536d7ced7e8e23a4dc97eb952",
+    "crypto/open_interest/SOLUSDT/1d": "9267e0accf0055a1cba7c9db1ab5d4e2"
+  },
+  "values": {
+    "dsr": 0.0038898308684338647,
+    "ensemble_net_sharpe": -0.7799046373942328,
+    "hit_rate_ci_low_minus_break_even": -0.10662332196458874,
+    "max_abs_shuffle_auc_deviation": 0.05472007631216241,
+    "mc_drawdown_probability_1y": 0.0,
+    "n_trades": 205.0,
+    "pbo": 0.2726495726495726,
+    "reversed_minus_baseline_sharpe": -1.1041440396071815,
+    "sharpe_ci_low": -1.7429240873670884,
+    "sharpe_diff_ci_low": -1.80445640834353
+  },
+  "verdict": {
+    "binding": [
+      "negative_control_shuffle",
+      "no_edge_after_costs",
+      "filter_adds_nothing",
+      "sharpe_interval_includes_zero",
+      "dsr_below_threshold",
+      "hit_rate_not_above_break_even",
+      "overfit_probability"
+    ],
+    "status": "INVALID",
+    "values": {
+      "dsr": 0.0038898308684338647,
+      "ensemble_net_sharpe": -0.7799046373942328,
+      "hit_rate_ci_low_minus_break_even": -0.10662332196458874,
+      "max_abs_shuffle_auc_deviation": 0.05472007631216241,
+      "mc_drawdown_probability_1y": 0.0,
+      "n_trades": 205.0,
+      "pbo": 0.2726495726495726,
+      "reversed_minus_baseline_sharpe": -1.1041440396071815,
+      "sharpe_ci_low": -1.7429240873670884,
+      "sharpe_diff_ci_low": -1.80445640834353
+    }
+  }
+}
