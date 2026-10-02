@@ -26,6 +26,9 @@ def result():
         "holdout_split_utc": str(market.grid[-1] + pd.Timedelta(days=1)),
         "forest_n_estimators": 40, "n_shuffle_replicates": 1, "mc_paths": 1000,
         "k_grid": (1.0, 1.5, 2.0),
+        # De synthetische markt is klein en kent geen echte doorbraken: met het productiedoel van
+        # 2,5 per week kiest hij de grootste k en blijft het ensemble-boek vlak (nul variantie).
+        "events_per_week_target": 5.5,
     })
     criteria = [StopCriterion(f"c_{m}", m, "<", -1e9, "archive", "synthetic")
                 for m in DEVELOPMENT_METRICS]
