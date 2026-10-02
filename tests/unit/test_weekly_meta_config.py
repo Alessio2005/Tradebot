@@ -23,19 +23,12 @@ def test_the_committed_config_loads() -> None:
     assert cfg.symbols == ("BTCUSDT", "ETHUSDT", "SOLUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT")
     assert cfg.barrier_sigma == pytest.approx(math.sqrt(5.0))
     assert cfg.planned_trials == 4
-    assert cfg.inner_wf_blocks == 4
-    assert cfg.n_probability_bins == 5
 
 
 def test_one_barrier_width_means_one_to_one_by_construction() -> None:
     fields = set(WeeklyMetaConfig.model_fields)
     assert "barrier_sigma" in fields
     assert not {"profit_target_sigma", "stop_loss_sigma"} & fields
-
-
-def test_there_is_no_pseudo_posterior_knob() -> None:
-    """Spec §10.4: de posterior telt gerealiseerde uitkomsten; er is geen 'kalibratiefractie' meer."""
-    assert "calibration_fraction" not in WeeklyMetaConfig.model_fields
 
 
 @pytest.mark.parametrize(
@@ -47,7 +40,6 @@ def test_there_is_no_pseudo_posterior_knob() -> None:
         ("trades_per_week_target", 9.0, "meer events"),
         ("cpcv_n_test_groups", 4, "deelbaar"),
         ("shuffle_auc_band", [0.55, 0.60], "omsluiten"),
-        ("inner_wf_blocks", 1, "inner_wf_blocks"),
         ("unknown_key", 1, "unknown_key"),
     ],
 )

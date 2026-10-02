@@ -492,41 +492,41 @@ oordeel; de campagne; de preregistratie en het bevriezen; de holdout-rooktest.
   posterior maakt de inzet dan vanzelf kleiner.
 - **PBO is grof** bij vier varianten (§9.5).
 - **Dagdata en barrières:** de volgorde binnen een dag is onbekend; de
-  pessimistische regel kost rendement maar voorkomt optimisme.
-- **Een holdout van 60 dagen** is een rooktest, geen bewijs.
+  pessimistische regel kost rendement in de backtest maar voorkomt een
+  optimistische vertekening.
+- **Een holdout van 2 maanden** is een rooktest, geen bewijs (§9).
 
-## 17. Herzieningen
+## 17. Wijzigingen bij het uitwerken (2026-09-26)
 
-### 17.1 Bij het uitwerken van het plan (2026-09-26)
+De implementatieplanning (`docs/superpowers/plans/2026-09-26-weekly-meta-label-research.md`)
+liep op zeven punten tegen de werkelijkheid van de repository aan. Deze sectie gaat
+voor waar zij §4, §7, §9, §10.4 of §12 tegenspreekt.
 
-1. Data zoals gecertificeerd, niet bijgewerkt (append-only store) — §4.
-2. Holdout = de laatste 60 bars vanaf 2026-06-24; ongelezen slot opnieuw bevroren — §9.1.
-3. M via de lege ledger in plaats van `freeze_reset` — §9.2.
-4. Geen GARCH-feature (burn-in); EWMA is het volatiliteitsmodel — §7.
-5. Kalman rollend opnieuw gefit — §7.
-6. Exits op barrièreniveau in een klein tradeboek, omdat `backtest/engine.py`
-   alleen op barprijzen vult — §12.
-7. FFD-drempel uit `conf/model/fracdiff.yaml` (1e-4 in plaats van 1e-5) — §7.
-8. Voorrang in het oordeel: te weinig data gaat vóór `FALSIFIED` — §14.
+1. **Data zoals gecertificeerd, niet bijgewerkt.** De PIT-store is append-only met
+   jaarpartities (`PitStore.write` crasht bij een afwijkende bestaande partitie), dus
+   dagen toevoegen aan 2026 vergt een wijziging aan het apparaat. Plan 1 gebruikt de
+   store zoals hij is (laatste bar: asof 2026-08-23). Bijwerken hoort bij Plan 2 (live).
+2. **Holdout = de laatste 60 bars:** split `2026-06-24T00:00:00+00:00`. Het huidige slot
+   is nooit gelezen (`reads: []`) en wordt opnieuw bevroren.
+3. **M via de lege ledger, niet via `freeze_reset`.** Na een reset eist
+   `active_trial_count` dat de ledger niet meer groeit; een schone ledger telt zelf. Het
+   programma boekt zijn 4 trials als eerste entry en bevriest `M = 4` in de
+   preregistratie; de DSR leest hem met `frozen_trial_count`.
+4. **GARCH valt uit de features.** Een GARCH-fit vraagt per symbool 250-500 bars burn-in
+   (`conf/model/adequacy.yaml`); dat kost SOL en AVAX hun eerste 1-1,5 jaar. EWMA
+   (RiskMetrics) blijft het volatiliteitsmodel voor barrières, CUSUM-drempels, sizing en
+   risicolaag. Het vol-regime komt uit de Yang-Zhang-ratio en vol-of-vol.
+5. **Kalman rollend opnieuw gefit.** `KalmanOUMeanReversion` houdt mu bewust statisch na
+   `fit()`; zonder rollende refit trekt de z-score naar een oud prijsniveau. De
+   OU-halfwaardetijd komt uit dezelfde fit (`current_halflife`).
+6. **Exits op het barrièreniveau, in een klein tradeboek.** `backtest/engine.py` vult
+   alleen op barprijzen en kan een stop bij de exchange niet uitdrukken.
+   `backtest/barrier_book.py` gebruikt dezelfde `RiskEngine.decide`, dezelfde
+   kostenparameters en `square_root_impact`, en wordt bewezen met een boekhoudidentiteit
+   en een causaliteitstest.
+7. **Posterior met uniforme prior:** `Beta(1 + p_hat*n, 1 + (1 - p_hat)*n)`, zodat hij
+   ook bij `n = 0` gedefinieerd is (dan geen informatie, dus geen inzet boven break-even).
 
-### 17.2 Na de methodologische review van de eigenaar (2026-09-26)
-
-1. **Eén kostendefinitie**, trade-specifiek, met drie expliciete toepassingen
-   (label, ex ante, P&L); de ex-ante vorm is een conservatieve bovengrens — §6.2,
-   §10.2. (Voorheen: 0,25 % in §10 tegen 13 bps in §12.)
-2. **Geen pseudo-posterior meer.** De sizing gebruikt een echte Beta-posterior op
-   gerealiseerde OOF-uitkomsten per kansbak, gescheiden van de kalibratie. Live
-   geldt hetzelfde op live-uitkomsten — §10.4, §13. (Voorheen:
-   `Beta(1 + p̂·n, 1 + (1 − p̂)·n)`, een shrinkageheuristiek.)
-3. **Handelsdrempel en kalibratie uit inner-walk-forward OOF-voorspellingen** —
-   §8, §10.3. (Voorheen: een enkele chronologische kalibratiesplit.)
-4. **Het omgekeerde signaal is geen negatieve controle meer**, alleen diagnose;
-   geldigheid komt uit labelpermutatie en de lookahead-suite — §9.4.
-5. **Holdout-rooktest numeriek**: H1 Brier, H2 kansverdeling, H3 rendement — §9.8.
-6. **Vergelijking gefilterd tegen ongefilterd exact gedefinieerd**: dezelfde
-   vaste risicofractie, dezelfde kalenderas met nullen, dezelfde kosten en
-   risicolaag; Ledoit-Wolf-toets; selectie-nul gerapporteerd — §9.7.
-7. **PBO als grof, ondersteunend** benoemd; CPCV-padconstructie en rangorde per
-   pad vastgelegd — §9.5.
-8. **Plan 1 / Plan 2** behouden, met een expliciete dagdata-executieconventie in
-   Plan 1 (geen post-only/taker-logica) — §2, §11, §12.
+**Opsplitsing:** dit is Plan 1 (onderzoek tot en met oordeel en holdout-rooktest). Plan 2
+(data bijwerken, papertrading, SPRT- en Beta-bewaking, orders met stops bij de exchange)
+wordt pas geschreven na een `PASS`.

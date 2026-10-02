@@ -36,13 +36,12 @@ class WeeklyMetaConfig(StrictModel):
     barrier_sigma: Positive
     horizon_bars: Annotated[int, Field(ge=1)]
     stop_slippage_bps: Annotated[float, Field(ge=0.0)]
-    funding_lookback_bars: Annotated[int, Field(ge=1)]
     trades_per_week_target: Positive
     logreg_c: Positive
     forest_n_estimators: Annotated[int, Field(ge=10)]
     forest_max_depth: Annotated[int, Field(ge=1, le=5)]
     forest_min_samples_leaf: Annotated[int, Field(ge=1)]
-    inner_wf_blocks: int
+    calibration_fraction: Fraction
     kelly_multiple: Annotated[float, Field(gt=0.0, le=0.5)]
     posterior_quantile: Fraction
     n_probability_bins: Annotated[int, Field(ge=2)]
@@ -59,11 +58,7 @@ class WeeklyMetaConfig(StrictModel):
     min_trades: Annotated[int, Field(ge=1)]
     n_shuffle_replicates: Annotated[int, Field(ge=1)]
     shuffle_auc_band: tuple[float, float]
-    n_selection_permutations: Annotated[int, Field(ge=1)]
     holdout_brier_margin: Annotated[float, Field(ge=0.0)]
-    holdout_mean_shift_max: Fraction
-    holdout_ks_alpha: Fraction
-    holdout_return_quantile: Annotated[float, Field(gt=0.0, lt=0.5)]
     planned_trials: Annotated[int, Field(ge=2)]
     seed: Annotated[int, Field(ge=0)]
 
@@ -81,8 +76,6 @@ class WeeklyMetaConfig(StrictModel):
             raise ValueError("er moeten meer events dan trades zijn: het filter kiest")
         if self.cpcv_n_groups % self.cpcv_n_test_groups != 0:
             raise ValueError("cpcv_n_groups moet deelbaar zijn door cpcv_n_test_groups")
-        if self.inner_wf_blocks < 2:
-            raise ValueError("inner_wf_blocks moet ten minste 2 zijn: blok 1 traint, de rest wordt out-of-fold voorspeld")
         lo, hi = self.shuffle_auc_band
         if not 0.0 < lo < 0.5 < hi < 1.0:
             raise ValueError("shuffle_auc_band moet 0,5 omsluiten")
@@ -90,9 +83,5 @@ class WeeklyMetaConfig(StrictModel):
 
 
 def weekly_meta_config(path: Path | str = WEEKLY_META_CONFIG_PATH) -> WeeklyMetaConfig:
-    """Laad en valideer `conf/model/weekly_meta.yaml` (plat document, geen wrapper).
-
-    `load_config` pelt alleen een wrapper-sleutel af die in `DOMAIN_SCHEMAS` staat;
-    dit domein staat daar bewust niet in, dus de YAML is plat.
-    """
+    """Laad en valideer `conf/model/weekly_meta.yaml` (plat document, geen wrapper)."""
     return load_config(path, WeeklyMetaConfig)

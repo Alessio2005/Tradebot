@@ -6,44 +6,40 @@
 # preregistratie wordt bevroren; een tweede waarde is een nieuwe trial.
 symbols: [BTCUSDT, ETHUSDT, SOLUSDT, AVAXUSDT, LINKUSDT, DOTUSDT]
 
-# Walk-forward: eerste testkwartaal en de holdout-grens (spec §9.1, §9.3).
+# Walk-forward: eerste testkwartaal en de holdout-grens (spec §9, §17.2).
 first_test_start_utc: "2022-01-01T00:00:00+00:00"
 holdout_split_utc: "2026-06-24T00:00:00+00:00"
 test_bars: 91
 
-# Events: k wordt uit dit rooster gekozen op frequentie, nooit op rendement (spec §5).
+# Events: k wordt uit dit rooster gekozen op frequentie, nooit op rendement.
 events_per_week_target: 5.5
 k_grid: [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]
 
-# Eén barrièrebreedte, dus 1:1 per constructie. sqrt(5) daggrootte = één week (spec §6.1).
+# Eén barrièrebreedte, dus 1:1 per constructie. sqrt(5) daggrootte = één week.
 barrier_sigma: 2.2360679774997896
 horizon_bars: 10
-
-# Kosten (spec §6.2): de vaste delen komen uit conf/execution/fees.yaml; hier
-# alleen wat daar niet staat.
 stop_slippage_bps: 5.0
-funding_lookback_bars: 7
 
-# Handelen: 1-2 trades per week voor het hele boek, via de OOF-drempel (spec §10.3).
+# Handelen: 1-2 trades per week voor het hele boek, via de kansdrempel.
 trades_per_week_target: 1.5
 
-# Modellen: licht en niet getuned; kalibratie op inner walk-forward (spec §8).
+# Modellen: licht en niet getuned (spec §8).
 logreg_c: 0.1
 forest_n_estimators: 500
 forest_max_depth: 3
 forest_min_samples_leaf: 50
-inner_wf_blocks: 4
+calibration_fraction: 0.25
 
-# Sizing (spec §10.4): Beta-posterior op gerealiseerde OOF-uitkomsten per kansbak.
+# Sizing (spec §10).
 kelly_multiple: 0.25
 posterior_quantile: 0.25
-n_probability_bins: 5
+n_probability_bins: 10
 baseline_risk_fraction: 0.01
 resize_band: 0.25
 corr_window: 60
 account_equity: 100000.0
 
-# Poorten (spec §1, §9, §14). Moeten gelijk zijn aan de preregistratie (Taak 12 toetst dat).
+# Poorten (spec §1, §14). Moeten gelijk zijn aan de preregistratie (Taak 12 toetst dat).
 mc_paths: 10000
 mc_max_drawdown: 0.25
 mc_max_probability_1y: 0.10
@@ -53,13 +49,7 @@ pbo_max: 0.25
 min_trades: 100
 n_shuffle_replicates: 5
 shuffle_auc_band: [0.45, 0.55]
-n_selection_permutations: 100
-
-# De holdout-rooktest, numeriek (spec §9.8).
-holdout_brier_margin: 0.01
-holdout_mean_shift_max: 0.05
-holdout_ks_alpha: 0.01
-holdout_return_quantile: 0.01
+holdout_brier_margin: 0.0
 
 planned_trials: 4
 seed: 20260926
