@@ -12,7 +12,9 @@ holdout_split_utc: "2026-06-24T00:00:00+00:00"
 test_bars: 91
 
 # Events: k wordt uit dit rooster gekozen op frequentie, nooit op rendement.
-events_per_week_target: 5.5
+# Hoog CUSUM-filter: ~2,5 doorbraken per week voor het hele boek (k = 3,0 op de
+# kalibratiedata: 2,33/week), zodat er na het kansfilter 1-2x per week wordt gehandeld.
+events_per_week_target: 2.5
 k_grid: [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]
 
 # Eén barrièrebreedte, dus 1:1 per constructie. sqrt(5) daggrootte = één week.
