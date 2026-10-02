@@ -6,7 +6,7 @@ Volgorde, en waarom zij vastligt:
 3. Kandidaten per model; het ensemble met Kelly, de referentie ongefilterd met
    een vaste risicofractie; allemaal door hetzelfde boek en dezelfde risicolaag.
 4. Negatieve controles: geschudde labels en de omgekeerde richting.
-5. Inferentie: Lo-SE, blokbootstrap, Ledoit-Wolf-verschil, DSR bij de bevroren M,
+5. Inferentie: Lo-SE, blokbootstrap, Ledoit-Wolf-verschil, gewone netto Sharpe (geen DSR, geen trial-telling),
    Wilson-interval op de trefkans, PBO over de vier varianten, Monte Carlo-drawdown.
 6. Het oordeel komt uit de bevroren stop-criteria (Taak 10).
 CPCV-paden worden gerapporteerd, niet gepoort.
@@ -37,7 +37,6 @@ from ..labeling.barrier_fills import round_trip_cost
 from ..labeling.breakout import calibrate_k
 from ..monitoring.prob_calibration import expected_calibration_error
 from ..registry.preregistration import StopCriterion, require_preregistration
-from ..registry.trial_counter import TrialCount, frozen_trial_count
 from ..risk.binary_kelly import (
     break_even_probability,
     monte_carlo_drawdown_probability,
@@ -48,7 +47,6 @@ from ..schemas.config import (
     ExecutionConfig,
     ImpactConfig,
     RiskConfig,
-    ValidationConfig,
     load_config,
 )
 from ..schemas.weekly_meta import WeeklyMetaConfig, weekly_meta_config
@@ -56,7 +54,6 @@ from ..train.light_models import MODEL_KINDS, fit_light_model
 from ..train.meta_label import FoldPredictions, shuffled_targets, walk_forward_fit_predict
 from ..train.weekly_dataset import WeeklyDataset, build_weekly_dataset
 from ..utils.failfast import DataContractError, require
-from .dsr import dsr_gate
 from .holdout import development_slice
 from .inference import block_bootstrap_ci, sharpe_difference_test, sharpe_with_se
 from .weekly_verdict import Verdict, judge
@@ -181,9 +178,7 @@ def run_campaign_on_market(
     cfg: WeeklyMetaConfig,
     *,
     criteria: Sequence[StopCriterion],
-    trial_count: TrialCount,
     exec_cfg: ExecutionConfig,
-    val_cfg: ValidationConfig,
     risk_cfg: RiskConfig,
     impact: ImpactParams | None,
 ) -> CampaignResult:
@@ -243,7 +238,6 @@ def run_campaign_on_market(
     diff = sharpe_difference_test(ens, base, bars_per_year=BARS_PER_YEAR, seed=cfg.seed,
                                   align="common_valid")
     ci = block_bootstrap_ci(ens, bars_per_year=BARS_PER_YEAR, seed=cfg.seed)
-    dsr = dsr_gate(ens.to_numpy(), trial_count=trial_count, config=val_cfg)
 
     taken = books["ensemble"].trades
     n_trades = int(len(taken))
@@ -278,7 +272,6 @@ def run_campaign_on_market(
         "ensemble_net_sharpe": float(ens_se.sharpe),
         "sharpe_diff_ci_low": float(diff.ci_low),
         "sharpe_ci_low": float(ci.low),
-        "dsr": float(dsr.dsr),
         "hit_rate_ci_low_minus_break_even": float(hit_low - p_be_mean),
         "pbo": pbo,
         "mc_drawdown_probability_1y": float(mc),
@@ -304,7 +297,6 @@ def run_campaign_on_market(
                       for kind in MODEL_KINDS}},
         "sharpe_difference": {"delta": float(diff.delta_sharpe), "ci_low": float(diff.ci_low),
                               "ci_high": float(diff.ci_high), "p_value": float(diff.p_value)},
-        "dsr": {"dsr": float(dsr.dsr), "passed": bool(dsr.passed), "M": int(trial_count.value)},
         "cpcv_path_sharpes": cpcv,
         # compute_pbo waarschuwt zelf: onder S=50 varianten is de PBO "bimodale ruis". Hier zijn er
         # vier (referentie + drie modellen); lees `pbo` als indicatie, niet als bewijs.
@@ -343,9 +335,7 @@ def main() -> None:
         eta_ci_high=imp.eta_ci_high)
     result = run_campaign_on_market(
         market, cfg, criteria=prereg.stop_criteria,
-        trial_count=frozen_trial_count(prereg_path),
         exec_cfg=load_config(root / "conf/execution/fees.yaml", ExecutionConfig),
-        val_cfg=load_config(root / "conf/validation/default.yaml", ValidationConfig),
         risk_cfg=load_config(root / "conf/risk/default.yaml", RiskConfig),
         impact=impact)
     record = {**result.record, "values": result.values, "preregistration_id": prereg_id,

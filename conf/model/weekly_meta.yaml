@@ -30,6 +30,7 @@ logreg_c: 0.1
 forest_n_estimators: 500
 forest_max_depth: 3
 forest_min_samples_leaf: 50
+forest_max_features: 1
 calibration_fraction: 0.25
 
 # Sizing (spec §10).

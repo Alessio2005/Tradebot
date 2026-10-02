@@ -9,8 +9,7 @@ import pytest
 
 from tests.weekly_fixtures import synthetic_market
 from tradebot.registry.preregistration import StopCriterion
-from tradebot.registry.trial_counter import TrialCount
-from tradebot.schemas.config import ExecutionConfig, RiskConfig, ValidationConfig, load_config
+from tradebot.schemas.config import ExecutionConfig, RiskConfig, load_config
 from tradebot.schemas.weekly_meta import weekly_meta_config
 from tradebot.validation.weekly_campaign import run_campaign_on_market, trade_candidates
 from tradebot.validation.weekly_verdict import DEVELOPMENT_METRICS
@@ -34,10 +33,7 @@ def result():
                 for m in DEVELOPMENT_METRICS]
     return run_campaign_on_market(
         market, cfg, criteria=criteria,
-        trial_count=TrialCount(value=4, source="frozen", origin="test",
-                               seed_total=0, registered_total=4),
         exec_cfg=load_config(ROOT / "conf/execution/fees.yaml", ExecutionConfig),
-        val_cfg=load_config(ROOT / "conf/validation/default.yaml", ValidationConfig),
         risk_cfg=load_config(ROOT / "conf/risk/default.yaml", RiskConfig),
         impact=None)
 

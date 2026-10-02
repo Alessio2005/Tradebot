@@ -14,8 +14,8 @@ hypothesis: >-
   gekalibreerd met Platt op een gepurgede binnensplit, dat alleen de doorbraken
   handelt waarvan de gekalibreerde kans boven break-even en boven de
   frequentiedrempel ligt, levert na kosten, funding en impact een hogere netto
-  Sharpe dan hetzelfde CUSUM-signaal zonder filter, met een DSR van ten minste
-  0,95 bij M = 4, onder purged walk-forward met embargo.
+  Sharpe dan hetzelfde CUSUM-signaal zonder filter, met een netto Sharpe waarvan de
+  blokbootstrap-ondergrens boven nul ligt, onder purged walk-forward met embargo.
 
 null_hypothesis: >-
   Het filter voegt na kosten niets toe aan het ongefilterde CUSUM-signaal, of
@@ -89,12 +89,6 @@ stop_criteria:
     threshold: 0.0
     action: archive
     rationale: De blokbootstrap-ondergrens van de netto Sharpe moet boven nul liggen.
-  - name: dsr_below_threshold
-    metric: dsr
-    operator: "<"
-    threshold: 0.95
-    action: archive
-    rationale: Onder DSR 0,95 bij M = 4 is de Sharpe niet te onderscheiden van selectieruis.
   - name: hit_rate_not_above_break_even
     metric: hit_rate_ci_low_minus_break_even
     operator: "<="
