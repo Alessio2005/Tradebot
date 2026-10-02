@@ -62,8 +62,8 @@ ARCHITECTUUR_AUDIT_2026-08-22.md §12.1, §24; pre-registratie
 """
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -84,6 +84,7 @@ __all__ = [
     "fit_secondary_model",
     "meta_label_grid",
     "purged_training_index",
+    "walk_forward_fit_predict",
     "walk_forward_predictions",
 ]
 
@@ -389,6 +390,8 @@ class FoldPredictions:
     n_train: int
     purge: Mapping[str, int]
     feature_importance: np.ndarray
+    #: Wat de fit naast zijn kansen meegeeft (bijv. de kalibratieset). Leeg voor CatBoost.
+    extras: Mapping[str, Any] = field(default_factory=dict)
 
     def as_record(self) -> dict[str, Any]:
         return {
@@ -399,22 +402,25 @@ class FoldPredictions:
         }
 
 
-def walk_forward_predictions(
+def _importance(model: Any) -> np.ndarray:
+    if hasattr(model, "get_feature_importance"):
+        return np.asarray(model.get_feature_importance(), dtype=np.float64)
+    return np.asarray(model.feature_importance, dtype=np.float64)
+
+
+def walk_forward_fit_predict(
     dataset: MetaLabelDataset,
     cv: WalkForwardCV,
-    spec: MetaLabelSpec,
-    cfg: MetaLabelConfig,
+    fit: Callable[[np.ndarray, np.ndarray], Any],
     *,
     n_bars: int,
     embargo_bars: int,
     target: np.ndarray | None = None,
 ) -> list[FoldPredictions]:
-    """Purged walk-forward over de bar-as; één fit per fold.
+    """Purged walk-forward met een willekeurig model: `fit(train_rows, labels)`.
 
-    `target` bestaat uitsluitend voor de NEGATIEVE CONTROLE: daar wordt hetzelfde
-    model op gerandomiseerde labels gedraaid. Hij is geen route naar een eigen
-    doelvector -- de aanroeper kan er alleen een PERMUTATIE van het bestaande
-    doel in stoppen, en `walk_forward_predictions` controleert dat.
+    Dezelfde purge, hetzelfde embargo en dezelfde permutatie-eis als
+    `walk_forward_predictions`; alleen de fit is ingeplugd.
     """
     labels = dataset.target if target is None else np.asarray(target)
     require(
@@ -439,9 +445,7 @@ def walk_forward_predictions(
             & (dataset.event_bar <= int(fold.test_idx[-1])))
         if train_rows.size == 0 or test_rows.size == 0:
             continue
-        model = fit_secondary_model(
-            dataset.features.iloc[train_rows], labels[train_rows],
-            dataset.uniqueness[train_rows], spec, cfg)
+        model = fit(train_rows, labels)
         probability = model.predict_proba(
             dataset.features.iloc[test_rows].to_numpy(dtype="float64"))[:, 1]
         out.append(FoldPredictions(
@@ -449,8 +453,8 @@ def walk_forward_predictions(
             probability=probability, target=labels[test_rows],
             uniqueness=dataset.uniqueness[test_rows],
             n_train=int(train_rows.size), purge=purge,
-            feature_importance=np.asarray(
-                model.get_feature_importance(), dtype=np.float64),
+            feature_importance=_importance(model),
+            extras=dict(getattr(model, "fold_extras", {})),
         ))
     require(
         bool(out),
@@ -458,6 +462,32 @@ def walk_forward_predictions(
         DataContractError, n_bars=n_bars,
     )
     return out
+
+
+def walk_forward_predictions(
+    dataset: MetaLabelDataset,
+    cv: WalkForwardCV,
+    spec: MetaLabelSpec,
+    cfg: MetaLabelConfig,
+    *,
+    n_bars: int,
+    embargo_bars: int,
+    target: np.ndarray | None = None,
+) -> list[FoldPredictions]:
+    """Purged walk-forward over de bar-as; één fit per fold.
+
+    `target` bestaat uitsluitend voor de NEGATIEVE CONTROLE: daar wordt hetzelfde
+    model op gerandomiseerde labels gedraaid. Hij is geen route naar een eigen
+    doelvector -- de aanroeper kan er alleen een PERMUTATIE van het bestaande
+    doel in stoppen, en `walk_forward_predictions` controleert dat.
+    """
+    def fit(rows: np.ndarray, labels: np.ndarray) -> Any:
+        return fit_secondary_model(
+            dataset.features.iloc[rows], labels[rows],
+            dataset.uniqueness[rows], spec, cfg)
+
+    return walk_forward_fit_predict(dataset, cv, fit, n_bars=n_bars,
+                                    embargo_bars=embargo_bars, target=target)
 
 
 def shuffled_targets(
