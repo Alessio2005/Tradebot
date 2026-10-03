@@ -24,3 +24,7 @@
 {"name": "TR_SM_LS", "family": "sleeve", "note": "discovery variant", "disc_sharpe": 1.043230573452198}
 {"name": "TREND_MIX", "family": "sleeve", "note": "discovery combo", "disc_sharpe": 1.4892150458106583}
 {"name": "COMBO_TX", "family": "sleeve", "note": "discovery combo", "disc_sharpe": 1.6302499568363924}
+{"name": "TREND_MULTIVERSE_AVG", "family": "sleeve", "note": "equal-weight average of 54 trend specs; no selection"}
+{"name": "SCREEN_dow", "family": "screen", "note": "weekday effect, EW index, discovery"}
+{"name": "VOLFC_family", "family": "risk", "note": "vol-forecast QLIKE comparison, EWMA94/97/GK/HAR"}
+{"name": "ML_RIDGE", "family": "ml", "note": "pooled ridge a=1000, quarterly refit, TS and XS book (one trial)"}

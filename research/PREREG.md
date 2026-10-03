@@ -49,7 +49,7 @@ het zoeken zelf geen manier wordt om een mooi getal te fabriceren.
 Gemeten op 2022-01-01 → 2026-06-23 (4,48 jaar, alle zes munten live), 20 % vol-doel, 6,5 bps:
 
 | # | Eis |
-|---|---|
+| --- | --- |
 | A1 | netto Sharpe ≥ 1,0 |
 | A2 | Sharpe ≥ 0,7 in het validatievenster (2024+) **én** ≥ 0,7 in 2022–2023 |
 | A3 | positief netto rendement in minstens 4 van de 5 kalenderjaren (2022, 23, 24, 25, 26H1), geen jaar slechter dan −10 % |
@@ -74,7 +74,7 @@ wel, naast de eerlijke M.
 ## 5. Roster v1 (aanvullingen later als gedateerde amendementen, elk een trial)
 
 | Code | Hypothese | Ontwerp (vast) |
-|---|---|---|
+| --- | --- | --- |
 | TR_LS / TR_LF | trend | TSMOM-ensemble 7/14/28/56/112, long-short resp. long-flat, gelijk risico per live munt, portefeuille-vol-doel |
 | TR_BRK | trend | Donchian-doorbraak 20/40/80/160, gelijk gewogen, houden tot tegengestelde doorbraak |
 | TR_SM | trend, lagere turnover | idem TR_LS, signaal EMA-gesmoord (span 5) + rustband |
@@ -122,3 +122,14 @@ is binnen de ruis (SE ≈ 0,5) en bewijst de fragiliteit, geen reden om (7,14,28
 Eén lezing van het validatievenster, daarna eventuele wijziging = nieuwe trial en validatie geldt als
 ontwikkeling. Boekhouding: M = 43 op dit moment (17 vooraf + 17 screen + 9 sleeves/varianten); nieuwe
 varianten tot nu toe 26 van 40.
+
+## 8. Oordeel (2026-10-03)
+
+Na één validatie-lezing, een multiversum van 54 trendspecs, een volatiliteitsvergelijking en een
+kitchen-sink ridge (30 nieuwe varianten van 40, M = 47) haalt **geen enkele kandidaat A1–A6** (zie
+`REPORT.md`). Volgens §4 is het antwoord daarmee: *met deze data en deze zes munten bestaat geen strategie die
+de poorten haalt; de beste eerlijke schatting voor de trendfamilie is een Sharpe van ≈ 0,3–0,5.*
+
+* De holdout (2026-06-24 → 2026-08-23) is **niet gelezen**: A7 is alleen voor een kandidaat die A1–A6 haalt.
+* Het validatievenster is verbruikt voor deze ontwerpfamilie.
+* Een nieuw universum (meer perps) vraagt een nieuwe voorregistratie met opnieuw berekende poorten.
