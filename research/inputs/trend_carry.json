@@ -1,0 +1,432 @@
+{
+ "full_2020-09_2026-06": {
+  "T1_trend_LS": {
+   "sharpe": 0.99,
+   "se": 0.41,
+   "ci95": [
+    0.22,
+    1.74
+   ],
+   "ann_ret": 0.247,
+   "ann_vol": 0.25,
+   "max_dd": -0.234,
+   "years": 5.81
+  },
+  "T2_trend_long_flat": {
+   "sharpe": 1.2,
+   "se": 0.43,
+   "ci95": [
+    0.39,
+    1.95
+   ],
+   "ann_ret": 0.217,
+   "ann_vol": 0.181,
+   "max_dd": -0.16,
+   "years": 5.81
+  },
+  "B0_volscaled_long": {
+   "sharpe": 0.4,
+   "se": 0.43,
+   "ci95": [
+    -0.42,
+    1.25
+   ],
+   "ann_ret": 0.155,
+   "ann_vol": 0.386,
+   "max_dd": -0.584,
+   "years": 5.81
+  },
+  "T1_lag2": {
+   "sharpe": 0.68,
+   "se": 0.41,
+   "ci95": [
+    -0.1,
+    1.45
+   ],
+   "ann_ret": 0.167,
+   "ann_vol": 0.247,
+   "max_dd": -0.311,
+   "years": 5.81
+  },
+  "T2_lag2": {
+   "sharpe": 0.87,
+   "se": 0.44,
+   "ci95": [
+    0.04,
+    1.66
+   ],
+   "ann_ret": 0.156,
+   "ann_vol": 0.18,
+   "max_dd": -0.219,
+   "years": 5.81
+  },
+  "B1_BTC_buyhold": {
+   "sharpe": 0.79,
+   "se": 0.42,
+   "ci95": [
+    -0.03,
+    1.59
+   ],
+   "ann_ret": 0.461,
+   "ann_vol": 0.581,
+   "max_dd": -0.767,
+   "years": 5.81
+  },
+  "T1_gross": {
+   "sharpe": 1.29,
+   "se": 0.42,
+   "ci95": [
+    0.53,
+    2.04
+   ],
+   "ann_ret": 0.322,
+   "ann_vol": 0.25,
+   "max_dd": -0.201,
+   "years": 5.81
+  }
+ },
+ "dev_OOS_2022-01_2026-06": {
+  "T1_trend_LS": {
+   "sharpe": 0.64,
+   "se": 0.46,
+   "ci95": [
+    -0.24,
+    1.51
+   ],
+   "ann_ret": 0.15,
+   "ann_vol": 0.234,
+   "max_dd": -0.234,
+   "years": 4.48
+  },
+  "T2_trend_long_flat": {
+   "sharpe": 0.74,
+   "se": 0.51,
+   "ci95": [
+    -0.18,
+    1.68
+   ],
+   "ann_ret": 0.103,
+   "ann_vol": 0.138,
+   "max_dd": -0.151,
+   "years": 4.48
+  },
+  "B0_volscaled_long": {
+   "sharpe": -0.01,
+   "se": 0.5,
+   "ci95": [
+    -0.96,
+    0.93
+   ],
+   "ann_ret": -0.004,
+   "ann_vol": 0.378,
+   "max_dd": -0.536,
+   "years": 4.48
+  },
+  "T1_lag2": {
+   "sharpe": 0.37,
+   "se": 0.46,
+   "ci95": [
+    -0.49,
+    1.25
+   ],
+   "ann_ret": 0.087,
+   "ann_vol": 0.232,
+   "max_dd": -0.311,
+   "years": 4.48
+  },
+  "T2_lag2": {
+   "sharpe": 0.43,
+   "se": 0.5,
+   "ci95": [
+    -0.49,
+    1.35
+   ],
+   "ann_ret": 0.06,
+   "ann_vol": 0.14,
+   "max_dd": -0.219,
+   "years": 4.48
+  },
+  "B1_BTC_buyhold": {
+   "sharpe": 0.39,
+   "se": 0.47,
+   "ci95": [
+    -0.53,
+    1.31
+   ],
+   "ann_ret": 0.2,
+   "ann_vol": 0.514,
+   "max_dd": -0.67,
+   "years": 4.48
+  },
+  "T1_gross": {
+   "sharpe": 0.84,
+   "se": 0.46,
+   "ci95": [
+    -0.03,
+    1.71
+   ],
+   "ann_ret": 0.196,
+   "ann_vol": 0.234,
+   "max_dd": -0.201,
+   "years": 4.48
+  }
+ },
+ "2024-01_2026-06": {
+  "T1_trend_LS": {
+   "sharpe": 0.35,
+   "se": 0.62,
+   "ci95": [
+    -0.87,
+    1.49
+   ],
+   "ann_ret": 0.08,
+   "ann_vol": 0.232,
+   "max_dd": -0.234,
+   "years": 2.48
+  },
+  "T2_trend_long_flat": {
+   "sharpe": 0.44,
+   "se": 0.66,
+   "ci95": [
+    -0.8,
+    1.68
+   ],
+   "ann_ret": 0.06,
+   "ann_vol": 0.137,
+   "max_dd": -0.151,
+   "years": 2.48
+  },
+  "B0_volscaled_long": {
+   "sharpe": -0.17,
+   "se": 0.65,
+   "ci95": [
+    -1.41,
+    1.13
+   ],
+   "ann_ret": -0.063,
+   "ann_vol": 0.38,
+   "max_dd": -0.536,
+   "years": 2.48
+  },
+  "T1_lag2": {
+   "sharpe": 0.12,
+   "se": 0.59,
+   "ci95": [
+    -1.05,
+    1.2
+   ],
+   "ann_ret": 0.029,
+   "ann_vol": 0.236,
+   "max_dd": -0.276,
+   "years": 2.48
+  },
+  "T2_lag2": {
+   "sharpe": 0.02,
+   "se": 0.64,
+   "ci95": [
+    -1.18,
+    1.25
+   ],
+   "ann_ret": 0.004,
+   "ann_vol": 0.143,
+   "max_dd": -0.219,
+   "years": 2.48
+  },
+  "B1_BTC_buyhold": {
+   "sharpe": 0.59,
+   "se": 0.6,
+   "ci95": [
+    -0.59,
+    1.78
+   ],
+   "ann_ret": 0.284,
+   "ann_vol": 0.482,
+   "max_dd": -0.512,
+   "years": 2.48
+  },
+  "T1_gross": {
+   "sharpe": 0.55,
+   "se": 0.63,
+   "ci95": [
+    -0.66,
+    1.7
+   ],
+   "ann_ret": 0.127,
+   "ann_vol": 0.232,
+   "max_dd": -0.2,
+   "years": 2.48
+  }
+ },
+ "yearly": {
+  "T1_trend_LS": {
+   "2020": {
+    "ret": 0.606,
+    "sr": 4.67
+   },
+   "2021": {
+    "ret": 0.16,
+    "sr": 0.63
+   },
+   "2022": {
+    "ret": 0.196,
+    "sr": 0.79
+   },
+   "2023": {
+    "ret": 0.275,
+    "sr": 1.22
+   },
+   "2024": {
+    "ret": 0.112,
+    "sr": 0.53
+   },
+   "2025": {
+    "ret": -0.069,
+    "sr": -0.31
+   },
+   "2026": {
+    "ret": 0.155,
+    "sr": 1.15
+   }
+  },
+  "T2_trend_long_flat": {
+   "2020": {
+    "ret": 0.595,
+    "sr": 4.6
+   },
+   "2021": {
+    "ret": 0.205,
+    "sr": 0.9
+   },
+   "2022": {
+    "ret": -0.055,
+    "sr": -0.84
+   },
+   "2023": {
+    "ret": 0.368,
+    "sr": 1.96
+   },
+   "2024": {
+    "ret": 0.21,
+    "sr": 1.26
+   },
+   "2025": {
+    "ret": -0.029,
+    "sr": -0.22
+   },
+   "2026": {
+    "ret": -0.032,
+    "sr": -1.14
+   }
+  },
+  "B0_volscaled_long": {
+   "2020": {
+    "ret": 0.654,
+    "sr": 4.21
+   },
+   "2021": {
+    "ret": 0.266,
+    "sr": 0.69
+   },
+   "2022": {
+    "ret": -0.573,
+    "sr": -1.51
+   },
+   "2023": {
+    "ret": 0.709,
+    "sr": 1.9
+   },
+   "2024": {
+    "ret": 0.312,
+    "sr": 0.85
+   },
+   "2025": {
+    "ret": -0.118,
+    "sr": -0.31
+   },
+   "2026": {
+    "ret": -0.35,
+    "sr": -1.84
+   }
+  }
+ },
+ "decomp_T1_trend_LS": {
+  "gross_ann": 0.196,
+  "funding_ann": -0.019,
+  "costs_ann": -0.027,
+  "turnover_per_day": 0.115,
+  "avg_gross_lev": 0.36
+ },
+ "decomp_T2_trend_long_flat": {
+  "gross_ann": 0.134,
+  "funding_ann": -0.019,
+  "costs_ann": -0.012,
+  "turnover_per_day": 0.049,
+  "avg_gross_lev": 0.15
+ },
+ "alpha_T1_trend_LS_vs_B0": {
+  "alpha_ann": 0.149,
+  "t": 1.38,
+  "beta": -0.17
+ },
+ "alpha_T2_trend_long_flat_vs_B0": {
+  "alpha_ann": 0.104,
+  "t": 1.95,
+  "beta": 0.23
+ },
+ "C1_cash_and_carry_by_year": {
+  "2020": {
+   "net_yield_ann": 0.2965,
+   "always_on_gross_ann": 0.3385,
+   "days": 122,
+   "frac_days_on": 0.24
+  },
+  "2021": {
+   "net_yield_ann": 0.5303,
+   "always_on_gross_ann": 0.5486,
+   "days": 365,
+   "frac_days_on": 0.65
+  },
+  "2022": {
+   "net_yield_ann": -0.0,
+   "always_on_gross_ann": -0.0513,
+   "days": 365,
+   "frac_days_on": 0.64
+  },
+  "2023": {
+   "net_yield_ann": 0.0788,
+   "always_on_gross_ann": 0.0784,
+   "days": 365,
+   "frac_days_on": 0.88
+  },
+  "2024": {
+   "net_yield_ann": 0.1165,
+   "always_on_gross_ann": 0.1263,
+   "days": 366,
+   "frac_days_on": 0.92
+  },
+  "2025": {
+   "net_yield_ann": 0.0071,
+   "always_on_gross_ann": 0.0347,
+   "days": 365,
+   "frac_days_on": 0.83
+  },
+  "2026": {
+   "net_yield_ann": -0.0286,
+   "always_on_gross_ann": -0.0016,
+   "days": 174,
+   "frac_days_on": 0.69
+  }
+ },
+ "C1_sharpe_dev_OOS": {
+  "sharpe": 5.85,
+  "se": 1.87,
+  "ci95": [
+   2.25,
+   9.67
+  ],
+  "ann_ret": 0.042,
+  "ann_vol": 0.007,
+  "max_dd": -0.03,
+  "years": 4.48
+ }
+}
