@@ -88,3 +88,37 @@ wel, naast de eerlijke M.
 
 Selectieregel voor COMBO: een sleeve doet mee als zijn discovery-Sharpe > 0 én zijn validatie-Sharpe > 0
 (één lezing); gewichten gelijk-risico (inverse realised vol), **niet** geoptimaliseerd.
+
+## 6. Amendement 1 (2026-10-03, na de discovery-screen `stage_c_screen.py`, vóór enige validatie-lezing)
+
+De screen (17 voorspellers, discovery 2021-10 → 2023-12, 17 trials geboekt als `SCREEN_*`) liet **niets**
+op |t| ≥ 3 komen. Wat wel (zwak) richting gaf: cross-sectioneel momentum 14–112 d (IC +0,01…+0,03, t ≈ 1,8
+bij 28/56/112) en funding-crowding (`fund_z`: IC −0,03, t −1,8; h=5: −0,05). Gevolgen:
+
+* **Geschrapt** zonder verdere trial (screen toont geen of tegengesteld teken): XS_REV (IC −0,015, t −0,9),
+  OI_CONF (oi_chg5 TS t −1,2), RES_REV (resid_z20 IC *positief* +0,02, dus geen reversie), FUND_EXT.
+* **CARRY_XS → FUND_XS**: de screen steunt `fund_z` (afwijking van de eigen 90-d-geschiedenis), niet het
+  funding-*niveau* (fund_lvl7 IC −0,015, t −0,9). Ontwerp: dollar-neutrale XS-contrarian op `fund_z`.
+* **XS_MOM** wordt een ensemble over k ∈ {14, 28, 56, 112} (z-score per k, gemiddeld) i.p.v. één k.
+* Het budget van 40 nieuwe varianten omvat de 17 screen-trials; er resteren 23.
+
+## 7. Amendement 2 — bevroren ontwerp vóór de eerste validatie-lezing (2026-10-03)
+
+Discovery-resultaten waarop dit gebaseerd is (`stage_c_*.py`, geen validatiedata): `FUND_XS` faalt de
+selectieregel (discovery-Sharpe −0,12; 2021: −1,62) en valt af; `TR_BRK_*` (d6-Sharpe 0,11/0,12) en
+`TR_SM_LS` (0,65, lagere Sharpe ondanks lagere turnover) vallen af. De lookbacknabijheid is **niet** gebruikt
+om een lookbackset te kiezen: (5,10,20,40,80,160) geeft d6 0,30 tegen 1,00 voor (7,14,28,56,112); dat verschil
+is binnen de ruis (SE ≈ 0,5) en bewijst de fragiliteit, geen reden om (7,14,28) met 1,21 te nemen.
+
+**Bevroren kandidaat `COMBO_TX`:**
+
+* `TREND_MIX`: score = ½·TSMOM-LS + ½·TSMOM-LF (lookbacks 7/14/28/56/112), gewicht per munt
+  `score · 0,40 / σ_i / N_live`, portefeuille-vol-doel 20 % (EWMA span 60, gewichten geschaald).
+* `XS_MOM`: score = gemiddelde z-score van vol-genormaliseerd rendement over k = 14/28/56/112, dollar-neutraal,
+  inverse-vol, wekelijks herbalanceren (vaste fase), min. 4 live munten, portefeuille-vol-doel 20 %.
+* `COMBO_TX` = ½·gewichten(TREND_MIX) + ½·gewichten(XS_MOM), daarna portefeuille-vol-doel 20 %, bruto ≤ 4.
+* Selectieregel: een sleeve houdt zijn plek alleen als zijn validatie-Sharpe > 0.
+
+Eén lezing van het validatievenster, daarna eventuele wijziging = nieuwe trial en validatie geldt als
+ontwikkeling. Boekhouding: M = 43 op dit moment (17 vooraf + 17 screen + 9 sleeves/varianten); nieuwe
+varianten tot nu toe 26 van 40.
