@@ -59,6 +59,33 @@
       "metrics": {},
       "notes": "Zeven geplande trials, geboekt vóór de eerste meting op het Binance-universum: R1, R2 (referenties), X1 XS-momentum, X2 XS-carry, X3 trend-LS, X4 trend-LF, X5 combinatie.",
       "amends": ""
+    },
+    {
+      "wave": 2,
+      "unit": "robust_book_v2_verdict",
+      "market": "crypto",
+      "config_hash": "122cd7d692d4c44a",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "8dd791c",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "b97b3b8e38a44fe23626342775b86cf7",
+      "ts_utc": "2026-10-07T15:34:34.146994+00:00",
+      "metrics": {
+        "selected": "X4_TREND_LF",
+        "w_dev_sharpe": 0.7651857562399357,
+        "holdout_sharpe": -0.10790072059955493,
+        "verdict": "archived_w_dev_gates",
+        "robustness_scores": {
+          "X1_XSMOM": 2.090819097839031,
+          "X2_XSCARRY": 39.01757793507007,
+          "X3_TREND_LS": 49.24465111168258,
+          "X4_TREND_LF": 71.70019821906342,
+          "X5_COMBO": 36.36202350751013
+        }
+      },
+      "notes": "Oordeel robuust boek v2 na W_DEV en één holdout-lezing.",
+      "amends": "122cd7d692d4c44a"
     }
   ]
 }
