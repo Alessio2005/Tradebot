@@ -1,6 +1,11 @@
 {
   "frozen_utc": "2026-10-07T17:15:47.022937+00:00",
   "git_sha": "7499921",
-  "reads": [],
+  "reads": [
+    {
+      "hypothesis_id": "robust_book_v5/4df1a5d0cd590b67965127db4e6e480a/H3_BASIS_MAJORS",
+      "read_utc": "2026-10-07T17:22:16.468965+00:00"
+    }
+  ],
   "split_utc": "2021-01-01T00:00:00+00:00"
 }
