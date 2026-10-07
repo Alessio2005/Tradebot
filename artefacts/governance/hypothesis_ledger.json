@@ -126,6 +126,21 @@
       },
       "notes": "Oordeel robuust boek v3 na W_DEV en één holdout-lezing.",
       "amends": "8adb65d56c03419f"
+    },
+    {
+      "wave": 4,
+      "unit": "robust_book_v4_confirm",
+      "market": "crypto",
+      "config_hash": "aad0f67e4afb67af",
+      "n_trials": 1,
+      "result": "interim",
+      "git_sha": "a6bd91f",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "3d623e462367f81ac34cb676346a3188",
+      "ts_utc": "2026-10-07T15:52:13.644969+00:00",
+      "metrics": {},
+      "notes": "Eén trial: holdout-bevestiging van v3-Y5_COMBO, ongewijzigd.",
+      "amends": ""
     }
   ]
 }

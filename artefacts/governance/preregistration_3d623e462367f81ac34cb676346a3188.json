@@ -1,0 +1,175 @@
+{
+  "content": {
+    "data_hashes": [
+      [
+        "binance_um/objects",
+        "31d979002a074b6a"
+      ],
+      [
+        "binance_um/panel/close",
+        "30646a979d93bcd5"
+      ],
+      [
+        "binance_um/panel/funding",
+        "f386d0710d2daedc"
+      ],
+      [
+        "binance_um/panel/high",
+        "79885e549290f42c"
+      ],
+      [
+        "binance_um/panel/low",
+        "7e81ae1a2ff9cbe6"
+      ],
+      [
+        "binance_um/panel/open",
+        "1b9872a10c3e74a5"
+      ],
+      [
+        "binance_um/panel/quote_volume",
+        "c6687935764234d1"
+      ]
+    ],
+    "evaluation_start": "2025-07-01",
+    "granularity": "1d",
+    "hypothesis": "Y5_COMBO, dat op W_DEV een netto Sharpe van 1,13 en een CAGR van 20,7 % haalde, levert op de holdout (2025-07-01 .. 2026-09-30) een positieve netto Sharpe, zonder significante ineenstorting ten opzichte van W_DEV en met een drawdown binnen het mandaat.",
+    "null_hypothesis": "Buiten W_DEV is er geen edge: de holdout-Sharpe is niet positief, of valt significant onder de W_DEV-schatting, of de drawdown overschrijdt het mandaat.",
+    "parameters": {
+      "combo": {
+        "candidates": [
+          "X1_XSMOM",
+          "X2_XSCARRY",
+          "X4_TREND_LF"
+        ],
+        "inclusion_min_train_sharpe": 0.0
+      },
+      "confirm_candidate": "Y5_COMBO",
+      "costs": {
+        "impact_y": 1.0,
+        "impact_y_stress": 2.991922,
+        "max_half_spread_bps": 25.0,
+        "min_half_spread_bps": 1.0,
+        "spread_window": 60,
+        "taker_fee_bps": 5.5
+      },
+      "execution": {
+        "aum_usd": 1000000.0,
+        "lag_bars": 1
+      },
+      "known_prior_trials": 52,
+      "planned_trials": 3,
+      "sizing": {
+        "asset_vol_target": 0.2,
+        "gross_cap": 4.0,
+        "max_scale": 3.0,
+        "per_asset_cap": 0.2,
+        "portfolio_vol_target": 0.2,
+        "vol_span": 60
+      },
+      "trend": {
+        "lookbacks": [
+          5,
+          7,
+          10,
+          14,
+          20,
+          28,
+          40,
+          56,
+          80,
+          112,
+          160
+        ],
+        "z_clip": 1.0
+      },
+      "universe": {
+        "adv_window": 30,
+        "min_adv_usd": 5000000.0,
+        "min_ann_vol": 0.15,
+        "min_history_bars": 90,
+        "top_n": 50,
+        "vol_window": 60
+      },
+      "v3": {
+        "half_spread_bps": 3.0,
+        "half_spread_stress_bps": 6.0,
+        "trade_rate": 0.2,
+        "trade_rate_family": [
+          0.1,
+          0.33,
+          1.0
+        ]
+      },
+      "windows": {
+        "holdout_end": "2026-09-30",
+        "holdout_start": "2025-07-01",
+        "train_end": "2023-12-31",
+        "train_start": "2021-01-01",
+        "validate_start": "2024-01-01",
+        "w_dev_end": "2025-06-30"
+      },
+      "xscarry": {
+        "rebalance_bars": 7,
+        "signal_lag_bars": 1,
+        "window_bars": 7
+      },
+      "xsmom": {
+        "lookbacks": [
+          7,
+          14,
+          28,
+          56
+        ],
+        "rebalance_bars": 7,
+        "winsor": 3.0
+      }
+    },
+    "period_end": "2026-09-30",
+    "period_start": "2020-01-01",
+    "planned_trials": 1,
+    "primary_metric": "holdout_net_sharpe",
+    "stop_criteria": [
+      {
+        "action": "falsify",
+        "metric": "gate_sharpe_z_vs_dev",
+        "name": "confirm_sharpe_collapse",
+        "operator": "<",
+        "rationale": "Eenzijdig significant (5 %) onder de W_DEV-schatting is geen bevestiging.",
+        "threshold": -1.645
+      },
+      {
+        "action": "falsify",
+        "metric": "max_drawdown_gate",
+        "name": "confirm_drawdown",
+        "operator": ">",
+        "rationale": "Mandaatgrens conf/risk/default.yaml::max_drawdown_pct.",
+        "threshold": 0.25
+      },
+      {
+        "action": "archive",
+        "metric": "holdout_net_sharpe",
+        "name": "confirm_no_positive_sharpe",
+        "operator": "<=",
+        "rationale": "Een niet-positieve netto Sharpe op de holdout bevestigt niets, ook al is zij statistisch niet van de W_DEV-schatting te onderscheiden.",
+        "threshold": 0.0
+      },
+      {
+        "action": "promote",
+        "metric": "n_binding_stop_criteria",
+        "name": "promotion_requires_all_clear",
+        "operator": "<=",
+        "rationale": "Papertrading van Y5 vraagt dat geen criterium hierboven bindt.",
+        "threshold": 0.0
+      }
+    ],
+    "title": "Eén geregistreerde holdout-lezing van de v3-kandidaat Y5_COMBO (funding-carry plus trend long-flat, gelijk risico, 3 bp spread, partiële aanpassing kappa 0,2), ongewijzigd.",
+    "universe": [
+      "BINANCE_USDT_M_TOP50_PIT"
+    ],
+    "wave": "robust_book_v4_confirm"
+  },
+  "frozen_utc": "2026-10-07T15:52:13.646406+00:00",
+  "git_sha": "a6bd91f",
+  "ledger_total_at_freeze": 18,
+  "preregistration_id": "3d623e462367f81ac34cb676346a3188"
+}
