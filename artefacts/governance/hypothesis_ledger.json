@@ -86,6 +86,21 @@
       },
       "notes": "Oordeel robuust boek v2 na W_DEV en één holdout-lezing.",
       "amends": "122cd7d692d4c44a"
+    },
+    {
+      "wave": 3,
+      "unit": "robust_book_v3_programme",
+      "market": "crypto",
+      "config_hash": "8adb65d56c03419f",
+      "n_trials": 3,
+      "result": "interim",
+      "git_sha": "d69e6e0",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "cb45bd8c6980f7926c2246eb6ce1d706",
+      "ts_utc": "2026-10-07T15:39:37.129616+00:00",
+      "metrics": {},
+      "notes": "Drie geplande trials, post-hoc na v2 en zo geboekt: Y2 carry, Y4 trend-LF, Y5 combinatie, met 3 bp spread en partiële aanpassing.",
+      "amends": ""
     }
   ]
 }
