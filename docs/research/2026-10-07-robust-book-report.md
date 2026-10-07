@@ -1,5 +1,7 @@
 # Robuust boek v1 — audit, onderzoek en oordeel (2026-10-07)
 
+> **Vervolg:** v2–v5 (breedte, kosten, bevestiging en spot-perp-basiscarry) staan in `2026-10-07-robust-book-v2-v5-report.md`.
+
 Preregistratie `eecdb3a109bf10972f17acd3b0146716` · ontwerp
 `docs/superpowers/specs/2026-10-07-robust-book-design.md` · artefacten
 `artefacts/research/robust_book_v1/` · ledger-entries `robust_book_v1_programme` (M = 7)

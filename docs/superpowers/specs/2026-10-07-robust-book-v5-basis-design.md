@@ -7,7 +7,7 @@
 v2–v4 zochten een prijssignaal en vonden er geen dat buiten W_DEV standhield:
 
 | programma | kandidaat | W_DEV-Sharpe | holdout-Sharpe |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | v2 | X4 trend long-flat | 0,77 | −0,11 |
 | v3 | Y4 trend long-flat | 0,86 | 0,00 |
 | v4 | Y5 carry + trend | 1,13 | −1,19 (gefalsificeerd) |
@@ -90,7 +90,7 @@ en verifieert elke zip tegen zijn MD5-ETag.
 ## 4. De trials (M = 18 + 3 = 21)
 
 | trial | inhoud |
-|---|---|
+| --- | --- |
 | H1_BASIS | het boek van §3 op de top-50 |
 | H2_BASIS_TREND | 50 % kapitaal in H1, 50 % in Y4 (trend long-flat, ongewijzigd uit v3), dagelijks herverdeeld via een kosteloze interne overboeking |
 | H3_BASIS_MAJORS | alleen BTC en ETH |
