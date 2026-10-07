@@ -175,6 +175,33 @@
       "metrics": {},
       "notes": "Drie geplande trials: H1 basiscarry breed, H2 basis + trend, H3 basis majors. Post-hoc na v4 en zo geboekt.",
       "amends": ""
+    },
+    {
+      "wave": 5,
+      "unit": "robust_book_v5_verdict",
+      "market": "crypto",
+      "config_hash": "d69c89d183f242c7",
+      "n_trials": 0,
+      "result": "falsified",
+      "git_sha": "af6b9f0",
+      "data_hash": "726ddcd31e3d5638",
+      "preregistration_id": "4df1a5d0cd590b67965127db4e6e480a",
+      "ts_utc": "2026-10-07T17:25:51.470711+00:00",
+      "metrics": {
+        "selected": "H3_BASIS_MAJORS",
+        "w_dev_sharpe": 6.761893537271867,
+        "backcast_sharpe": 11.463448260195317,
+        "holdout_sharpe": null,
+        "holdout_invested": false,
+        "verdict": "falsified_out_of_sample",
+        "robustness_scores": {
+          "H1_BASIS": 90.09472935212656,
+          "H2_BASIS_TREND": 85.86555638228127,
+          "H3_BASIS_MAJORS": 98.56193871211066
+        }
+      },
+      "notes": "Oordeel robuust boek v5 na W_DEV, de backcast en de holdout.",
+      "amends": "d69c89d183f242c7"
     }
   ]
 }

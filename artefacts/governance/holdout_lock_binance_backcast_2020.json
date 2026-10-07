@@ -7,5 +7,12 @@
       "read_utc": "2026-10-07T17:22:16.468965+00:00"
     }
   ],
+  "resumes": [
+    {
+      "hypothesis_id": "robust_book_v5/4df1a5d0cd590b67965127db4e6e480a/H3_BASIS_MAJORS",
+      "reason": "De berekening crashte na de registratie op een identiek-nul rendement in de holdout (geen positie); de backcast-uitkomst is nooit getoond of opgeslagen. Afgemaakt met een venster-zonder-positie-regel, verder ongewijzigd.",
+      "resumed_utc": "2026-10-07T17:25:50.362155+00:00"
+    }
+  ],
   "split_utc": "2021-01-01T00:00:00+00:00"
 }
