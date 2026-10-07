@@ -160,6 +160,21 @@
       },
       "notes": "Oordeel van de v4-bevestigingslezing.",
       "amends": "aad0f67e4afb67af"
+    },
+    {
+      "wave": 5,
+      "unit": "robust_book_v5_programme",
+      "market": "crypto",
+      "config_hash": "d69c89d183f242c7",
+      "n_trials": 3,
+      "result": "interim",
+      "git_sha": "7499921",
+      "data_hash": "726ddcd31e3d5638",
+      "preregistration_id": "4df1a5d0cd590b67965127db4e6e480a",
+      "ts_utc": "2026-10-07T17:15:47.020490+00:00",
+      "metrics": {},
+      "notes": "Drie geplande trials: H1 basiscarry breed, H2 basis + trend, H3 basis majors. Post-hoc na v4 en zo geboekt.",
+      "amends": ""
     }
   ]
 }

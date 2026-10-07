@@ -1,0 +1,331 @@
+{
+  "content": {
+    "data_hashes": [
+      [
+        "binance_spot/objects",
+        "9d2b3eefdb1022ee"
+      ],
+      [
+        "binance_spot/panel/close",
+        "1f8bb370fdd1ad77"
+      ],
+      [
+        "binance_spot/panel/high",
+        "1b0415cfeaf6b990"
+      ],
+      [
+        "binance_spot/panel/low",
+        "fddfb1eb0000c304"
+      ],
+      [
+        "binance_spot/panel/quote_volume",
+        "af439ee693e6cb51"
+      ],
+      [
+        "binance_um/objects",
+        "31d979002a074b6a"
+      ],
+      [
+        "binance_um/panel/close",
+        "30646a979d93bcd5"
+      ],
+      [
+        "binance_um/panel/funding",
+        "f386d0710d2daedc"
+      ],
+      [
+        "binance_um/panel/high",
+        "79885e549290f42c"
+      ],
+      [
+        "binance_um/panel/low",
+        "7e81ae1a2ff9cbe6"
+      ],
+      [
+        "binance_um/panel/open",
+        "1b9872a10c3e74a5"
+      ],
+      [
+        "binance_um/panel/quote_volume",
+        "c6687935764234d1"
+      ]
+    ],
+    "evaluation_start": "2021-01-01",
+    "granularity": "1d",
+    "hypothesis": "Ten minste een van H1, H2 of H3 haalt op W_DEV een netto Sharpe van ten minste 1,0 en een netto CAGR van ten minste 15 % zonder portfolio margin (70 % spot, 30 % marge), consistent over TRAIN en VALIDATE, robuust voor kosten, vertraging en parameterverstoring, met DSR 0,95 bij M = 21 en PBO onder 0,5; en de geselecteerde kandidaat stort niet in op de ongemeten backcast van 2020 en niet op de (besmette) holdout.",
+    "null_hypothesis": "De funding die een short op Binance-perps ontvangt, dekt na de kosten van twee benen, het basisrisico en de periodes zonder carry niet de vereiste netto Sharpe en CAGR, of alleen in de bullmarkt van 2021. Een positief resultaat op een andere kandidaat dan de hoogst scorende weerlegt de nulhypothese niet.",
+    "parameters": {
+      "backcast": {
+        "end": "2020-12-31",
+        "start": "2020-04-01"
+      },
+      "basis": {
+        "band": 0.5,
+        "combo_trend_share": 0.5,
+        "enter_apr": 0.15,
+        "exit_apr": 0.05,
+        "funding_span": 30,
+        "hedge_tolerance": 0.02,
+        "maintenance_margin": 0.02,
+        "majors": [
+          "BTCUSDT",
+          "ETHUSDT"
+        ],
+        "margin_floor": 0.25,
+        "max_abs_basis": 0.05,
+        "min_spot_adv_usd": 2000000.0,
+        "notional": 0.7,
+        "slots": 10,
+        "spot_half_spread_bps": 5.0,
+        "spot_half_spread_stress_bps": 10.0,
+        "spot_taker_fee_bps": 10.0
+      },
+      "combo": {
+        "candidates": [
+          "X1_XSMOM",
+          "X2_XSCARRY",
+          "X4_TREND_LF"
+        ],
+        "inclusion_min_train_sharpe": 0.0
+      },
+      "costs": {
+        "impact_y": 1.0,
+        "impact_y_stress": 2.991922,
+        "max_half_spread_bps": 25.0,
+        "min_half_spread_bps": 1.0,
+        "spread_window": 60,
+        "taker_fee_bps": 5.5
+      },
+      "execution": {
+        "aum_usd": 1000000.0,
+        "lag_bars": 1
+      },
+      "known_prior_trials": 52,
+      "planned_trials": 3,
+      "sizing": {
+        "asset_vol_target": 0.2,
+        "gross_cap": 4.0,
+        "max_scale": 3.0,
+        "per_asset_cap": 0.2,
+        "portfolio_vol_target": 0.2,
+        "vol_span": 60
+      },
+      "trend": {
+        "lookbacks": [
+          5,
+          7,
+          10,
+          14,
+          20,
+          28,
+          40,
+          56,
+          80,
+          112,
+          160
+        ],
+        "z_clip": 1.0
+      },
+      "universe": {
+        "adv_window": 30,
+        "min_adv_usd": 5000000.0,
+        "min_ann_vol": 0.15,
+        "min_history_bars": 90,
+        "top_n": 50,
+        "vol_window": 60
+      },
+      "v3": {
+        "half_spread_bps": 3.0,
+        "half_spread_stress_bps": 6.0,
+        "trade_rate": 0.2,
+        "trade_rate_family": [
+          0.1,
+          0.33,
+          1.0
+        ]
+      },
+      "windows": {
+        "holdout_end": "2026-09-30",
+        "holdout_start": "2025-07-01",
+        "train_end": "2023-12-31",
+        "train_start": "2021-01-01",
+        "validate_start": "2024-01-01",
+        "w_dev_end": "2025-06-30"
+      },
+      "xscarry": {
+        "rebalance_bars": 7,
+        "signal_lag_bars": 1,
+        "window_bars": 7
+      },
+      "xsmom": {
+        "lookbacks": [
+          7,
+          14,
+          28,
+          56
+        ],
+        "rebalance_bars": 7,
+        "winsor": 3.0
+      }
+    },
+    "period_end": "2026-09-30",
+    "period_start": "2020-01-01",
+    "planned_trials": 3,
+    "primary_metric": "net_sharpe_w_dev",
+    "stop_criteria": [
+      {
+        "action": "archive",
+        "metric": "net_sharpe_w_dev",
+        "name": "g1_sharpe_below_target",
+        "operator": "<",
+        "rationale": "De opdracht vraagt een netto Sharpe van ten minste 1,0.",
+        "threshold": 1.0
+      },
+      {
+        "action": "archive",
+        "metric": "net_cagr_w_dev",
+        "name": "g2_cagr_below_target",
+        "operator": "<",
+        "rationale": "De opdracht vraagt een netto CAGR van ten minste 15 %, in het vaste kapitaalmodel (70 % spot, 30 % USDT-marge, geen portfolio margin; de trendhelft van H2 op het vaste vol-doel van 20 %). Meer notional om de CAGR te halen is uitgesloten.",
+        "threshold": 0.15
+      },
+      {
+        "action": "archive",
+        "metric": "net_sharpe_train",
+        "name": "g3_train_inconsistent",
+        "operator": "<",
+        "rationale": "Een edge die alleen in één helft van W_DEV bestaat, is een regime, geen edge.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "net_sharpe_validate",
+        "name": "g3_validate_inconsistent",
+        "operator": "<",
+        "rationale": "Idem, voor de tweede helft.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "max_drawdown_w_dev",
+        "name": "g4_drawdown",
+        "operator": ">",
+        "rationale": "Mandaatgrens conf/risk/default.yaml::max_drawdown_pct.",
+        "threshold": 0.25
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ratio_2x_cost_over_base",
+        "name": "g5_cost_fragile",
+        "operator": "<",
+        "rationale": "Bij dubbele kosten moet minstens 75 % van de Sharpe overblijven.",
+        "threshold": 0.75
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ratio_lag2_over_base",
+        "name": "g5_delay_fragile",
+        "operator": "<",
+        "rationale": "Eén dag vertraging mag de Sharpe niet meer dan halveren.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "plateau_fraction",
+        "name": "g6_no_plateau",
+        "operator": "<",
+        "rationale": "Minstens 80 % van de parameterverstoringen moet meer dan de helft van de basis-Sharpe houden; anders staat de kandidaat op een piek, niet op een plateau.",
+        "threshold": 0.8
+      },
+      {
+        "action": "archive",
+        "metric": "min_perturbation_sharpe",
+        "name": "g6_negative_perturbation",
+        "operator": "<",
+        "rationale": "Geen enkele redelijke parameterverstoring mag de Sharpe negatief maken.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ci_low_w_dev",
+        "name": "g7_interval_includes_zero",
+        "operator": "<=",
+        "rationale": "De circulaire-blokbootstrap-ondergrens (95 %) moet boven nul liggen.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "dsr_w_dev",
+        "name": "g8_dsr_below_threshold",
+        "operator": "<",
+        "rationale": "Onder DSR 0,95 bij de cumulatieve ledger-M (21) is de Sharpe niet te onderscheiden van selectieruis.",
+        "threshold": 0.95
+      },
+      {
+        "action": "archive",
+        "metric": "pbo",
+        "name": "g9_overfit_probability",
+        "operator": ">=",
+        "rationale": "Een PBO van 0,5 of meer betekent dat de beste in-sample variant out-of-sample meestal onder de mediaan valt.",
+        "threshold": 0.5
+      },
+      {
+        "action": "falsify",
+        "metric": "backcast_sharpe_z_vs_dev",
+        "name": "backcast_sharpe_collapse",
+        "operator": "<",
+        "rationale": "De backcast (2020-04 .. 2020-12) is nooit gemeten. Valt de Sharpe daar eenzijdig significant (5 %) onder de W_DEV-schatting, dan is de W_DEV-Sharpe niet te reproduceren.",
+        "threshold": -1.645
+      },
+      {
+        "action": "falsify",
+        "metric": "backcast_max_drawdown",
+        "name": "backcast_drawdown",
+        "operator": ">",
+        "rationale": "Ook in de backcast geldt de mandaatgrens.",
+        "threshold": 0.25
+      },
+      {
+        "action": "archive",
+        "metric": "backcast_net_sharpe",
+        "name": "backcast_no_positive_sharpe",
+        "operator": "<=",
+        "rationale": "Een niet-positieve netto Sharpe op het ongemeten sample bevestigt niets.",
+        "threshold": 0.0
+      },
+      {
+        "action": "falsify",
+        "metric": "holdout_sharpe_z_vs_dev",
+        "name": "holdout_sharpe_collapse",
+        "operator": "<",
+        "rationale": "De holdout is besmet (het fundingniveau daar is in v4 gezien) en kan daarom alleen verwerpen: een significante ineenstorting falsificeert, een goed resultaat telt niet.",
+        "threshold": -1.645
+      },
+      {
+        "action": "falsify",
+        "metric": "holdout_max_drawdown",
+        "name": "holdout_drawdown",
+        "operator": ">",
+        "rationale": "Ook in de holdout geldt de mandaatgrens.",
+        "threshold": 0.25
+      },
+      {
+        "action": "promote",
+        "metric": "n_binding_stop_criteria",
+        "name": "promotion_requires_all_clear",
+        "operator": "<=",
+        "rationale": "Papertrading vereist dat geen enkel criterium hierboven bindt.",
+        "threshold": 0.0
+      }
+    ],
+    "title": "Funding oogsten zonder prijsweddenschap: long spot, short perp op de point-in-time top-50 van Binance USDT-M (H1), dezelfde oogst naast trend long-flat met een vaste 50/50 kapitaalverdeling (H2), en alleen op BTC en ETH (H3). Netto van fees, spread en impact op beide benen, met marge, liquidatie en delisting gemodelleerd.",
+    "universe": [
+      "BINANCE_USDT_M_TOP50_PIT_WITH_SPOT"
+    ],
+    "wave": "robust_book_v5_basis"
+  },
+  "frozen_utc": "2026-10-07T17:15:47.022276+00:00",
+  "git_sha": "7499921",
+  "ledger_total_at_freeze": 21,
+  "preregistration_id": "4df1a5d0cd590b67965127db4e6e480a"
+}
