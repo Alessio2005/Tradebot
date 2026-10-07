@@ -139,9 +139,12 @@ def run_book(
     sigma = market.sigma_daily.to_numpy(dtype=np.float64)
     adv = market.adv_usd.to_numpy(dtype=np.float64)
     if exit_on_missing_price:
-        # Laatst bekende ADV en σ, voor de afwikkeling van een verdwenen munt.
+        # Laatst bekende σ en laatst bekende POSITIEVE ADV, voor de afwikkeling van een
+        # verdwenen of bevroren munt. FTTUSDT na de FTX-val (nov 2022): constante prijs,
+        # nul volume, wekenlang -- de beurs wikkelt zo'n markt af tegen de laatste prijs;
+        # een impact op ADV = 0 is daar ongedefinieerd, niet oneindig.
         sigma = market.sigma_daily.ffill().to_numpy(dtype=np.float64)
-        adv = market.adv_usd.ffill().to_numpy(dtype=np.float64)
+        adv = market.adv_usd.where(market.adv_usd > 0.0).ffill().to_numpy(dtype=np.float64)
     if half_spread is not None:
         require(bool(half_spread.index.equals(market.index))
                 and list(half_spread.columns) == list(market.symbols),
