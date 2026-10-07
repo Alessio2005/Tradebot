@@ -245,9 +245,8 @@ def read_holdout(root: Path = ROOT, *, log: Callable[[str], None] = print) -> di
             DataContractError, full=dev_again, truncated=dev_rec["w_dev"]["sharpe"])
     z = gate_z(hold["sharpe"], hold["sharpe_se"], dev_rec["w_dev"]["sharpe"])
     gates = v2._gates({"gate_sharpe_z_vs_dev": z, "max_drawdown_gate": hold["max_drawdown"]}, prereg)
-    others = {n: summarize(runner(build(n, full, cfg), full, costs,
-                                  lag=cfg.execution.lag_bars).window(a, b))["sharpe"]
-              for n in CANDIDATES if n != name}
+    # Alleen de geselecteerde kandidaat leest de holdout. De andere kandidaten hier
+    # doorrekenen zou een ongeregistreerde tweede (en derde) lezing zijn.
     n_binding = int(sum(g["binds"] for g in gates.values())) + int(dev_rec["n_binding_w_dev"])
     verdict = "promote_to_paper_trading" if n_binding == 0 else (
         "falsified_on_holdout" if any(g["binds"] for g in gates.values())
@@ -257,7 +256,6 @@ def read_holdout(root: Path = ROOT, *, log: Callable[[str], None] = print) -> di
            "gate_metrics": {"gate_sharpe_z_vs_dev": z, "max_drawdown_gate": hold["max_drawdown"]},
            "gates": gates, "n_binding_total": n_binding, "verdict": verdict,
            "w_dev_sharpe": dev_rec["w_dev"]["sharpe"],
-           "other_candidates_holdout_sharpe_reported_not_selected": others,
            "caveat": "De holdout is voor de trendfamilie al gelezen in v2 (X4_TREND_LF).",
            EVIDENCE_KEY: NOT_ADMISSIBLE}
     v2._dump(root / ARTEFACT_DIR / "holdout_read.json", out)
