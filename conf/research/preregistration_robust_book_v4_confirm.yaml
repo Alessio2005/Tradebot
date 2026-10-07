@@ -1,0 +1,61 @@
+# conf/research/preregistration_robust_book_v4_confirm.yaml
+# PRE-REGISTRATIE -- v4: bevestiging van Y5_COMBO (carry + trend long-flat) uit v3,
+# EXACT zoals bevroren in v3 (conf/model/robust_book_v3.yaml), op de holdout.
+# Bevroren door `python -I -m tradebot.systematic.programme_v3 freeze-confirm`, vóór de
+# lezing. Eén trial (cumulatief M = 18). De holdout is voor de trendfamilie al gelezen
+# (v2/X4, v3/Y4); het carrydeel van Y5 is daar nooit gemeten.
+wave: robust_book_v4_confirm
+
+title: >-
+  Eén geregistreerde holdout-lezing van de v3-kandidaat Y5_COMBO (funding-carry plus trend
+  long-flat, gelijk risico, 3 bp spread, partiële aanpassing kappa 0,2), ongewijzigd.
+
+hypothesis: >-
+  Y5_COMBO, dat op W_DEV een netto Sharpe van 1,13 en een CAGR van 20,7 % haalde, levert op
+  de holdout (2025-07-01 .. 2026-09-30) een positieve netto Sharpe, zonder significante
+  ineenstorting ten opzichte van W_DEV en met een drawdown binnen het mandaat.
+
+null_hypothesis: >-
+  Buiten W_DEV is er geen edge: de holdout-Sharpe is niet positief, of valt significant onder
+  de W_DEV-schatting, of de drawdown overschrijdt het mandaat.
+
+universe: [BINANCE_USDT_M_TOP50_PIT]
+granularity: 1d
+period_start: "2020-01-01"
+period_end: "2026-09-30"
+evaluation_start: "2025-07-01"
+primary_metric: holdout_net_sharpe
+
+planned_trials: 1
+
+data_series:
+  - binance_um/klines/1d
+  - binance_um/fundingRate
+
+stop_criteria:
+  - name: confirm_sharpe_collapse
+    metric: gate_sharpe_z_vs_dev
+    operator: "<"
+    threshold: -1.645
+    action: falsify
+    rationale: Eenzijdig significant (5 %) onder de W_DEV-schatting is geen bevestiging.
+  - name: confirm_drawdown
+    metric: max_drawdown_gate
+    operator: ">"
+    threshold: 0.25
+    action: falsify
+    rationale: Mandaatgrens conf/risk/default.yaml::max_drawdown_pct.
+  - name: confirm_no_positive_sharpe
+    metric: holdout_net_sharpe
+    operator: "<="
+    threshold: 0.0
+    action: archive
+    rationale: >-
+      Een niet-positieve netto Sharpe op de holdout bevestigt niets, ook al is zij statistisch
+      niet van de W_DEV-schatting te onderscheiden.
+  - name: promotion_requires_all_clear
+    metric: n_binding_stop_criteria
+    operator: "<="
+    threshold: 0
+    action: promote
+    rationale: Papertrading van Y5 vraagt dat geen criterium hierboven bindt.

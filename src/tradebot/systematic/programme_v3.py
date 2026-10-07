@@ -288,11 +288,102 @@ def main(argv: Sequence[str]) -> None:
     cmds = {"freeze": lambda: print(freeze()),
             "run": lambda: print(json.dumps(run_programme(), indent=2, default=float)),
             "holdout": lambda: print(json.dumps(read_holdout(), indent=2, default=float)),
-            "verdict": book_verdict}
+            "verdict": book_verdict,
+            "freeze-confirm": lambda: print(freeze_confirm()),
+            "confirm": lambda: print(json.dumps(read_confirm(), indent=2, default=float))}
     require(len(argv) == 1 and argv[0] in cmds,
-            "Gebruik: python -I -m tradebot.systematic.programme_v3 {freeze|run|holdout|verdict}",
-            DataContractError)
+            "Gebruik: python -I -m tradebot.systematic.programme_v3 "
+            "{freeze|run|holdout|verdict|freeze-confirm|confirm}", DataContractError)
     cmds[argv[0]]()
+
+
+# --------------------------------------------------------------------------- #
+# v4: één geregistreerde bevestigingslezing van een v3-kandidaat, ongewijzigd
+# --------------------------------------------------------------------------- #
+CONFIRM_SPEC = Path("conf/research/preregistration_robust_book_v4_confirm.yaml")
+CONFIRM_DIR = Path("artefacts/research/robust_book_v4")
+CONFIRM_CANDIDATE = "Y5_COMBO"
+
+
+def _confirm_prereg(root: Path, cfg: RobustBookV3Config):
+    hashes = v2._data_hashes(root)
+    params = {**_params(cfg), "confirm_candidate": CONFIRM_CANDIDATE}
+    return load_preregistration_spec(root / CONFIRM_SPEC, data_hashes=hashes,
+                                     parameters=params), hashes, params
+
+
+def freeze_confirm(root: Path = ROOT, *, git_sha: str | None = None) -> Path:
+    cfg = robust_book_v3_config(root / CONFIG)
+    prereg, hashes, params = _confirm_prereg(root, cfg)
+    sha = git_sha or current_git_sha()
+    ledger = HypothesisLedger(root / v2.LEDGER_PATH)
+    require(not [e for e in ledger.entries()
+                 if e.get("preregistration_id") == prereg.preregistration_id],
+            "Deze bevestiging is al geboekt.", DataContractError)
+    ledger.append(LedgerEntry.from_config(
+        wave=4, unit="robust_book_v4_confirm", market="crypto", config=params, git_sha=sha,
+        data_hash=hash_config(dict(hashes)), preregistration_id=prereg.preregistration_id,
+        n_trials=1, result="interim",
+        notes="Eén trial: holdout-bevestiging van v3-Y5_COMBO, ongewijzigd."))
+    return freeze_preregistration(prereg, git_sha=sha,
+                                  ledger_total_at_freeze=ledger.total_n_hypotheses(),
+                                  directory=root / v2.PREREG_DIR)
+
+
+def read_confirm(root: Path = ROOT, *, log: Callable[[str], None] = print) -> dict[str, Any]:
+    cfg = robust_book_v3_config(root / CONFIG)
+    prereg, hashes, params = _confirm_prereg(root, cfg)
+    require_preregistration(prereg.preregistration_id, directory=root / v2.PREREG_DIR)
+    name = CONFIRM_CANDIDATE
+    full = load_breadth_market(root / v2.PANEL_DIR, cfg)
+    hid = f"robust_book_v4/{prereg.preregistration_id}/{name}"
+    sl = gate_slice(full.book.close, lock_path=root / v2.LOCK_PATH, hypothesis_id=hid)
+    a = pd.Timestamp(sl.index[0])
+    b = min(pd.Timestamp(sl.index[-1]), v2._ts(cfg.windows.holdout_end))
+    costs = cost_spec(root, cfg)
+    res = make_runner(cfg)(build(name, full, cfg), full, costs, lag=cfg.execution.lag_bars)
+    hold = summarize(res.window(a, b))
+    dev_rec = json.loads((root / ARTEFACT_DIR / f"{name}.json").read_text(encoding="utf-8"))
+    dev_again = v2._sr(res.window(v2._ts(cfg.windows.train_start), v2._ts(cfg.windows.w_dev_end)))
+    require(abs(dev_again - dev_rec["w_dev"]["sharpe"]) < 1e-9,
+            "De volledige run reproduceert de W_DEV-Sharpe niet: de holdout lekte.",
+            DataContractError, full=dev_again, truncated=dev_rec["w_dev"]["sharpe"])
+    metrics = {"gate_sharpe_z_vs_dev": gate_z(hold["sharpe"], hold["sharpe_se"],
+                                              dev_rec["w_dev"]["sharpe"]),
+               "max_drawdown_gate": hold["max_drawdown"], "holdout_net_sharpe": hold["sharpe"]}
+    gates = v2._gates(metrics, prereg)
+    n_binding = int(sum(g["binds"] for g in gates.values()))
+    verdict = "confirmed_paper_trade_candidate" if n_binding == 0 else (
+        "falsified_on_holdout" if any(g["binds"] for k, g in gates.items()
+                                      if k in ("confirm_sharpe_collapse", "confirm_drawdown"))
+        else "not_confirmed")
+    sleeves = {}
+    for part, sleeve in (("carry", "Y2_CARRY"), ("trend", "Y4_TREND_LF")):
+        # De onderdelen van de bevestigde kandidaat zelf, ter ontleding -- geen aparte kandidaten.
+        r = make_runner(cfg)(build(sleeve, full, cfg), full, costs, lag=cfg.execution.lag_bars)
+        sleeves[part] = {k: summarize(r.window(a, b))[k] for k in ("sharpe", "cagr", "max_drawdown")}
+    out = {"hypothesis_id": hid, "candidate": name, "holdout_window": [str(a.date()), str(b.date())],
+           "holdout": hold, "yearly": yearly(res.window(a, b)), "gate_metrics": metrics,
+           "gates": gates, "n_binding": n_binding, "verdict": verdict,
+           "w_dev_sharpe": dev_rec["w_dev"]["sharpe"], "decomposition_of_the_candidate": sleeves,
+           "caveat": "De holdout is voor de trendfamilie al gelezen (v2/X4, v3/Y4); "
+                     "het carrydeel is er nooit eerder op gemeten.",
+           EVIDENCE_KEY: NOT_ADMISSIBLE}
+    v2._dump(root / CONFIRM_DIR / "confirm_read.json", out)
+    res.window(a, b).frame.to_csv(root / CONFIRM_DIR / f"{name}_daily_holdout.csv",
+                                  float_format="%.10g")
+    result = {"confirmed_paper_trade_candidate": "accepted",
+              "falsified_on_holdout": "falsified"}.get(verdict, "archived")
+    HypothesisLedger(root / v2.LEDGER_PATH).append(LedgerEntry.from_config(
+        wave=4, unit="robust_book_v4_confirm_verdict", market="crypto", config=params,
+        git_sha=current_git_sha(), data_hash=hash_config(dict(hashes)),
+        preregistration_id=prereg.preregistration_id, n_trials=0, result=result,
+        amends=hash_config(params),
+        metrics={"candidate": name, "holdout_sharpe": hold["sharpe"], "verdict": verdict},
+        notes="Oordeel van de v4-bevestigingslezing."))
+    log(f"bevestiging {name}: Sharpe {hold['sharpe']:.3f} (SE {hold['sharpe_se']:.3f}), "
+        f"CAGR {hold['cagr']:.3f}, MDD {hold['max_drawdown']:.3f}, {verdict}")
+    return out
 
 
 if __name__ == "__main__":
