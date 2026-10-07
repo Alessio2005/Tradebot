@@ -41,7 +41,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..utils.failfast import DataContractError, require
 
-__all__ = ["BUCKET_URL", "S3Object", "build_panels", "list_objects", "list_symbols", "sync"]
+__all__ = ["BUCKET_URL", "S3Object", "build_panels", "build_spot_panels", "list_objects",
+           "list_spot_symbols", "list_symbols", "spot_pair_for", "sync", "sync_spot"]
 
 BUCKET_URL = "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision"
 ROOT = Path(__file__).resolve().parents[3]
@@ -167,7 +168,9 @@ def _read_zip_csv(path: Path) -> pd.DataFrame:
                 path=str(path), names=names)
         raw = zf.read(names[0])
     first = raw.split(b"\n", 1)[0]
-    header = 0 if re.search(rb"[A-Za-z]", first) else None
+    # Een kopregel BEGINT met een naam; een datarij met wetenschappelijke notatie (2e-05)
+    # bevat ook een letter en mag niet als kop worden weggegooid.
+    header = 0 if re.match(rb"\s*[A-Za-z_]", first) else None
     return pd.read_csv(io.BytesIO(raw), header=header)
 
 
@@ -242,15 +245,110 @@ def build_panels(symbols: Iterable[str] | None = None, *, raw_dir: Path = RAW_DI
     return panels
 
 
+# --------------------------------------------------------------------------- #
+# Spot: het hedgebeen van de basis-carry (v5). Kolommen heten naar de PERP.
+# --------------------------------------------------------------------------- #
+SPOT_KLINES = "data/spot/monthly/klines/{s}/1d/"
+SPOT_PANEL_DIR = ROOT / "data" / "binance_vision" / "spot_panels"
+SPOT_MANIFEST = ROOT / "artefacts" / "data" / "binance_spot_manifest.json"
+SPOT_FIRST_MONTH = "2019-12"
+_SCALED = re.compile(r"^(1000000|1000|1M)([A-Z0-9]+USDT)$")
+_MULTIPLIER = {"1000000": 1e6, "1000": 1e3, "1M": 1e6}
+
+
+def list_spot_symbols() -> list[str]:
+    names = [p.rstrip("/").split("/")[-1]
+             for p in list_common_prefixes("data/spot/monthly/klines/")]
+    return sorted(s for s in names if s.endswith("USDT"))
+
+
+def spot_pair_for(perp: str, spot: Iterable[str]) -> tuple[str, float] | None:
+    """De spotmunt achter een perp en de prijsfactor: 1000PEPEUSDT -> (PEPEUSDT, 1000).
+
+    Bestaat de perpnaam zelf op spot (1000SATSUSDT), dan is dat het paar, factor 1."""
+    names = set(spot)
+    if perp in names:
+        return perp, 1.0
+    m = _SCALED.match(perp)
+    if m and m.group(2) in names:
+        return m.group(2), _MULTIPLIER[m.group(1)]
+    return None
+
+
+def sync_spot(perps: Sequence[str], *, raw_dir: Path = RAW_DIR, workers: int = 32,
+              last_month: str = "2026-09") -> dict:
+    """Download (idempotent) en verifieer de spot-dagklines achter `perps`."""
+    spot = list_spot_symbols()
+    mapping = {p: pair for p in perps if (pair := spot_pair_for(p, spot)) is not None}
+    pairs = sorted({s for s, _ in mapping.values()})
+
+    def objects(s: str) -> list[S3Object]:
+        return [o for o in list_objects(SPOT_KLINES.format(s=s)) if o.key.endswith(".zip")]
+
+    with ThreadPoolExecutor(workers) as pool:
+        listings = list(pool.map(objects, pairs))
+    month = re.compile(r"-(\d{4}-\d{2})\.zip$")
+    objs = [o for lst in listings for o in lst
+            if SPOT_FIRST_MONTH <= month.search(o.key).group(1) <= last_month]  # type: ignore[union-attr]
+    with ThreadPoolExecutor(workers) as pool:
+        list(pool.map(lambda o: _fetch(o, raw_dir), objs))
+    digest = hashlib.sha256("\n".join(f"{o.key} {o.etag}" for o in sorted(
+        objs, key=lambda o: o.key)).encode()).hexdigest()
+    manifest = {"source": BUCKET_URL, "first_month": SPOT_FIRST_MONTH, "last_month": last_month,
+                "n_perps": len(perps), "n_mapped": len(mapping), "n_objects": len(objs),
+                "objects_sha256": digest, "bytes": int(sum(o.size for o in objs)),
+                "mapping": {p: [s, f] for p, (s, f) in sorted(mapping.items())}}
+    SPOT_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    SPOT_MANIFEST.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest
+
+
+def build_spot_panels(mapping: dict[str, tuple[str, float]], *, raw_dir: Path = RAW_DIR,
+                      panel_dir: Path = SPOT_PANEL_DIR) -> dict[str, pd.DataFrame]:
+    """Spot-dagpanelen op de SLUITtijd, kolom = perpnaam, prijs in perp-eenheden (× factor)."""
+    fields: dict[str, dict[str, pd.Series]] = {k: {} for k in ("close", "high", "low",
+                                                               "quote_volume")}
+    for perp, (spot, factor) in sorted(mapping.items()):
+        kdir = raw_dir / SPOT_KLINES.format(s=spot)
+        files = sorted(kdir.glob("*.zip")) if kdir.is_dir() else []
+        if not files:
+            continue
+        k = pd.concat([parse_klines(p) for p in files])
+        k = k.drop_duplicates("open_time").sort_values("open_time")
+        idx = pd.to_datetime(k["open_time"].to_numpy() + DAY_MS, unit="ms", utc=True)
+        for col in ("close", "high", "low"):
+            fields[col][perp] = pd.Series(k[col].to_numpy() * factor, index=idx)
+        fields["quote_volume"][perp] = pd.Series(k["quote_volume"].to_numpy(), index=idx)
+    require(bool(fields["close"]), "Geen spotdata gevonden.", DataContractError)
+    grid = pd.date_range(min(s.index.min() for s in fields["close"].values()),
+                         max(s.index.max() for s in fields["close"].values()),
+                         freq="D", tz="UTC", name="asof_ts")
+    panels = {name: pd.DataFrame({s: v.reindex(grid) for s, v in cols.items()}, index=grid)
+              .reindex(columns=sorted(fields["close"])) for name, cols in fields.items()}
+    panel_dir.mkdir(parents=True, exist_ok=True)
+    for name, frame in panels.items():
+        frame.astype("float64").to_parquet(panel_dir / f"{name}.parquet", compression="zstd")
+    return panels
+
+
 def main(argv: Sequence[str]) -> None:
-    require(len(argv) == 1 and argv[0] in ("sync", "panels"),
-            "Gebruik: python -I -m tradebot.data.binance_vision {sync|panels}",
-            DataContractError)
+    cmds = ("sync", "panels", "spot-sync", "spot-panels")
+    require(len(argv) == 1 and argv[0] in cmds,
+            "Gebruik: python -I -m tradebot.data.binance_vision "
+            "{sync|panels|spot-sync|spot-panels}", DataContractError)
     if argv[0] == "sync":
         m = sync()
         print(json.dumps({k: v for k, v in m.items() if k != "symbols"}, indent=2))
-    else:
+    elif argv[0] == "panels":
         p = build_panels()
+        print({k: v.shape for k, v in p.items()})
+    elif argv[0] == "spot-sync":
+        perps = sorted(pd.read_parquet(PANEL_DIR / "close.parquet").columns)
+        m = sync_spot(perps)
+        print(json.dumps({k: v for k, v in m.items() if k != "mapping"}, indent=2))
+    else:
+        manifest = json.loads(SPOT_MANIFEST.read_text(encoding="utf-8"))
+        p = build_spot_panels({k: (s, float(f)) for k, (s, f) in manifest["mapping"].items()})
         print({k: v.shape for k, v in p.items()})
 
 

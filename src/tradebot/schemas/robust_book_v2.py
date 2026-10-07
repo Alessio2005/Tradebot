@@ -10,13 +10,17 @@ from pydantic import Field, model_validator
 
 from .config import StrictModel, load_config
 
-__all__ = ["ROBUST_BOOK_V2_CONFIG_PATH", "ROBUST_BOOK_V3_CONFIG_PATH", "RobustBookV2Config",
-           "RobustBookV3Config", "robust_book_v2_config", "robust_book_v3_config"]
+__all__ = ["ROBUST_BOOK_V2_CONFIG_PATH", "ROBUST_BOOK_V3_CONFIG_PATH",
+           "ROBUST_BOOK_V5_CONFIG_PATH", "RobustBookV2Config", "RobustBookV3Config",
+           "RobustBookV5Config", "robust_book_v2_config", "robust_book_v3_config",
+           "robust_book_v5_config"]
 
 ROBUST_BOOK_V2_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v2.yaml")
 ROBUST_BOOK_V3_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v3.yaml")
+ROBUST_BOOK_V5_CONFIG_PATH = (
+    Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v5.yaml")
 
 Positive = Annotated[float, Field(gt=0.0)]
 PositiveInt = Annotated[int, Field(ge=1)]
@@ -127,3 +131,65 @@ class RobustBookV3Config(RobustBookV2Config):
 
 def robust_book_v3_config(path: Path | str = ROBUST_BOOK_V3_CONFIG_PATH) -> RobustBookV3Config:
     return load_config(path, RobustBookV3Config)
+
+
+Fraction = Annotated[float, Field(gt=0.0, le=1.0)]
+
+
+class Basis(StrictModel):
+    """De spot-perp-basiscarry (v5): long spot, short perp, de funding oogsten."""
+
+    funding_span: PositiveInt
+    enter_apr: Positive
+    exit_apr: float
+    slots: PositiveInt
+    notional: Fraction
+    band: Fraction
+    hedge_tolerance: Fraction
+    min_spot_adv_usd: Positive
+    max_abs_basis: Fraction
+    spot_taker_fee_bps: Positive
+    spot_half_spread_bps: Positive
+    spot_half_spread_stress_bps: Positive
+    maintenance_margin: Fraction
+    margin_floor: Fraction
+    majors: tuple[str, ...]
+    combo_trend_share: Fraction
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Basis:
+        if not self.exit_apr < self.enter_apr:
+            raise ValueError("exit_apr moet onder enter_apr liggen (hysterese)")
+        if not (1.0 - self.notional) >= self.margin_floor * self.notional:
+            raise ValueError("bij de volle notional ligt de futureswallet al onder de "
+                             "margevloer: het boek zou elke dag herbalanceren")
+        return self
+
+
+class Backcast(StrictModel):
+    start: str
+    end: str
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Backcast:
+        if not pd.Timestamp(self.start, tz="UTC") < pd.Timestamp(self.end, tz="UTC"):
+            raise ValueError("backcast.start moet voor backcast.end liggen")
+        return self
+
+
+class RobustBookV5Config(RobustBookV3Config):
+    """v3 plus `basis` (de nieuwe sleeve) en `backcast` (het ongemeten sample van 2020)."""
+
+    basis: Basis
+    backcast: Backcast
+
+    @model_validator(mode="after")
+    def _backcast_before_dev(self) -> RobustBookV5Config:
+        if not (pd.Timestamp(self.backcast.end, tz="UTC")
+                < pd.Timestamp(self.windows.train_start, tz="UTC")):
+            raise ValueError("de backcast moet volledig voor W_DEV liggen")
+        return self
+
+
+def robust_book_v5_config(path: Path | str = ROBUST_BOOK_V5_CONFIG_PATH) -> RobustBookV5Config:
+    return load_config(path, RobustBookV5Config)

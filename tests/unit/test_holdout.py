@@ -12,6 +12,7 @@ from tradebot.utils.failfast import DataContractError
 from tradebot.validation.holdout import (
     HoldoutAlreadyFrozen,
     HoldoutAlreadyUsed,
+    backcast_gate_slice,
     development_slice,
     freeze_holdout,
     gate_slice,
@@ -66,6 +67,21 @@ def test_every_read_is_logged_with_a_timestamp(tmp_path: Path) -> None:
     payload = json.loads(lock.read_text(encoding="utf-8"))
     assert payload["reads"][0]["hypothesis_id"] == "H-10.1"
     assert payload["reads"][0]["read_utc"]
+
+
+def test_the_backcast_slice_is_the_part_before_the_split_and_is_read_once(
+    tmp_path: Path,
+) -> None:
+    """Het spiegelbeeld: het beschermde stuk ligt VÓÓR de split, met dezelfde R7."""
+    lock, frame = _lock(tmp_path), _frame()
+    back = backcast_gate_slice(frame, lock_path=lock, hypothesis_id="B-1")
+    assert back.index.equals(development_slice(frame, lock_path=lock).index)
+    with pytest.raises(HoldoutAlreadyUsed):
+        backcast_gate_slice(frame, lock_path=lock, hypothesis_id="B-1")
+    # De weigering geldt per lock, niet per richting: dezelfde id op hetzelfde slot
+    # mag ook niet via de andere kant een tweede lezing kopen.
+    with pytest.raises(HoldoutAlreadyUsed):
+        gate_slice(frame, lock_path=lock, hypothesis_id="B-1")
 
 
 # --- Fix ronde 1, bevinding 1: de vier require()-guards in freeze_holdout -

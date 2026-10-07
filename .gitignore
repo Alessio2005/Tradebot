@@ -137,3 +137,4 @@ artefacts/governance/research_gates.json
 # artefacts/data/binance_um_manifest.json; niet in versiebeheer.
 data/binance_vision/raw/
 data/binance_vision/panels/
+data/binance_vision/spot_panels/
