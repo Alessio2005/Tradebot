@@ -1,0 +1,107 @@
+{
+  "candidate": "Y5_COMBO",
+  "caveat": "De holdout is voor de trendfamilie al gelezen (v2/X4, v3/Y4); het carrydeel is er nooit eerder op gemeten.",
+  "decomposition_of_the_candidate": {
+    "carry": {
+      "cagr": -0.18454726798299592,
+      "max_drawdown": 0.25176026558170644,
+      "sharpe": -1.1716931315223076
+    },
+    "trend": {
+      "cagr": -0.0027000840168301954,
+      "max_drawdown": 0.10540077756295112,
+      "sharpe": 0.0011094972842835595
+    }
+  },
+  "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+  "gate_metrics": {
+    "gate_sharpe_z_vs_dev": -2.288934414537087,
+    "holdout_net_sharpe": -1.1884055080300795,
+    "max_drawdown_gate": 0.2698139591022527
+  },
+  "gates": {
+    "confirm_drawdown": {
+      "binds": true,
+      "metric": "max_drawdown_gate",
+      "operator": ">",
+      "threshold": 0.25,
+      "value": 0.2698139591022527
+    },
+    "confirm_no_positive_sharpe": {
+      "binds": true,
+      "metric": "holdout_net_sharpe",
+      "operator": "<=",
+      "threshold": 0.0,
+      "value": -1.1884055080300795
+    },
+    "confirm_sharpe_collapse": {
+      "binds": true,
+      "metric": "gate_sharpe_z_vs_dev",
+      "operator": "<",
+      "threshold": -1.645,
+      "value": -2.288934414537087
+    }
+  },
+  "holdout": {
+    "ann_fees": -0.030082174918116118,
+    "ann_funding": 0.2289306520623688,
+    "ann_gross": -0.34065005401415244,
+    "ann_impact": -0.023834707535512225,
+    "ann_net": -0.1820447434516576,
+    "ann_slippage": 0.0,
+    "ann_spread": -0.016408459046245157,
+    "ann_turnover": 54.725972049709156,
+    "ann_vol": 0.15318402870196887,
+    "avg_gross_leverage": 1.376874269484519,
+    "avg_net_leverage": 0.1054762880179891,
+    "best_day": 0.0293693992808437,
+    "bootstrap_block_length": 5,
+    "bootstrap_n_boot": 10000,
+    "cagr": -0.17621005964979897,
+    "calmar": -0.6530798489303505,
+    "end": "2026-09-30",
+    "gross_plus_funding_sharpe": -0.7297788206930461,
+    "gross_sharpe": -2.2242187150494948,
+    "hit_rate_days": 0.4660831509846827,
+    "kurtosis": 6.739032423246346,
+    "max_drawdown": 0.2698139591022527,
+    "max_gross_leverage": 2.214899144778792,
+    "n_obs": 457,
+    "n_trades": 40358,
+    "p_sharpe_gt_0": 0.12056444934136323,
+    "pct_bars_invested": 1.0,
+    "sharpe": -1.1884055080300795,
+    "sharpe_ci_high": 0.7915177123555254,
+    "sharpe_ci_low": -3.0820110593869874,
+    "sharpe_per_bar": -0.062203987264091994,
+    "sharpe_se": 1.0138510037425401,
+    "skew": -0.4517070874944687,
+    "sortino": -1.6973497462831593,
+    "start": "2025-07-01",
+    "t_stat": -1.1721697800201283,
+    "t_years": 1.252054794520548,
+    "worst_day": -0.049498639528800736
+  },
+  "holdout_window": [
+    "2025-07-01",
+    "2026-09-30"
+  ],
+  "hypothesis_id": "robust_book_v4/3d623e462367f81ac34cb676346a3188/Y5_COMBO",
+  "n_binding": 3,
+  "verdict": "falsified_on_holdout",
+  "w_dev_sharpe": 1.1322329456491893,
+  "yearly": {
+    "2025": {
+      "max_drawdown": 0.136103302551062,
+      "n_obs": 184,
+      "return": -0.11056490144405395,
+      "sharpe": -1.6240719139703343
+    },
+    "2026": {
+      "max_drawdown": 0.23394996600442047,
+      "n_obs": 273,
+      "return": -0.1179699891831898,
+      "sharpe": -0.9460948987968752
+    }
+  }
+}

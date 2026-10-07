@@ -141,6 +141,25 @@
       "metrics": {},
       "notes": "Eén trial: holdout-bevestiging van v3-Y5_COMBO, ongewijzigd.",
       "amends": ""
+    },
+    {
+      "wave": 4,
+      "unit": "robust_book_v4_confirm_verdict",
+      "market": "crypto",
+      "config_hash": "aad0f67e4afb67af",
+      "n_trials": 0,
+      "result": "falsified",
+      "git_sha": "b5ede4f",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "3d623e462367f81ac34cb676346a3188",
+      "ts_utc": "2026-10-07T15:52:49.628524+00:00",
+      "metrics": {
+        "candidate": "Y5_COMBO",
+        "holdout_sharpe": -1.1884055080300795,
+        "verdict": "falsified_on_holdout"
+      },
+      "notes": "Oordeel van de v4-bevestigingslezing.",
+      "amends": "aad0f67e4afb67af"
     }
   ]
 }
