@@ -38,9 +38,14 @@ class BookMarket:
         return tuple(self.close.columns)
 
     def live(self, min_history_bars: int) -> pd.DataFrame:
-        """True vanaf de bar waarop een munt `min_history_bars` geldige closes heeft."""
+        """Handelbaar: `min_history_bars` geldige closes ÉN een gedefinieerd kostenmodel.
+
+        Het kostenmodel vraagt een ADV en een dagvolatiliteit (impact); een munt waarvoor
+        die nog niet bestaan, is op die bar niet te verhandelen tegen bekende kosten.
+        """
         history = self.close.notna().cumsum()
-        return (history >= int(min_history_bars)) & self.close.notna()
+        return ((history >= int(min_history_bars)) & self.close.notna()
+                & self.sigma_daily.notna() & self.adv_usd.gt(0.0))
 
     def subset(self, symbols: tuple[str, ...]) -> BookMarket:
         cols = list(symbols)

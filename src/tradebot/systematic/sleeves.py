@@ -187,10 +187,11 @@ def build_sleeve(
 
 
 def baseline_btc(market: BookMarket, cfg: RobustBookConfig) -> SleeveTargets:
-    """B1: 1,0x long BTC-perp, dagelijks terug naar 1,0."""
+    """B1: 1,0x long BTC-perp, dagelijks terug naar 1,0, vanaf de bar waarop BTC live is
+    (dezelfde `min_history_bars` als elke sleeve; daarvóór bestaat de ADV voor de impact niet)."""
     w = pd.DataFrame(0.0, index=market.index, columns=market.symbols)
     w["BTCUSDT"] = 1.0
-    w = w.where(market.close.notna(), 0.0)
+    w = w.where(market.live(cfg.sizing.min_history_bars), 0.0)
     return SleeveTargets(name="B1_BTC_HOLD", weights=w, rebalance=_daily(market.index))
 
 

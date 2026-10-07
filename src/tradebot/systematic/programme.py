@@ -237,7 +237,8 @@ def _noisy(t: SleeveTargets, market: BookMarket, cfg: RobustBookConfig, seed: in
     sd = w.std(skipna=True).fillna(0.0)
     noise = pd.DataFrame(rng.normal(0.0, 1.0, size=w.shape), index=w.index,
                          columns=w.columns) * (NOISE_FRACTION * sd)
-    noisy = (w + noise).where(market.close.notna(), 0.0).where(w.notna())
+    # Ruis op het signaal, niet op munten waar de sleeve niets zegt (of die niet live zijn).
+    noisy = (w + noise).where(w.abs() > 0.0, 0.0).where(w.notna())
     capped = apply_caps(noisy.fillna(0.0), per_asset_cap=cfg.sizing.per_asset_cap,
                         gross_cap=cfg.sizing.gross_cap).where(w.notna())
     return SleeveTargets(name=t.name, weights=capped, rebalance=t.rebalance)
@@ -403,7 +404,15 @@ def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print) -> d
 
     per_bar = [summarize(_w(results[n], *w_dev), bootstrap=False)["sharpe_per_bar"]
                for n in TRIALS if n in results]
-    m_prog = int(meta["m_trials"])
+    # De poort G8 staat in de preregistratie op M = 7: de zeven trials van dit programma,
+    # die vóór het bevriezen al als enige entry in de ledger stonden. `freeze_metadata`
+    # telt ledgerstand + geplande trials en komt daardoor op 14 -- dezelfde trials twee
+    # keer. Die M wordt ernaast gerapporteerd, niet als poort gebruikt.
+    m_prog = int(cfg.planned_trials)
+    require(int(meta["ledger_total_at_freeze"]) == m_prog,
+            "Bij het bevriezen stond er iets anders in de ledger dan dit programma.",
+            DataContractError, ledger_total=meta["ledger_total_at_freeze"], planned=m_prog)
+    m_double = int(meta["m_trials"])
     m_wide = m_prog + int(cfg.known_prior_trials)
     records: dict[str, dict[str, Any]] = {}
     for name in TRIALS:
@@ -433,8 +442,8 @@ def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print) -> d
         rec["yearly"] = yearly(_w(res, *w_dev))
         rec["regimes"] = regime_breakdown(_w(res, *w_dev), market)
         rec["dsr"] = {
-            f"m_{m_prog}": dsr_record(_w(res, *w_dev).net, n_trials=m_prog, trial_sharpes_per_bar=per_bar),
-            f"m_{m_wide}": dsr_record(_w(res, *w_dev).net, n_trials=m_wide, trial_sharpes_per_bar=per_bar),
+            f"m_{m}": dsr_record(_w(res, *w_dev).net, n_trials=m, trial_sharpes_per_bar=per_bar)
+            for m in (m_prog, m_double, m_wide)
         }
         if name in CANDIDATES:
             log(f"batterij {name}")
