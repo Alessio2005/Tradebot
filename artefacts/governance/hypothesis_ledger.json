@@ -44,6 +44,21 @@
       },
       "notes": "Oordeel robuust boek v1 na W_DEV en één poortlezing.",
       "amends": "d86d4d96665a4641"
+    },
+    {
+      "wave": 2,
+      "unit": "robust_book_v2_programme",
+      "market": "crypto",
+      "config_hash": "122cd7d692d4c44a",
+      "n_trials": 7,
+      "result": "interim",
+      "git_sha": "c5e7b64",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "b97b3b8e38a44fe23626342775b86cf7",
+      "ts_utc": "2026-10-07T15:16:46.378855+00:00",
+      "metrics": {},
+      "notes": "Zeven geplande trials, geboekt vóór de eerste meting op het Binance-universum: R1, R2 (referenties), X1 XS-momentum, X2 XS-carry, X3 trend-LS, X4 trend-LF, X5 combinatie.",
+      "amends": ""
     }
   ]
 }
