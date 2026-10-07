@@ -1,6 +1,11 @@
 {
   "frozen_utc": "2026-09-09T18:55:43.793046+00:00",
   "git_sha": "acb2a99",
-  "reads": [],
+  "reads": [
+    {
+      "hypothesis_id": "robust_book_v1/eecdb3a109bf10972f17acd3b0146716/C2_TREND_LF",
+      "read_utc": "2026-10-07T14:13:18.439715+00:00"
+    }
+  ],
   "split_utc": "2025-09-05T00:00:00+00:00"
 }

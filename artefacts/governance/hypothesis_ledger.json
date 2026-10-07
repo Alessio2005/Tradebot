@@ -17,6 +17,33 @@
       "metrics": {},
       "notes": "Zeven geplande trials, geboekt vóór de eerste run: B1, B2 (referenties), C1 trend-LS, C2 trend-LF, C3 vol-gemanaged kern, C4 funding-carry, C5 combinatie.",
       "amends": ""
+    },
+    {
+      "wave": 1,
+      "unit": "robust_book_v1_verdict",
+      "market": "crypto",
+      "config_hash": "d86d4d96665a4641",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "51ad154",
+      "data_hash": "df1f46dab3a3f7a7",
+      "preregistration_id": "eecdb3a109bf10972f17acd3b0146716",
+      "ts_utc": "2026-10-07T14:13:38.507309+00:00",
+      "metrics": {
+        "selected": "C2_TREND_LF",
+        "w_dev_sharpe": 0.7107509670536197,
+        "gate_sharpe": -0.10202407570224983,
+        "verdict": "archived_w_dev_gates",
+        "robustness_scores": {
+          "C1_TREND_LS": 39.183727621863994,
+          "C2_TREND_LF": 80.42998826983288,
+          "C3_VOLMAN_CORE": 55.582334509620104,
+          "C4_CARRY_XS": 48.498500971228395,
+          "C5_COMBO": 68.6951285131791
+        }
+      },
+      "notes": "Oordeel robuust boek v1 na W_DEV en één poortlezing.",
+      "amends": "d86d4d96665a4641"
     }
   ]
 }
