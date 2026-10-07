@@ -44,7 +44,12 @@ from ..registry.preregistration import (
 from ..schemas.robust_book_v2 import RobustBookV5Config, robust_book_v5_config
 from ..utils.failfast import DataContractError, require
 from ..utils.hashing import hash_config
-from ..validation.holdout import backcast_gate_slice, freeze_holdout, gate_slice
+from ..validation.holdout import (
+    backcast_gate_slice,
+    freeze_holdout,
+    gate_slice,
+    resume_registered_read,
+)
 from . import programme_v2 as v2
 from . import programme_v3 as v3
 from .book import BookResult, CostSpec
@@ -79,6 +84,11 @@ HYPOTHESES = {
     "H3_BASIS_MAJORS": "H1, alleen BTCUSDT en ETHUSDT (twee slots van 35 %).",
 }
 N_SEEDS = 10
+#: Waarom de lezing van H3 is hervat (commit 37a9a40): beide slots waren geregistreerd,
+#: daarna crashte de samenvatting van de holdout op nul variantie (H3 nam daar geen positie).
+RESUME_REASON = ("De berekening crashte na de registratie op een identiek-nul rendement in "
+                 "de holdout (geen positie); de backcast-uitkomst is nooit getoond of "
+                 "opgeslagen. Afgemaakt met een venster-zonder-positie-regel, verder ongewijzigd.")
 
 
 def _params(cfg: RobustBookV5Config) -> dict[str, Any]:
@@ -368,16 +378,40 @@ def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print) -> d
     return summary
 
 
+#: Een venster waarin het boek nooit een positie hield, heeft een identiek-nul rendement:
+#: de Sharpe is dan ONGEDEFINIEERD (geen nul), CAGR en drawdown zijn nul. Ongedefinieerde
+#: poortmetriek bindt volgens `programme_v2._gates` (niet-eindig = bindend), zoals bevroren.
+FLAT_WINDOW = "flat: geen positie in het hele venster"
+
+
 def _read(res: BookResult, a: pd.Timestamp, b: pd.Timestamp, dev_sr: float) -> dict[str, Any]:
-    s = summarize(res.window(a, b))
-    return {"window": [str(a.date()), str(b.date())], "summary": s,
-            "yearly": yearly(res.window(a, b)),
+    w = res.window(a, b)
+    base = {"window": [str(a.date()), str(b.date())], "yearly": None,
+            "max_gross_leverage": float(w.frame["gross_leverage"].max()),
+            "pct_bars_invested": float((w.frame["gross_leverage"] > 1e-12).mean())}
+    if float(w.frame["net"].std(ddof=1)) == 0.0:
+        nan = float("nan")
+        return {**base, "invested": False, "note": FLAT_WINDOW, "z_vs_dev": nan,
+                "summary": {"sharpe": nan, "sharpe_se": nan, "cagr": 0.0, "max_drawdown": 0.0,
+                            "ann_funding": 0.0, "n_obs": int(w.frame.shape[0])}}
+    s = summarize(w)
+    return {**base, "invested": True, "summary": s, "yearly": yearly(w),
             "z_vs_dev": gate_z(s["sharpe"], s["sharpe_se"], dev_sr)}
 
 
-def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print) -> dict[str, Any]:
+def _finite(x: float) -> float | None:
+    """JSON-veilig: een ongedefinieerde Sharpe is `null` in de ledger, geen NaN."""
+    return float(x) if np.isfinite(x) else None
+
+
+def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print,
+             resume_reason: str | None = None) -> dict[str, Any]:
     """De twee vooraf vastgelegde lezingen van de geselecteerde kandidaat, allebei, in
-    deze volgorde. Elke lezing staat in zijn slot VOORDAT de data terugkomt."""
+    deze volgorde. Elke lezing staat in zijn slot VOORDAT de data terugkomt.
+
+    `resume_reason`: de lezingen staan al in hun slot, maar de berekening crashte vóór er
+    een uitkomst was. Dan wordt dezelfde lezing eenmaal afgemaakt via
+    `resume_registered_read` (zichtbaar in het slot), niet opnieuw geregistreerd."""
     cfg = robust_book_v5_config(root / CONFIG)
     prereg, hashes = _prereg(root, cfg)
     require_preregistration(prereg.preregistration_id, directory=root / v2.PREREG_DIR)
@@ -389,9 +423,16 @@ def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print) -> dict[s
     dev_sr = float(dev_rec["w_dev"]["sharpe"])
     full = load_market(root, cfg)
     hid = f"robust_book_v5/{prereg.preregistration_id}/{name}"
-    back = backcast_gate_slice(full.perp.book.close, lock_path=root / BACKCAST_LOCK,
-                               hypothesis_id=hid)
-    hold = gate_slice(full.perp.book.close, lock_path=root / v2.LOCK_PATH, hypothesis_id=hid)
+    close = full.perp.book.close
+    if resume_reason is None:
+        back = backcast_gate_slice(close, lock_path=root / BACKCAST_LOCK, hypothesis_id=hid)
+        hold = gate_slice(close, lock_path=root / v2.LOCK_PATH, hypothesis_id=hid)
+    else:
+        bsplit = pd.Timestamp(resume_registered_read(
+            root / BACKCAST_LOCK, hypothesis_id=hid, reason=resume_reason)["split_utc"])
+        hsplit = pd.Timestamp(resume_registered_read(
+            root / v2.LOCK_PATH, hypothesis_id=hid, reason=resume_reason)["split_utc"])
+        back, hold = close.loc[close.index < bsplit], close.loc[close.index >= hsplit]
     res = simulate(name, full, cfg, costs_for(root, cfg))
     again = v2._sr(res.window(v2._ts(cfg.windows.train_start), v2._ts(cfg.windows.w_dev_end)))
     require(abs(again - dev_sr) < 1e-9,
@@ -419,6 +460,7 @@ def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print) -> dict[s
            "gate_metrics": metrics, "gates": gates, "n_binding_w_dev": dev_rec["n_binding_w_dev"],
            "n_binding_total": n_binding, "verdict": verdict,
            "n_liquidations_full_run": _liquidations(res),
+           "resumed_after_crash": resume_reason,
            "caveat": "De backcast is nooit gemeten. De holdout is besmet (fundingniveau gezien "
                      "in v4) en telt alleen als falsificatie.",
            EVIDENCE_KEY: NOT_ADMISSIBLE}
@@ -434,8 +476,9 @@ def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print) -> dict[s
         preregistration_id=prereg.preregistration_id, n_trials=0, result=result,
         amends=hash_config(_params(cfg)),
         metrics={"selected": name, "w_dev_sharpe": dev_sr,
-                 "backcast_sharpe": metrics["backcast_net_sharpe"],
-                 "holdout_sharpe": reads["holdout"]["summary"]["sharpe"], "verdict": verdict,
+                 "backcast_sharpe": _finite(metrics["backcast_net_sharpe"]),
+                 "holdout_sharpe": _finite(reads["holdout"]["summary"]["sharpe"]),
+                 "holdout_invested": reads["holdout"]["invested"], "verdict": verdict,
                  "robustness_scores": summary["robustness_scores"]},
         notes="Oordeel robuust boek v5 na W_DEV, de backcast en de holdout."))
     for label, r in reads.items():
@@ -449,9 +492,12 @@ def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print) -> dict[s
 def main(argv: Sequence[str]) -> None:
     cmds = {"freeze": lambda: print(freeze()),
             "run": lambda: print(json.dumps(run_programme(), indent=2, default=float)),
-            "oos": lambda: print(json.dumps(read_oos(), indent=2, default=float))}
+            "oos": lambda: print(json.dumps(read_oos(), indent=2, default=float)),
+            "oos-resume": lambda: print(json.dumps(read_oos(resume_reason=RESUME_REASON),
+                                                   indent=2, default=float))}
     require(len(argv) == 1 and argv[0] in cmds,
-            "Gebruik: python -I -m tradebot.systematic.programme_v5 {freeze|run|oos}",
+            "Gebruik: python -I -m tradebot.systematic.programme_v5 "
+            "{freeze|run|oos|oos-resume}",
             DataContractError)
     cmds[argv[0]]()
 

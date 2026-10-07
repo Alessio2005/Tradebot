@@ -98,3 +98,30 @@ def test_the_preregistration_matches_the_config():
     assert {"backcast_sharpe_collapse", "holdout_sharpe_collapse",
             "promotion_requires_all_clear"} <= names
     assert Path(ROOT / CONFIG).is_file()
+
+
+def test_a_window_without_any_position_reads_as_flat_and_binds(setup):
+    """Geen positie in het hele venster: Sharpe ongedefinieerd (geen nul), CAGR en DD nul,
+    en de bevroren poortregel laat een ongedefinieerde metriek binden."""
+    import pandas as pd
+
+    from tradebot.registry.preregistration import load_preregistration_spec
+    from tradebot.systematic import programme_v2 as v2
+    from tradebot.systematic.harvest import run_basis
+    from tradebot.systematic.programme_v5 import FLAT_WINDOW, _read
+
+    m, cfg, (a, b) = setup
+    flat = pd.DataFrame(0.0, index=m.index, columns=list(m.symbols))
+    res = run_basis(flat, m, COSTS, lag=1, band=0.5, hedge_tolerance=0.02,
+                    maintenance_margin=0.02, margin_floor=0.25)
+    r = _read(res, a, b, dev_sr=2.0)
+    assert r["invested"] is False and r["note"] == FLAT_WINDOW
+    assert np.isnan(r["z_vs_dev"]) and r["summary"]["cagr"] == 0.0
+    spec = load_preregistration_spec(ROOT / SPEC_PATH, data_hashes=(("x", "0"),),
+                                     parameters={"p": 1})
+    gates = v2._gates({"holdout_sharpe_z_vs_dev": r["z_vs_dev"],
+                       "holdout_max_drawdown": r["summary"]["max_drawdown"]}, spec)
+    assert gates["holdout_sharpe_collapse"]["binds"] is True
+    assert gates["holdout_drawdown"]["binds"] is False
+    invested = _read(simulate("H1_BASIS", m, cfg, COSTS), a, b, dev_sr=2.0)
+    assert invested["invested"] is True and np.isfinite(invested["z_vs_dev"])

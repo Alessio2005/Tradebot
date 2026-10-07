@@ -77,6 +77,7 @@ __all__ = [
     "development_slice",
     "freeze_holdout",
     "gate_slice",
+    "resume_registered_read",
 ]
 
 
@@ -273,3 +274,34 @@ def backcast_gate_slice(
     payload = _register_read(lock_path, hypothesis_id)
     split = _split_ts(payload)
     return frame.loc[frame.index < split]
+
+
+def resume_registered_read(lock_path: Path, *, hypothesis_id: str, reason: str) -> dict:
+    """Maak een AL geregistreerde lezing af, eenmaal, zichtbaar -- geen tweede lezing.
+
+    Voor precies dit geval: de lezing staat in `reads` (R7 is dus al geteld), maar de
+    berekening crashte voordat er een uitkomst was. Een nieuwe `gate_slice` weigert terecht;
+    een nieuwe hypothese-id zou een tweede lezing kopen. Deze functie eist dat de id al
+    gelezen heeft, schrijft een `resumes`-entry met de reden VOORDAT de aanroeper verder
+    rekent, en weigert een tweede hervatting van dezelfde id. Kandidaat, parameters en
+    poorten veranderen hier niet; dat is aan de aanroeper, en zichtbaar in zijn diff."""
+    require(bool(reason.strip()), "Een hervatting zonder reden is niet te beoordelen.",
+            DataContractError)
+    payload = _read_lock(lock_path)
+    read = {entry["hypothesis_id"] for entry in payload["reads"]}
+    require(hypothesis_id in read, "Alleen een al geregistreerde lezing kan worden "
+            "afgemaakt; een eerste lezing gaat via gate_slice.", DataContractError,
+            hypothesis_id=hypothesis_id)
+    resumes = payload.setdefault("resumes", [])
+    if hypothesis_id in {entry["hypothesis_id"] for entry in resumes}:
+        raise HoldoutAlreadyUsed(
+            f"{hypothesis_id!r} is al eenmaal hervat ({lock_path}); een tweede "
+            f"hervatting is een tweede lezing."
+        )
+    resumes.append({
+        "hypothesis_id": hypothesis_id,
+        "resumed_utc": datetime.now(timezone.utc).isoformat(),
+        "reason": reason,
+    })
+    lock_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return payload
