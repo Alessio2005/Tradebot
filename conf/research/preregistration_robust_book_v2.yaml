@@ -1,0 +1,141 @@
+# conf/research/preregistration_robust_book_v2.yaml
+# PRE-REGISTRATIE -- robuust boek v2: breedte (survivorship-vrij Binance-universum).
+# Bevroren door `python -I -m tradebot.systematic.programme_v2 freeze`, VOOR de eerste
+# meting op het nieuwe universum. `parameters` wordt uit conf/model/robust_book_v2.yaml
+# ingespoten. Ontwerp: docs/superpowers/specs/2026-10-07-robust-book-v2-breadth-design.md.
+#
+# Poorten per kandidaat (X1..X5) op W_DEV (2021-01-01 .. 2025-06-30); de twee
+# holdout-criteria binden alleen op de ene lezing (2025-07-01 .. 2026-09-30).
+wave: robust_book_v2_breadth
+
+title: >-
+  Cross-sectioneel momentum, funding-carry en tijdreeks-trend op een point-in-time top-50
+  van alle Binance USDT-M-perpetuals (inclusief gedeliste), vol-getarget op 20 %, en hun
+  gelijk-risicocombinatie, netto van fees, een uit OHLC geschatte spread, impact en funding.
+
+hypothesis: >-
+  Breedte verhoogt het niveau: ten minste een van de vijf vooraf vastgelegde kandidaten
+  (X1 XS-momentum, X2 XS-carry, X3 trend-LS, X4 trend-LF, X5 combinatie) haalt op W_DEV na
+  alle kosten een netto Sharpe van ten minste 1,0 en een netto CAGR van ten minste 15 % bij
+  een vol-doel van 20 %, consistent over TRAIN en VALIDATE, robuust voor dubbele kosten,
+  een dag vertraging en parameterverstoring, met een DSR van ten minste 0,95 bij de
+  cumulatieve ledger-M en een PBO onder 0,5, en houdt dat in de ene holdout-lezing zonder
+  significante ineenstorting vast.
+
+null_hypothesis: >-
+  Geen enkele kandidaat haalt die combinatie: de factorpremies op crypto-perps zijn na
+  realistische kosten niet groot genoeg, of alleen in een deel van de periode aanwezig. Een
+  positief resultaat op een andere kandidaat dan die met de hoogste vooraf gedefinieerde
+  robuustheidsscore weerlegt de nulhypothese niet.
+
+universe: [BINANCE_USDT_M_TOP50_PIT]
+granularity: 1d
+period_start: "2020-01-01"
+period_end: "2026-09-30"
+evaluation_start: "2021-01-01"
+primary_metric: net_sharpe_w_dev
+
+# R1, R2 (referenties) en X1..X5 (kandidaten).
+planned_trials: 7
+
+data_series:
+  - binance_um/klines/1d
+  - binance_um/fundingRate
+
+stop_criteria:
+  - name: g1_sharpe_below_target
+    metric: net_sharpe_w_dev
+    operator: "<"
+    threshold: 1.0
+    action: archive
+    rationale: De opdracht vraagt een netto Sharpe van ten minste 1,0.
+  - name: g2_cagr_below_target
+    metric: net_cagr_w_dev
+    operator: "<"
+    threshold: 0.15
+    action: archive
+    rationale: >-
+      De opdracht vraagt een netto CAGR van ten minste 15 %, bij het vaste vol-doel van
+      20 %: de doelstelling halen met extra hefboom is uitdrukkelijk uitgesloten.
+  - name: g3_train_inconsistent
+    metric: net_sharpe_train
+    operator: "<"
+    threshold: 0.5
+    action: archive
+    rationale: Een edge die alleen in één helft van W_DEV bestaat, is een regime, geen edge.
+  - name: g3_validate_inconsistent
+    metric: net_sharpe_validate
+    operator: "<"
+    threshold: 0.5
+    action: archive
+    rationale: Idem, voor de tweede helft.
+  - name: g4_drawdown
+    metric: max_drawdown_w_dev
+    operator: ">"
+    threshold: 0.25
+    action: archive
+    rationale: Mandaatgrens conf/risk/default.yaml::max_drawdown_pct.
+  - name: g5_cost_fragile
+    metric: sharpe_ratio_2x_cost_over_base
+    operator: "<"
+    threshold: 0.75
+    action: archive
+    rationale: Bij dubbele kosten moet minstens 75 % van de Sharpe overblijven.
+  - name: g5_delay_fragile
+    metric: sharpe_ratio_lag2_over_base
+    operator: "<"
+    threshold: 0.5
+    action: archive
+    rationale: Eén dag vertraging mag de Sharpe niet meer dan halveren.
+  - name: g6_no_plateau
+    metric: plateau_fraction
+    operator: "<"
+    threshold: 0.8
+    action: archive
+    rationale: >-
+      Minstens 80 % van de parameterverstoringen moet meer dan de helft van de
+      basis-Sharpe houden; anders staat de kandidaat op een piek, niet op een plateau.
+  - name: g6_negative_perturbation
+    metric: min_perturbation_sharpe
+    operator: "<"
+    threshold: 0.0
+    action: archive
+    rationale: Geen enkele redelijke parameterverstoring mag de Sharpe negatief maken.
+  - name: g7_interval_includes_zero
+    metric: sharpe_ci_low_w_dev
+    operator: "<="
+    threshold: 0.0
+    action: archive
+    rationale: De circulaire-blokbootstrap-ondergrens (95 %) moet boven nul liggen.
+  - name: g8_dsr_below_threshold
+    metric: dsr_w_dev
+    operator: "<"
+    threshold: 0.95
+    action: archive
+    rationale: Onder DSR 0,95 bij de cumulatieve ledger-M (14) is de Sharpe niet te onderscheiden van selectieruis.
+  - name: g9_overfit_probability
+    metric: pbo
+    operator: ">="
+    threshold: 0.5
+    action: archive
+    rationale: Een PBO van 0,5 of meer betekent dat de beste in-sample variant out-of-sample meestal onder de mediaan valt.
+  - name: gate_sharpe_collapse
+    metric: gate_sharpe_z_vs_dev
+    operator: "<"
+    threshold: -1.645
+    action: falsify
+    rationale: >-
+      Eén lezing van de holdout: valt de Sharpe daar eenzijdig significant (5 %)
+      onder de W_DEV-schatting, dan is de backtest-Sharpe niet te reproduceren.
+  - name: gate_drawdown
+    metric: max_drawdown_gate
+    operator: ">"
+    threshold: 0.25
+    action: falsify
+    rationale: Ook in de holdout geldt de mandaatgrens.
+  - name: promotion_requires_all_clear
+    metric: n_binding_stop_criteria
+    operator: "<="
+    threshold: 0
+    action: promote
+    rationale: Papertrading vereist dat geen enkel criterium hierboven bindt.

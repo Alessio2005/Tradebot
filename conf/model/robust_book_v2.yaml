@@ -1,0 +1,64 @@
+# conf/model/robust_book_v2.yaml — robuust boek v2: breedte.
+# Gevalideerd tegen tradebot/schemas/robust_book_v2.py::RobustBookV2Config (plat document).
+# Ontwerp: docs/superpowers/specs/2026-10-07-robust-book-v2-breadth-design.md.
+# Bij het bevriezen ingespoten in de preregistratie; een wijziging daarna is een
+# amendement en kost een trial.
+universe:
+  top_n: 50
+  min_history_bars: 90
+  adv_window: 30
+  min_adv_usd: 5000000.0
+  vol_window: 60
+  min_ann_vol: 0.15
+
+windows:
+  train_start: "2021-01-01"
+  train_end: "2023-12-31"
+  validate_start: "2024-01-01"
+  w_dev_end: "2025-06-30"
+  holdout_start: "2025-07-01"
+  holdout_end: "2026-09-30"
+
+execution:
+  lag_bars: 1
+  aum_usd: 1000000.0
+
+costs:
+  # = conf/execution/fees.yaml::taker_fee_bps (Binance VIP0 = 5,0; dit is conservatief).
+  taker_fee_bps: 5.5
+  min_half_spread_bps: 1.0
+  max_half_spread_bps: 25.0
+  spread_window: 60
+  # Literatuur-Y voor de vierkantswortelwet; de repo-bovengrens is de stress.
+  impact_y: 1.0
+  impact_y_stress: 2.991922
+
+sizing:
+  vol_span: 60
+  asset_vol_target: 0.20
+  portfolio_vol_target: 0.20
+  max_scale: 3.0
+  per_asset_cap: 0.20
+  gross_cap: 4.0
+
+xsmom:
+  lookbacks: [7, 14, 28, 56]
+  winsor: 3.0
+  rebalance_bars: 7
+
+xscarry:
+  window_bars: 7
+  signal_lag_bars: 1
+  rebalance_bars: 7
+
+trend:
+  lookbacks: [5, 7, 10, 14, 20, 28, 40, 56, 80, 112, 160]
+  z_clip: 1.0
+
+combo:
+  candidates: [X1_XSMOM, X2_XSCARRY, X4_TREND_LF]
+  inclusion_min_train_sharpe: 0.0
+
+# R1, R2, X1..X5.
+planned_trials: 7
+known_prior_trials: 52

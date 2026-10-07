@@ -46,20 +46,33 @@ class CostSpec:
     aum_usd: float
     extra_slippage: float = 0.0
     multiplier: float = 1.0
+    #: Vervangt `impact.eta` (de vierkantswortel-Y) zonder de herkomst van de
+    #: impactparameters te verliezen; `None` = de geconfigureerde eta.
+    impact_eta: float | None = None
 
     def __post_init__(self) -> None:
         for name in ("taker_fee", "half_spread", "extra_slippage", "multiplier"):
             require(float(getattr(self, name)) >= 0.0, f"Negatieve kostenparameter {name}.",
                     DataContractError, value=getattr(self, name))
         require(self.aum_usd > 0.0, "De boekgrootte moet positief zijn.", DataContractError)
+        require(self.impact_eta is None or (self.impact is not None and self.impact_eta > 0.0),
+                "Een impact-eta-override vraagt impactparameters en een positieve eta.",
+                DataContractError, impact_eta=self.impact_eta)
+
+    @property
+    def eta(self) -> float | None:
+        if self.impact is None:
+            return None
+        return float(self.impact.eta if self.impact_eta is None else self.impact_eta)
 
     def scaled(self, *, multiplier: float | None = None, extra_slippage: float | None = None,
-               aum_usd: float | None = None) -> CostSpec:
+               aum_usd: float | None = None, impact_eta: float | None = None) -> CostSpec:
         return CostSpec(
             taker_fee=self.taker_fee, half_spread=self.half_spread, impact=self.impact,
             aum_usd=self.aum_usd if aum_usd is None else float(aum_usd),
             extra_slippage=self.extra_slippage if extra_slippage is None else float(extra_slippage),
-            multiplier=self.multiplier if multiplier is None else float(multiplier))
+            multiplier=self.multiplier if multiplier is None else float(multiplier),
+            impact_eta=self.impact_eta if impact_eta is None else float(impact_eta))
 
     def as_record(self) -> dict[str, Any]:
         return {
@@ -67,7 +80,8 @@ class CostSpec:
             "extra_slippage_bps": self.extra_slippage / BPS, "multiplier": self.multiplier,
             "aum_usd": self.aum_usd,
             "impact": None if self.impact is None else {
-                "eta": self.impact.eta, "status": str(self.impact.status.value)},
+                "eta": self.eta, "configured_eta": self.impact.eta,
+                "status": str(self.impact.status.value)},
         }
 
 
@@ -99,8 +113,16 @@ def run_book(
     costs: CostSpec,
     *,
     lag: int,
+    half_spread: pd.DataFrame | None = None,
+    exit_on_missing_price: bool = False,
 ) -> BookResult:
-    """Simuleer het boek. `target` rij *t* = besluit op de close van *t*; NaN = geen besluit."""
+    """Simuleer het boek. `target` rij *t* = besluit op de close van *t*; NaN = geen besluit.
+
+    `half_spread` (fractie per munt per bar, besluitbar = uitvoeringsbar) vervangt de
+    vaste `costs.half_spread`. `exit_on_missing_price=True` is de delisting-regel van v2:
+    verdwijnt de koers van een gehouden munt, dan wordt de positie gesloten tegen de laatste
+    bekende close (rendement 0 op die bar), met kosten tegen de laatst bekende ADV en σ.
+    Zonder die vlag is een gehouden positie zonder koers een crash (v1)."""
     require(int(lag) >= 1, "Een vertraging van nul bars is lookahead.", DataContractError,
             lag=lag)
     require(bool(target.index.equals(market.index)) and list(target.columns) == list(market.symbols),
@@ -116,6 +138,16 @@ def run_book(
     price_ok = market.close.notna().to_numpy()
     sigma = market.sigma_daily.to_numpy(dtype=np.float64)
     adv = market.adv_usd.to_numpy(dtype=np.float64)
+    if exit_on_missing_price:
+        # Laatst bekende ADV en σ, voor de afwikkeling van een verdwenen munt.
+        sigma = market.sigma_daily.ffill().to_numpy(dtype=np.float64)
+        adv = market.adv_usd.ffill().to_numpy(dtype=np.float64)
+    if half_spread is not None:
+        require(bool(half_spread.index.equals(market.index))
+                and list(half_spread.columns) == list(market.symbols),
+                "Het spreadpaneel staat niet op het marktraster.", DataContractError)
+        hs = half_spread.ffill().fillna(costs.half_spread).to_numpy(dtype=np.float64)
+        require(bool((hs >= 0.0).all()), "Negatieve spread.", DataContractError)
 
     t_len, n = tgt.shape
     held = np.zeros((t_len, n))
@@ -126,7 +158,8 @@ def run_book(
     fee_rate = costs.taker_fee * costs.multiplier
     spread_rate = costs.half_spread * costs.multiplier
     slip_rate = costs.extra_slippage * costs.multiplier
-    eta = None if costs.impact is None else float(costs.impact.eta)
+    eta = costs.eta
+    n_forced_exits = 0
 
     h = np.zeros(n)
     equity = float(costs.aum_usd)
@@ -134,7 +167,8 @@ def run_book(
         held[t] = h
         r = ret[t]
         active = np.abs(h) > 0.0
-        require(bool(np.isfinite(r[active]).all()),
+        vanished = active & ~np.isfinite(r)
+        require(exit_on_missing_price or not bool(vanished.any()),
                 "Een gehouden positie zonder rendement op deze bar.", DataContractError,
                 bar=str(market.index[t]))
         r0 = np.where(np.isfinite(r), r, 0.0)
@@ -155,10 +189,15 @@ def run_book(
             delta = desired - drifted
             delta[np.abs(delta) < DUST] = 0.0
             new = drifted + delta
+        gone = ~price_ok[t] & (np.abs(new) > 0.0)
+        if exit_on_missing_price and gone.any():
+            new = np.where(gone, 0.0, new)
+            n_forced_exits += int(gone.sum())
         trade = new - drifted
         traded = np.abs(trade)
         fee = fee_rate * traded.sum()
-        spread = spread_rate * traded.sum()
+        spread = (float((hs[t] * traded).sum()) * costs.multiplier if half_spread is not None
+                  else spread_rate * traded.sum())
         slip = slip_rate * traded.sum()
         impact = 0.0
         if eta is not None and traded.any():
@@ -190,6 +229,7 @@ def run_book(
         held=pd.DataFrame(held, index=market.index, columns=market.symbols),
         trades=pd.DataFrame(trades, index=market.index, columns=market.symbols),
         audit={EVIDENCE_KEY: NOT_ADMISSIBLE, "engine": "systematic.book", "lag": int(lag),
-               "costs": costs.as_record(),
+               "costs": costs.as_record(), "n_forced_exits": n_forced_exits,
+               "half_spread": "panel" if half_spread is not None else "constant",
                "convention": "besluit op close t, uitgevoerd tegen close t+lag-1, "
                              "rendeert vanaf de bar erna"})
