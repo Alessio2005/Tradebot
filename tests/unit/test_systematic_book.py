@@ -116,3 +116,18 @@ def test_lag_zero_is_refused():
     m = synthetic_market()
     with pytest.raises(DataContractError):
         run_book(_target(m, {"BTCUSDT": 1.0}), _daily(m), m, FREE, lag=0)
+
+
+def test_partial_adjustment_closes_a_fixed_fraction_of_the_gap():
+    m = synthetic_market(late_listing=False)
+    target = _target(m, {"BTCUSDT": 1.0})
+    res = run_book(target, _daily(m), m, FREE, lag=1, trade_rate=0.25)
+    assert res.held["BTCUSDT"].iloc[1] == pytest.approx(0.25)
+    full = run_book(target, _daily(m), m, FREE, lag=1)
+    assert res.frame["turnover"].sum() < full.frame["turnover"].sum()
+
+
+def test_trade_rate_outside_the_unit_interval_is_refused():
+    m = synthetic_market()
+    with pytest.raises(DataContractError):
+        run_book(_target(m, {"BTCUSDT": 1.0}), _daily(m), m, FREE, lag=1, trade_rate=0.0)

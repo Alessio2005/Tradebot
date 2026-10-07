@@ -10,10 +10,13 @@ from pydantic import Field, model_validator
 
 from .config import StrictModel, load_config
 
-__all__ = ["ROBUST_BOOK_V2_CONFIG_PATH", "RobustBookV2Config", "robust_book_v2_config"]
+__all__ = ["ROBUST_BOOK_V2_CONFIG_PATH", "ROBUST_BOOK_V3_CONFIG_PATH", "RobustBookV2Config",
+           "RobustBookV3Config", "robust_book_v2_config", "robust_book_v3_config"]
 
 ROBUST_BOOK_V2_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v2.yaml")
+ROBUST_BOOK_V3_CONFIG_PATH = (
+    Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v3.yaml")
 
 Positive = Annotated[float, Field(gt=0.0)]
 PositiveInt = Annotated[int, Field(ge=1)]
@@ -107,3 +110,20 @@ class RobustBookV2Config(StrictModel):
 
 def robust_book_v2_config(path: Path | str = ROBUST_BOOK_V2_CONFIG_PATH) -> RobustBookV2Config:
     return load_config(path, RobustBookV2Config)
+
+
+class V3(StrictModel):
+    half_spread_bps: Positive
+    half_spread_stress_bps: Positive
+    trade_rate: Annotated[float, Field(gt=0.0, le=1.0)]
+    trade_rate_family: tuple[Annotated[float, Field(gt=0.0, le=1.0)], ...]
+
+
+class RobustBookV3Config(RobustBookV2Config):
+    """v2 plus het `v3`-blok: gecorrigeerde spread en partiële aanpassing."""
+
+    v3: V3
+
+
+def robust_book_v3_config(path: Path | str = ROBUST_BOOK_V3_CONFIG_PATH) -> RobustBookV3Config:
+    return load_config(path, RobustBookV3Config)

@@ -154,9 +154,13 @@ def build(name: str, m: BreadthMarket, cfg: RobustBookV2Config, *, included: Seq
     return sleeve_targets(name, m, cfg, **kw)
 
 
-def run(t: SleeveTargets, m: BreadthMarket, costs: CostSpec, *, lag: int) -> BookResult:
+def run(t: SleeveTargets, m: BreadthMarket, costs: CostSpec, *, lag: int,
+        spread_panel: bool = True, trade_rate: float = 1.0) -> BookResult:
+    """Het boek op het brede universum. v2: CHL-spreadpaneel, volledige aanpassing.
+    v3 (`programme_v3.py`) geeft `spread_panel=False` (vaste spread uit `costs`) en κ."""
     return run_book(t.weights.reindex(columns=list(m.book.symbols)), t.rebalance, m.book,
-                    costs, lag=lag, half_spread=m.half_spread, exit_on_missing_price=True)
+                    costs, lag=lag, half_spread=m.half_spread if spread_panel else None,
+                    exit_on_missing_price=True, trade_rate=trade_rate)
 
 
 def _sr(res: BookResult) -> float:
@@ -221,22 +225,39 @@ def _every(t: SleeveTargets, k: int) -> SleeveTargets:
     return SleeveTargets(name=t.name, weights=t.weights.where(mask, np.nan, axis=0), rebalance=mask)
 
 
+Builder = Callable[..., SleeveTargets]
+Runner = Callable[..., BookResult]
+
+
 def battery(name: str, m: BreadthMarket, cfg: RobustBookV2Config, costs: CostSpec, *,
             included: Sequence[str], base: BookResult, w_dev: tuple[pd.Timestamp, pd.Timestamp],
-            alt_universes: dict[str, BreadthMarket]) -> tuple[dict[str, Any], dict[str, pd.Series]]:
+            alt_universes: dict[str, BreadthMarket], builder: Builder | None = None,
+            runner: Runner | None = None, family_name: str | None = None,
+            run_family: dict[str, dict] | None = None,
+            extra_costs: dict[str, CostSpec] | None = None,
+            ) -> tuple[dict[str, Any], dict[str, pd.Series]]:
+    """Alle gevoeligheden van één kandidaat op W_DEV. v3 geeft eigen `builder`/`runner`,
+    de sleeve-naam voor de verstoringsfamilie (`family_name`), extra run-verstoringen
+    (κ) en extra kostenstress (spread)."""
     a, b = w_dev
     lag = cfg.execution.lag_bars
+    bld = builder or build
+    rn = runner or run
     base_sr = _sr(base.window(a, b))
-    t0 = build(name, m, cfg, included=included)
+    t0 = bld(name, m, cfg, included=included)
 
     def sr(t: SleeveTargets, c: CostSpec = costs, lg: int = lag, mk: BreadthMarket = m) -> float:
-        return _sr(run(t, mk, c, lag=lg).window(a, b))
+        return _sr(rn(t, mk, c, lag=lg).window(a, b))
 
     out: dict[str, Any] = {"base_sharpe": base_sr}
     family: dict[str, pd.Series] = {"base": base.window(a, b).net}
     pert = {}
-    for label, kw in _family(name, cfg, included).items():
-        res = run(build(name, m, cfg, included=included, **kw), m, costs, lag=lag).window(a, b)
+    for label, kw in _family(family_name or name, cfg, included).items():
+        res = rn(bld(name, m, cfg, included=included, **kw), m, costs, lag=lag).window(a, b)
+        family[label] = res.net
+        pert[label] = _sr(res)
+    for label, rkw in (run_family or {}).items():
+        res = rn(t0, m, costs, lag=lag, **rkw).window(a, b)
         family[label] = res.net
         pert[label] = _sr(res)
     vals = np.array(list(pert.values()))
@@ -248,6 +269,8 @@ def battery(name: str, m: BreadthMarket, cfg: RobustBookV2Config, costs: CostSpe
                     "x3": sr(t0, costs.scaled(multiplier=3.0)),
                     "plus_10bp_slippage": sr(t0, costs.scaled(extra_slippage=10e-4)),
                     "impact_y_stress": sr(t0, costs.scaled(impact_eta=cfg.costs.impact_y_stress))}
+    for label, c in (extra_costs or {}).items():
+        out["costs"][label] = sr(t0, c)
     out["capacity"] = {f"aum_{int(x):d}": sr(t0, costs.scaled(aum_usd=x)) for x in (1e7, 5e7)}
     out["delay"] = {f"lag_{k}": sr(t0, lg=k) for k in (2, 3)}
     noise = [sr(_noisy(t0, cfg, s)) for s in range(1, N_SEEDS + 1)]
@@ -256,14 +279,14 @@ def battery(name: str, m: BreadthMarket, cfg: RobustBookV2Config, costs: CostSpe
     miss = [sr(_missing(t0, s)) for s in range(1, N_SEEDS + 1)]
     out["missing_data"] = {"min": float(np.min(miss)), "median": float(np.median(miss)),
                            "max": float(np.max(miss)), "n_seeds": N_SEEDS}
-    if name in ("X1_XSMOM", "X2_XSCARRY"):
-        out["rebalance"] = {f"every_{k}": sr(build(name, m, cfg, included=included,
-                                                  rebalance_bars=k)) for k in (3, 14)}
+    if (family_name or name) in ("X1_XSMOM", "X2_XSCARRY"):
+        out["rebalance"] = {f"every_{k}": sr(bld(name, m, cfg, included=included,
+                                                rebalance_bars=k)) for k in (3, 14)}
     else:
         out["rebalance"] = {f"every_{k}": sr(_every(t0, k)) for k in (3, 7)}
     uni = {}
     for label, mk in alt_universes.items():
-        uni[label] = sr(build(name, mk, cfg, included=included), mk=mk)
+        uni[label] = sr(bld(name, mk, cfg, included=included), mk=mk)
     out["universe"] = uni
     out["universe_positive_fraction"] = float(np.mean([v > 0 for v in uni.values()])) if uni else 0.0
     out["start_dates"] = {f"start_plus_{k}m": _sr(base.window(a + pd.DateOffset(months=k), b))

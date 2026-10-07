@@ -115,6 +115,7 @@ def run_book(
     lag: int,
     half_spread: pd.DataFrame | None = None,
     exit_on_missing_price: bool = False,
+    trade_rate: float = 1.0,
 ) -> BookResult:
     """Simuleer het boek. `target` rij *t* = besluit op de close van *t*; NaN = geen besluit.
 
@@ -122,9 +123,15 @@ def run_book(
     vaste `costs.half_spread`. `exit_on_missing_price=True` is de delisting-regel van v2:
     verdwijnt de koers van een gehouden munt, dan wordt de positie gesloten tegen de laatste
     bekende close (rendement 0 op die bar), met kosten tegen de laatst bekende ADV en σ.
-    Zonder die vlag is een gehouden positie zonder koers een crash (v1)."""
+    Zonder die vlag is een gehouden positie zonder koers een crash (v1).
+
+    `trade_rate` κ ∈ (0, 1] is de partiële aanpassing van Gârleanu-Pedersen (2013): op
+    een herbalanceringsbar wordt een fractie κ van het gat tussen het gedrifte en het
+    doelgewicht verhandeld. κ = 1 (default) is volledige aanpassing, zoals v1 en v2."""
     require(int(lag) >= 1, "Een vertraging van nul bars is lookahead.", DataContractError,
             lag=lag)
+    require(0.0 < float(trade_rate) <= 1.0, "trade_rate moet in (0, 1] liggen.",
+            DataContractError, trade_rate=trade_rate)
     require(bool(target.index.equals(market.index)) and list(target.columns) == list(market.symbols),
             "Doelgewichten en markt delen geen raster of kolommen.", DataContractError)
     require(bool(rebalance.index.equals(market.index)),
@@ -193,7 +200,7 @@ def run_book(
             require(bool((desired[~price_ok[t]] == 0.0).all()),
                     "Een doelgewicht in een munt zonder prijs.", DataContractError,
                     bar=str(market.index[t]))
-            delta = desired - drifted
+            delta = float(trade_rate) * (desired - drifted)
             delta[np.abs(delta) < DUST] = 0.0
             new = drifted + delta
         gone = ~price_ok[t] & (np.abs(new) > 0.0)
@@ -238,5 +245,6 @@ def run_book(
         audit={EVIDENCE_KEY: NOT_ADMISSIBLE, "engine": "systematic.book", "lag": int(lag),
                "costs": costs.as_record(), "n_forced_exits": n_forced_exits,
                "half_spread": "panel" if half_spread is not None else "constant",
+               "trade_rate": float(trade_rate),
                "convention": "besluit op close t, uitgevoerd tegen close t+lag-1, "
                              "rendeert vanaf de bar erna"})
