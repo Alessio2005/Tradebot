@@ -186,6 +186,10 @@ def run_book(
         new = drifted
         if reb[t] and np.isfinite(tgt[t]).any():
             desired = np.where(np.isfinite(tgt[t]), tgt[t], 0.0)
+            if exit_on_missing_price:
+                # Een eerder besluit (lag >= 2) in een munt die op de uitvoeringsbar geen
+                # koers meer heeft, is niet uit te voeren: de exitregel hieronder sluit hem.
+                desired = np.where(price_ok[t], desired, 0.0)
             require(bool((desired[~price_ok[t]] == 0.0).all()),
                     "Een doelgewicht in een munt zonder prijs.", DataContractError,
                     bar=str(market.index[t]))

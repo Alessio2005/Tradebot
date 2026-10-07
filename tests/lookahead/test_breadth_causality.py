@@ -167,3 +167,16 @@ def test_short_data_holes_are_bridged_and_long_ones_are_not():
     late.iloc[35:, 0] = np.nan
     assert bridge_data_holes(late, late)["A"].iloc[:5].isna().all()
     assert bridge_data_holes(late, late)["A"].iloc[35:].isna().all()
+
+
+def test_a_lagged_order_in_a_coin_that_vanished_is_not_executed():
+    m = _market()
+    b = m.book
+    w = pd.DataFrame(0.0, index=b.index, columns=b.symbols)
+    live = b.live(40)
+    w["C07USDT"] = np.where(live["C07USDT"], 0.1, 0.0)   # besluit tot en met bar 449
+    reb = pd.Series(True, index=b.index)
+    costs = CostSpec(taker_fee=5.5e-4, half_spread=1e-4, impact=None, aum_usd=1e6)
+    res = run_book(w, reb, b, costs, lag=2, half_spread=m.half_spread,
+                   exit_on_missing_price=True)
+    assert float(res.held["C07USDT"].iloc[452:].abs().max()) == 0.0
