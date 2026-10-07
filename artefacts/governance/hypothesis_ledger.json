@@ -101,6 +101,31 @@
       "metrics": {},
       "notes": "Drie geplande trials, post-hoc na v2 en zo geboekt: Y2 carry, Y4 trend-LF, Y5 combinatie, met 3 bp spread en partiële aanpassing.",
       "amends": ""
+    },
+    {
+      "wave": 3,
+      "unit": "robust_book_v3_verdict",
+      "market": "crypto",
+      "config_hash": "8adb65d56c03419f",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "a1743ed",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "cb45bd8c6980f7926c2246eb6ce1d706",
+      "ts_utc": "2026-10-07T15:47:24.064054+00:00",
+      "metrics": {
+        "selected": "Y4_TREND_LF",
+        "w_dev_sharpe": 0.8612932139167766,
+        "holdout_sharpe": 0.0011094972842835595,
+        "verdict": "archived_w_dev_gates",
+        "robustness_scores": {
+          "Y2_CARRY": 70.01522638387524,
+          "Y4_TREND_LF": 77.61039951579392,
+          "Y5_COMBO": 76.14462353230542
+        }
+      },
+      "notes": "Oordeel robuust boek v3 na W_DEV en één holdout-lezing.",
+      "amends": "8adb65d56c03419f"
     }
   ]
 }
