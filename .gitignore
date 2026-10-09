@@ -132,3 +132,9 @@ artefacts/governance/research_gates.json
 # briefs, review-pakketten). Sessiegereedschap, geen projectbron -- hetzelfde
 # argument als .claude/ hierboven.
 .superpowers/
+
+# Ruwe Binance-zips (data.binance.vision): herdownloadbaar en geverifieerd via
+# artefacts/data/binance_um_manifest.json; niet in versiebeheer.
+data/binance_vision/raw/
+data/binance_vision/panels/
+data/binance_vision/spot_panels/

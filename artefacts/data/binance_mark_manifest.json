@@ -1,0 +1,9 @@
+{
+  "source": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+  "last_month": "2026-09",
+  "n_symbols": 900,
+  "n_symbols_with_data": 895,
+  "n_objects": 22508,
+  "objects_sha256": "4305ca6c4edfc6d7b4c1017f19189f6da5d030eaeb414d00564e8785567d78de",
+  "bytes": 23022131
+}

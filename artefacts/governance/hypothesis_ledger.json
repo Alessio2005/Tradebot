@@ -2,5 +2,335 @@
   "version": 1,
   "seed_total": 0,
   "seed_note": "Nieuwe ledger, gestart 2026-09-26. Alle eerdere entries zijn op besluit van de eigenaar verwijderd; de teller begint op 0. Elke trial vanaf nu wordt hier via HypothesisLedger.append geboekt.",
-  "entries": []
+  "entries": [
+    {
+      "wave": 1,
+      "unit": "robust_book_v1_programme",
+      "market": "crypto",
+      "config_hash": "d86d4d96665a4641",
+      "n_trials": 7,
+      "result": "interim",
+      "git_sha": "c360960",
+      "data_hash": "df1f46dab3a3f7a7",
+      "preregistration_id": "eecdb3a109bf10972f17acd3b0146716",
+      "ts_utc": "2026-10-07T14:00:06.172381+00:00",
+      "metrics": {},
+      "notes": "Zeven geplande trials, geboekt vóór de eerste run: B1, B2 (referenties), C1 trend-LS, C2 trend-LF, C3 vol-gemanaged kern, C4 funding-carry, C5 combinatie.",
+      "amends": ""
+    },
+    {
+      "wave": 1,
+      "unit": "robust_book_v1_verdict",
+      "market": "crypto",
+      "config_hash": "d86d4d96665a4641",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "51ad154",
+      "data_hash": "df1f46dab3a3f7a7",
+      "preregistration_id": "eecdb3a109bf10972f17acd3b0146716",
+      "ts_utc": "2026-10-07T14:13:38.507309+00:00",
+      "metrics": {
+        "selected": "C2_TREND_LF",
+        "w_dev_sharpe": 0.7107509670536197,
+        "gate_sharpe": -0.10202407570224983,
+        "verdict": "archived_w_dev_gates",
+        "robustness_scores": {
+          "C1_TREND_LS": 39.183727621863994,
+          "C2_TREND_LF": 80.42998826983288,
+          "C3_VOLMAN_CORE": 55.582334509620104,
+          "C4_CARRY_XS": 48.498500971228395,
+          "C5_COMBO": 68.6951285131791
+        }
+      },
+      "notes": "Oordeel robuust boek v1 na W_DEV en één poortlezing.",
+      "amends": "d86d4d96665a4641"
+    },
+    {
+      "wave": 2,
+      "unit": "robust_book_v2_programme",
+      "market": "crypto",
+      "config_hash": "122cd7d692d4c44a",
+      "n_trials": 7,
+      "result": "interim",
+      "git_sha": "c5e7b64",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "b97b3b8e38a44fe23626342775b86cf7",
+      "ts_utc": "2026-10-07T15:16:46.378855+00:00",
+      "metrics": {},
+      "notes": "Zeven geplande trials, geboekt vóór de eerste meting op het Binance-universum: R1, R2 (referenties), X1 XS-momentum, X2 XS-carry, X3 trend-LS, X4 trend-LF, X5 combinatie.",
+      "amends": ""
+    },
+    {
+      "wave": 2,
+      "unit": "robust_book_v2_verdict",
+      "market": "crypto",
+      "config_hash": "122cd7d692d4c44a",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "8dd791c",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "b97b3b8e38a44fe23626342775b86cf7",
+      "ts_utc": "2026-10-07T15:34:34.146994+00:00",
+      "metrics": {
+        "selected": "X4_TREND_LF",
+        "w_dev_sharpe": 0.7651857562399357,
+        "holdout_sharpe": -0.10790072059955493,
+        "verdict": "archived_w_dev_gates",
+        "robustness_scores": {
+          "X1_XSMOM": 2.090819097839031,
+          "X2_XSCARRY": 39.01757793507007,
+          "X3_TREND_LS": 49.24465111168258,
+          "X4_TREND_LF": 71.70019821906342,
+          "X5_COMBO": 36.36202350751013
+        }
+      },
+      "notes": "Oordeel robuust boek v2 na W_DEV en één holdout-lezing.",
+      "amends": "122cd7d692d4c44a"
+    },
+    {
+      "wave": 3,
+      "unit": "robust_book_v3_programme",
+      "market": "crypto",
+      "config_hash": "8adb65d56c03419f",
+      "n_trials": 3,
+      "result": "interim",
+      "git_sha": "d69e6e0",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "cb45bd8c6980f7926c2246eb6ce1d706",
+      "ts_utc": "2026-10-07T15:39:37.129616+00:00",
+      "metrics": {},
+      "notes": "Drie geplande trials, post-hoc na v2 en zo geboekt: Y2 carry, Y4 trend-LF, Y5 combinatie, met 3 bp spread en partiële aanpassing.",
+      "amends": ""
+    },
+    {
+      "wave": 3,
+      "unit": "robust_book_v3_verdict",
+      "market": "crypto",
+      "config_hash": "8adb65d56c03419f",
+      "n_trials": 0,
+      "result": "archived",
+      "git_sha": "a1743ed",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "cb45bd8c6980f7926c2246eb6ce1d706",
+      "ts_utc": "2026-10-07T15:47:24.064054+00:00",
+      "metrics": {
+        "selected": "Y4_TREND_LF",
+        "w_dev_sharpe": 0.8612932139167766,
+        "holdout_sharpe": 0.0011094972842835595,
+        "verdict": "archived_w_dev_gates",
+        "robustness_scores": {
+          "Y2_CARRY": 70.01522638387524,
+          "Y4_TREND_LF": 77.61039951579392,
+          "Y5_COMBO": 76.14462353230542
+        }
+      },
+      "notes": "Oordeel robuust boek v3 na W_DEV en één holdout-lezing.",
+      "amends": "8adb65d56c03419f"
+    },
+    {
+      "wave": 4,
+      "unit": "robust_book_v4_confirm",
+      "market": "crypto",
+      "config_hash": "aad0f67e4afb67af",
+      "n_trials": 1,
+      "result": "interim",
+      "git_sha": "a6bd91f",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "3d623e462367f81ac34cb676346a3188",
+      "ts_utc": "2026-10-07T15:52:13.644969+00:00",
+      "metrics": {},
+      "notes": "Eén trial: holdout-bevestiging van v3-Y5_COMBO, ongewijzigd.",
+      "amends": ""
+    },
+    {
+      "wave": 4,
+      "unit": "robust_book_v4_confirm_verdict",
+      "market": "crypto",
+      "config_hash": "aad0f67e4afb67af",
+      "n_trials": 0,
+      "result": "falsified",
+      "git_sha": "b5ede4f",
+      "data_hash": "699fcec0928c5742",
+      "preregistration_id": "3d623e462367f81ac34cb676346a3188",
+      "ts_utc": "2026-10-07T15:52:49.628524+00:00",
+      "metrics": {
+        "candidate": "Y5_COMBO",
+        "holdout_sharpe": -1.1884055080300795,
+        "verdict": "falsified_on_holdout"
+      },
+      "notes": "Oordeel van de v4-bevestigingslezing.",
+      "amends": "aad0f67e4afb67af"
+    },
+    {
+      "wave": 5,
+      "unit": "robust_book_v5_programme",
+      "market": "crypto",
+      "config_hash": "d69c89d183f242c7",
+      "n_trials": 3,
+      "result": "interim",
+      "git_sha": "7499921",
+      "data_hash": "726ddcd31e3d5638",
+      "preregistration_id": "4df1a5d0cd590b67965127db4e6e480a",
+      "ts_utc": "2026-10-07T17:15:47.020490+00:00",
+      "metrics": {},
+      "notes": "Drie geplande trials: H1 basiscarry breed, H2 basis + trend, H3 basis majors. Post-hoc na v4 en zo geboekt.",
+      "amends": ""
+    },
+    {
+      "wave": 5,
+      "unit": "robust_book_v5_verdict",
+      "market": "crypto",
+      "config_hash": "d69c89d183f242c7",
+      "n_trials": 0,
+      "result": "falsified",
+      "git_sha": "af6b9f0",
+      "data_hash": "726ddcd31e3d5638",
+      "preregistration_id": "4df1a5d0cd590b67965127db4e6e480a",
+      "ts_utc": "2026-10-07T17:25:51.470711+00:00",
+      "metrics": {
+        "selected": "H3_BASIS_MAJORS",
+        "w_dev_sharpe": 6.761893537271867,
+        "backcast_sharpe": 11.463448260195317,
+        "holdout_sharpe": null,
+        "holdout_invested": false,
+        "verdict": "falsified_out_of_sample",
+        "robustness_scores": {
+          "H1_BASIS": 90.09472935212656,
+          "H2_BASIS_TREND": 85.86555638228127,
+          "H3_BASIS_MAJORS": 98.56193871211066
+        }
+      },
+      "notes": "Oordeel robuust boek v5 na W_DEV, de backcast en de holdout.",
+      "amends": "d69c89d183f242c7"
+    },
+    {
+      "wave": 6,
+      "unit": "robust_book_v6_programme",
+      "market": "crypto",
+      "config_hash": "e6438adc6ef3f237",
+      "n_trials": 3,
+      "result": "interim",
+      "git_sha": "9bcb6ab",
+      "data_hash": "da79708eaf82fcf4",
+      "preregistration_id": "b62c8bc358a1de4422e19e1fc824d7a5",
+      "ts_utc": "2026-10-09T16:04:44.001190+00:00",
+      "metrics": {},
+      "notes": "Drie geplande trials: K1/K2/K3 = de basiscarry van v5-H1 bij 1x/1,5x/2x notional per been in een unified-margin-account. Post-hoc na v5 en zo geboekt; hefboom op eigenaarsbesluit 2026-10-09.",
+      "amends": ""
+    },
+    {
+      "wave": 7,
+      "unit": "robust_book_v7_programme",
+      "market": "crypto",
+      "config_hash": "adab187e4c4de89c",
+      "n_trials": 2,
+      "result": "interim",
+      "git_sha": "955203c",
+      "data_hash": "da79708eaf82fcf4",
+      "preregistration_id": "04af949bfb9adfde53c502931c78a33e",
+      "ts_utc": "2026-10-09T16:20:59.243090+00:00",
+      "metrics": {},
+      "notes": "Twee geplande trials: S1 = v6-K1 met gespreide uitvoering (5 dagstappen per tranche), S2 = S1 plus een gefinancierde tranche (carry >= leenrente + 10 pp). Post-hoc na v6 (W_DEV), voor elke v6-lezing buiten W_DEV, en zo geboekt.",
+      "amends": ""
+    },
+    {
+      "wave": 6,
+      "unit": "robust_book_v6_verdict",
+      "market": "crypto",
+      "config_hash": "e6438adc6ef3f237",
+      "n_trials": 0,
+      "result": "falsified",
+      "git_sha": "5d3630e",
+      "data_hash": "da79708eaf82fcf4",
+      "preregistration_id": "b62c8bc358a1de4422e19e1fc824d7a5",
+      "ts_utc": "2026-10-09T16:21:24.900137+00:00",
+      "metrics": {
+        "selected": "K1_CARRY_PM_1X",
+        "w_dev_sharpe": 5.422599331327764,
+        "w_dev_cagr": 0.12094865945838262,
+        "backcast_sharpe": 11.18964642511445,
+        "holdout_sharpe": -3.0808324773062155,
+        "holdout_cagr": -0.08550941094422848,
+        "holdout_invested": true,
+        "verdict": "falsified_out_of_sample",
+        "robustness_scores": {
+          "K1_CARRY_PM_1X": 88.83217219947531,
+          "K2_CARRY_PM_1P5X": 86.07419933936089,
+          "K3_CARRY_PM_2X": 83.99964846877907
+        }
+      },
+      "notes": "Oordeel robust_book_v6 na W_DEV, de backcast en de holdout. Het vooruit-sample (vanaf 2026-10-01) volgt met de `forward`-lezing.",
+      "amends": "e6438adc6ef3f237"
+    },
+    {
+      "wave": 7,
+      "unit": "robust_book_v7_verdict",
+      "market": "crypto",
+      "config_hash": "adab187e4c4de89c",
+      "n_trials": 0,
+      "result": "falsified",
+      "git_sha": "31a0af5",
+      "data_hash": "da79708eaf82fcf4",
+      "preregistration_id": "04af949bfb9adfde53c502931c78a33e",
+      "ts_utc": "2026-10-09T16:24:45.497207+00:00",
+      "metrics": {
+        "selected": "S2_CARRY_PM_TRANCHE",
+        "w_dev_sharpe": 5.354947732634477,
+        "w_dev_cagr": 0.1668772884991272,
+        "backcast_sharpe": 9.031500782396673,
+        "holdout_sharpe": -2.493976296360465,
+        "holdout_cagr": -0.057237525028649205,
+        "holdout_invested": true,
+        "verdict": "falsified_out_of_sample",
+        "robustness_scores": {
+          "S1_CARRY_PM_SLICED": 95.41486568142253,
+          "S2_CARRY_PM_TRANCHE": 97.09156245482836
+        }
+      },
+      "notes": "Oordeel robust_book_v7 na W_DEV, de backcast en de holdout. Het vooruit-sample (vanaf 2026-10-01) volgt met de `forward`-lezing.",
+      "amends": "adab187e4c4de89c"
+    },
+    {
+      "wave": 8,
+      "unit": "robust_book_v8_programme",
+      "market": "crypto",
+      "config_hash": "6cad21746d4dda9d",
+      "n_trials": 1,
+      "result": "interim",
+      "git_sha": "5d0be75",
+      "data_hash": "da79708eaf82fcf4",
+      "preregistration_id": "1b771576762caa74ea6d7e95cd5f7343",
+      "ts_utc": "2026-10-09T16:30:17.470042+00:00",
+      "metrics": {},
+      "notes": "Eén geplande trial: T2 = v7-S2 met een sprongrisicogrens (dag-sigma <= 20 %). Post-hoc na de holdout-lezingen van v6 en v7 (de holdout is verbruikt), en zo geboekt. Het schone bewijs is het vooruit-sample.",
+      "amends": ""
+    },
+    {
+      "wave": 8,
+      "unit": "robust_book_v8_verdict",
+      "market": "crypto",
+      "config_hash": "6cad21746d4dda9d",
+      "n_trials": 0,
+      "result": "falsified",
+      "git_sha": "569d042",
+      "data_hash": "da79708eaf82fcf4",
+      "preregistration_id": "1b771576762caa74ea6d7e95cd5f7343",
+      "ts_utc": "2026-10-09T16:34:30.357263+00:00",
+      "metrics": {
+        "selected": "T2_CARRY_TRANCHE_JUMPCAP",
+        "w_dev_sharpe": 5.32911056779209,
+        "w_dev_cagr": 0.15884045522120038,
+        "backcast_sharpe": 9.031500782396673,
+        "holdout_sharpe": -1.9967367548310941,
+        "holdout_cagr": -0.010937502019118028,
+        "holdout_invested": true,
+        "verdict": "falsified_out_of_sample",
+        "robustness_scores": {
+          "T2_CARRY_TRANCHE_JUMPCAP": 96.89099119496107
+        }
+      },
+      "notes": "Oordeel robust_book_v8 na W_DEV, de backcast en de holdout. Het vooruit-sample (vanaf 2026-10-01) volgt met de `forward`-lezing.",
+      "amends": "6cad21746d4dda9d"
+    }
+  ]
 }

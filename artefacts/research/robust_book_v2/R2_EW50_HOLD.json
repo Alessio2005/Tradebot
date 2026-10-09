@@ -1,0 +1,339 @@
+{
+  "data_hashes": {
+    "binance_um/objects": "31d979002a074b6a",
+    "binance_um/panel/close": "30646a979d93bcd5",
+    "binance_um/panel/funding": "f386d0710d2daedc",
+    "binance_um/panel/high": "79885e549290f42c",
+    "binance_um/panel/low": "7e81ae1a2ff9cbe6",
+    "binance_um/panel/open": "1b9872a10c3e74a5",
+    "binance_um/panel/quote_volume": "c6687935764234d1"
+  },
+  "dsr": {
+    "m_14": {
+      "approximation": "normal",
+      "bars_per_year": 365.0,
+      "dsr": 0.17957862371359112,
+      "kurtosis": 8.115769652919901,
+      "n_obs": 1642,
+      "n_trials": 14,
+      "required_annual_sharpe": 0.8196372755864897,
+      "sharpe_per_bar": 0.020162405762438097,
+      "skew": -0.41765290064540317,
+      "sr_variance": 0.0006090133982947625,
+      "sr_variance_empirical": 0.00021633707006393448,
+      "sr_zero": 0.042901775788863644,
+      "t_years": 4.498630136986302,
+      "z": -0.9169721245932281
+    },
+    "m_66": {
+      "approximation": "normal",
+      "bars_per_year": 365.0,
+      "dsr": 0.05983046626989759,
+      "kurtosis": 8.115769652919901,
+      "n_obs": 1642,
+      "n_trials": 66,
+      "required_annual_sharpe": 1.1224843027896931,
+      "sharpe_per_bar": 0.020162405762438097,
+      "skew": -0.41765290064540317,
+      "sr_variance": 0.0006090133982947625,
+      "sr_variance_empirical": 0.00021633707006393448,
+      "sr_zero": 0.05875351368121223,
+      "t_years": 4.498630136986302,
+      "z": -1.5561983545525437
+    }
+  },
+  "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+  "execution": {
+    "costs": {
+      "aum_usd": 1000000.0,
+      "extra_slippage_bps": 0.0,
+      "half_spread_bps": 1.0,
+      "impact": {
+        "configured_eta": 2.991922,
+        "eta": 1.0,
+        "status": "IMPACT_UNCALIBRATED"
+      },
+      "multiplier": 1.0,
+      "taker_fee_bps": 5.5
+    },
+    "half_spread": "Abdi-Ranaldo CHL, causaal, 60 d",
+    "lag_bars": 1
+  },
+  "git_sha": "8dd791c",
+  "hypothesis": "Referentie: gelijk gewogen long over het top-50-universum.",
+  "n_forced_exits": 0,
+  "parameters": {
+    "combo": {
+      "candidates": [
+        "X1_XSMOM",
+        "X2_XSCARRY",
+        "X4_TREND_LF"
+      ],
+      "inclusion_min_train_sharpe": 0.0
+    },
+    "costs": {
+      "impact_y": 1.0,
+      "impact_y_stress": 2.991922,
+      "max_half_spread_bps": 25.0,
+      "min_half_spread_bps": 1.0,
+      "spread_window": 60,
+      "taker_fee_bps": 5.5
+    },
+    "execution": {
+      "aum_usd": 1000000.0,
+      "lag_bars": 1
+    },
+    "known_prior_trials": 52,
+    "planned_trials": 7,
+    "sizing": {
+      "asset_vol_target": 0.2,
+      "gross_cap": 4.0,
+      "max_scale": 3.0,
+      "per_asset_cap": 0.2,
+      "portfolio_vol_target": 0.2,
+      "vol_span": 60
+    },
+    "trend": {
+      "lookbacks": [
+        5,
+        7,
+        10,
+        14,
+        20,
+        28,
+        40,
+        56,
+        80,
+        112,
+        160
+      ],
+      "z_clip": 1.0
+    },
+    "universe": {
+      "adv_window": 30,
+      "min_adv_usd": 5000000.0,
+      "min_ann_vol": 0.15,
+      "min_history_bars": 90,
+      "top_n": 50,
+      "vol_window": 60
+    },
+    "windows": {
+      "holdout_end": "2026-09-30",
+      "holdout_start": "2025-07-01",
+      "train_end": "2023-12-31",
+      "train_start": "2021-01-01",
+      "validate_start": "2024-01-01",
+      "w_dev_end": "2025-06-30"
+    },
+    "xscarry": {
+      "rebalance_bars": 7,
+      "signal_lag_bars": 1,
+      "window_bars": 7
+    },
+    "xsmom": {
+      "lookbacks": [
+        7,
+        14,
+        28,
+        56
+      ],
+      "rebalance_bars": 7,
+      "winsor": 3.0
+    }
+  },
+  "preregistration_id": "b97b3b8e38a44fe23626342775b86cf7",
+  "regimes": {
+    "bear": {
+      "share": 0.39646772228989036,
+      "sharpe": 0.40886838798778935
+    },
+    "bull": {
+      "share": 0.6035322777101096,
+      "sharpe": 0.3686234357813286
+    },
+    "high_corr": {
+      "share": 0.4579780755176614,
+      "sharpe": -0.06551953159319807
+    },
+    "high_vol": {
+      "share": 0.3471376370280146,
+      "sharpe": 1.085562027987694
+    },
+    "low_corr": {
+      "share": 0.5420219244823387,
+      "sharpe": 0.8209681930442091
+    },
+    "low_vol": {
+      "share": 0.6528623629719854,
+      "sharpe": -0.09469247812860648
+    }
+  },
+  "role": "reference",
+  "train": {
+    "ann_fees": -0.010820347851191492,
+    "ann_funding": -0.08683722106666665,
+    "ann_gross": 0.6944036959175344,
+    "ann_impact": -0.028692133303307697,
+    "ann_net": 0.5451117636233929,
+    "ann_slippage": 0.0,
+    "ann_spread": -0.022942230072975862,
+    "ann_turnover": 19.59073780447385,
+    "ann_vol": 0.931304464468733,
+    "avg_gross_leverage": 1.0,
+    "avg_net_leverage": 1.0,
+    "best_day": 0.29672706323750964,
+    "bootstrap_block_length": 5,
+    "bootstrap_n_boot": 10000,
+    "cagr": 0.10459047059482063,
+    "calmar": 0.11872642258037336,
+    "end": "2023-12-31",
+    "gross_plus_funding_sharpe": 0.6519517124039331,
+    "gross_sharpe": 0.7429165402065316,
+    "hit_rate_days": 0.5470319634703197,
+    "kurtosis": 9.346441381199329,
+    "max_drawdown": 0.8809367647207325,
+    "max_gross_leverage": 1.0,
+    "n_obs": 1095,
+    "n_trades": 55428,
+    "p_sharpe_gt_0": 0.858399804764784,
+    "pct_bars_invested": 1.0,
+    "sharpe": 0.5853206812815552,
+    "sharpe_ci_high": 1.7161557350818868,
+    "sharpe_ci_low": -0.4738252978960588,
+    "sharpe_per_bar": 0.030637084696956793,
+    "sharpe_se": 0.5454191038306506,
+    "skew": -0.5572853814726569,
+    "sortino": 0.7379266409085015,
+    "start": "2021-01-01",
+    "t_stat": 1.073157645507213,
+    "t_years": 3.0,
+    "worst_day": -0.3610000273727014
+  },
+  "trial": "R2_EW50_HOLD",
+  "validate": {
+    "ann_fees": -0.011363333987713,
+    "ann_funding": -0.015425166910420486,
+    "ann_gross": 0.01591574895436686,
+    "ann_impact": -0.02187348968968177,
+    "ann_net": -0.05070892944190507,
+    "ann_slippage": 0.0,
+    "ann_spread": -0.01796268780845842,
+    "ann_turnover": 20.629124263178046,
+    "ann_vol": 0.8337738258242795,
+    "avg_gross_leverage": 1.0,
+    "avg_net_leverage": 1.0,
+    "best_day": 0.14704167708290283,
+    "bootstrap_block_length": 5,
+    "bootstrap_n_boot": 10000,
+    "cagr": -0.3293598416741723,
+    "calmar": -0.4476911301318709,
+    "end": "2025-06-30",
+    "gross_plus_funding_sharpe": 0.0005880877228542519,
+    "gross_sharpe": 0.019069177856913474,
+    "hit_rate_days": 0.48811700182815354,
+    "kurtosis": 4.024189450092378,
+    "max_drawdown": 0.7356854302142569,
+    "max_gross_leverage": 1.0,
+    "n_obs": 547,
+    "n_trades": 27729,
+    "p_sharpe_gt_0": 0.46975118431030644,
+    "pct_bars_invested": 1.0,
+    "sharpe": -0.06081856718370064,
+    "sharpe_ci_high": 1.5430054274605216,
+    "sharpe_ci_low": -1.6290548512016807,
+    "sharpe_per_bar": -0.003183389300160904,
+    "sharpe_se": 0.8013479025989747,
+    "skew": -0.040775183787359996,
+    "sortino": -0.09271644698255413,
+    "start": "2024-01-01",
+    "t_stat": -0.07589533458121071,
+    "t_years": 1.4986301369863013,
+    "worst_day": -0.15376637969670992
+  },
+  "w_dev": {
+    "ann_fees": -0.01100123300142125,
+    "ann_funding": -0.06304769998051157,
+    "ann_gross": 0.4683787830132395,
+    "ann_impact": -0.026420636313872016,
+    "ann_net": 0.34662582019664623,
+    "ann_slippage": 0.0,
+    "ann_spread": -0.021283393520788868,
+    "ann_turnover": 19.93665582695326,
+    "ann_vol": 0.8998541573663844,
+    "avg_gross_leverage": 1.0,
+    "avg_net_leverage": 1.0,
+    "best_day": 0.29672706323750964,
+    "bootstrap_block_length": 5,
+    "bootstrap_n_boot": 10000,
+    "cagr": -0.06457700841274017,
+    "calmar": -0.07174633521154541,
+    "end": "2025-06-30",
+    "gross_plus_funding_sharpe": 0.45016077031546037,
+    "gross_sharpe": 0.518980765284169,
+    "hit_rate_days": 0.5274056029232643,
+    "kurtosis": 8.115769652919901,
+    "max_drawdown": 0.9000739650650259,
+    "max_gross_leverage": 1.0,
+    "n_obs": 1642,
+    "n_trades": 83157,
+    "p_sharpe_gt_0": 0.8045411032230725,
+    "pct_bars_invested": 1.0,
+    "sharpe": 0.385202221225627,
+    "sharpe_ci_high": 1.2973019651803275,
+    "sharpe_ci_low": -0.5009751064946646,
+    "sharpe_per_bar": 0.020162405762438097,
+    "sharpe_se": 0.4489776417118916,
+    "skew": -0.41765290064540317,
+    "sortino": 0.5125319164107616,
+    "start": "2021-01-01",
+    "t_stat": 0.857954128310048,
+    "t_years": 4.498630136986302,
+    "worst_day": -0.3610000273727014
+  },
+  "windows": {
+    "holdout": [
+      "2025-07-01",
+      "unread"
+    ],
+    "train": [
+      "2021-01-01",
+      "2023-12-31"
+    ],
+    "validate": [
+      "2024-01-01",
+      "2025-06-30"
+    ]
+  },
+  "yearly": {
+    "2021": {
+      "max_drawdown": 0.6513638031424198,
+      "n_obs": 365,
+      "return": 3.0063194756659035,
+      "sharpe": 1.8054125142505375
+    },
+    "2022": {
+      "max_drawdown": 0.8438680973041102,
+      "n_obs": 365,
+      "return": -0.8363443198496071,
+      "sharpe": -1.4285032049431858
+    },
+    "2023": {
+      "max_drawdown": 0.4739458801502755,
+      "n_obs": 365,
+      "return": 1.0555460705891337,
+      "sharpe": 1.468200692762622
+    },
+    "2024": {
+      "max_drawdown": 0.6475335249645402,
+      "n_obs": 366,
+      "return": -0.09216119397974931,
+      "sharpe": 0.27920701000479153
+    },
+    "2025": {
+      "max_drawdown": 0.6133958039624579,
+      "n_obs": 181,
+      "return": -0.39471031061675754,
+      "sharpe": -0.6696677997292786
+    }
+  }
+}

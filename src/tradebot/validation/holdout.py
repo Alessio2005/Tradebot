@@ -73,9 +73,11 @@ __all__ = [
     "HoldoutAlreadyFrozen",
     "HoldoutAlreadyUsed",
     "HoldoutLock",
+    "backcast_gate_slice",
     "development_slice",
     "freeze_holdout",
     "gate_slice",
+    "resume_registered_read",
 ]
 
 
@@ -225,6 +227,13 @@ def gate_slice(
         "tweede lezing.",
         DataContractError,
     )
+    payload = _register_read(lock_path, hypothesis_id)
+    split = _split_ts(payload)
+    return frame.loc[frame.index >= split]
+
+
+def _register_read(lock_path: Path, hypothesis_id: str) -> dict:
+    """R7: weiger een tweede lezing, en schrijf de eerste weg VOORDAT er data terugkomt."""
     payload = _read_lock(lock_path)
     already_read = {entry["hypothesis_id"] for entry in payload["reads"]}
     if hypothesis_id in already_read:
@@ -242,5 +251,57 @@ def gate_slice(
     lock_path.write_text(
         json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
     )
+    return payload
+
+
+def backcast_gate_slice(
+    frame: pd.DataFrame, *, lock_path: Path, hypothesis_id: str
+) -> pd.DataFrame:
+    """Het spiegelbeeld van `gate_slice`: alles VÓÓR de bevroren split, ten
+    hoogste eenmaal per hypothese (R7).
+
+    Voor een sample dat aan het BEGIN van de reeks ligt en nooit is gemeten
+    (een backcast): hetzelfde lockformaat, dezelfde registratie vóór de data.
+    Een backcast-lock hoort alleen via deze functie gelezen te worden;
+    `development_slice` op zo'n lock zou het beschermde stuk vrij teruggeven.
+    Het onderscheid zit in het lockpad, en het lockpad staat in de code van
+    het programma dat hem bevroor."""
+    require(
+        bool(hypothesis_id.strip()),
+        "Een lezing zonder hypothesis_id is niet aan R7 te toetsen.",
+        DataContractError,
+    )
+    payload = _register_read(lock_path, hypothesis_id)
     split = _split_ts(payload)
-    return frame.loc[frame.index >= split]
+    return frame.loc[frame.index < split]
+
+
+def resume_registered_read(lock_path: Path, *, hypothesis_id: str, reason: str) -> dict:
+    """Maak een AL geregistreerde lezing af, eenmaal, zichtbaar -- geen tweede lezing.
+
+    Voor precies dit geval: de lezing staat in `reads` (R7 is dus al geteld), maar de
+    berekening crashte voordat er een uitkomst was. Een nieuwe `gate_slice` weigert terecht;
+    een nieuwe hypothese-id zou een tweede lezing kopen. Deze functie eist dat de id al
+    gelezen heeft, schrijft een `resumes`-entry met de reden VOORDAT de aanroeper verder
+    rekent, en weigert een tweede hervatting van dezelfde id. Kandidaat, parameters en
+    poorten veranderen hier niet; dat is aan de aanroeper, en zichtbaar in zijn diff."""
+    require(bool(reason.strip()), "Een hervatting zonder reden is niet te beoordelen.",
+            DataContractError)
+    payload = _read_lock(lock_path)
+    read = {entry["hypothesis_id"] for entry in payload["reads"]}
+    require(hypothesis_id in read, "Alleen een al geregistreerde lezing kan worden "
+            "afgemaakt; een eerste lezing gaat via gate_slice.", DataContractError,
+            hypothesis_id=hypothesis_id)
+    resumes = payload.setdefault("resumes", [])
+    if hypothesis_id in {entry["hypothesis_id"] for entry in resumes}:
+        raise HoldoutAlreadyUsed(
+            f"{hypothesis_id!r} is al eenmaal hervat ({lock_path}); een tweede "
+            f"hervatting is een tweede lezing."
+        )
+    resumes.append({
+        "hypothesis_id": hypothesis_id,
+        "resumed_utc": datetime.now(timezone.utc).isoformat(),
+        "reason": reason,
+    })
+    lock_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return payload
