@@ -137,7 +137,8 @@ def carry_estimate(m: BasisMarket, span: int) -> pd.DataFrame:
 def harvest_targets(m: BasisMarket, *, span: int, enter_apr: float, exit_apr: float,
                     slots: int, notional: float, min_spot_adv_usd: float, max_abs_basis: float,
                     symbols: Sequence[str] | None = None,
-                    carry_noise: pd.DataFrame | None = None) -> pd.DataFrame:
+                    carry_noise: pd.DataFrame | None = None,
+                    max_sigma: float | None = None) -> pd.DataFrame:
     """De gewenste hedge-notional per munt per besluitbar (fractie van de equity).
 
     Slots met hysterese: een gehouden munt blijft zolang zijn carry boven `exit_apr` ligt en
@@ -147,7 +148,11 @@ def harvest_targets(m: BasisMarket, *, span: int, enter_apr: float, exit_apr: fl
     `notional / slots`; lege slots blijven cash.
 
     `symbols` beperkt de INSTAP tot die munten (de majors-variant). `carry_noise` (zelfde
-    vorm) vermenigvuldigt de carryschatting: alleen voor de ruisstoets."""
+    vorm) vermenigvuldigt de carryschatting: alleen voor de ruisstoets.
+
+    `max_sigma` (v8, de sprongrisicogrens): een munt waarvan de dag-σ (EWMA, het hoogste
+    van spot en perp, bekend op de close van *t*) boven de grens ligt, is niet
+    verhandelbaar: geen instap, en een gehouden munt gaat eruit. `None` = de regel van v5."""
     require(0.0 < notional <= 1.0 and slots >= 1 and exit_apr < enter_apr,
             "Ongeldige oogstparameters.", DataContractError,
             notional=notional, slots=slots, enter=enter_apr, exit=exit_apr)
@@ -158,6 +163,10 @@ def harvest_targets(m: BasisMarket, *, span: int, enter_apr: float, exit_apr: fl
                 & (m.spot_adv >= min_spot_adv_usd) & (m.basis.abs() <= max_abs_basis)
                 & (m.perp.book.adv_usd > 0.0) & m.perp.book.sigma_daily.notna()
                 & m.spot_sigma.notna())
+    if max_sigma is not None:
+        require(float(max_sigma) > 0.0, "Een sigmagrens moet positief zijn.", DataContractError,
+                max_sigma=max_sigma)
+        tradable &= np.fmax(m.spot_sigma, m.perp.book.sigma_daily) <= float(max_sigma)
     enter = tradable & m.perp.universe & (carry >= enter_apr)
     if symbols is not None:
         enter &= pd.Series([s in set(symbols) for s in m.symbols], index=list(m.symbols))

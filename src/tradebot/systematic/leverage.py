@@ -168,7 +168,8 @@ class MarginSpec:
 def levered_targets(m: BasisMarket, *, leverage: float, slots: int, span: int,
                     enter_apr: float, exit_apr: float, min_spot_adv_usd: float,
                     max_abs_basis: float, symbols: Sequence[str] | None = None,
-                    carry_noise: pd.DataFrame | None = None) -> pd.DataFrame:
+                    carry_noise: pd.DataFrame | None = None,
+                    max_sigma: float | None = None) -> pd.DataFrame:
     """De slotregel van v5, ongewijzigd, met `leverage` als notional per been.
 
     De slotkeuze hangt niet van de notional af (elk slot krijgt `notional / slots`), dus
@@ -179,14 +180,16 @@ def levered_targets(m: BasisMarket, *, leverage: float, slots: int, span: int,
             leverage=leverage)
     one = harvest_targets(m, span=span, enter_apr=enter_apr, exit_apr=exit_apr, slots=slots,
                           notional=1.0, min_spot_adv_usd=min_spot_adv_usd,
-                          max_abs_basis=max_abs_basis, symbols=symbols, carry_noise=carry_noise)
+                          max_abs_basis=max_abs_basis, symbols=symbols, carry_noise=carry_noise,
+                          max_sigma=max_sigma)
     return one * float(leverage)
 
 
 def tranche_targets(m: BasisMarket, *, slots: int, span: int, enter_apr: float,
                     exit_apr: float, min_spot_adv_usd: float, max_abs_basis: float,
                     financing: pd.Series, lever_spread: float,
-                    carry_noise: pd.DataFrame | None = None) -> pd.DataFrame:
+                    carry_noise: pd.DataFrame | None = None,
+                    max_sigma: float | None = None) -> pd.DataFrame:
     """v7: een basistranche uit eigen equity, plus een GEFINANCIERDE tranche waar de carry
     zijn leenrente verdient.
 
@@ -197,14 +200,16 @@ def tranche_targets(m: BasisMarket, *, slots: int, span: int, enter_apr: float,
       bij 2021-tarieven (~31 %) vraagt een tranche ~41 % carry.
 
     `financing` is de rente die het boek ook betaalt (bekend op de close van *t*);
-    `carry_noise` vermenigvuldigt de carryschatting, net als in `harvest_targets`."""
+    `carry_noise` en `max_sigma` (de sprongrisicogrens van v8) werken als in
+    `harvest_targets`: de tranche hangt aan het basisslot, dus valt mee weg."""
     require(float(lever_spread) >= 0.0, "Een negatieve spread leent onder de rente.",
             DataContractError, lever_spread=lever_spread)
     require(bool(financing.index.equals(m.index)), "Financiering en markt delen geen raster.",
             DataContractError)
     base = harvest_targets(m, span=span, enter_apr=enter_apr, exit_apr=exit_apr, slots=slots,
                            notional=1.0, min_spot_adv_usd=min_spot_adv_usd,
-                           max_abs_basis=max_abs_basis, carry_noise=carry_noise)
+                           max_abs_basis=max_abs_basis, carry_noise=carry_noise,
+                           max_sigma=max_sigma)
     carry = carry_estimate(m, span)
     if carry_noise is not None:
         carry = carry * carry_noise.reindex(index=carry.index, columns=carry.columns).fillna(1.0)

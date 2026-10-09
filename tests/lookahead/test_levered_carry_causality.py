@@ -416,3 +416,31 @@ def test_the_sliced_book_through_t_ignores_everything_after_t(t):
     ra = _run(base, _targets(base, 2.0), slice_step=0.02, adv_cap=0.01)
     rb = _run(pert, _targets(pert, 2.0), slice_step=0.02, adv_cap=0.01)
     assert _equal_through(ra.frame, rb.frame, t)
+
+
+# --------------------------------------------------------------------------- #
+# v8: de sprongrisicogrens
+# --------------------------------------------------------------------------- #
+def test_the_sigma_cap_excludes_jump_coins_from_entry_and_keep():
+    m = _mm()
+    free = harvest_targets(m.basis, **{**SLOT_RULE, "notional": 1.0})
+    sig = np.fmax(m.basis.spot_sigma, m.basis.perp.book.sigma_daily)
+    cap = float(sig.stack().quantile(0.6))     # een grens die in deze markt bindt
+    capped = harvest_targets(m.basis, **{**SLOT_RULE, "notional": 1.0}, max_sigma=cap)
+    held = capped.to_numpy() > 0
+    assert held.any() and (free.to_numpy() > 0).sum() > held.sum()
+    assert (sig.to_numpy()[held] <= cap + 1e-12).all(), "een munt boven de grens gehouden"
+    # Zonder grens: exact het oude besluit (v5-v7 reproduceren).
+    assert harvest_targets(m.basis, **{**SLOT_RULE, "notional": 1.0}, max_sigma=None).equals(free)
+
+
+@pytest.mark.parametrize("t", CUTS)
+def test_the_sigma_capped_decision_through_t_ignores_everything_after_t(t):
+    base, pert = _mm(), _mm(perturb_after=t)
+    kw = {**SLOT_RULE, "notional": 1.0, "max_sigma": 0.03}
+    assert _equal_through(harvest_targets(base.basis, **kw), harvest_targets(pert.basis, **kw), t)
+    ra = financing_rate(base.basis, floor_apr=0.05, multiplier=1.0, span=20)
+    rb = financing_rate(pert.basis, floor_apr=0.05, multiplier=1.0, span=20)
+    ta = tranche_targets(base.basis, financing=ra, lever_spread=0.1, max_sigma=0.03, **TRANCHE_RULE)
+    tb = tranche_targets(pert.basis, financing=rb, lever_spread=0.1, max_sigma=0.03, **TRANCHE_RULE)
+    assert _equal_through(ta, tb, t)

@@ -12,10 +12,11 @@ from .config import StrictModel, load_config
 
 __all__ = ["ROBUST_BOOK_V2_CONFIG_PATH", "ROBUST_BOOK_V3_CONFIG_PATH",
            "ROBUST_BOOK_V5_CONFIG_PATH", "ROBUST_BOOK_V6_CONFIG_PATH",
-           "ROBUST_BOOK_V7_CONFIG_PATH", "RobustBookV2Config", "RobustBookV3Config",
-           "RobustBookV5Config", "RobustBookV6Config", "RobustBookV7Config",
-           "robust_book_v2_config", "robust_book_v3_config", "robust_book_v5_config",
-           "robust_book_v6_config", "robust_book_v7_config"]
+           "ROBUST_BOOK_V7_CONFIG_PATH", "ROBUST_BOOK_V8_CONFIG_PATH", "RobustBookV2Config",
+           "RobustBookV3Config", "RobustBookV5Config", "RobustBookV6Config",
+           "RobustBookV7Config", "RobustBookV8Config", "robust_book_v2_config",
+           "robust_book_v3_config", "robust_book_v5_config", "robust_book_v6_config",
+           "robust_book_v7_config", "robust_book_v8_config"]
 
 ROBUST_BOOK_V2_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v2.yaml")
@@ -27,6 +28,8 @@ ROBUST_BOOK_V6_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v6.yaml")
 ROBUST_BOOK_V7_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v7.yaml")
+ROBUST_BOOK_V8_CONFIG_PATH = (
+    Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v8.yaml")
 
 Positive = Annotated[float, Field(gt=0.0)]
 PositiveInt = Annotated[int, Field(ge=1)]
@@ -297,3 +300,19 @@ class RobustBookV7Config(RobustBookV6Config):
 
 def robust_book_v7_config(path: Path | str = ROBUST_BOOK_V7_CONFIG_PATH) -> RobustBookV7Config:
     return load_config(path, RobustBookV7Config)
+
+
+class V8(StrictModel):
+    """De sprongrisicogrens (v8): geen carry in een munt met een dag-σ boven deze waarde."""
+
+    max_daily_sigma: Annotated[float, Field(gt=0.0, lt=1.0)]
+
+
+class RobustBookV8Config(RobustBookV7Config):
+    """v7 plus `v8`."""
+
+    v8: V8
+
+
+def robust_book_v8_config(path: Path | str = ROBUST_BOOK_V8_CONFIG_PATH) -> RobustBookV8Config:
+    return load_config(path, RobustBookV8Config)

@@ -34,7 +34,7 @@ from .book import BookResult
 from .harvest import BasisCosts
 from .leverage import MarginMarket, levered_targets, run_levered, tranche_targets
 
-__all__ = ["CANDIDATES", "V7", "simulate"]
+__all__ = ["CANDIDATES", "V7", "simulate", "simulate_book"]
 
 CONFIG = Path("conf/model/robust_book_v7.yaml")
 SPEC_PATH = Path("conf/research/preregistration_robust_book_v7.yaml")
@@ -53,7 +53,16 @@ def simulate(name: str, m: MarginMarket, cfg: RobustBookV7Config, costs: BasisCo
              lag: int | None = None, ov: Mapping[str, Any] | None = None) -> BookResult:
     """Eén v7-kandidaat. Overrides als in v6, plus slice_days en lever_spread."""
     require(name in CANDIDATES, "Onbekende v7-kandidaat.", DataContractError, name=name)
+    return simulate_book(name, m, cfg, costs, lag=lag, ov=ov)
+
+
+def simulate_book(name: str, m: MarginMarket, cfg: RobustBookV7Config, costs: BasisCosts, *,
+                  lag: int | None = None, ov: Mapping[str, Any] | None = None,
+                  max_sigma: float | None = None) -> BookResult:
+    """De simulatiekern van v7, gedeeld met v8 (`max_sigma`: de sprongrisicogrens; een
+    override `max_sigma` in `ov` wint, `None` daar zet hem uit)."""
     o = dict(ov or {})
+    max_sigma = o["max_sigma"] if "max_sigma" in o else max_sigma
     lg = int(cfg.execution.lag_bars if lag is None else lag)
     b, lv, x = cfg.basis, cfg.leverage, cfg.v7
     slots = int(o.get("slots", b.slots))
@@ -61,7 +70,8 @@ def simulate(name: str, m: MarginMarket, cfg: RobustBookV7Config, costs: BasisCo
             "enter_apr": float(o.get("enter_apr", b.enter_apr)),
             "exit_apr": float(o.get("exit_apr", b.exit_apr)),
             "min_spot_adv_usd": b.min_spot_adv_usd, "max_abs_basis": b.max_abs_basis,
-            "carry_noise": v5._noise(m.basis, int(o["noise_seed"])) if "noise_seed" in o else None}
+            "carry_noise": v5._noise(m.basis, int(o["noise_seed"])) if "noise_seed" in o else None,
+            "max_sigma": None if max_sigma is None else float(max_sigma)}
     rate = v6.financing(m.basis, cfg, str(o.get("financing", "base")))
     if name in x.tranche:
         tgt = tranche_targets(m.basis, financing=rate,
