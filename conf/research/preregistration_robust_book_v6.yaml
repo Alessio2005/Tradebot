@@ -1,0 +1,239 @@
+# conf/research/preregistration_robust_book_v6.yaml
+# PRE-REGISTRATIE -- robuust boek v6: de basiscarry van v5-H1 met hefboom (1x / 1,5x / 2x
+# notional per been) in één unified-margin-account. POST-HOC na v5 en zo geboekt (M = 24).
+# Bevroren door `python -I -m tradebot.systematic.programme_v6 freeze`, vóór de eerste
+# v6-run. Ontwerp: docs/superpowers/specs/2026-10-09-robust-book-v6-levered-carry-design.md.
+# G1-G9 zijn LETTERLIJK die van v5 (geen drempel versoepeld); G10-G12 zijn nieuw en
+# alleen strenger.
+wave: robust_book_v6_levered_carry
+
+title: >-
+  De spot-perp-basiscarry van v5-H1 (top-50 Binance USDT-M, tien slots) met hefboom in
+  één unified (portfolio-)margin-account: spot als onderpand met haircut, USDT-lening
+  boven de eigen equity tegen max(8 %, BTC-carry), liquidatietoets op de intraday mark
+  price, governor op uniMMR >= 3 en bruto <= 4, ADV-participatie <= 1 %. Drie
+  hefboomniveaus, netto van alle kosten en financiering.
+
+hypothesis: >-
+  Ten minste een van K1 (1x), K2 (1,5x) of K3 (2x notional per been) haalt op W_DEV een
+  netto Sharpe van ten minste 1,0 en een netto CAGR van ten minste 15 %, consistent over
+  TRAIN en VALIDATE, robuust voor kosten, vertraging, parameterverstoring, financierings-
+  en margestress, zonder een enkele liquidatie, met DSR 0,95 bij M = 24 en PBO onder
+  0,5; en de geselecteerde kandidaat (de laagste hefboom die alles haalt) stort niet in
+  en wordt niet geliquideerd op de backcast van 2020, de holdout 2025-26 en het
+  vooruit-sample vanaf 2026-10.
+
+null_hypothesis: >-
+  Hefboom op de basiscarry levert na financiering tegen het BTC-carrytarief, de kosten
+  van twee benen onder de ADV-cap en de periodes zonder carry niet de vereiste netto
+  Sharpe en CAGR op, of alleen met een liquidatierisico dat zich in de historie
+  materialiseert. Een positief resultaat op een andere kandidaat dan de geselecteerde
+  weerlegt de nulhypothese niet.
+
+universe: [BINANCE_USDT_M_TOP50_PIT_WITH_SPOT]
+granularity: 1d
+period_start: "2020-01-01"
+period_end: "2026-09-30"
+evaluation_start: "2021-01-01"
+primary_metric: net_sharpe_w_dev
+
+planned_trials: 3
+
+data_series:
+  - binance_um/klines/1d
+  - binance_um/fundingRate
+  - binance_um/markPriceKlines/1d
+  - binance_spot/klines/1d
+
+stop_criteria:
+  - name: g1_sharpe_below_target
+    metric: net_sharpe_w_dev
+    operator: "<"
+    threshold: 1.0
+    action: archive
+    rationale: De opdracht vraagt een netto Sharpe van ten minste 1,0.
+  - name: g2_cagr_below_target
+    metric: net_cagr_w_dev
+    operator: "<"
+    threshold: 0.15
+    action: archive
+    rationale: >-
+      De opdracht vraagt een netto CAGR van ten minste 15 %. Drempel ongewijzigd uit v5; het
+      kapitaalmodel is nu het unified-margin-account met hefboom tot bruto 4,0, volgens het
+      eigenaarsbesluit van 2026-10-09 (in v5 was meer notional uitgesloten).
+  - name: g3_train_inconsistent
+    metric: net_sharpe_train
+    operator: "<"
+    threshold: 0.5
+    action: archive
+    rationale: Een edge die alleen in één helft van W_DEV bestaat, is een regime, geen edge.
+  - name: g3_validate_inconsistent
+    metric: net_sharpe_validate
+    operator: "<"
+    threshold: 0.5
+    action: archive
+    rationale: Idem, voor de tweede helft.
+  - name: g4_drawdown
+    metric: max_drawdown_w_dev
+    operator: ">"
+    threshold: 0.25
+    action: archive
+    rationale: Mandaatgrens conf/risk/default.yaml::max_drawdown_pct.
+  - name: g5_cost_fragile
+    metric: sharpe_ratio_2x_cost_over_base
+    operator: "<"
+    threshold: 0.75
+    action: archive
+    rationale: Bij dubbele kosten moet minstens 75 % van de Sharpe overblijven.
+  - name: g5_delay_fragile
+    metric: sharpe_ratio_lag2_over_base
+    operator: "<"
+    threshold: 0.5
+    action: archive
+    rationale: Eén dag vertraging mag de Sharpe niet meer dan halveren.
+  - name: g6_no_plateau
+    metric: plateau_fraction
+    operator: "<"
+    threshold: 0.8
+    action: archive
+    rationale: >-
+      Minstens 80 % van de parameterverstoringen moet meer dan de helft van de
+      basis-Sharpe houden; anders staat de kandidaat op een piek, niet op een plateau.
+  - name: g6_negative_perturbation
+    metric: min_perturbation_sharpe
+    operator: "<"
+    threshold: 0.0
+    action: archive
+    rationale: Geen enkele redelijke parameterverstoring mag de Sharpe negatief maken.
+  - name: g7_interval_includes_zero
+    metric: sharpe_ci_low_w_dev
+    operator: "<="
+    threshold: 0.0
+    action: archive
+    rationale: De circulaire-blokbootstrap-ondergrens (95 %) moet boven nul liggen.
+  - name: g8_dsr_below_threshold
+    metric: dsr_w_dev
+    operator: "<"
+    threshold: 0.95
+    action: archive
+    rationale: Onder DSR 0,95 bij de cumulatieve ledger-M (24) is de Sharpe niet te onderscheiden van selectieruis.
+  - name: g9_overfit_probability
+    metric: pbo
+    operator: ">="
+    threshold: 0.5
+    action: archive
+    rationale: Een PBO van 0,5 of meer betekent dat de beste in-sample variant out-of-sample meestal onder de mediaan valt.
+  - name: g10_liquidated_w_dev
+    metric: n_liquidations_w_dev
+    operator: ">"
+    threshold: 0
+    action: archive
+    rationale: >-
+      Een boek met hefboom dat in de historie ook maar een keer geliquideerd wordt, heeft
+      zijn staartrisico al laten zien. Nul is de enige verdedigbare drempel.
+  - name: g11_liquidated_under_margin_stress
+    metric: n_liquidations_margin_stress_w_dev
+    operator: ">"
+    threshold: 0
+    action: archive
+    rationale: >-
+      Haircuts en onderhoudsmarges per tier zijn niet in de data; ze zijn conservatief
+      gekozen. Ook met een alts-haircut van 35 % en 3 % perp-onderhoud mag het boek nooit
+      geliquideerd worden.
+  - name: g12_financing_stress_sharpe
+    metric: net_sharpe_financing_stress_w_dev
+    operator: "<"
+    threshold: 1.0
+    action: archive
+    rationale: >-
+      De leenrente is niet in de data. Onder max(12 %, 1,5 x BTC-carry) moet de Sharpe-
+      doelstelling nog gehaald worden.
+  - name: g12_financing_stress_cagr
+    metric: net_cagr_financing_stress_w_dev
+    operator: "<"
+    threshold: 0.10
+    action: archive
+    rationale: >-
+      Idem voor het rendement: onder de financieringsstress blijft minstens 10 % CAGR
+      over (twee derde van de doelstelling, zoals de kostenstress een kwart van de
+      Sharpe mag kosten).
+  - name: backcast_sharpe_collapse
+    metric: backcast_sharpe_z_vs_dev
+    operator: "<"
+    threshold: -1.645
+    action: falsify
+    rationale: >-
+      De backcast (2020-04 .. 2020-12) is voor de carryfamilie deels besmet (v5 las H3
+      daar) en kan alleen verwerpen: een eenzijdig significante ineenstorting.
+  - name: backcast_drawdown
+    metric: backcast_max_drawdown
+    operator: ">"
+    threshold: 0.25
+    action: falsify
+    rationale: Ook in de backcast geldt de mandaatgrens.
+  - name: backcast_liquidated
+    metric: backcast_n_liquidations
+    operator: ">"
+    threshold: 0
+    action: falsify
+    rationale: Een liquidatie in de backcast falsificeert het risicomodel.
+  - name: backcast_no_positive_sharpe
+    metric: backcast_net_sharpe
+    operator: "<="
+    threshold: 0.0
+    action: archive
+    rationale: Een niet-positieve netto Sharpe op de backcast bevestigt niets.
+  - name: holdout_sharpe_collapse
+    metric: holdout_sharpe_z_vs_dev
+    operator: "<"
+    threshold: -1.645
+    action: falsify
+    rationale: >-
+      De holdout is besmet (het fundingniveau is in v4/v5 gezien) en kan alleen verwerpen.
+      Een venster zonder positie heeft een ongedefinieerde Sharpe; die bindt, zoals in v5.
+  - name: holdout_drawdown
+    metric: holdout_max_drawdown
+    operator: ">"
+    threshold: 0.25
+    action: falsify
+    rationale: Ook in de holdout geldt de mandaatgrens.
+  - name: holdout_liquidated
+    metric: holdout_n_liquidations
+    operator: ">"
+    threshold: 0
+    action: falsify
+    rationale: Een liquidatie in de holdout falsificeert het risicomodel.
+  - name: forward_sharpe_collapse
+    metric: forward_sharpe_z_vs_dev
+    operator: "<"
+    threshold: -1.645
+    action: falsify
+    rationale: >-
+      Het vooruit-sample (vanaf 2026-10-01, bevroren op 2026-10-09) bestond bij het bevriezen
+      niet: de enige schone toets. Gelezen eenmaal, na minstens zes volle maanden.
+  - name: forward_drawdown
+    metric: forward_max_drawdown
+    operator: ">"
+    threshold: 0.25
+    action: falsify
+    rationale: Ook vooruit geldt de mandaatgrens.
+  - name: forward_liquidated
+    metric: forward_n_liquidations
+    operator: ">"
+    threshold: 0
+    action: falsify
+    rationale: Een liquidatie vooruit falsificeert het risicomodel.
+  - name: forward_no_positive_sharpe
+    metric: forward_net_sharpe
+    operator: "<="
+    threshold: 0.0
+    action: archive
+    rationale: Een niet-positieve netto Sharpe vooruit is geen basis voor kapitaal.
+  - name: promotion_requires_all_clear
+    metric: n_binding_stop_criteria
+    operator: "<="
+    threshold: 0
+    action: promote
+    rationale: >-
+      Papertrading vereist dat geen enkel criterium over W_DEV, de backcast en de holdout
+      bindt; kapitaal vereist daarbovenop een schone vooruit-lezing.

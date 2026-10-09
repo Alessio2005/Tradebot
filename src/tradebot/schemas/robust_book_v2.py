@@ -11,9 +11,10 @@ from pydantic import Field, model_validator
 from .config import StrictModel, load_config
 
 __all__ = ["ROBUST_BOOK_V2_CONFIG_PATH", "ROBUST_BOOK_V3_CONFIG_PATH",
-           "ROBUST_BOOK_V5_CONFIG_PATH", "RobustBookV2Config", "RobustBookV3Config",
-           "RobustBookV5Config", "robust_book_v2_config", "robust_book_v3_config",
-           "robust_book_v5_config"]
+           "ROBUST_BOOK_V5_CONFIG_PATH", "ROBUST_BOOK_V6_CONFIG_PATH", "RobustBookV2Config",
+           "RobustBookV3Config", "RobustBookV5Config", "RobustBookV6Config",
+           "robust_book_v2_config", "robust_book_v3_config", "robust_book_v5_config",
+           "robust_book_v6_config"]
 
 ROBUST_BOOK_V2_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v2.yaml")
@@ -21,6 +22,8 @@ ROBUST_BOOK_V3_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v3.yaml")
 ROBUST_BOOK_V5_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v5.yaml")
+ROBUST_BOOK_V6_CONFIG_PATH = (
+    Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v6.yaml")
 
 Positive = Annotated[float, Field(gt=0.0)]
 PositiveInt = Annotated[int, Field(ge=1)]
@@ -193,3 +196,68 @@ class RobustBookV5Config(RobustBookV3Config):
 
 def robust_book_v5_config(path: Path | str = ROBUST_BOOK_V5_CONFIG_PATH) -> RobustBookV5Config:
     return load_config(path, RobustBookV5Config)
+
+
+Rate = Annotated[float, Field(ge=0.0, lt=1.0)]
+
+
+class Leverage(StrictModel):
+    """Het hefboomboek (v6): unified margin, financiering, haircut, liquidatie, governor."""
+
+    #: Kandidaat -> notional per been als veelvoud van de equity.
+    candidates: dict[str, Positive]
+    majors: tuple[str, ...]
+    haircut_major: Rate
+    haircut_alt: Rate
+    haircut_alt_stress: Rate
+    maintenance_margin: Rate
+    maintenance_margin_stress: Rate
+    loan_maintenance: Rate
+    min_uni_mmr: Annotated[float, Field(ge=1.0)]
+    gross_cap: Positive
+    liquidation_fee: Rate
+    adv_participation_cap: Annotated[float, Field(gt=0.0, le=1.0)]
+    financing_floor_apr: Rate
+    financing_multiplier: Positive
+    financing_stress_floor_apr: Rate
+    financing_stress_multiplier: Positive
+    financing_optimistic_apr: Rate
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Leverage:
+        if not self.candidates:
+            raise ValueError("geen hefboomkandidaten")
+        if max(self.candidates.values()) * 2.0 > self.gross_cap:
+            raise ValueError("een kandidaat vraagt meer bruto exposure (beide benen) dan de cap")
+        if not (self.haircut_alt_stress > self.haircut_alt
+                and self.maintenance_margin_stress > self.maintenance_margin):
+            raise ValueError("de margestress moet strenger zijn dan de basis")
+        if not (self.financing_stress_floor_apr >= self.financing_floor_apr
+                and self.financing_stress_multiplier >= self.financing_multiplier):
+            raise ValueError("de financieringsstress moet duurder zijn dan de basis")
+        return self
+
+
+class Forward(StrictModel):
+    """Het vooruit-sample: data die bij het bevriezen nog niet bestond."""
+
+    start: str
+    min_months: PositiveInt
+
+
+class RobustBookV6Config(RobustBookV5Config):
+    """v5 plus `leverage` (het hefboomboek) en `forward` (het vooruit-sample)."""
+
+    leverage: Leverage
+    forward: Forward
+
+    @model_validator(mode="after")
+    def _forward_after_holdout(self) -> RobustBookV6Config:
+        if not (pd.Timestamp(self.forward.start, tz="UTC")
+                > pd.Timestamp(self.windows.holdout_end, tz="UTC")):
+            raise ValueError("het vooruit-sample moet na de holdout beginnen")
+        return self
+
+
+def robust_book_v6_config(path: Path | str = ROBUST_BOOK_V6_CONFIG_PATH) -> RobustBookV6Config:
+    return load_config(path, RobustBookV6Config)

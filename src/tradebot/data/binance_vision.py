@@ -41,8 +41,9 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..utils.failfast import DataContractError, require
 
-__all__ = ["BUCKET_URL", "S3Object", "build_panels", "build_spot_panels", "list_objects",
-           "list_spot_symbols", "list_symbols", "spot_pair_for", "sync", "sync_spot"]
+__all__ = ["BUCKET_URL", "S3Object", "build_mark_panels", "build_panels", "build_spot_panels",
+           "list_objects", "list_spot_symbols", "list_symbols", "spot_pair_for", "sync",
+           "sync_mark", "sync_spot"]
 
 BUCKET_URL = "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision"
 ROOT = Path(__file__).resolve().parents[3]
@@ -139,7 +140,7 @@ def _objects_for(symbol: str) -> list[S3Object]:
 
 
 def sync(symbols: Sequence[str] | None = None, *, raw_dir: Path = RAW_DIR,
-         workers: int = 32, last_month: str = "2026-09") -> dict:
+         workers: int = 32, last_month: str = "2026-09", manifest_path: Path = MANIFEST) -> dict:
     """Download (idempotent) en verifieer klines + funding tot en met `last_month`."""
     syms = list(symbols) if symbols is not None else list_symbols()
     with ThreadPoolExecutor(workers) as pool:
@@ -153,8 +154,8 @@ def sync(symbols: Sequence[str] | None = None, *, raw_dir: Path = RAW_DIR,
     manifest = {"source": BUCKET_URL, "last_month": last_month, "n_symbols": len(syms),
                 "n_objects": len(objs), "objects_sha256": digest,
                 "symbols": syms, "bytes": int(sum(o.size for o in objs))}
-    MANIFEST.parent.mkdir(parents=True, exist_ok=True)
-    MANIFEST.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
 
 
@@ -276,7 +277,7 @@ def spot_pair_for(perp: str, spot: Iterable[str]) -> tuple[str, float] | None:
 
 
 def sync_spot(perps: Sequence[str], *, raw_dir: Path = RAW_DIR, workers: int = 32,
-              last_month: str = "2026-09") -> dict:
+              last_month: str = "2026-09", manifest_path: Path = SPOT_MANIFEST) -> dict:
     """Download (idempotent) en verifieer de spot-dagklines achter `perps`."""
     spot = list_spot_symbols()
     mapping = {p: pair for p in perps if (pair := spot_pair_for(p, spot)) is not None}
@@ -298,8 +299,8 @@ def sync_spot(perps: Sequence[str], *, raw_dir: Path = RAW_DIR, workers: int = 3
                 "n_perps": len(perps), "n_mapped": len(mapping), "n_objects": len(objs),
                 "objects_sha256": digest, "bytes": int(sum(o.size for o in objs)),
                 "mapping": {p: [s, f] for p, (s, f) in sorted(mapping.items())}}
-    SPOT_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
-    SPOT_MANIFEST.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
 
 
@@ -331,11 +332,109 @@ def build_spot_panels(mapping: dict[str, tuple[str, float]], *, raw_dir: Path = 
     return panels
 
 
+# --------------------------------------------------------------------------- #
+# Mark price: waar Binance op liquideert (v6). De last price wickt verder dan de mark
+# price (BTC 2021-05-19: last-low 28.688, mark-low 29.563); een liquidatietoets op de
+# last price liquideert dus te vaak, een toets zonder intraday-extreem te weinig.
+# --------------------------------------------------------------------------- #
+MARK_KLINES = "data/futures/um/monthly/markPriceKlines/{s}/1d/"
+MARK_PANEL_DIR = ROOT / "data" / "binance_vision" / "mark_panels"
+MARK_MANIFEST = ROOT / "artefacts" / "data" / "binance_mark_manifest.json"
+
+
+def sync_mark(symbols: Sequence[str], *, raw_dir: Path = RAW_DIR, workers: int = 32,
+              last_month: str = "2026-09", manifest_path: Path = MARK_MANIFEST) -> dict:
+    """Download (idempotent) en verifieer de mark-price-dagklines van `symbols`."""
+    def objects(s: str) -> list[S3Object]:
+        return [o for o in list_objects(MARK_KLINES.format(s=s)) if o.key.endswith(".zip")]
+
+    with ThreadPoolExecutor(workers) as pool:
+        listings = list(pool.map(objects, list(symbols)))
+    month = re.compile(r"-(\d{4}-\d{2})\.zip$")
+    objs = [o for lst in listings for o in lst
+            if month.search(o.key).group(1) <= last_month]  # type: ignore[union-attr]
+    with ThreadPoolExecutor(workers) as pool:
+        list(pool.map(lambda o: _fetch(o, raw_dir), objs))
+    digest = hashlib.sha256("\n".join(f"{o.key} {o.etag}" for o in sorted(
+        objs, key=lambda o: o.key)).encode()).hexdigest()
+    manifest = {"source": BUCKET_URL, "last_month": last_month, "n_symbols": len(symbols),
+                "n_symbols_with_data": int(sum(bool(lst) for lst in listings)),
+                "n_objects": len(objs), "objects_sha256": digest,
+                "bytes": int(sum(o.size for o in objs))}
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest
+
+
+def build_mark_panels(symbols: Iterable[str], *, raw_dir: Path = RAW_DIR,
+                      panel_dir: Path = MARK_PANEL_DIR) -> dict[str, pd.DataFrame]:
+    """Mark-price-dagpanelen (high, low, close) op de SLUITtijd, kolom = perpnaam.
+
+    Een symbool zonder mark-data valt weg; de aanroeper legt het panel op het perpraster
+    (NaN daar = geen mark-extreem bekend)."""
+    fields: dict[str, dict[str, pd.Series]] = {k: {} for k in ("high", "low", "close")}
+    for s in sorted(symbols):
+        kdir = raw_dir / MARK_KLINES.format(s=s)
+        files = sorted(kdir.glob("*.zip")) if kdir.is_dir() else []
+        if not files:
+            continue
+        k = pd.concat([parse_klines(p) for p in files])
+        k = k.drop_duplicates("open_time").sort_values("open_time")
+        idx = pd.to_datetime(k["open_time"].to_numpy() + DAY_MS, unit="ms", utc=True)
+        for col, series in fields.items():
+            series[s] = pd.Series(k[col].to_numpy(), index=idx)
+    require(bool(fields["close"]), "Geen mark-price-data gevonden.", DataContractError)
+    grid = pd.date_range(min(s.index.min() for s in fields["close"].values()),
+                         max(s.index.max() for s in fields["close"].values()),
+                         freq="D", tz="UTC", name="asof_ts")
+    panels = {name: pd.DataFrame({s: v.reindex(grid) for s, v in cols.items()}, index=grid)
+              .reindex(columns=sorted(fields["close"])) for name, cols in fields.items()}
+    panel_dir.mkdir(parents=True, exist_ok=True)
+    for name, frame in panels.items():
+        frame.astype("float64").to_parquet(panel_dir / f"{name}.parquet", compression="zstd")
+    return panels
+
+
+#: Het vooruit-sample van v6: dezelfde ruwe zips (een maand-zip verandert niet), maar
+#: EIGEN panelen en manifesten. De bevroren panelen en hun hashes blijven onaangeroerd.
+FORWARD_PANEL_ROOT = ROOT / "data" / "binance_vision" / "forward"
+FORWARD_MANIFEST_DIR = ROOT / "artefacts" / "data" / "forward"
+
+
+def build_forward(last_month: str) -> dict[str, tuple[int, int]]:
+    """Perps, spot en mark tot en met `last_month`, naar `FORWARD_PANEL_ROOT`."""
+    require(bool(re.fullmatch(r"\d{4}-\d{2}", last_month)) and last_month > "2026-09",
+            "Het vooruit-sample begint na 2026-09.", DataContractError, last_month=last_month)
+    FORWARD_MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    sync(last_month=last_month, manifest_path=FORWARD_MANIFEST_DIR / "binance_um_manifest.json")
+    perp = build_panels(panel_dir=FORWARD_PANEL_ROOT / "panels")
+    perps = sorted(perp["close"].columns)
+    spot = sync_spot(perps, last_month=last_month,
+                     manifest_path=FORWARD_MANIFEST_DIR / "binance_spot_manifest.json")
+    build_spot_panels({k: (s, float(f)) for k, (s, f) in spot["mapping"].items()},
+                      panel_dir=FORWARD_PANEL_ROOT / "spot_panels")
+    sync_mark(perps, last_month=last_month,
+              manifest_path=FORWARD_MANIFEST_DIR / "binance_mark_manifest.json")
+    mark = build_mark_panels(perps, panel_dir=FORWARD_PANEL_ROOT / "mark_panels")
+    return {"perp": perp["close"].shape, "mark": mark["close"].shape}
+
+
 def main(argv: Sequence[str]) -> None:
-    cmds = ("sync", "panels", "spot-sync", "spot-panels")
+    if len(argv) == 2 and argv[0] == "forward":
+        print(build_forward(argv[1]))
+        return
+    cmds = ("sync", "panels", "spot-sync", "spot-panels", "mark-sync", "mark-panels")
     require(len(argv) == 1 and argv[0] in cmds,
             "Gebruik: python -I -m tradebot.data.binance_vision "
-            "{sync|panels|spot-sync|spot-panels}", DataContractError)
+            "{sync|panels|spot-sync|spot-panels|mark-sync|mark-panels|forward YYYY-MM}",
+            DataContractError)
+    if argv[0] in ("mark-sync", "mark-panels"):
+        perps = sorted(pd.read_parquet(PANEL_DIR / "close.parquet").columns)
+        if argv[0] == "mark-sync":
+            print(json.dumps(sync_mark(perps), indent=2))
+        else:
+            print({k: v.shape for k, v in build_mark_panels(perps).items()})
+        return
     if argv[0] == "sync":
         m = sync()
         print(json.dumps({k: v for k, v in m.items() if k != "symbols"}, indent=2))
