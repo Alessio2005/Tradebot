@@ -574,6 +574,12 @@ def forward_window_ready(index: pd.DatetimeIndex, start: str, min_months: int) -
     return bool(len(index) and index.max() >= end), end
 
 
+def _panel_hashes(panel_root: Path) -> dict[str, str]:
+    """De hashes van de vooruit-panelen zelf (perps, spot, mark): wat de lezing las."""
+    return {str(p.relative_to(panel_root)): hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+            for p in sorted(panel_root.rglob("*.parquet"))}
+
+
 def read_forward(root: Path = ROOT, *, panel_root: Path | None = None,
                  log: Callable[[str], None] = print,
                  prog: Programme | None = None) -> dict[str, Any]:
@@ -598,16 +604,20 @@ def read_forward(root: Path = ROOT, *, panel_root: Path | None = None,
             "met een latere last_month (zie de moduledocstring).", DataContractError,
             path=str(pr))
     full = load_market(root, cfg, panel_root=pr)
+    # Alleen het RASTER, geen enkele waarde: dit mag vóór de registratie.
     ok, need = forward_window_ready(full.index, cfg.forward.start, cfg.forward.min_months)
     require(ok, "Nog geen zes volle maanden vooruit-data; de lezing wordt NIET geregistreerd.",
             DataContractError, last_bar=str(full.index.max()), needed=str(need))
-    res = simulate(name, full, cfg, costs_for(root, cfg))
-    again = v2._sr(res.window(v2._ts(cfg.windows.train_start), v2._ts(cfg.windows.w_dev_end)))
-    require(abs(again - dev_sr) < 1e-9, "De vooruit-panelen reproduceren de W_DEV-Sharpe niet: "
-            "de historie is veranderd.", DataContractError, full=again, frozen=dev_sr)
+    # R7: de lezing staat in het slot VOORDAT er over de vooruit-data wordt gerekend.
     hid = f"{prog.name}/{prereg_id}/{name}"
     fwd = gate_slice(full.basis.perp.book.close, lock_path=root / FORWARD_LOCK, hypothesis_id=hid)
     fa, fb = pd.Timestamp(fwd.index[0]), pd.Timestamp(fwd.index[-1])
+    res = simulate(name, full, cfg, costs_for(root, cfg))
+    again = v2._sr(res.window(v2._ts(cfg.windows.train_start), v2._ts(cfg.windows.w_dev_end)))
+    require(abs(again - dev_sr) < 1e-9, "De vooruit-panelen reproduceren de W_DEV-Sharpe niet: "
+            "de historie is veranderd. De lezing is geregistreerd; afmaken kan alleen eenmaal "
+            "en zichtbaar via `resume_registered_read`.", DataContractError, full=again,
+            frozen=dev_sr)
     read = _read(res, fa, fb, dev_sr)
     metrics = {"forward_sharpe_z_vs_dev": read["z_vs_dev"],
                "forward_max_drawdown": read["summary"]["max_drawdown"],
@@ -625,8 +635,8 @@ def read_forward(root: Path = ROOT, *, panel_root: Path | None = None,
     v2._dump(root / prog.artefact_dir / "forward_read.json", out)
     HypothesisLedger(root / v2.LEDGER_PATH).append(LedgerEntry.from_config(
         wave=prog.wave, unit=f"{prog.name}_forward", market="crypto", config=_params(cfg),
-        git_sha=current_git_sha(), data_hash=hash_config(dict(_data_hashes(
-            root, mark_dir=pr / "mark_panels"))), preregistration_id=prereg_id, n_trials=0,
+        git_sha=current_git_sha(), data_hash=hash_config(_panel_hashes(pr)),
+        preregistration_id=prereg_id, n_trials=0,
         result={"eligible_for_capital": "accepted", "falsified_forward": "falsified"}.get(
             verdict, "archived"), amends=hash_config(_params(cfg)),
         metrics={"selected": name, "forward_sharpe": v5._finite(read["summary"]["sharpe"]),

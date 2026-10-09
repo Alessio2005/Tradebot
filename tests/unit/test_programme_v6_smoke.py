@@ -208,3 +208,28 @@ def test_the_forward_read_refuses_without_panels_and_registers_nothing(tmp_path)
     assert before == after
     if after is not None:
         assert json.loads(after)["reads"] == json.loads(before)["reads"]
+
+
+def test_too_little_forward_data_is_refused_before_any_registration(tmp_path):
+    """Panelen die vóór de zes volle vooruit-maanden eindigen: weigeren op het raster
+    alleen, en het vooruit-slot blijft onaangeroerd (geen verbruikte lezing)."""
+    from tests.lookahead.test_breadth_causality import _frames
+    from tradebot.systematic.programme_v6 import read_forward
+
+    summary_w = ROOT / "artefacts/research/robust_book_v6/programme_w_dev.json"
+    if not summary_w.exists():
+        pytest.skip("de W_DEV-run van v6 bestaat nog niet")
+    close, high, low, qv, funding = _frames()
+    for sub, frames in {"panels": {"close": close, "high": high, "low": low,
+                                   "quote_volume": qv, "funding": funding},
+                        "spot_panels": {"close": close, "high": high, "low": low,
+                                        "quote_volume": qv},
+                        "mark_panels": {"close": close, "high": high, "low": low}}.items():
+        (tmp_path / sub).mkdir()
+        for name, frame in frames.items():
+            frame.to_parquet(tmp_path / sub / f"{name}.parquet")
+    lock = ROOT / "artefacts/governance/holdout_lock_forward_2026_10.json"
+    before = lock.read_text(encoding="utf-8")
+    with pytest.raises(DataContractError, match="zes volle maanden"):
+        read_forward(ROOT, panel_root=tmp_path, log=lambda _: None)
+    assert lock.read_text(encoding="utf-8") == before
