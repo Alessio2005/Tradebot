@@ -29,7 +29,7 @@ import hashlib
 import json
 import sys
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -63,8 +63,8 @@ from .leverage import (
 )
 from .market import BARS_PER_YEAR
 
-__all__ = ["CANDIDATES", "freeze", "read_forward", "read_oos", "run_programme", "select",
-           "simulate"]
+__all__ = ["CANDIDATES", "V6", "Programme", "freeze", "read_forward", "read_oos",
+           "run_programme", "select", "simulate"]
 
 ROOT = v2.ROOT
 CONFIG = Path("conf/model/robust_book_v6.yaml")
@@ -76,7 +76,6 @@ FORWARD_LOCK = Path("artefacts/governance/holdout_lock_forward_2026_10.json")
 #: Het vooruit-sample leest uit eigen panelen (gebouwd met een latere `last_month`), zodat
 #: de bevroren panelen en hun hashes onaangeroerd blijven.
 FORWARD_ROOT = Path("data/binance_vision/forward")
-PROGRAMME_UNIT = "robust_book_v6_programme"
 CANDIDATES = ("K1_CARRY_PM_1X", "K2_CARRY_PM_1P5X", "K3_CARRY_PM_2X")
 HYPOTHESES = {
     "K1_CARRY_PM_1X": "De slotregel van v5-H1 in een unified-margin-account, 1,0x notional per "
@@ -102,15 +101,18 @@ def _data_hashes(root: Path, *, mark_dir: Path = MARK_DIR) -> tuple[tuple[str, s
     return tuple(sorted(out))
 
 
-def _prereg(root: Path, cfg: RobustBookV6Config):
+def _prereg(root: Path, cfg: RobustBookV6Config, prog: Programme | None = None):
+    prog = prog or V6
     hashes = _data_hashes(root)
-    return load_preregistration_spec(root / SPEC_PATH, data_hashes=hashes,
+    return load_preregistration_spec(root / prog.spec, data_hashes=hashes,
                                      parameters=_params(cfg)), hashes
 
 
-def _require_candidates(cfg: RobustBookV6Config) -> None:
-    require(tuple(cfg.leverage.candidates) == CANDIDATES, "De kandidaten in de config wijken "
-            "af van het programma.", DataContractError, config=list(cfg.leverage.candidates))
+def _require_candidates(cfg: RobustBookV6Config, prog: Programme | None = None) -> None:
+    prog = prog or V6
+    require(tuple(cfg.leverage.candidates) == prog.candidates, "De kandidaten in de config "
+            "wijken af van het programma.", DataContractError,
+            config=list(cfg.leverage.candidates))
 
 
 # --------------------------------------------------------------------------- #
@@ -193,8 +195,8 @@ def simulate(name: str, m: MarginMarket, cfg: RobustBookV6Config, costs: BasisCo
                        skip=skip, adv_cap=lv.adv_participation_cap)
 
 
-def _family() -> dict[str, dict[str, Any]]:
-    """De parameterverstoringen van v5-H1, ongewijzigd."""
+def _family(name: str = "", cfg: RobustBookV6Config | None = None) -> dict[str, dict[str, Any]]:
+    """De parameterverstoringen van v5-H1, ongewijzigd (gelijk voor elke v6-kandidaat)."""
     return {
         "funding_span_14": {"funding_span": 14}, "funding_span_60": {"funding_span": 60},
         "thresholds_low": {"enter_apr": 0.10, "exit_apr": 0.03},
@@ -234,8 +236,11 @@ def summary(res: BookResult, *, bootstrap: bool = True) -> dict[str, Any]:
 
 def battery(name: str, m: MarginMarket, cfg: RobustBookV6Config, costs: BasisCosts,
             stress: BasisCosts, *, base: BookResult, w_dev: tuple[pd.Timestamp, pd.Timestamp],
-            alt: Mapping[str, MarginMarket]) -> tuple[dict[str, Any], dict[str, pd.Series]]:
+            alt: Mapping[str, MarginMarket], prog: Programme | None = None,
+            ) -> tuple[dict[str, Any], dict[str, pd.Series]]:
     """De batterij van v5 plus de hefboomstress, alles op W_DEV."""
+    prog = prog or V6
+    simulate = prog.simulate
     a, b = w_dev
 
     def sr(res: BookResult) -> float:
@@ -258,7 +263,7 @@ def battery(name: str, m: MarginMarket, cfg: RobustBookV6Config, costs: BasisCos
     out: dict[str, Any] = {"base_sharpe": base_sr}
     family: dict[str, pd.Series] = {"base": base.window(a, b).net}
     pert = {}
-    for label, ov in _family().items():
+    for label, ov in prog.family(name, cfg).items():
         res = simulate(name, m, cfg, costs, ov=ov)
         family[label] = res.window(a, b).net
         pert[label] = sr(res)
@@ -297,6 +302,8 @@ def battery(name: str, m: MarginMarket, cfg: RobustBookV6Config, costs: BasisCos
     out["financing_optimistic"] = brief(full(ov={"financing": "optimistic"}))
     out["margin_stress"] = brief(full(ov={"margin_stress": True}))
     out["governor_off"] = brief(full(ov={"governor_off": True}))
+    if prog.battery_extra is not None:
+        out.update(prog.battery_extra(full, brief))
     return out, family
 
 
@@ -317,11 +324,13 @@ def select(records: Mapping[str, Mapping[str, Any]],
 # --------------------------------------------------------------------------- #
 # Bevriezen, meten, lezen
 # --------------------------------------------------------------------------- #
-def freeze(root: Path = ROOT, *, git_sha: str | None = None) -> Path:
-    cfg = robust_book_v6_config(root / CONFIG)
-    _require_candidates(cfg)
-    prereg, hashes = _prereg(root, cfg)
-    require(prereg.planned_trials == cfg.planned_trials == len(CANDIDATES),
+def freeze(root: Path = ROOT, *, git_sha: str | None = None,
+           prog: Programme | None = None) -> Path:
+    prog = prog or V6
+    cfg = prog.load_config(root / prog.config)
+    _require_candidates(cfg, prog)
+    prereg, hashes = _prereg(root, cfg, prog)
+    require(prereg.planned_trials == cfg.planned_trials == len(prog.candidates),
             "planned_trials wijkt af.", DataContractError)
     sha = git_sha or current_git_sha()
     ledger = HypothesisLedger(root / v2.LEDGER_PATH)
@@ -329,24 +338,27 @@ def freeze(root: Path = ROOT, *, git_sha: str | None = None) -> Path:
                  if e.get("preregistration_id") == prereg.preregistration_id],
             "Dit programma is al geboekt.", DataContractError)
     ledger.append(LedgerEntry.from_config(
-        wave=6, unit=PROGRAMME_UNIT, market="crypto", config=_params(cfg), git_sha=sha,
-        data_hash=hash_config(dict(hashes)), preregistration_id=prereg.preregistration_id,
-        n_trials=cfg.planned_trials, result="interim",
-        notes="Drie geplande trials: K1/K2/K3 = de basiscarry van v5-H1 bij 1x/1,5x/2x "
-              "notional per been in een unified-margin-account. Post-hoc na v5 en zo "
-              "geboekt; hefboom op eigenaarsbesluit 2026-10-09."))
+        wave=prog.wave, unit=f"{prog.name}_programme", market="crypto", config=_params(cfg),
+        git_sha=sha, data_hash=hash_config(dict(hashes)),
+        preregistration_id=prereg.preregistration_id, n_trials=cfg.planned_trials,
+        result="interim", notes=prog.notes))
     path = freeze_preregistration(prereg, git_sha=sha,
                                   ledger_total_at_freeze=ledger.total_n_hypotheses(),
                                   directory=root / v2.PREREG_DIR)
-    freeze_holdout(split_utc=f"{cfg.forward.start}T00:00:00+00:00", out=root / FORWARD_LOCK,
-                   git_sha=sha)
+    # Het vooruit-slot is er één, voor de hele carryfamilie; lezingen zijn per hypothese-id.
+    if not (root / FORWARD_LOCK).exists():
+        freeze_holdout(split_utc=f"{cfg.forward.start}T00:00:00+00:00",
+                       out=root / FORWARD_LOCK, git_sha=sha)
     return path
 
 
-def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print) -> dict[str, Any]:
-    cfg = robust_book_v6_config(root / CONFIG)
-    _require_candidates(cfg)
-    prereg, hashes = _prereg(root, cfg)
+def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print,
+                  prog: Programme | None = None) -> dict[str, Any]:
+    prog = prog or V6
+    simulate = prog.simulate
+    cfg = prog.load_config(root / prog.config)
+    _require_candidates(cfg, prog)
+    prereg, hashes = _prereg(root, cfg, prog)
     require_preregistration(prereg.preregistration_id, directory=root / v2.PREREG_DIR)
     w = cfg.windows
     cut = v2._ts(w.holdout_start)
@@ -359,20 +371,20 @@ def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print) -> d
     val = (v2._ts(w.validate_start), v2._ts(w.w_dev_end))
     sha = current_git_sha()
     results = {}
-    for name in CANDIDATES:
+    for name in prog.candidates:
         log(f"run {name}")
         results[name] = simulate(name, m, cfg, costs)
     m_prog = int(HypothesisLedger(root / v2.LEDGER_PATH).total_n_hypotheses())
     m_wide = m_prog + int(cfg.known_prior_trials)
     per_bar = [summarize(results[n].window(*w_dev), bootstrap=False)["sharpe_per_bar"]
-               for n in CANDIDATES]
+               for n in prog.candidates]
     alt = {f"top_{n}": load_market(root, cfg, end=cut, top_n=n) for n in (30, 100)}
     records = {}
-    for name in CANDIDATES:
+    for name in prog.candidates:
         res = results[name]
         dev = summary(res.window(*w_dev))
         rec: dict[str, Any] = {
-            "trial": name, "hypothesis": HYPOTHESES[name], "role": "candidate",
+            "trial": name, "hypothesis": prog.hypotheses[name], "role": "candidate",
             "leverage_per_leg": float(cfg.leverage.candidates[name]),
             "preregistration_id": prereg.preregistration_id, "git_sha": sha,
             "data_hashes": dict(hashes), "parameters": _params(cfg), EVIDENCE_KEY: NOT_ADMISSIBLE,
@@ -390,7 +402,8 @@ def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print) -> d
                                          trial_sharpes_per_bar=per_bar) for k in (m_prog, m_wide)},
         }
         log(f"batterij {name}")
-        bat, family = battery(name, m, cfg, costs, stress, base=res, w_dev=w_dev, alt=alt)
+        bat, family = battery(name, m, cfg, costs, stress, base=res, w_dev=w_dev, alt=alt,
+                              prog=prog)
         rec["battery"] = bat
         rec["pbo"] = pbo_record(family)
         pos = dev["sharpe"] > 0
@@ -421,26 +434,27 @@ def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print) -> d
             "pbo": rec["pbo"]["pbo"],
             "leave_one_out_positive_fraction": bat["universe_positive_fraction"]})
         records[name] = rec
-        v2._dump(root / ARTEFACT_DIR / f"{name}.json", rec)
-        res.window(*w_dev).frame.to_csv(root / ARTEFACT_DIR / f"{name}_daily_w_dev.csv",
+        v2._dump(root / prog.artefact_dir / f"{name}.json", rec)
+        res.window(*w_dev).frame.to_csv(root / prog.artefact_dir / f"{name}_daily_w_dev.csv",
                                         float_format="%.10g")
     selected, rule = select(records, cfg.leverage.candidates)
+    cands = prog.candidates
     summary_out = {
-        "programme": "robust_book_v6", "preregistration_id": prereg.preregistration_id,
+        "programme": prog.name, "preregistration_id": prereg.preregistration_id,
         "git_sha": sha, "m_programme": m_prog, "m_including_known_prior": m_wide,
-        "robustness_scores": {n: records[n]["robustness_score"]["total"] for n in CANDIDATES},
+        "robustness_scores": {n: records[n]["robustness_score"]["total"] for n in cands},
         "selected": selected, "selection_rule": rule,
-        "passes_all_w_dev_gates": {n: records[n]["n_binding_w_dev"] == 0 for n in CANDIDATES},
+        "passes_all_w_dev_gates": {n: records[n]["n_binding_w_dev"] == 0 for n in cands},
         "binding_w_dev": {n: sorted(k for k, g in records[n]["gates"].items() if g["binds"])
-                          for n in CANDIDATES},
+                          for n in cands},
         "table": {n: {k: records[n]["w_dev"][k] for k in (
             "sharpe", "sharpe_se", "cagr", "ann_vol", "max_drawdown", "sortino", "calmar",
             "ann_turnover", "ann_funding", "ann_financing", "avg_gross_leverage",
             "avg_loan", "n_liquidations", "min_stress_headroom", "sharpe_ci_low",
-            "sharpe_ci_high")} for n in CANDIDATES},
+            "sharpe_ci_high")} for n in cands},
         EVIDENCE_KEY: NOT_ADMISSIBLE,
     }
-    v2._dump(root / ARTEFACT_DIR / "programme_w_dev.json", summary_out)
+    v2._dump(root / prog.artefact_dir / "programme_w_dev.json", summary_out)
     return summary_out
 
 
@@ -460,25 +474,31 @@ def _read(res: BookResult, a: pd.Timestamp, b: pd.Timestamp, dev_sr: float) -> d
             "z_vs_dev": gate_z(s["sharpe"], s["sharpe_se"], dev_sr)}
 
 
-def _selected(root: Path, prereg_id: str) -> tuple[str, dict[str, Any], dict[str, Any]]:
-    summary_w = json.loads((root / ARTEFACT_DIR / "programme_w_dev.json").read_text(encoding="utf-8"))
+def _selected(root: Path, prereg_id: str, prog: Programme | None = None,
+              ) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    prog = prog or V6
+    d = root / prog.artefact_dir
+    summary_w = json.loads((d / "programme_w_dev.json").read_text(encoding="utf-8"))
     require(summary_w["preregistration_id"] == prereg_id,
             "De W_DEV-run hoort bij een andere preregistratie.", DataContractError)
     name = summary_w["selected"]
-    dev_rec = json.loads((root / ARTEFACT_DIR / f"{name}.json").read_text(encoding="utf-8"))
+    dev_rec = json.loads((d / f"{name}.json").read_text(encoding="utf-8"))
     return name, summary_w, dev_rec
 
 
-def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print) -> dict[str, Any]:
+def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print,
+             prog: Programme | None = None) -> dict[str, Any]:
     """De backcast en de holdout van de geselecteerde kandidaat, allebei, in deze volgorde.
     Elke lezing staat in haar slot VOORDAT de data terugkomt."""
-    cfg = robust_book_v6_config(root / CONFIG)
-    prereg, hashes = _prereg(root, cfg)
+    prog = prog or V6
+    simulate = prog.simulate
+    cfg = prog.load_config(root / prog.config)
+    prereg, hashes = _prereg(root, cfg, prog)
     require_preregistration(prereg.preregistration_id, directory=root / v2.PREREG_DIR)
-    name, summary_w, dev_rec = _selected(root, prereg.preregistration_id)
+    name, summary_w, dev_rec = _selected(root, prereg.preregistration_id, prog)
     dev_sr = float(dev_rec["w_dev"]["sharpe"])
     full = load_market(root, cfg)
-    hid = f"robust_book_v6/{prereg.preregistration_id}/{name}"
+    hid = f"{prog.name}/{prereg.preregistration_id}/{name}"
     close = full.basis.perp.book.close
     back = backcast_gate_slice(close, lock_path=root / v5.BACKCAST_LOCK, hypothesis_id=hid)
     hold = gate_slice(close, lock_path=root / v2.LOCK_PATH, hypothesis_id=hid)
@@ -515,14 +535,14 @@ def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print) -> dict[s
                      "holdout is besmet; beide kunnen alleen verwerpen. Het schone bewijs is "
                      "het vooruit-sample vanaf 2026-10-01.",
            EVIDENCE_KEY: NOT_ADMISSIBLE}
-    v2._dump(root / ARTEFACT_DIR / "oos_read.json", out)
+    v2._dump(root / prog.artefact_dir / "oos_read.json", out)
     for label, (x, y) in {"backcast": (ba, bb), "holdout": (ha, hb)}.items():
-        res.window(x, y).frame.to_csv(root / ARTEFACT_DIR / f"{name}_daily_{label}.csv",
+        res.window(x, y).frame.to_csv(root / prog.artefact_dir / f"{name}_daily_{label}.csv",
                                       float_format="%.10g")
     result = {"promote_to_paper_trading": "accepted",
               "falsified_out_of_sample": "falsified"}.get(verdict, "archived")
     HypothesisLedger(root / v2.LEDGER_PATH).append(LedgerEntry.from_config(
-        wave=6, unit="robust_book_v6_verdict", market="crypto", config=_params(cfg),
+        wave=prog.wave, unit=f"{prog.name}_verdict", market="crypto", config=_params(cfg),
         git_sha=current_git_sha(), data_hash=hash_config(dict(hashes)),
         preregistration_id=prereg.preregistration_id, n_trials=0, result=result,
         amends=hash_config(_params(cfg)),
@@ -533,8 +553,8 @@ def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print) -> dict[s
                  "holdout_cagr": float(reads["holdout"]["summary"]["cagr"]),
                  "holdout_invested": reads["holdout"]["invested"], "verdict": verdict,
                  "robustness_scores": summary_w["robustness_scores"]},
-        notes="Oordeel robuust boek v6 na W_DEV, de backcast en de holdout. Het vooruit-"
-              "sample (vanaf 2026-10-01) volgt met `programme_v6 forward`."))
+        notes=f"Oordeel {prog.name} na W_DEV, de backcast en de holdout. Het vooruit-"
+              "sample (vanaf 2026-10-01) volgt met de `forward`-lezing."))
     for label, r in reads.items():
         s = r["summary"]
         log(f"{label} {name}: Sharpe {s['sharpe']:.3f} (SE {s['sharpe_se']:.3f}), CAGR "
@@ -555,7 +575,8 @@ def forward_window_ready(index: pd.DatetimeIndex, start: str, min_months: int) -
 
 
 def read_forward(root: Path = ROOT, *, panel_root: Path | None = None,
-                 log: Callable[[str], None] = print) -> dict[str, Any]:
+                 log: Callable[[str], None] = print,
+                 prog: Programme | None = None) -> dict[str, Any]:
     """Het vooruit-sample, eenmaal, op panelen met data na het bevriezen.
 
     De bevroren panelen blijven onaangeroerd: het vooruit-sample leest uit
@@ -563,11 +584,14 @@ def read_forward(root: Path = ROOT, *, panel_root: Path | None = None,
     `last_month`. De preregistratie is de BEVROREN (uit de W_DEV-run), niet een herberekende:
     nieuwe data verandert de data-hashes. Daarom moet de W_DEV-Sharpe op de nieuwe panelen
     exact reproduceren; anders is de historie herschreven en weigert de lezing."""
-    cfg = robust_book_v6_config(root / CONFIG)
-    summary_w = json.loads((root / ARTEFACT_DIR / "programme_w_dev.json").read_text(encoding="utf-8"))
+    prog = prog or V6
+    simulate = prog.simulate
+    cfg = prog.load_config(root / prog.config)
+    summary_w = json.loads((root / prog.artefact_dir / "programme_w_dev.json")
+                           .read_text(encoding="utf-8"))
     prereg_id = summary_w["preregistration_id"]
     frozen = require_preregistration(prereg_id, directory=root / v2.PREREG_DIR)
-    name, _, dev_rec = _selected(root, prereg_id)
+    name, _, dev_rec = _selected(root, prereg_id, prog)
     dev_sr = float(dev_rec["w_dev"]["sharpe"])
     pr = root / (panel_root or FORWARD_ROOT)
     require((pr / "panels" / "close.parquet").is_file(), "Geen vooruit-panelen: bouw ze eerst "
@@ -581,7 +605,7 @@ def read_forward(root: Path = ROOT, *, panel_root: Path | None = None,
     again = v2._sr(res.window(v2._ts(cfg.windows.train_start), v2._ts(cfg.windows.w_dev_end)))
     require(abs(again - dev_sr) < 1e-9, "De vooruit-panelen reproduceren de W_DEV-Sharpe niet: "
             "de historie is veranderd.", DataContractError, full=again, frozen=dev_sr)
-    hid = f"robust_book_v6/{prereg_id}/{name}"
+    hid = f"{prog.name}/{prereg_id}/{name}"
     fwd = gate_slice(full.basis.perp.book.close, lock_path=root / FORWARD_LOCK, hypothesis_id=hid)
     fa, fb = pd.Timestamp(fwd.index[0]), pd.Timestamp(fwd.index[-1])
     read = _read(res, fa, fb, dev_sr)
@@ -598,18 +622,48 @@ def read_forward(root: Path = ROOT, *, panel_root: Path | None = None,
     out = {"hypothesis_id": hid, "candidate": name, "w_dev_sharpe": dev_sr, "read": read,
            "gate_metrics": metrics, "gates": gates, "verdict": verdict,
            EVIDENCE_KEY: NOT_ADMISSIBLE}
-    v2._dump(root / ARTEFACT_DIR / "forward_read.json", out)
+    v2._dump(root / prog.artefact_dir / "forward_read.json", out)
     HypothesisLedger(root / v2.LEDGER_PATH).append(LedgerEntry.from_config(
-        wave=6, unit="robust_book_v6_forward", market="crypto", config=_params(cfg),
+        wave=prog.wave, unit=f"{prog.name}_forward", market="crypto", config=_params(cfg),
         git_sha=current_git_sha(), data_hash=hash_config(dict(_data_hashes(
             root, mark_dir=pr / "mark_panels"))), preregistration_id=prereg_id, n_trials=0,
         result={"eligible_for_capital": "accepted", "falsified_forward": "falsified"}.get(
             verdict, "archived"), amends=hash_config(_params(cfg)),
         metrics={"selected": name, "forward_sharpe": v5._finite(read["summary"]["sharpe"]),
                  "forward_cagr": float(read["summary"]["cagr"]), "verdict": verdict},
-        notes="De schone vooruit-lezing van robuust boek v6."))
+        notes=f"De schone vooruit-lezing van {prog.name}."))
     log(f"vooruit {name}: {json.dumps(metrics, default=float)} -> {verdict}")
     return out
+
+
+@dataclass(frozen=True)
+class Programme:
+    """Wat een programma van deze familie onderscheidt; de orkestratie is gedeeld.
+
+    v7 (`programme_v7.py`) gebruikt dezelfde freeze/run/lees-code met een eigen config,
+    preregistratie, kandidaten en simulatie: één implementatie per stap."""
+
+    name: str
+    wave: int
+    config: Path
+    spec: Path
+    artefact_dir: Path
+    candidates: tuple[str, ...]
+    hypotheses: Mapping[str, str]
+    load_config: Callable[[Path], Any]
+    simulate: Callable[..., BookResult]
+    family: Callable[[str, Any], dict[str, dict[str, Any]]]
+    notes: str
+    battery_extra: Callable[..., dict[str, Any]] | None = None
+
+
+V6 = Programme(
+    name="robust_book_v6", wave=6, config=CONFIG, spec=SPEC_PATH, artefact_dir=ARTEFACT_DIR,
+    candidates=CANDIDATES, hypotheses=HYPOTHESES, load_config=robust_book_v6_config,
+    simulate=simulate, family=_family,
+    notes="Drie geplande trials: K1/K2/K3 = de basiscarry van v5-H1 bij 1x/1,5x/2x "
+          "notional per been in een unified-margin-account. Post-hoc na v5 en zo "
+          "geboekt; hefboom op eigenaarsbesluit 2026-10-09.")
 
 
 def main(argv: Sequence[str]) -> None:

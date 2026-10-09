@@ -64,6 +64,7 @@ from .market import BARS_PER_YEAR
 
 __all__ = [
     "FRAME_COLUMNS",
+    "tranche_targets",
     "MarginMarket",
     "MarginSpec",
     "financing_rate",
@@ -182,6 +183,45 @@ def levered_targets(m: BasisMarket, *, leverage: float, slots: int, span: int,
     return one * float(leverage)
 
 
+def tranche_targets(m: BasisMarket, *, slots: int, span: int, enter_apr: float,
+                    exit_apr: float, min_spot_adv_usd: float, max_abs_basis: float,
+                    financing: pd.Series, lever_spread: float,
+                    carry_noise: pd.DataFrame | None = None) -> pd.DataFrame:
+    """v7: een basistranche uit eigen equity, plus een GEFINANCIERDE tranche waar de carry
+    zijn leenrente verdient.
+
+    * Basis: de slotregel van v5, ongewijzigd, `1 / slots` per munt (samen ≤ 1x).
+    * Gefinancierde tranche: nog eens `1 / slots` op een munt die een basisslot heeft,
+      aan zodra `carry ≥ r_fin + lever_spread`, en aan zolang `carry ≥ r_fin`
+      (hysterese). Hefboom wordt dus alleen gebruikt waar hij verdient wat hij kost;
+      bij 2021-tarieven (~31 %) vraagt een tranche ~41 % carry.
+
+    `financing` is de rente die het boek ook betaalt (bekend op de close van *t*);
+    `carry_noise` vermenigvuldigt de carryschatting, net als in `harvest_targets`."""
+    require(float(lever_spread) >= 0.0, "Een negatieve spread leent onder de rente.",
+            DataContractError, lever_spread=lever_spread)
+    require(bool(financing.index.equals(m.index)), "Financiering en markt delen geen raster.",
+            DataContractError)
+    base = harvest_targets(m, span=span, enter_apr=enter_apr, exit_apr=exit_apr, slots=slots,
+                           notional=1.0, min_spot_adv_usd=min_spot_adv_usd,
+                           max_abs_basis=max_abs_basis, carry_noise=carry_noise)
+    carry = carry_estimate(m, span)
+    if carry_noise is not None:
+        carry = carry * carry_noise.reindex(index=carry.index, columns=carry.columns).fillna(1.0)
+    c = carry.to_numpy(dtype=np.float64)
+    r = financing.to_numpy(dtype=np.float64)[:, None]
+    held = base.to_numpy() > 0.0
+    with np.errstate(invalid="ignore"):
+        enter = held & (c >= r + float(lever_spread))
+        keep = held & (c >= r)
+    on = np.zeros(c.shape[1], dtype=bool)
+    extra = np.zeros(c.shape)
+    for t in range(c.shape[0]):
+        on = (on & keep[t]) | enter[t]
+        extra[t] = on
+    return base + pd.DataFrame(extra / int(slots), index=base.index, columns=base.columns)
+
+
 def financing_rate(m: BasisMarket, *, floor_apr: float, multiplier: float, span: int,
                    reference: str = "BTCUSDT", constant_apr: float | None = None) -> pd.Series:
     """De jaarrente op geleende USDT, bekend op de close van *t*.
@@ -242,7 +282,7 @@ def _move(num: np.ndarray, den: np.ndarray) -> np.ndarray:
 def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag: int,
                 band: float, hedge_tolerance: float, margin: MarginSpec,
                 financing: pd.Series, skip: pd.Series | None = None,
-                adv_cap: float | None = None) -> BookResult:
+                adv_cap: float | None = None, slice_step: float | None = None) -> BookResult:
     """Simuleer het hefboomboek. `target` rij *t* = besluit op de close van *t* (notional
     per been per munt, ≥ 0), uitgevoerd tegen de close van *t + lag − 1*.
 
@@ -253,7 +293,14 @@ def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag
     `adv_cap`: geen been groter dan die fractie van de 30d-ADV van het DUNSTE been
     (min(spot, perp)), tegen de LOPENDE equity op de uitvoeringsbar
     (`conf/risk/default.yaml::adv_participation_cap`, een marktfeit). Wat een slot door de
-    cap niet krijgt, blijft cash."""
+    cap niet krijgt, blijft cash.
+
+    `slice_step` (v7): gespreide uitvoering. Een munt die naar een nieuw doel moet (instap,
+    uitstap, een resize buiten de band) beweegt per dag hooguit `slice_step` per been, tot
+    hij er is; het doel volgt intussen het laatste besluit. In het √-impactmodel kost een
+    trade ∝ q^1,5, dus k gelijke stappen kosten √k keer minder impact. Nooit gespreid:
+    een verdwenen koers (meteen dicht), een liquidatie, en de governor op het boek zelf.
+    Zonder `slice_step` is het boek exact dat van v6."""
     require(int(lag) >= 1, "Een vertraging van nul bars is lookahead.", DataContractError)
     b0 = m.basis
     require(bool(target.index.equals(m.index)) and list(target.columns) == list(m.symbols),
@@ -291,6 +338,9 @@ def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag
     require(adv_cap is None or 0.0 < float(adv_cap) <= 1.0, "Ongeldige ADV-cap.",
             DataContractError, adv_cap=adv_cap)
     adv_min = np.nan_to_num(np.fmin(s_adv, p_adv), nan=0.0)
+    require(slice_step is None or float(slice_step) > 0.0, "Ongeldige stapgrootte.",
+            DataContractError, slice_step=slice_step)
+    goal = np.full(len(m.symbols), np.nan)   # v7: het doel van een munt in beweging
     h = margin.haircuts(syms)
     mmr, mml = margin.maintenance_margin, margin.loan_maintenance
 
@@ -345,6 +395,7 @@ def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag
                 DataContractError, bar=where)
         if liquidated:
             a_d, b_d = np.zeros(n), np.zeros(n)
+            goal[:] = np.nan
         else:
             a_d = a * (1.0 + r_s) / (1.0 + port)
             b_d = b * (1.0 + r_p) / (1.0 + port)
@@ -364,21 +415,47 @@ def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag
             drift = (want > 0.0) & (level > 0.0) & (np.abs(level - want) > band * want)
             unhedged = (want > 0.0) & (level > 0.0) & (
                 np.abs(a_d - b_d) > hedge_tolerance * level)
-            reset = enter | drift | unhedged
-            new_a = np.where(off, 0.0, np.where(reset, want, a_d))
-            new_b = np.where(off, 0.0, np.where(reset, want, b_d))
-            # De governor, getoetst NA de trade: bruto-cap en uniMMR-vloer. Geschonden ->
-            # het hele boek naar het doel, geschaald met de grootste toegestane factor.
-            if governed_scale(new_a, new_b, h, margin) < 1.0:
-                n_governed += 1
-                governed = True
-                base = np.where(want > 0.0, want, 0.0)
-                s = governed_scale(base, base, h, margin)
-                new_a, new_b = base * s, base * s
+            if slice_step is None:
+                reset = enter | drift | unhedged
+                new_a = np.where(off, 0.0, np.where(reset, want, a_d))
+                new_b = np.where(off, 0.0, np.where(reset, want, b_d))
+                # De governor, getoetst NA de trade: bruto-cap en uniMMR-vloer. Geschonden
+                # -> het hele boek naar het doel, geschaald met de grootste toegestane factor.
+                if governed_scale(new_a, new_b, h, margin) < 1.0:
+                    n_governed += 1
+                    governed = True
+                    base = np.where(want > 0.0, want, 0.0)
+                    s = governed_scale(base, base, h, margin)
+                    new_a, new_b = base * s, base * s
+            else:
+                # De governor op het DOEL: past het volledige doel niet, dan krimpt het doel.
+                s_goal = governed_scale(want, want, h, margin)
+                if s_goal < 1.0:
+                    governed = True
+                    want = want * s_goal
+                # Uiteenlopende benen: gelijk op het huidige niveau (een kleine trade).
+                a0 = np.where(unhedged, level, a_d)
+                b0 = np.where(unhedged, level, b_d)
+                start = (off & (level > 0.0)) | enter | drift
+                goal = np.where(start | np.isfinite(goal), want, np.nan)
+                moving = np.isfinite(goal)
+                lvl = (a0 + b0) / 2.0
+                gap = np.where(moving, goal - lvl, 0.0)
+                new_lvl = lvl + np.clip(gap, -float(slice_step), float(slice_step))
+                new_a = np.where(moving, new_lvl, a0)
+                new_b = np.where(moving, new_lvl, b0)
+                goal = np.where(moving & (np.abs(gap) <= float(slice_step)), np.nan, goal)
+                # De governor op het BOEK (risico): drift buiten de grens krimpt meteen.
+                s_book = governed_scale(new_a, new_b, h, margin)
+                if s_book < 1.0:
+                    governed = True
+                    new_a, new_b = new_a * s_book, new_b * s_book
+                n_governed += int(governed)
         # Een munt zonder koers op een van beide benen wordt gesloten, ook op een
         # overgeslagen bar: het verdwenen been tegen zijn laatste koers.
         new_a = np.where(both, new_a, 0.0)
         new_b = np.where(both, new_b, 0.0)
+        goal = np.where(both, goal, np.nan)
         da, db = new_a - a_d, new_b - b_d
         da[np.abs(da) < DUST] = 0.0
         db[np.abs(db) < DUST] = 0.0
@@ -417,6 +494,7 @@ def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag
                                        else float("nan")),
                "band": float(band), "hedge_tolerance": float(hedge_tolerance),
                "adv_cap": None if adv_cap is None else float(adv_cap),
+               "slice_step": None if slice_step is None else float(slice_step),
                "convention": "besluit op close t, uitgevoerd tegen close t+lag-1, rendeert "
                              "vanaf de bar erna; long spot, short perp; lening = spot boven "
                              "de equity, rente bekend op de close ervoor; liquidatie op de "

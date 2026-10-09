@@ -20,7 +20,7 @@ import pytest
 
 from tests.lookahead.test_basis_causality import COSTS, FREE, RULE, _basis
 from tests.lookahead.test_breadth_causality import CUTS, _equal_through
-from tradebot.systematic.harvest import BasisMarket, harvest_targets
+from tradebot.systematic.harvest import BasisCosts, BasisMarket, carry_estimate, harvest_targets
 from tradebot.systematic.leverage import (
     MarginMarket,
     MarginSpec,
@@ -29,6 +29,7 @@ from tradebot.systematic.leverage import (
     levered_targets,
     margin_market,
     run_levered,
+    tranche_targets,
     uni_mmr,
 )
 from tradebot.utils.failfast import DataContractError
@@ -318,3 +319,100 @@ def test_truncate_cuts_every_panel():
     assert tr.index.max() < cut
     for frame in (tr.mark_high, tr.mark_low, tr.spot_high, tr.spot_low):
         assert frame.index.equals(tr.index)
+
+
+# --------------------------------------------------------------------------- #
+# v7: gespreide uitvoering en de gefinancierde tranche
+# --------------------------------------------------------------------------- #
+TRANCHE_RULE = dict(SLOT_RULE)
+
+
+def _tranche(m: MarginMarket, rate: pd.Series, spread: float = 0.10) -> pd.DataFrame:
+    return tranche_targets(m.basis, financing=rate, lever_spread=spread, **TRANCHE_RULE)
+
+
+@pytest.mark.parametrize("t", CUTS)
+def test_the_tranche_decision_through_t_ignores_everything_after_t(t):
+    base, pert = _mm(), _mm(perturb_after=t)
+    ra = financing_rate(base.basis, floor_apr=0.05, multiplier=1.0, span=20)
+    rb = financing_rate(pert.basis, floor_apr=0.05, multiplier=1.0, span=20)
+    assert _equal_through(_tranche(base, ra), _tranche(pert, rb), t)
+
+
+def test_the_tranche_is_on_only_while_carry_beats_the_financing():
+    m = _mm()
+    rate = _const_rate(m, 0.05)
+    out = _tranche(m, rate, spread=0.10)
+    one = harvest_targets(m.basis, **{**SLOT_RULE, "notional": 1.0})
+    size = 1.0 / SLOT_RULE["slots"]
+    extra = (out - one).round(12)
+    assert set(np.unique(extra.to_numpy())) <= {0.0, round(size, 12)}
+    assert (extra.to_numpy()[one.to_numpy() == 0.0] == 0.0).all(), "geen tranche zonder basisslot"
+    carry = carry_estimate(m.basis, SLOT_RULE["span"]).to_numpy()
+    on = extra.to_numpy() > 0
+    assert (carry[on] >= 0.05 - 1e-12).all(), "een tranche onder de leenrente"
+    # Instap alleen boven rente + spread; daarna hysterese tot de rente.
+    first = on & ~np.vstack([np.zeros((1, on.shape[1]), dtype=bool), on[:-1]])
+    assert (carry[first] >= 0.15 - 1e-12).all()
+    assert on.any(), "de toets is leeg zonder tranche"
+    # Een hogere rente geeft nooit meer hefboom.
+    dear = _tranche(m, _const_rate(m, 0.20), spread=0.10)
+    assert dear.sum().sum() <= out.sum().sum() + 1e-9
+
+
+def test_slicing_moves_each_coin_at_most_one_step_per_day():
+    m = _mm(basis_sd=0.0)
+    tgt = _targets(m, 1.0)
+    step = 0.1 / 5
+    res = _run(m, tgt, costs=FREE, slice_step=step)
+    traded = res.trades.to_numpy() / 2.0     # beide benen even veel
+    assert traded.max() <= step + 1e-12
+    whole = _run(m, tgt, costs=FREE)
+    assert (whole.trades.to_numpy() / 2.0).max() > step, "zonder spreiding gaat een slot in één keer"
+    # Het boek komt er wel: over de tweede helft staat het gespreide boek minstens 85 %
+    # zo groot als het ongespreide (het verschil is de aanloop en padafhankelijke drift).
+    half = slice(m.index[len(m.index) // 2], None)
+    assert res.held.loc[half].sum(axis=1).mean() >= 0.85 * whole.held.loc[half].sum(axis=1).mean()
+
+
+def test_slicing_cuts_impact_on_a_convex_cost_curve():
+    from tests.unit.test_programme_v2_smoke import IMPACT
+    from tradebot.systematic.book import CostSpec
+    m = _mm(basis_sd=0.0)
+    imp = BasisCosts(perp=CostSpec(taker_fee=0.0, half_spread=0.0, impact=IMPACT, aum_usd=5e7,
+                                   impact_eta=1.0),
+                     spot=CostSpec(taker_fee=0.0, half_spread=0.0, impact=IMPACT, aum_usd=5e7,
+                                   impact_eta=1.0))
+    tgt = _targets(m, 1.0)
+    whole = _run(m, tgt, costs=imp)
+    sliced = _run(m, tgt, costs=imp, slice_step=0.1 / 5)
+    assert sliced.frame["impact"].sum() > whole.frame["impact"].sum()   # minder negatief
+
+
+def test_a_vanishing_coin_is_closed_at_once_even_when_sliced():
+    m = _mm()
+    sym, delist = "C07USDT", 450
+    tgt = pd.DataFrame(0.0, index=m.index, columns=list(m.symbols))
+    live = (m.basis.perp.book.close[sym].notna() & m.basis.spot_close[sym].notna()
+            & m.basis.spot_adv[sym].notna())
+    tgt.loc[live, sym] = 0.2
+    res = _run(m, tgt, slice_step=0.01)
+    assert res.audit["n_forced_exits"] >= 1
+    assert (res.held[sym].iloc[delist + 1:] == 0.0).all()
+
+
+def test_the_sliced_governor_scales_the_goal_not_only_the_book():
+    m = _mm(basis_sd=0.0)
+    res = _run(m, _targets(m, 3.0), costs=FREE, slice_step=0.02)
+    f = res.frame
+    traded = f["turnover"] > 0
+    assert (f.loc[traded, "gross_leverage"] <= 4.0 + 1e-9).all()
+    assert (f.loc[traded, "uni_mmr"] >= 3.0 - 1e-9).all()
+
+
+@pytest.mark.parametrize("t", CUTS)
+def test_the_sliced_book_through_t_ignores_everything_after_t(t):
+    base, pert = _mm(), _mm(perturb_after=t)
+    ra = _run(base, _targets(base, 2.0), slice_step=0.02, adv_cap=0.01)
+    rb = _run(pert, _targets(pert, 2.0), slice_step=0.02, adv_cap=0.01)
+    assert _equal_through(ra.frame, rb.frame, t)

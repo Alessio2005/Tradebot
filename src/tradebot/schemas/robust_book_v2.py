@@ -11,10 +11,11 @@ from pydantic import Field, model_validator
 from .config import StrictModel, load_config
 
 __all__ = ["ROBUST_BOOK_V2_CONFIG_PATH", "ROBUST_BOOK_V3_CONFIG_PATH",
-           "ROBUST_BOOK_V5_CONFIG_PATH", "ROBUST_BOOK_V6_CONFIG_PATH", "RobustBookV2Config",
-           "RobustBookV3Config", "RobustBookV5Config", "RobustBookV6Config",
+           "ROBUST_BOOK_V5_CONFIG_PATH", "ROBUST_BOOK_V6_CONFIG_PATH",
+           "ROBUST_BOOK_V7_CONFIG_PATH", "RobustBookV2Config", "RobustBookV3Config",
+           "RobustBookV5Config", "RobustBookV6Config", "RobustBookV7Config",
            "robust_book_v2_config", "robust_book_v3_config", "robust_book_v5_config",
-           "robust_book_v6_config"]
+           "robust_book_v6_config", "robust_book_v7_config"]
 
 ROBUST_BOOK_V2_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v2.yaml")
@@ -24,6 +25,8 @@ ROBUST_BOOK_V5_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v5.yaml")
 ROBUST_BOOK_V6_CONFIG_PATH = (
     Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v6.yaml")
+ROBUST_BOOK_V7_CONFIG_PATH = (
+    Path(__file__).resolve().parents[3] / "conf" / "model" / "robust_book_v7.yaml")
 
 Positive = Annotated[float, Field(gt=0.0)]
 PositiveInt = Annotated[int, Field(ge=1)]
@@ -261,3 +264,36 @@ class RobustBookV6Config(RobustBookV5Config):
 
 def robust_book_v6_config(path: Path | str = ROBUST_BOOK_V6_CONFIG_PATH) -> RobustBookV6Config:
     return load_config(path, RobustBookV6Config)
+
+
+class V7(StrictModel):
+    """Uitvoering en financiering (v7): gespreide uitvoering en de gefinancierde tranche."""
+
+    #: Elke tranche (1 / slots) gaat in zoveel gelijke dagstappen in of uit de markt.
+    slice_days: PositiveInt
+    #: De gefinancierde tranche gaat aan bij carry >= leenrente + deze spread.
+    lever_spread_apr: Rate
+    #: De kandidaten met een gefinancierde tranche (hun hefboom per been is 2,0).
+    tranche: tuple[str, ...]
+
+
+class RobustBookV7Config(RobustBookV6Config):
+    """v6 plus `v7`."""
+
+    v7: V7
+
+    @model_validator(mode="after")
+    def _tranche_consistent(self) -> RobustBookV7Config:
+        unknown = set(self.v7.tranche) - set(self.leverage.candidates)
+        if unknown:
+            raise ValueError(f"tranche-kandidaten zonder hefboomregel: {sorted(unknown)}")
+        for name, lev in self.leverage.candidates.items():
+            want = 2.0 if name in self.v7.tranche else 1.0
+            if lev != want:
+                raise ValueError(f"{name}: hefboom per been {lev}, verwacht {want} "
+                                 "(basis 1, plus 1 als gefinancierde tranche)")
+        return self
+
+
+def robust_book_v7_config(path: Path | str = ROBUST_BOOK_V7_CONFIG_PATH) -> RobustBookV7Config:
+    return load_config(path, RobustBookV7Config)
