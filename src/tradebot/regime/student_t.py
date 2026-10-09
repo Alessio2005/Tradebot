@@ -372,6 +372,26 @@ def fit_student_t_hmm(
         new_trans = xi_sum / denom[:, None]
         new_trans /= new_trans.sum(axis=1, keepdims=True)
 
+        # `log u` IN ÉÉN KEER, OP HET CONTIGUE BLOK -- NIET PER KOLOM
+        # -----------------------------------------------------------
+        # `np.log(u[:, i])` gaf op identieke data niet altijd dezelfde bits.
+        # numpy 1.26 rekent float64-`log` alleen met de AVX-512-kernel als
+        # zijn overlapcontrole invoer en uitvoer disjunct ziet, en anders met
+        # scalaire libm; die twee verschillen op ruwweg een kwart van de
+        # elementen 1 ULP. Voor een kolom-VIEW neemt die controle de invoer als
+        # `stride * n` bytes vanaf het eerste element, en dat reikt bij kolom
+        # `i` van een (n, k)-array 8*i bytes VOORBIJ het einde van de array.
+        # glibc legt een volgend blok 8 of 16 bytes na het vorige; landt de
+        # verse uitvoer daar, dan valt numpy terug op libm. Welke kernel het
+        # wordt, hangt dus af van de heapgeschiedenis van het proces en niet
+        # van de data -- bij k = 2 haalt de overschrijding het volgende blok
+        # nooit, bij k = 3 wel. Gemeten 2026-10-09:
+        # `test_the_multiplier_is_causal[hmm3-diag-student_t]` faalde daarop
+        # met twee fits op DEZELFDE trainbars die tot 5e-12 in `nu` en 3e-14
+        # in de factor verschilden; 200 EM-iteraties droegen de 1-ULP-kiem tot
+        # daar. Op het contigue blok is de invoer precies de array zelf, en
+        # dan kiest numpy altijd dezelfde kernel.
+        log_u = np.log(u)
         weight = gamma * u
         new_means = (weight.T @ observations) / weight.sum(axis=0)[:, None]
         new_covars = np.empty_like(covars)
@@ -384,7 +404,7 @@ def fit_student_t_hmm(
             else:
                 new_covars[i] = (delta * weight[:, i][:, None]).T @ delta / total
             new_dof[i] = _solve_dof(
-                gamma[:, i], np.log(u[:, i]), u[:, i], d, float(dof[i]), cfg)
+                gamma[:, i], log_u[:, i], u[:, i], d, float(dof[i]), cfg)
         scale_diagonal = (new_covars if cfg.covariance_type == "diag"
                           else np.diagonal(new_covars, axis1=1, axis2=2))
         if not (np.all(np.isfinite(new_covars)) and np.all(scale_diagonal > 0.0)):
