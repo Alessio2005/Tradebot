@@ -217,6 +217,21 @@
       "metrics": {},
       "notes": "Drie geplande trials: K1/K2/K3 = de basiscarry van v5-H1 bij 1x/1,5x/2x notional per been in een unified-margin-account. Post-hoc na v5 en zo geboekt; hefboom op eigenaarsbesluit 2026-10-09.",
       "amends": ""
+    },
+    {
+      "wave": 7,
+      "unit": "robust_book_v7_programme",
+      "market": "crypto",
+      "config_hash": "adab187e4c4de89c",
+      "n_trials": 2,
+      "result": "interim",
+      "git_sha": "955203c",
+      "data_hash": "da79708eaf82fcf4",
+      "preregistration_id": "04af949bfb9adfde53c502931c78a33e",
+      "ts_utc": "2026-10-09T16:20:59.243090+00:00",
+      "metrics": {},
+      "notes": "Twee geplande trials: S1 = v6-K1 met gespreide uitvoering (5 dagstappen per tranche), S2 = S1 plus een gefinancierde tranche (carry >= leenrente + 10 pp). Post-hoc na v6 (W_DEV), voor elke v6-lezing buiten W_DEV, en zo geboekt.",
+      "amends": ""
     }
   ]
 }
