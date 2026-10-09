@@ -1,0 +1,39 @@
+{
+  "binding_w_dev": {
+    "T2_CARRY_TRANCHE_JUMPCAP": []
+  },
+  "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+  "git_sha": "56015ac",
+  "m_including_known_prior": 79,
+  "m_programme": 27,
+  "passes_all_w_dev_gates": {
+    "T2_CARRY_TRANCHE_JUMPCAP": true
+  },
+  "preregistration_id": "1b771576762caa74ea6d7e95cd5f7343",
+  "programme": "robust_book_v8",
+  "robustness_scores": {
+    "T2_CARRY_TRANCHE_JUMPCAP": 96.89099119496107
+  },
+  "selected": "T2_CARRY_TRANCHE_JUMPCAP",
+  "selection_rule": "lowest_leverage_all_clear",
+  "table": {
+    "T2_CARRY_TRANCHE_JUMPCAP": {
+      "ann_financing": -0.047783047594646556,
+      "ann_funding": 0.2173263969834386,
+      "ann_turnover": 8.534280110408629,
+      "ann_vol": 0.02774058605979269,
+      "avg_gross_leverage": 1.277898293789274,
+      "avg_loan": 0.14501376732492113,
+      "cagr": 0.15884045522120038,
+      "calmar": 10.475054701629208,
+      "max_drawdown": 0.015163687421746406,
+      "min_stress_headroom": 4.526378517792331,
+      "n_liquidations": 0,
+      "sharpe": 5.32911056779209,
+      "sharpe_ci_high": 7.118036137961858,
+      "sharpe_ci_low": 3.405209476383372,
+      "sharpe_se": 0.6805472214245677,
+      "sortino": 11.60647446599076
+    }
+  }
+}
