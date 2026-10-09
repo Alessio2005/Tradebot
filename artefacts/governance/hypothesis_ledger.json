@@ -304,6 +304,33 @@
       "metrics": {},
       "notes": "Eén geplande trial: T2 = v7-S2 met een sprongrisicogrens (dag-sigma <= 20 %). Post-hoc na de holdout-lezingen van v6 en v7 (de holdout is verbruikt), en zo geboekt. Het schone bewijs is het vooruit-sample.",
       "amends": ""
+    },
+    {
+      "wave": 8,
+      "unit": "robust_book_v8_verdict",
+      "market": "crypto",
+      "config_hash": "6cad21746d4dda9d",
+      "n_trials": 0,
+      "result": "falsified",
+      "git_sha": "569d042",
+      "data_hash": "da79708eaf82fcf4",
+      "preregistration_id": "1b771576762caa74ea6d7e95cd5f7343",
+      "ts_utc": "2026-10-09T16:34:30.357263+00:00",
+      "metrics": {
+        "selected": "T2_CARRY_TRANCHE_JUMPCAP",
+        "w_dev_sharpe": 5.32911056779209,
+        "w_dev_cagr": 0.15884045522120038,
+        "backcast_sharpe": 9.031500782396673,
+        "holdout_sharpe": -1.9967367548310941,
+        "holdout_cagr": -0.010937502019118028,
+        "holdout_invested": true,
+        "verdict": "falsified_out_of_sample",
+        "robustness_scores": {
+          "T2_CARRY_TRANCHE_JUMPCAP": 96.89099119496107
+        }
+      },
+      "notes": "Oordeel robust_book_v8 na W_DEV, de backcast en de holdout. Het vooruit-sample (vanaf 2026-10-01) volgt met de `forward`-lezing.",
+      "amends": "6cad21746d4dda9d"
     }
   ]
 }
