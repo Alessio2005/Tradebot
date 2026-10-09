@@ -232,6 +232,35 @@
       "metrics": {},
       "notes": "Twee geplande trials: S1 = v6-K1 met gespreide uitvoering (5 dagstappen per tranche), S2 = S1 plus een gefinancierde tranche (carry >= leenrente + 10 pp). Post-hoc na v6 (W_DEV), voor elke v6-lezing buiten W_DEV, en zo geboekt.",
       "amends": ""
+    },
+    {
+      "wave": 6,
+      "unit": "robust_book_v6_verdict",
+      "market": "crypto",
+      "config_hash": "e6438adc6ef3f237",
+      "n_trials": 0,
+      "result": "falsified",
+      "git_sha": "5d3630e",
+      "data_hash": "da79708eaf82fcf4",
+      "preregistration_id": "b62c8bc358a1de4422e19e1fc824d7a5",
+      "ts_utc": "2026-10-09T16:21:24.900137+00:00",
+      "metrics": {
+        "selected": "K1_CARRY_PM_1X",
+        "w_dev_sharpe": 5.422599331327764,
+        "w_dev_cagr": 0.12094865945838262,
+        "backcast_sharpe": 11.18964642511445,
+        "holdout_sharpe": -3.0808324773062155,
+        "holdout_cagr": -0.08550941094422848,
+        "holdout_invested": true,
+        "verdict": "falsified_out_of_sample",
+        "robustness_scores": {
+          "K1_CARRY_PM_1X": 88.83217219947531,
+          "K2_CARRY_PM_1P5X": 86.07419933936089,
+          "K3_CARRY_PM_2X": 83.99964846877907
+        }
+      },
+      "notes": "Oordeel robust_book_v6 na W_DEV, de backcast en de holdout. Het vooruit-sample (vanaf 2026-10-01) volgt met de `forward`-lezing.",
+      "amends": "e6438adc6ef3f237"
     }
   ]
 }
