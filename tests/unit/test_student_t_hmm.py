@@ -183,6 +183,41 @@ class TestEm:
         assert np.array_equal(a.dof, b.dof)
         assert a.loglikelihood == b.loglikelihood
 
+    def test_transcendentals_never_see_a_strided_view(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Bitidentiek op identieke data, ongeacht de heap.
+
+        `np.log` op een kolom-VIEW van een (n, k)-array koos in numpy 1.26 de
+        AVX-512-kernel of scalaire libm afhankelijk van waar de uitvoerbuffer
+        op de heap landde, met 1 ULP verschil. `test_the_multiplier_is_causal
+        [hmm3-diag-student_t]` faalde daarop: twee fits op DEZELFDE trainbars
+        gaven andere `nu`. Zie de toelichting bij `log_u` in `student_t.py`.
+        Deze test bewaakt de regel die dat oplost, en is in tegenstelling tot
+        het symptoom niet afhankelijk van de heapgeschiedenis of de CPU.
+        """
+        from tradebot.regime import student_t as module
+
+        strided: list[tuple[str, tuple[int, ...]]] = []
+
+        class _Spy:
+            def __getattr__(self, name: str) -> object:
+                return getattr(np, name)
+
+        spy = _Spy()
+        for name in ("exp", "log", "log1p"):
+            def watched(x, *args, _fn=getattr(np, name), _name=name, **kw):
+                if (isinstance(x, np.ndarray) and x.ndim > 0
+                        and not x.flags.c_contiguous):
+                    strided.append((_name, x.strides))
+                return _fn(x, *args, **kw)
+            setattr(spy, name, watched)
+        monkeypatch.setattr(module, "np", spy)
+
+        fit = _fit(_two_regime_series(), 3)
+        assert fit.n_iter_used > 1 and not fit.degenerate
+        assert strided == []
+
     def test_transition_rows_sum_to_one(self) -> None:
         fit = _fit(_two_regime_series(), 3)
         assert np.allclose(fit.trans_mat.sum(axis=1), 1.0)
