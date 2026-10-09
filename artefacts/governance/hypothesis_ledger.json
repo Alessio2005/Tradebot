@@ -202,6 +202,21 @@
       },
       "notes": "Oordeel robuust boek v5 na W_DEV, de backcast en de holdout.",
       "amends": "d69c89d183f242c7"
+    },
+    {
+      "wave": 6,
+      "unit": "robust_book_v6_programme",
+      "market": "crypto",
+      "config_hash": "e6438adc6ef3f237",
+      "n_trials": 3,
+      "result": "interim",
+      "git_sha": "9bcb6ab",
+      "data_hash": "da79708eaf82fcf4",
+      "preregistration_id": "b62c8bc358a1de4422e19e1fc824d7a5",
+      "ts_utc": "2026-10-09T16:04:44.001190+00:00",
+      "metrics": {},
+      "notes": "Drie geplande trials: K1/K2/K3 = de basiscarry van v5-H1 bij 1x/1,5x/2x notional per been in een unified-margin-account. Post-hoc na v5 en zo geboekt; hefboom op eigenaarsbesluit 2026-10-09.",
+      "amends": ""
     }
   ]
 }
