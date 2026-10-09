@@ -105,17 +105,16 @@ class HurstComputer:
         self.num_lags = num_lags
 
     def compute_rolling(self, prices: np.ndarray, window_size: int) -> np.ndarray:
-        if len(prices) < 20:
-            return np.full(len(prices), 0.5)
-
+        # CAUSALITY: the window is fixed at window_size, never derived from
+        # len(prices). The value on bar t may depend only on bars <= t; sizing
+        # the window from the total length (or returning early on a short
+        # series) made it depend on how many bars come after t. Bars before the
+        # first full window -- including every bar of a series shorter than
+        # window_size -- carry the neutral burn-in value 0.5 (set by the kernel).
         safe_prices = np.maximum(prices, 1e-9)
         log_prices = np.log(safe_prices).astype(np.float64)
 
-        effective_window = window_size
-        if len(prices) < window_size:
-            effective_window = max(32, len(prices) // 2)
-
-        return self._rolling_hurst_njit(log_prices, effective_window, self.num_lags)
+        return self._rolling_hurst_njit(log_prices, window_size, self.num_lags)
 
     @staticmethod
     @njit(parallel=False, cache=True)
