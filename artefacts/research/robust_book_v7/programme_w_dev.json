@@ -1,0 +1,63 @@
+{
+  "binding_w_dev": {
+    "S1_CARRY_PM_SLICED": [
+      "g2_cagr_below_target",
+      "g9_overfit_probability"
+    ],
+    "S2_CARRY_PM_TRANCHE": []
+  },
+  "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+  "git_sha": "5d3630e",
+  "m_including_known_prior": 78,
+  "m_programme": 26,
+  "passes_all_w_dev_gates": {
+    "S1_CARRY_PM_SLICED": false,
+    "S2_CARRY_PM_TRANCHE": true
+  },
+  "preregistration_id": "04af949bfb9adfde53c502931c78a33e",
+  "programme": "robust_book_v7",
+  "robustness_scores": {
+    "S1_CARRY_PM_SLICED": 95.41486568142253,
+    "S2_CARRY_PM_TRANCHE": 97.09156245482836
+  },
+  "selected": "S2_CARRY_PM_TRANCHE",
+  "selection_rule": "lowest_leverage_all_clear",
+  "table": {
+    "S1_CARRY_PM_SLICED": {
+      "ann_financing": -0.0029579981196369756,
+      "ann_funding": 0.1436578520273084,
+      "ann_turnover": 5.508393270982597,
+      "ann_vol": 0.019991837394023083,
+      "avg_gross_leverage": 0.9066767574091998,
+      "avg_loan": 0.006147630960181573,
+      "cagr": 0.13339370496530867,
+      "calmar": 13.598889083840415,
+      "max_drawdown": 0.009809161920720469,
+      "min_stress_headroom": 12.90509193970676,
+      "n_liquidations": 0,
+      "sharpe": 6.274411876303948,
+      "sharpe_ci_high": 8.490369104235112,
+      "sharpe_ci_low": 3.857124595665103,
+      "sharpe_se": 0.7434383513037957,
+      "sortino": 12.424102479940208
+    },
+    "S2_CARRY_PM_TRANCHE": {
+      "ann_financing": -0.05128676906793743,
+      "ann_funding": 0.22731477545551915,
+      "ann_turnover": 7.99295988511667,
+      "ann_vol": 0.028904003003213774,
+      "avg_gross_leverage": 1.285280423220987,
+      "avg_loan": 0.14817457886121774,
+      "cagr": 0.1668772884991272,
+      "calmar": 15.780879150397187,
+      "max_drawdown": 0.010574650937297564,
+      "min_stress_headroom": 4.53247763308473,
+      "n_liquidations": 0,
+      "sharpe": 5.354947732634477,
+      "sharpe_ci_high": 7.132752136416594,
+      "sharpe_ci_low": 3.448565490808076,
+      "sharpe_se": 0.654756339121901,
+      "sortino": 12.000150720803639
+    }
+  }
+}
