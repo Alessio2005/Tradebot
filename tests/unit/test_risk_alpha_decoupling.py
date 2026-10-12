@@ -163,10 +163,15 @@ class TestRiskKnowsNoAlphaParameter:
         assert (SRC / "alpha" / "factor_alpha.py").exists()
 
     def test_the_entangled_portfolio_module_no_longer_lives_in_risk(self) -> None:
-        """Exit-criterium 3."""
+        """Exit-criterium 3.
+
+        De twee helften waarin `risk/portfolio.py` werd gesplitst --
+        `portfolio/legacy_sizing.py` en `portfolio/covariance.py` -- zijn in de
+        coverage-ronde verwijderd: sinds de opruiming van `apps/` en
+        `scripts/` (57d3fcf) riep niets ze nog aan. Wat dit criterium bewaakt,
+        blijft staan: de verstrengelde module komt niet terug in L7.
+        """
         assert not (SRC / "risk" / "portfolio.py").exists()
-        assert (SRC / "portfolio" / "legacy_sizing.py").exists()
-        assert (SRC / "portfolio" / "covariance.py").exists()
 
 
 # --------------------------------------------------------------------------- #
