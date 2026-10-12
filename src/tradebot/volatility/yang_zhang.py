@@ -41,8 +41,14 @@ def get_yang_zhang_volatility(
         if isinstance(df.index, pd.DatetimeIndex):
             freq = getattr(df.index, "freq", None)
             if freq is not None:
-                # pandas freq → bar duration in seconds
-                bar_seconds = pd.tseries.frequencies.to_offset(freq).nanos / 1e9
+                # pandas freq → bar duration in seconds. `.nanos` bestaat alleen
+                # voor VASTE offsets; voor week- en maandbars gooide hij een
+                # ValueError ("non-fixed frequency") die hieronder als intraday-
+                # weigering werd doorgegooid -- terwijl die bars juist langer dan
+                # een dag zijn. `(t + offset) - t` is voor elke offset gedefinieerd.
+                start = df.index[0]
+                bar_seconds = (start + pd.tseries.frequencies.to_offset(freq)
+                               - start).total_seconds()
                 if bar_seconds < 86400:  # < 1 day
                     raise ValueError(
                         "Yang-Zhang estimator requires daily (or longer) OHLC "

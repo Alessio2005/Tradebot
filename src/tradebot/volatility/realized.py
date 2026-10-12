@@ -320,7 +320,7 @@ def realized_variance_from_intraday(
         available="geen",
     )
     daily: list[float] = []
-    for _day, closes in sorted(intraday_closes.items()):  # pragma: no cover
+    for _day, closes in sorted(intraday_closes.items()):
         arr = np.asarray(closes, dtype=np.float64)
         returns = np.log(arr[1:] / arr[:-1])
         daily.append(float(np.sum(returns**2)))
