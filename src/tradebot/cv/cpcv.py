@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Generator
-from datetime import timedelta
 from itertools import combinations
 from typing import Any
 
@@ -154,7 +153,11 @@ class CombinatorialPurgedCV:
 
         _use_bar_purge: bool = self.purge_bars is not None
         _purge_bars_eff: int = int(self.purge_bars) if self.purge_bars is not None else 0
-        purge_td = timedelta(days=self.purge_days)
+        # `np.timedelta64`, niet `datetime.timedelta`: een tz-naïeve index wordt
+        # `datetime64[ns]` en numpy weigert ns-datums plus een Python-timedelta
+        # (UFuncTypeError). De kalenderpurge viel daardoor om bij elke naïeve
+        # index; alleen tz-bewuste (object-)tijdstempels werkten.
+        purge_td = pd.Timedelta(days=self.purge_days).to_timedelta64()
 
         for test_groups in group_combos:
             train_idx_list: list[np.ndarray] = []
@@ -195,7 +198,11 @@ class CombinatorialPurgedCV:
                 mask = np.ones(len(tr_group_idx), dtype=bool)
 
                 for tg in test_groups:
-                    if len(group_indices[tg]) == 0:
+                    # Onbereikbaar: een groep is alleen leeg als group_size == 0,
+                    # en dan is ALLEEN de laatste groep gevuld. Een gevulde
+                    # traingroep (hierboven vereist) naast een lege testgroep
+                    # bestaat dus niet.
+                    if len(group_indices[tg]) == 0:  # pragma: no cover
                         continue
 
                     t0_test_min   = ts_arr[group_indices[tg][0]]

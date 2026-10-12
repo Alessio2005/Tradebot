@@ -172,12 +172,12 @@ def get_sample_weights(
     w = w / (np.mean(w) + 1e-9)
 
     ts_max = anchor_time if anchor_time is not None else pd.Timestamp(timestamps.max())
-    days_old_series = timestamps.rsub(pd.Timestamp(ts_max)).dt.total_seconds() / (24 * 3600)
-
-    if isinstance(days_old_series, pd.Series):
-        days_old = days_old_series.to_numpy(dtype=float)
-    else:
-        days_old = np.asarray(days_old_series, dtype=float)
+    # `timestamps` is een Series (zie `.iloc` hierboven); `.dt` bestaat alleen
+    # daar, dus het resultaat is altijd een Series. De oude `else`-tak voor een
+    # niet-Series kon niet worden bereikt: een Index faalt al op `.dt`.
+    days_old = (
+        timestamps.rsub(pd.Timestamp(ts_max)).dt.total_seconds() / (24 * 3600)
+    ).to_numpy(dtype=float)
 
     days_old = np.maximum(days_old, 0.0)
     decay = np.exp(-days_old / time_decay_span)

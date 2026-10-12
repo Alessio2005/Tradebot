@@ -92,7 +92,12 @@ def _sb_kernel(
 
         if total_u > 1e-9:
             probs = u_avg / total_u
-        else:
+        # Onbereikbaar: een event met t1 >= t0 houdt u >= 1/(n_draws + 1)
+        # (gemiddelde van 1/(phi+1), phi <= n_draws) en dat is > 1e-9 zolang de
+        # bag kleiner is dan 1e9 trekkingen (8 GB aan indices). Alleen een
+        # omgekeerd event (t1 < t0) kan op 0 komen, en dat gebeurt alleen als
+        # het een getrokken GELDIG event overlapt -- dat dan zelf u > 0 houdt.
+        else:  # pragma: no cover
             probs = np.ones(n_samples, dtype=np.float64) / float(n_samples)
 
         # ── Stap 2: weighted random choice via cumulatieve som ────────────
