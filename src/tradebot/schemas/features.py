@@ -81,7 +81,12 @@ class FeatureBlockSchema(pa.DataFrameModel):
             has_any_tier_suffix = (
                 col.endswith("_micro") or col.endswith("_meso") or col.endswith("_macro")
             )
-            if has_any_tier_suffix and not has_valid:
+            # Onbereikbaar: `has_valid` en `has_any_tier_suffix` zijn hetzelfde
+            # predicaat, dus deze check keurt elke kolom goed. Ook de regel in de
+            # docstring (geldige suffix OF geen suffix) dekt elke naam. Gevonden
+            # in de coverage-ronde; welke regel hier bedoeld was, is een besluit
+            # en geen dekkingskwestie, dus de check staat ongewijzigd.
+            if has_any_tier_suffix and not has_valid:  # pragma: no cover
                 return False  # has a suffix but invalid one
         return True
 

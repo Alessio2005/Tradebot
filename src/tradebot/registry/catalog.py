@@ -118,7 +118,10 @@ class ModelCatalog:
                 try:
                     d = json.loads(line)
                     rec = ModelRecord.from_dict(d)
-                except (json.JSONDecodeError, TypeError):
+                # AttributeError: geldige JSON die geen object is (`[1, 2]`)
+                # crashte `from_dict` op `.items()` in plaats van overgeslagen
+                # te worden als elke andere onleesbare regel.
+                except (json.JSONDecodeError, TypeError, AttributeError):
                     continue
                 if symbol and rec.symbol != symbol:
                     continue
