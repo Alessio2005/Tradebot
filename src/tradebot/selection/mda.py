@@ -11,6 +11,8 @@ import logging
 import numpy as np
 import pandas as pd
 
+from ..utils.failfast import DataContractError, require
+
 logger = logging.getLogger(__name__)
 
 
@@ -91,6 +93,14 @@ def causal_mda(
     """
     from sklearn.metrics import roc_auc_score
 
+    # Zonder herhaling is er geen enkele AUC-daling gemeten. De lus sloeg dan
+    # elke feature over en de sortering crashte op een `KeyError: 'mda_mean'`
+    # zonder te zeggen waarom; dat is een configuratiefout, geen uitkomst.
+    require(
+        n_repeats >= 1,
+        "Causal MDA zonder shuffle-herhaling meet niets.",
+        DataContractError, n_repeats=n_repeats,
+    )
     rng = np.random.default_rng(random_seed)
 
     base_probs = model.predict_proba(X)[:, 1]
@@ -107,9 +117,6 @@ def causal_mda(
             shuf_probs = model.predict_proba(X_shuffled)[:, 1]
             shuf_auc = roc_auc_score(y, shuf_probs)
             auc_drops.append(base_auc - shuf_auc)  # positief = feature helpt
-
-        if not auc_drops:
-            continue
 
         mda_mean = float(np.mean(auc_drops))
         mda_std  = float(np.std(auc_drops, ddof=1)) if len(auc_drops) > 1 else 0.0

@@ -34,6 +34,7 @@ import pytest
 
 from tradebot.selection.mda import _block_shuffle, causal_mda, filter_by_mda
 from tradebot.selection.sfi import _purged_timeseries_splits, rank_features_by_sfi
+from tradebot.utils.failfast import DataContractError
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -310,3 +311,64 @@ class TestSingleFeatureImportanceEndToEnd:
         auc = single_feature_importance(X, y, cv_splits=2, purge_bars=5)
 
         assert auc.to_dict() == {"signal": 0.5, "noise": 0.5}
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Randen die in de snelle suite horen
+# ═════════════════════════════════════════════════════════════════════════════
+class TestSelectionEdges:
+    def test_a_purge_past_the_end_drops_the_fold(self) -> None:
+        """Een purge die de testfold voorbij het einde schuift, levert geen
+        fold op -- niet een fold van één bar."""
+        splits = _purged_timeseries_splits(n_samples=30, n_splits=2, purge_bars=25)
+        assert all(int(test[0]) - int(train[-1]) - 1 == 25 for train, test in splits)
+        assert len(splits) < 2
+
+    def test_the_block_shuffle_has_a_fixed_default_seed(self) -> None:
+        arr = np.arange(100, dtype=np.float64)
+        assert np.array_equal(_block_shuffle(arr, 10), _block_shuffle(arr, 10))
+
+    def test_zero_repeats_is_refused(self) -> None:
+        class _Model:
+            def predict_proba(self, X: np.ndarray) -> np.ndarray:
+                p = 1.0 / (1.0 + np.exp(-X[:, 0]))
+                return np.column_stack([1.0 - p, p])
+
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(200, 2))
+        y = (X[:, 0] > 0).astype(int)
+        with pytest.raises(DataContractError, match="zonder shuffle-herhaling"):
+            causal_mda(_Model(), X, y, ["a", "b"], n_repeats=0)
+
+
+class TestSingleFeatureImportanceFast:
+    """Eén kleine echte fit in de snelle suite: twee features, twee folds."""
+
+    def test_a_fold_with_one_class_is_skipped_and_reported_as_neutral(
+        self,
+    ) -> None:
+        from tradebot.selection.sfi import single_feature_importance
+
+        n = 120
+        signal = np.sin(np.linspace(0.0, 6.0 * np.pi, n))
+        X = pd.DataFrame({"signal": signal, "constant_label_feature": signal})
+        y = (signal > 0).astype(int)
+        mixed = single_feature_importance(X, y, cv_splits=2, purge_bars=2)
+        assert set(mixed.index) == {"signal", "constant_label_feature"}
+        assert list(mixed) == sorted(mixed, reverse=True)
+
+        one_class = np.zeros(n, dtype=int)
+        neutral = single_feature_importance(X, one_class, cv_splits=2, purge_bars=2)
+        assert (neutral == 0.5).all()
+
+    def test_nan_values_are_filled_with_the_train_median(self) -> None:
+        from tradebot.selection.sfi import single_feature_importance
+
+        n = 120
+        signal = np.sin(np.linspace(0.0, 6.0 * np.pi, n))
+        with_gaps = signal.copy()
+        with_gaps[::7] = np.nan
+        X = pd.DataFrame({"gappy": with_gaps})
+        auc = single_feature_importance(X, (signal > 0).astype(int),
+                                        cv_splits=2, purge_bars=2)
+        assert 0.0 <= float(auc["gappy"]) <= 1.0
