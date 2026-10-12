@@ -12,7 +12,6 @@ features        : FeatureEngineer, FeatureOrthogonalizer, Numba kernels
 labeling        : triple-barrier, meta-labeling, fixed-horizon
 monitoring      : drift detection, feature health, calibration monitoring, alerts
 registry        : model catalog, lineage, promotion
-reporting       : AFML-style tearsheet generation
 risk            : portfolio risk manager, Kelly sizing, VaR, drawdown breaker
 schemas         : Pandera DataFrame schemas (stage boundaries)
 train           : CatBoost agents, bandit ensemble, calibration, checkpoints

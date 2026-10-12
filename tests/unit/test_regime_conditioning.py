@@ -34,10 +34,14 @@ from tradebot.cv.walk_forward import WalkForwardCV
 from tradebot.regime.buckets import UNDEFINED_BUCKET, VolBucket
 from tradebot.regime.conditioning import (
     CONDITIONER_SPECS,
+    _durations,
+    _high_state,
+    _state_variance,
     build_conditioner,
     m0_multiplier,
     oos_mask,
 )
+from tradebot.regime.markov import HmmParameters, HmmSpec
 from tradebot.schemas.config import (
     AdequacyConfig,
     M0BucketConfig,
@@ -238,3 +242,37 @@ class TestM0Config:
             zscore_low=-0.5, zscore_high=0.5, zscore_min_periods=250,
             atr_fast_window=5, atr_slow_window=20,
             atr_ratio_low=0.85, atr_ratio_high=1.15)
+
+
+class TestConditionerInternals:
+    def test_the_record_carries_the_scored_bars_and_the_fits(self) -> None:
+        returns, _ = _panel()
+        spec = next(s for s in CONDITIONER_SPECS if s.label == "m1-k2")
+        result = build_conditioner(
+            spec, returns=returns, buckets=_buckets().iloc[1:], cv=CV,
+            adequacy=ADEQUACY, m2_cfg=M2)
+        record = result.as_record()
+        assert record["label"] == "m1-k2"
+        assert record["n_scored_bars"] == int(result.mask.sum())
+        assert record["n_fits"] == len(result.fits) == len(record["fits"])
+        assert 0.0 < record["mean_multiplier"] <= 1.0
+
+    def test_full_covariance_ranks_states_by_the_trace(self) -> None:
+        """Bij `full` is de variantie van een toestand het spoor van zijn
+        schaalmatrix, maal `nu / (nu - 2)` voor een t."""
+        params = HmmParameters(
+            spec=HmmSpec(n_states=2, covariance_type="full",
+                         distribution="student_t"),
+            symbol="X", fold_id=0, start_prob=np.array([0.5, 0.5]),
+            trans_mat=np.full((2, 2), 0.5),
+            means=np.zeros((2, 2)),
+            covars=np.array([[[4.0, 0.0], [0.0, 1.0]],
+                             [[1.0, 0.0], [0.0, 1.0]]]),
+            converged=True, n_train_obs=100, loglikelihood=0.0,
+            dof=np.array([4.0, 3.0]))
+        variance = _state_variance(params)
+        assert np.allclose(variance, [5.0 * 2.0, 2.0 * 3.0])
+        assert _high_state(params) == 0
+
+    def test_an_empty_scored_series_has_no_duration(self) -> None:
+        assert _durations(np.array([])) == 0.0

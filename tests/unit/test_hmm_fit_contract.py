@@ -32,6 +32,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from tradebot.regime.markov import (
     HmmParameters,
     HmmSpec,
+    MarkovChain,
     deterministic_start,
     filtered_occupancy,
     fit_hmm,
@@ -218,3 +219,39 @@ class TestConfigIsTheSearchSpace:
     def test_a_single_state_is_refused(self) -> None:
         with pytest.raises(Exception, match="regimemodel"):
             M2HmmConfig(n_states_grid=(1, 2))
+
+
+class TestOneDimensionalInput:
+    """Een univariate reeks mag als (n,) binnenkomen; de fit maakt er (n, 1)
+    van. Dezelfde bars in beide vormen moeten bitidentieke parameters geven."""
+
+    def test_deterministic_start_accepts_a_flat_series(self) -> None:
+        flat = deterministic_start(_series()[:, 0], 2, "diag")
+        column = deterministic_start(_series(), 2, "diag")
+        for key in column:
+            assert np.array_equal(flat[key], column[key])
+
+    def test_fit_hmm_accepts_a_flat_series(self) -> None:
+        spec = HmmSpec(n_states=2)
+        flat = _fit(spec, _series()[:, 0])
+        column = _fit(spec, _series())
+        assert np.array_equal(flat.means, column.means)
+        assert np.array_equal(flat.covars, column.covars)
+
+
+class TestMarkovChain:
+    """M1: de transitiematrix op WAARGENOMEN toestanden."""
+
+    _STATES = np.array([0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0], dtype=np.float64)
+
+    def test_predict_next_is_the_row_of_the_current_state(self) -> None:
+        chain = MarkovChain.fit(self._STATES, n_states=2, train_end=10)
+        assert np.array_equal(chain.predict_next(1), chain.trans_mat[1])
+        assert chain.predict_next(0).sum() == pytest.approx(1.0)
+
+    def test_an_unknown_state_is_refused(self) -> None:
+        chain = MarkovChain.fit(self._STATES, n_states=2, train_end=10)
+        with pytest.raises(DataContractError, match="Onbekende toestand"):
+            chain.predict_next(2)
+        with pytest.raises(DataContractError, match="Onbekende toestand"):
+            chain.predict_next(-1)
