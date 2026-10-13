@@ -48,6 +48,13 @@ ADEQUACY = load_config(ROOT / "conf/model/adequacy.yaml", AdequacyConfig)
 RNG = np.random.default_rng(41)
 
 
+@pytest.fixture(autouse=True)
+def _fresh_rng(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Elke test begint met dezelfde, verse generator, zodat de data niet van
+    de testvolgorde afhangt (pytest-randomly schudt die per run)."""
+    monkeypatch.setattr(f"{__name__}.RNG", np.random.default_rng(41))
+
+
 def _same(compiled: np.ndarray, source: np.ndarray) -> None:
     np.testing.assert_allclose(compiled, source, rtol=1e-12, atol=1e-12,
                                equal_nan=True)

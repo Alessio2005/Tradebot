@@ -466,12 +466,24 @@ class StressTestSuite:
             std = np.sqrt(np.diag(cov))
             corr = cov / np.outer(std + 1e-12, std + 1e-12)
             np.fill_diagonal(corr, 1.0)
-            # Lift weak correlations toward the floor, preserve sign
+            # Elke correlatie onder de vloer gaat NAAR de vloer, zoals de
+            # docstring zegt. Hier stond `np.sign(corr) * floor`: het teken
+            # bleef behouden, dus een zwak negatief paar (-0.02) werd -0.95 --
+            # een bijna perfecte hedge, en de "stress" maakte de staart LICHTER.
+            # Drie paren op -0.95 zijn bovendien geen geldige correlatiematrix
+            # (eigenwaarde 1 - 2 * 0.95 < 0); numpy trok er toch uit.
             floor = float(tail_correlation)
-            mask = np.abs(corr) < floor
-            np.fill_diagonal(mask, False)
-            corr = np.where(mask, np.sign(corr) * floor, corr)
             corr = np.where(np.isfinite(corr), corr, 0.0)
+            mask = corr < floor
+            np.fill_diagonal(mask, False)
+            corr = np.where(mask, floor, corr)
+            require(
+                float(np.linalg.eigvalsh(corr).min()) >= -1e-10,
+                "De correlatiematrix na de tail-correlatievloer is niet "
+                "positief semidefiniet; er wordt niet uit een ongeldige "
+                "verdeling getrokken.",
+                ConfigContractError, tail_correlation=floor,
+            )
             cov = corr * np.outer(std, std)
 
         rng = np.random.default_rng(seed)
