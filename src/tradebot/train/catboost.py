@@ -409,9 +409,11 @@ class RegimeCatAgent:
                     train_pool, eval_set=eval_pool,
                     early_stopping_rounds=50, verbose=False, use_best_model=True,
                 )
-                _est = _FrozenEstimator(base_model) if _FrozenEstimator is not None else cast(Any, base_model)
+                # scikit-learn >= 1.8 kent `cv="prefit"` niet meer: een
+                # FrozenEstimator zegt zelf dat de schatter niet opnieuw wordt
+                # gefit en dat ALLE meegegeven data voor de kalibratie dient.
                 calibrator = CalibratedClassifierCV(
-                    estimator=_est, cv="prefit", method="sigmoid"
+                    estimator=_FrozenEstimator(base_model), method="sigmoid"
                 )
                 # Geen sample_weight: kalibratie moet de NATUURLIJKE klassen-
                 # distributie zien, niet de gebalanceerde trainingsgewichten.
@@ -539,8 +541,6 @@ class RegimeEnsembleCat:
                 # kreeg dan kolommen in een andere volgorde/schaal dan waarop het
                 # is getraind - de klassieke stille schema-drift.
                 aligned = ref_model._align_input_custom(arr, target_feats, tf)
-                if aligned is None or aligned.size == 0:
-                    return aligned
                 scaler = self.meta_scalers.get(tf) if self.meta_scalers else None
                 if scaler is not None and hasattr(scaler, "transform"):
                     aligned = scaler.transform(aligned)
