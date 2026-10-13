@@ -91,6 +91,22 @@ class SignalRunner:
         self._signal_history: dict[str, list[float]] = {}
         self._return_history: list[float] = []
 
+    def _combiner_for(self, signal_ids: list[str]) -> ICWeightedCombiner:
+        """De combiner voor precies deze set signalen; bij een nieuwe set opnieuw opgebouwd.
+
+        Een verse combiner weigert te voorspellen zolang hij niet is gefit, en
+        zonder IC-historie (de eerste events, of `predict_on_event`, dat nooit
+        een rendement ontvangt) viel de runner daardoor met een RuntimeError om.
+        Een fit op lege historie geeft de eigen terugval van de combiner: gelijke
+        gewichten. Daarna overschrijft `predict` ze zodra er IC-historie is. De
+        lookback hoort bij de combiner zelf; `fit` kent geen `lookback`-argument.
+        """
+        if self._combiner is None or self._combiner.signal_names != signal_ids:
+            combiner = ICWeightedCombiner(signal_names=signal_ids, lookback=self._cfg.ic_lookback)
+            combiner.fit(pd.DataFrame({sid: pd.Series(dtype=float) for sid in signal_ids}), pd.Series(dtype=float))
+            self._combiner = combiner
+        return self._combiner
+
     # ------------------------------------------------------------------
     # Per-bar predict
     # ------------------------------------------------------------------
@@ -188,8 +204,7 @@ class SignalRunner:
         # All signals agree on direction — safe to combine with ICWeightedCombiner.
         # Lazy-init combiner with discovered signal IDs
         signal_ids = [r.signal_id for r in raw_results]
-        if self._combiner is None or self._combiner.signal_names != signal_ids:
-            self._combiner = ICWeightedCombiner(signal_names=signal_ids)
+        self._combiner = self._combiner_for(signal_ids)
 
         # Build a one-row signals DataFrame for the combiner
         signal_values = {r.signal_id: r.signal for r in raw_results}
@@ -203,7 +218,6 @@ class SignalRunner:
                 self._combiner.fit(
                     hist_df.iloc[-self._cfg.ic_lookback:],
                     returns_s.iloc[-self._cfg.ic_lookback:],
-                    lookback=self._cfg.ic_lookback,
                 )
 
         # Accumulate history
@@ -304,8 +318,7 @@ class SignalRunner:
         # All signals agree on direction — safe to combine.
         # Same combiner path as predict()
         signal_ids = [r.signal_id for r in raw_results]
-        if self._combiner is None or self._combiner.signal_names != signal_ids:
-            self._combiner = ICWeightedCombiner(signal_names=signal_ids)
+        self._combiner = self._combiner_for(signal_ids)
 
         signal_values = {r.signal_id: r.signal for r in raw_results}
         signals_df = pd.DataFrame([signal_values])
