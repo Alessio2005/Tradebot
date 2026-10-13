@@ -197,7 +197,8 @@ class CSMomentum:
             prices_for_window = prices.values[:-lag]
         else:
             prices_for_window = prices.values
-        if len(prices_for_window) <= self.lookback_bars:
+        # De lengtecheck bovenaan laat na het afkappen altijd >= lookback_bars + 1 bars over.
+        if len(prices_for_window) <= self.lookback_bars:  # pragma: no cover
             return SignalResult(self.symbol, prices.index[-1], 0.0, 0.5, 21, self.signal_id)
         window_rets = np.array([
             np.log(prices_for_window[i] / prices_for_window[i - self.lookback_bars])
