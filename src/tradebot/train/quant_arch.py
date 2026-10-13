@@ -8,17 +8,18 @@ Contents:
     SymmetricQuantileScaler       — zero-crossing-aware quantile scaler
     _p2_update_njit               — Numba kernel (Jain & Chlamtac 1985)
     P2OnlineQuantile              — online P²-quantile estimator
-    dynamic_embargo_bars          — embargo = max(horizon) * safety_factor
+    dynamic_embargo_bars          — re-export of ``tradebot.cv.purge`` (R-3)
 """
 from __future__ import annotations
 
 import logging
-import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
 from numba import njit
+
+from ..cv.purge import dynamic_embargo_bars
 
 logger = logging.getLogger("train.quant_arch")
 
@@ -351,37 +352,13 @@ class P2OnlineQuantile:
 
 
 # =============================================================================
-# II.4 DYNAMIC EMBARGO  — Embargo = max(horizon) · safety_factor
+# II.4 DYNAMIC EMBARGO  — re-exported from tradebot.cv.purge, not re-implemented
 # =============================================================================
-def dynamic_embargo_bars(
-    horizons_bars: Sequence[int],
-    safety_factor: float = 1.2,
-    min_embargo: int = 1,
-) -> int:
-    """Compute the dynamic CPCV embargo (audit item II.4).
-
-    Standard purging covers overlap within one label horizon, but ignores that
-    multi-period returns give information overlap that still correlates *after*
-    the horizon (autocorrelation, vol-clustering). The recommended heuristic::
-
-        embargo = ceil(max(horizon_bars) · safety_factor)
-
-    With ``safety_factor = 1.2`` we add 20% extra buffer — wide enough for the
-    typical 5-bar autocorrelation tail of crypto returns.
-
-    Args:
-        horizons_bars: list of label horizons (in bars).
-        safety_factor: multiplier on max-horizon (≥ 1.0).
-        min_embargo:   lower bound (e.g. 1 bar for very short horizons).
-
-    Returns:
-        Embargo in bars (integer).
-    """
-    if not horizons_bars:
-        return int(min_embargo)
-    h_max = int(max(int(h) for h in horizons_bars))
-    embargo = math.ceil(h_max * float(max(safety_factor, 1.0)))
-    return max(int(min_embargo), embargo)
+# R-3: one implementation per statistical quantity. The copy that lived here
+# defaulted to the pre-audit calm-regime safety_factor=1.2 and silently clamped
+# factors < 1.0, so importing via ``tradebot.train`` gave a 2x shorter embargo
+# with no warning. ``dynamic_embargo_bars`` is imported above and kept in
+# ``__all__`` so existing ``tradebot.train`` imports resolve to the canonical one.
 
 
 __all__ = [

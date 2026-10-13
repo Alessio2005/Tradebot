@@ -8,7 +8,9 @@ Blueprint §2.4: "dynamic_embargo_bars bestaat tweemaal … typische import-grap
 
 Resolution: canonical implementation here.  Both quant_architect.py and
 train_regime.py should import from this module.  The stub in train_regime.py
-lines 70-78 is deleted in Wave 4.
+lines 70-78 is deleted in Wave 4.  ``tradebot.train.quant_arch`` re-exports
+this function; its own copy (calm-regime default 1.2, silent clamp below 1.0)
+was removed under R-3.
 
 CHIEF AUDIT-FIX (Sim-to-Reality #2):
   Default safety_factor was 1.2 — calibrated to "typical 5-bar autocorrelation
