@@ -321,10 +321,7 @@ class P2OnlineQuantile:
             if len(self._warmup_buf) >= 5:
                 first5 = np.vstack(self._warmup_buf[:5])
                 self._initialize(first5)
-                overflow = list(self._warmup_buf[5:])
                 self._warmup_buf = []
-                for extra in overflow:
-                    self.update(extra)
             return
 
         heights = self._heights
