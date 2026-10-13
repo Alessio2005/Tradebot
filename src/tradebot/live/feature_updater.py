@@ -302,7 +302,7 @@ class FeatureUpdater:
             features = self._compute_features(df, symbol=symbol)
             if features is not None and not features.empty:
                 return features.iloc[[-1]]
-            return None
+            return None  # pragma: no cover - zonder pipeline levert _compute_features altijd het buffer-frame (>= 2 rijen)
 
         # ── Return cached feature row with live close injected ───────────────
         cached = self._feature_cache.get(symbol)
