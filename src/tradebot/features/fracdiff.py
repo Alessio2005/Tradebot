@@ -133,7 +133,7 @@ def frac_diff_ffd(
     w_result = _ffd_weights(d, threshold, return_residual=True)
     if isinstance(w_result, tuple):
         w, _residual = w_result
-    else:
+    else:  # pragma: no cover - return_residual=True geeft altijd de tuple; alleen voor de typechecker
         w = w_result
     L = len(w)
     values = series.to_numpy(dtype=np.float64)
