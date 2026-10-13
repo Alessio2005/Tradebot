@@ -318,7 +318,7 @@ class FeatureEngineer:
                 np.abs(close_np2 - open_np) < 1e-9
             )
             df["feat_bar_is_degenerate"] = hlco_equal.astype(np.int8)
-        else:
+        else:  # pragma: no cover - _add_trend_features en de microstructuur eisen high, low en open al
             df["feat_bar_is_degenerate"] = np.zeros(len(df), dtype=np.int8)
 
         # Cleanup
