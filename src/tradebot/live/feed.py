@@ -421,22 +421,12 @@ class Feed:
         sub_args = [f"publicTrade.{sym.upper()}" for sym in self._cfg.symbols]
         sub_msg = json.dumps({"op": "subscribe", "args": sub_args})
 
-        _BASE_BACKOFF_S: float = 1.0
-        _MAX_BACKOFF_S: float  = 60.0
-        attempt: int = 0
-
         # In-progress bars per symbol.  Initialised on first trade.
         partial: dict[str, _PartialBar] = {}
 
         while self._running:
             async with websockets.connect(url, ping_interval=20) as ws:
                 await ws.send(sub_msg)  # Bybit subscribe handshake
-                if attempt > 0:
-                    logger.info(
-                        "Feed: WS reconnected after %d attempt(s).", attempt
-                    )
-                attempt = 0
-
                 async for message in ws:
                     if not self._running:
                         return
@@ -578,9 +568,6 @@ class Feed:
         sub_msg = json.dumps({"op": "subscribe", "args": sub_args})
         logger.info("Feed: connecting to Bybit orderbook.1 WS %s", url)
 
-        _BASE_BACKOFF_S: float = 1.0
-        _MAX_BACKOFF_S: float  = 60.0
-
         while self._running:
             async with websockets.connect(url, ping_interval=20) as ws:
                 await ws.send(sub_msg)
@@ -706,19 +693,9 @@ class Feed:
             sub_args,
         )
 
-        _BASE_BACKOFF_S: float = 1.0
-        _MAX_BACKOFF_S: float  = 60.0
-        attempt: int = 0
-
         while self._running:
             async with websockets.connect(url, ping_interval=20) as ws:
                 await ws.send(sub_msg)
-                if attempt > 0:
-                    logger.info(
-                        "Feed: WS reconnected after %d attempt(s).", attempt
-                    )
-                attempt = 0
-
                 async for message in ws:
                     if not self._running:
                         return
