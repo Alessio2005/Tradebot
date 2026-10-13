@@ -168,7 +168,8 @@ def deflated_sharpe_ratio_p(
     e_max_sr = sigma_sr * (EULER_MASCHERONI + math.sqrt(2.0 * math.log(float(n_eff))))
     # Sharpe SE: var(SR) ≈ (1 + 0.5*SR²) / T for iid returns
     sr_se = math.sqrt((1.0 + 0.5 * sr_obs**2) / max(n_obs, 2))
-    if sr_se <= 0.0:
+    # sr_se >= sqrt(1 / n_obs) > 0: de teller is minstens 1.
+    if sr_se <= 0.0:  # pragma: no cover
         return 0.0
     z = (sr_obs - e_max_sr) / sr_se
     return float(_stats.norm.cdf(z))
@@ -201,7 +202,8 @@ def _empirical_cvar(
         return 0.0
     var_q = float(np.quantile(losses, 1.0 - alpha))
     tail = losses[losses >= var_q]
-    if tail.size == 0:
+    # var_q ligt nooit boven het maximum van `losses`, dus de staart bevat dat maximum.
+    if tail.size == 0:  # pragma: no cover
         return float(var_q)
     return float(tail.mean())
 
