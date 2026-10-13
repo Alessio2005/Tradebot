@@ -195,7 +195,7 @@ def numba_runs_bars(
                 buy_residual = cum_buy_vol - cur_threshold
                 if cum_buy_vol > 1e-12:
                     tick_residual = cum_tick_vol * (buy_residual / cum_buy_vol)
-                else:
+                else:  # pragma: no cover - cum >= cur_threshold > 1e-9 here
                     tick_residual = 0.0
                 cum_buy_vol  = buy_residual if buy_residual > 0.0 else 0.0
                 cum_tick_vol = tick_residual if tick_residual > 0.0 else 0.0
@@ -204,7 +204,7 @@ def numba_runs_bars(
                 sell_residual = cum_sell_vol - cur_threshold
                 if cum_sell_vol > 1e-12:
                     tick_residual = cum_tick_vol * (sell_residual / cum_sell_vol)
-                else:
+                else:  # pragma: no cover - cum >= cur_threshold > 1e-9 here
                     tick_residual = 0.0
                 cum_sell_vol = sell_residual if sell_residual > 0.0 else 0.0
                 cum_tick_vol = tick_residual if tick_residual > 0.0 else 0.0
