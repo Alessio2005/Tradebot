@@ -172,11 +172,14 @@ def compute_clustered_feature_importance(
     )
 
     # ── 4. Baseline score per regime (weighted, AUDIT C-1) ────────────────────
-    _metric = scoring_metric  # may be updated to 'accuracy' if model has no proba
+    # Een model zonder predict_proba kan alleen op accuracy scoren. De metriek
+    # wordt daarom VOORAF vastgelegd: de tekenregel voor de impact hieronder
+    # (log_loss: hoger = slechter, accuracy: lager = slechter) volgt de metriek
+    # waarmee echt is gescoord, niet de gevraagde.
+    _metric = scoring_metric if hasattr(model, "predict_proba") else "accuracy"
 
     def _score(y_true: np.ndarray, X_in: np.ndarray, w: np.ndarray | None) -> float:
-        """Compute regime score; falls back to accuracy if log_loss fails."""
-        nonlocal _metric
+        """Regime score in the metric fixed above; a failing log_loss is an error."""
         if hasattr(model, "predict_proba"):
             proba = model.predict_proba(X_in)
             if _metric == "log_loss":
