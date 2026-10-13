@@ -234,8 +234,6 @@ class PathSpecificPlattCalibrator:
         self._params = {}
         for path in unique_paths:
             mask = p_ids == path
-            if not mask.any():
-                continue
             f_p = f[mask]
             y_p = y[mask]
             sig_p = sigma[mask]
