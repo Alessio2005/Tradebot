@@ -573,7 +573,9 @@ class RegimeRouter:
             r = int(regime_ids[k])
             if 0 <= r < 3:
                 oh[k, r] = 1.0
-        if smoothing_bars <= 1:
+        # n == 0: een leeg macro-frame (te weinig geschiedenis voor een enkele macro-bar)
+        # liet `out[0] = oh[0]` hieronder met een IndexError crashen.
+        if smoothing_bars <= 1 or n == 0:
             return oh
         alpha = 2.0 / (float(smoothing_bars) + 1.0)
         out = np.zeros_like(oh)
@@ -888,8 +890,6 @@ class FeaturePipeline:
 
         if "feat_macro_tradfi_minutes_stale" not in cols_macro_final:
             cols_macro_final.append("feat_macro_tradfi_minutes_stale")
-        if "feat_macro_tradfi_stale" in cols_macro_final:
-            cols_macro_final.remove("feat_macro_tradfi_stale")
 
         # CHIEF AUDIT 2026-05-23 (P-9): expose a warmup indicator BEFORE the
         # blanket fillna(0.0).  Without this marker the model cannot tell a
