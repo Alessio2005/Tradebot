@@ -565,8 +565,6 @@ class ContextualBanditEnsemble:
             except RuntimeError:
                 # Shape-mismatch — laat de agent het zelf afhandelen (oud pad).
                 return raw
-            if aligned is None or aligned.size == 0:
-                return aligned
             scaler = self.meta_scalers.get(timeframe) if self.meta_scalers else None
             if scaler is not None and hasattr(scaler, "transform"):
                 aligned = scaler.transform(aligned)
@@ -621,7 +619,7 @@ class ContextualBanditEnsemble:
                         context_raw = aligned_macro.flatten()
                 # PCA-BANDIT-FIX (Item 4): orthogonaliseer raw macro-context.
                 context = self._orth_macro(context_raw)
-            else:
+            else:  # pragma: no cover - x_macro en target_macro zijn niet leeg, dus de uitlijning levert nooit een lege matrix
                 context = np.array([])
         elif x_macro is not None and self.context_dim > 0:
             # Legacy ensembles trained without meta_feature_map (e.g. train_cpcv.py)
@@ -848,7 +846,7 @@ class ContextualBanditEnsemble:
         self.y[arm_index] = self.gamma * self.y[arm_index] + reward * x_vec.flatten()
 
         A_inv = self.B_inv[arm_index] / self.gamma
-        denom = 1.0 + float(x_vec.T @ A_inv @ x_vec)
+        denom = 1.0 + float((x_vec.T @ A_inv @ x_vec).item())
         # Bescherm tegen near-singular SM update (denom → 0 ⇒ B_inv explodeert).
         if abs(denom) < 1e-12:
             denom = 1e-12 if denom >= 0 else -1e-12
@@ -1007,8 +1005,6 @@ class ContextualBanditEnsemble:
             )
             _is_long_ens = self.models[0].min_conf_long < 1.0 if self.models else True
         decay = float(np.clip(self.proxy_decay, 0.0, 1.0))
-        if decay <= 0.0:
-            return
 
         # Zorg dat de tracking-buffer dezelfde dim heeft als de huidige y.
         if (
@@ -1107,7 +1103,7 @@ class ContextualBanditEnsemble:
         self.y[arm_index] = self.gamma * self.y[arm_index] + (w * reward) * x_vec.flatten()
 
         A_inv = self.B_inv[arm_index] / self.gamma
-        denom = 1.0 + float(xw.T @ A_inv @ xw)
+        denom = 1.0 + float((xw.T @ A_inv @ xw).item())
         if abs(denom) < 1e-12:
             denom = 1e-12 if denom >= 0 else -1e-12
         num = A_inv @ xw @ xw.T @ A_inv
