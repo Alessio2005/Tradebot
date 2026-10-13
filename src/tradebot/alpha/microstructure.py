@@ -1,8 +1,8 @@
 # src/tradebot/alpha/microstructure.py
 """Order-flow imbalance alpha signal (Cont, Kukanov & Stoikov, 2014).
 
-Wraps the ``features.microstructure`` functions to produce a normalised
-AlphaSignal-compatible OFI signal.
+Computes a normalised AlphaSignal-compatible OFI signal from the taker buy and
+sell volumes of the bar frame.
 """
 from __future__ import annotations
 
