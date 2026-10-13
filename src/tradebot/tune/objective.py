@@ -493,9 +493,11 @@ def optuna_objective_binary(
                 and np.unique(y_platt).size >= 2
             )
             if platt_feasible:
-                _est = _FrozenEstimator(model) if _FrozenEstimator is not None else cast(Any, model)
+                # scikit-learn >= 1.8 kent `cv="prefit"` niet meer: een
+                # FrozenEstimator zegt zelf dat de schatter niet opnieuw wordt
+                # gefit en dat ALLE meegegeven data voor de kalibratie dient.
                 _calibrator = CalibratedClassifierCV(
-                    estimator=_est, cv="prefit", method="sigmoid"
+                    estimator=_FrozenEstimator(model), method="sigmoid"
                 )
                 _calibrator.fit(X_platt_final, y_platt)
                 _eval_model = _calibrator
@@ -912,47 +914,38 @@ def optuna_objective_binary(
 class TunableObjective:
     """Callable Optuna objective wrapping ``optuna_objective_binary``.
 
-    Constructs a partial application that fixes the heavy configuration
-    (cfg, feature data, label stores) and returns a trial-scoped callable
-    for Optuna's ``study.optimize()``.
+    Fixes everything except the trial (config, feature blocks, label store,
+    timestamps, CV splitter, side), so the instance can be handed straight to
+    Optuna's ``study.optimize()``. Optional arguments of the objective (spread,
+    per-fold orthogonalisers, ...) go in as keyword arguments.
+
+    The adapter used to forward ``sym``/``side``/``df_merged``/``feat_map``/
+    ``horizon_keys``, none of which the objective accepts, so every call died
+    with a TypeError.
 
     Usage
     -----
-    obj = TunableObjective(cfg=cfg, sym=sym, side=side,
-                           df_merged=df, feat_map=feat_map,
-                           target_store=targets, horizon_keys=h_keys)
+    obj = TunableObjective(cfg, X1, X4, Xd, target_store, timestamps, cv, "LONG",
+                           spread=0.0010)
     study.optimize(obj, n_trials=cfg.tune.n_trials)
     """
 
     def __init__(
         self,
-        cfg: Any,
-        sym: str,
-        side: str,
-        df_merged: Any,
-        feat_map: Any,
-        target_store: Any,
-        horizon_keys: Any,
+        cfg: DictConfig,
+        X1: np.ndarray,
+        X4: np.ndarray,
+        Xd: np.ndarray,
+        target_store: dict[int, Any],
+        timestamps: pd.Series,
+        cv: CombinatorialPurgedCV,
+        side_name: str,
         **kwargs: Any,
     ) -> None:
-        self._cfg = cfg
-        self._sym = sym
-        self._side = side
-        self._df_merged = df_merged
-        self._feat_map = feat_map
-        self._target_store = target_store
-        self._horizon_keys = horizon_keys
-        self._kwargs = kwargs
-
-    def __call__(self, trial: Any) -> float:
-        return optuna_objective_binary(
-            trial=trial,
-            cfg=self._cfg,
-            sym=self._sym,
-            side=self._side,
-            df_merged=self._df_merged,
-            feat_map=self._feat_map,
-            target_store=self._target_store,
-            horizon_keys=self._horizon_keys,
-            **self._kwargs,
+        self._fixed: dict[str, Any] = dict(
+            cfg=cfg, X1=X1, X4=X4, Xd=Xd, target_store=target_store,
+            timestamps=timestamps, cv=cv, side_name=side_name, **kwargs,
         )
+
+    def __call__(self, trial: optuna.Trial) -> float:
+        return optuna_objective_binary(trial, **self._fixed)
