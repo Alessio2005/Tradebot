@@ -65,6 +65,13 @@ FROZEN = TrialCount(value=4, source="frozen", origin="test",
 RNG = np.random.default_rng(31)
 
 
+@pytest.fixture(autouse=True)
+def _fresh_rng(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Elke test begint met dezelfde, verse generator, zodat de data niet van
+    de testvolgorde afhangt (pytest-randomly schudt die per run)."""
+    monkeypatch.setattr(f"{__name__}.RNG", np.random.default_rng(31))
+
+
 def _returns(n: int = 300, mu: float = 0.002) -> np.ndarray:
     return RNG.normal(mu, 0.02, n)
 
