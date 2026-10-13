@@ -99,3 +99,16 @@ class TestReleaseHalt:
                                              halt_store_path=store_path)
         assert record.reason and not HaltStore(store_path).is_halted()
         assert _breaker(tmp_path, _state()).check(NOW) is None           # nu wel
+
+
+class TestOtherConditions:
+    def test_a_daily_loss_beyond_the_limit_halts(self, tmp_path: Path) -> None:
+        state = _state()
+        breaker = _breaker(tmp_path, state)
+        state.daily_pnl = -state.daily_pnl_open * (RISK.daily_loss_limit + 0.01)
+        assert breaker.check(NOW) == HaltReason.DAILY_LOSS
+
+    def test_a_feature_hash_that_differs_from_the_expected_one_halts(self, tmp_path: Path) -> None:
+        breaker = _breaker(tmp_path, _state())
+        assert breaker.check(NOW, feature_hash="abc", expected_hash="abc") is None
+        assert breaker.check(NOW, feature_hash="abc", expected_hash="xyz") == HaltReason.HASH_MISMATCH
