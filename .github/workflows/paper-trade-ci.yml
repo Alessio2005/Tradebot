@@ -80,8 +80,11 @@ jobs:
       - name: Run paper-trade smoke (24 h)
         run: |
           mkdir -p "${TRADEBOT_LIVE_STATE_DIR}"
+          # Geen `--timeout`: pytest-timeout staat niet in de lockfiles en pytest
+          # stopte daarop met exit 4 (onbekend argument) voordat er een test
+          # draaide. De grens is `timeout-minutes` van deze job.
           pytest -m e2e tests/e2e/test_paper_trade_smoke.py -q --tb=short \
-            --timeout=3600 -o log_cli=true -o log_cli_level=INFO
+            -o log_cli=true -o log_cli_level=INFO
 
       - name: Verify circuit-breaker not triggered
         run: |

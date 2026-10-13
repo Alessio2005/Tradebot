@@ -110,6 +110,7 @@ markers = [
     "property:   property-based invariant tests (parameterised)",
     "lookahead:  lookahead / causality guard tests",
     "benchmark:  performance benchmark tests",
+    "e2e:        paper-trade smoke runs of the live engine on synthetic bars",
     "integration: end-to-end pipeline smoke tests",
     "killgate:   pre-registered go/no-go gates for a unit or setup",
 ]

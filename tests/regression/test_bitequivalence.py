@@ -1,13 +1,16 @@
 """tests/regression/test_bitequivalence.py — Bit-equivalence regression tests.
 
 These tests compare current output against frozen baselines stored in
-tests/regression/baselines/.  They fail LOUDLY when a non-intentional
-algorithm change is made.
+tests/regression/baselines/ (committed to git; `.gitignore` re-includes them).
+They fail LOUDLY when a non-intentional algorithm change is made, and just as
+loudly when a baseline is missing: a measuring stick that is not there is a
+red test, not a silent skip (DI-25).
 
 To regenerate baselines after an intentional change:
-    python apps/regenerate_baseline.py
+    python -m tests.regression.regenerate_baselines
 
-Marked @pytest.mark.regression — run in nightly CI only.
+Marked @pytest.mark.regression — excluded from the fast run, executed by the
+slow job in ci.yml and by the nightly workflow.
 """
 from __future__ import annotations
 
@@ -16,44 +19,42 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from tests.regression._current import (
+    GK_BASELINE,
+    SB_BASELINE,
+    current_gk_volatility,
+    current_sequential_bootstrap,
+)
+
 _BASELINES = Path(__file__).parent / "baselines"
+
+
+def _load(name: str) -> np.ndarray:
+    path = _BASELINES / name
+    assert path.is_file(), (
+        f"Frozen baseline {name} is missing from {_BASELINES}. "
+        "Regenerate it with `python -m tests.regression.regenerate_baselines` "
+        "and commit it; the bit-equivalence test has nothing to measure against."
+    )
+    return np.load(path)
 
 
 @pytest.mark.regression
 def test_gk_volatility_bitequivalence() -> None:
     """GK volatility must match the frozen baseline within 1e-9."""
-    baseline_path = _BASELINES / "gk_volatility.npy"
-    if not baseline_path.exists():
-        pytest.skip("Baseline not generated yet — run apps/regenerate_baseline.py first.")
-
-    import pandas as pd
-
-    from tradebot.volatility import get_garman_klass_volatility
-
-    rng = np.random.default_rng(42)
-    n = 500
-    close = 30_000 * np.cumprod(1 + rng.normal(0, 0.01, n))
-    df = pd.DataFrame({
-        "open": close, "high": close * 1.002, "low": close * 0.998, "close": close
-    })
-    current = get_garman_klass_volatility(df, window=14).values
-    baseline = np.load(baseline_path)
-    np.testing.assert_allclose(current, baseline, atol=1e-9, equal_nan=True)
+    np.testing.assert_allclose(
+        current_gk_volatility(), _load(GK_BASELINE), atol=1e-9, equal_nan=True)
 
 
 @pytest.mark.regression
 def test_sequential_bootstrap_bitequivalence() -> None:
     """Sequential bootstrap must produce identical indices to baseline."""
-    baseline_path = _BASELINES / "sequential_bootstrap_indices.npy"
-    if not baseline_path.exists():
-        pytest.skip("Baseline not generated yet — run apps/regenerate_baseline.py first.")
+    np.testing.assert_array_equal(current_sequential_bootstrap(), _load(SB_BASELINE))
 
-    from tradebot.cv import get_sequential_bootstrap_indices
 
-    rng = np.random.default_rng(42)
-    t0 = np.arange(400, dtype=np.int64)
-    t1 = t0 + rng.integers(5, 20, size=400).astype(np.int64)
-    t1 = np.minimum(t1, 499)
-    current = get_sequential_bootstrap_indices(t0, t1, n_draws=400, seed=42)
-    baseline = np.load(baseline_path)
-    np.testing.assert_array_equal(current, baseline)
+@pytest.mark.regression
+def test_a_missing_baseline_is_a_failure_not_a_skip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The check can go red: with no baseline on disk the loader refuses to continue."""
+    monkeypatch.setattr(f"{__name__}._BASELINES", tmp_path)
+    with pytest.raises(AssertionError, match="is missing"):
+        _load(GK_BASELINE)
