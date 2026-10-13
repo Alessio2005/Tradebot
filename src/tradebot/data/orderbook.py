@@ -128,9 +128,14 @@ def rolling_book_features(
             "spread_bps":      spread_bps,
         })
 
-    df = pd.DataFrame(records).set_index("timestamp")
+    df = pd.DataFrame(
+        records, columns=["timestamp", "obi_raw", "depth_mid_price", "spread_bps"],
+    ).set_index("timestamp")
     if df.empty:
-        return df
+        return pd.DataFrame(
+            columns=["depth_mid_price", "spread_bps", "book_imbalance", "obi_momentum"],
+            index=df.index, dtype=np.float64,
+        )
 
     # CHIEF AUDIT 2026-05-23 (FIX 8 / partial-window leak):
     # ``min_periods=1`` makes the first ``window-1`` rolling values reflect
