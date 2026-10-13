@@ -181,19 +181,6 @@ class TrendScanningLabeler:
             "For offline research only, call _label_exploration_only_unsafe() "
             "to acknowledge the bias explicitly."
         )
-        if df.empty or "close" not in df.columns:
-            return pd.DataFrame(
-                {"label": [], "tstat": [], "best_span": []},
-                index=df.index,
-            )
-        close_arr = df["close"].values.astype(np.float64)
-        labels_arr, tstat_arr, span_arr = _trend_scan_core(
-            close_arr, int(self.t_min), int(self.t_max), float(self.min_tstat)
-        )
-        return pd.DataFrame(
-            {"label": labels_arr, "tstat": tstat_arr, "best_span": span_arr},
-            index=df.index,
-        )
 
     def _label_exploration_only_unsafe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Research-only escape hatch for label_exploration_only().
@@ -205,7 +192,7 @@ class TrendScanningLabeler:
         if df.empty or "close" not in df.columns:
             return pd.DataFrame(
                 {"label": [], "tstat": [], "best_span": []},
-                index=df.index,
+                index=df.index[:0],
             )
         close_arr = df["close"].values.astype(np.float64)
         labels_arr, tstat_arr, span_arr = _trend_scan_core(
