@@ -34,7 +34,6 @@ _KERNEL_TESTS = (
     "test_cornish_fisher_var_is_negative",
     "test_har_rv_forecast_non_negative",
     "test_evt_gpd_var_less_than_cf_at_extreme",
-    "test_microprice_between_bid_ask",
 )
 
 

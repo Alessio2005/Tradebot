@@ -290,10 +290,6 @@ class FeatureOrthogonalizer:
         X_calib_valid = X_calib_valid[:, dedup_mask]
 
         # ── Stap 2: StandardScaler (fit op kalibratie-subset) ─────────
-        if StandardScaler is None:  # pragma: no cover
-            self._is_fitted = True
-            self._output_names = list(feature_names)
-            return X.astype(np.float32), list(feature_names)
         scaler = StandardScaler()
         scaler.fit(X_calib_valid)
         X_scaled       = scaler.transform(X_valid)
@@ -307,10 +303,6 @@ class FeatureOrthogonalizer:
         # vooraf exact te weten zonder te fitten. Als de drempel te weinig
         # componenten geeft (<min_components), is één extra fit onvermijdelijk.
         # In de normale situatie (voldoende variance) volstaat één fit.
-        if PCA is None:  # pragma: no cover
-            self._is_fitted = True
-            self._output_names = list(feature_names)
-            return X.astype(np.float32), list(feature_names)
         n_comp_request = min(
             max(self.min_components, 1),
             X_calib_valid.shape[1],
@@ -439,10 +431,6 @@ class FeatureOrthogonalizer:
         X_all_valid   = X_all_valid[:, dedup_mask]
 
         # Stap 2: StandardScaler gefit op train-subset
-        if StandardScaler is None or PCA is None:  # pragma: no cover
-            self._is_fitted = True
-            self._output_names = list(feature_names)
-            return X.astype(np.float32), list(feature_names)
         scaler = StandardScaler()
         scaler.fit(X_train_valid)
         X_train_scaled = scaler.transform(X_train_valid)

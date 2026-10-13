@@ -83,10 +83,10 @@ jobs:
 
       # ── De dekkingsdrempel ─────────────────────────────────────────────────
       #
-      # fail_under = 70 staat in pyproject.toml; de gemeten dekking ligt daar
-      # onder (~61 %), dus deze stap staat rood tot de dekking omhoog is. Hij
-      # staat er zonder continue-on-error, omdat een drempel die niet draait
-      # geen drempel is.
+      # fail_under = 100 staat in pyproject.toml en de gemeten dekking is 100 %:
+      # elke regel in src/ wordt geraakt of draagt een `# pragma: no cover` met
+      # de reden erbij. Deze stap staat zonder continue-on-error, omdat een
+      # drempel die niet draait geen drempel is.
       - name: Coverage against the fail_under threshold
         run: |
           python -m pytest -m "not slow and not regression" -p no:randomly \

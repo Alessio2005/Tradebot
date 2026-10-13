@@ -215,7 +215,7 @@ omit = ["*/tests/*", "*/__pycache__/*", "*/migrations/*"]
 data_file = ".pytest_cache/.coverage"
 
 [tool.coverage.report]
-fail_under = 70
+fail_under = 100
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
