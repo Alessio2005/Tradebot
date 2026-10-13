@@ -391,8 +391,10 @@ class LiveEngine:
                     "Tripping circuit breaker.",
                     symbol, event.seq, last_seq + 1, gap,
                 )
-                self._cb._trip(
-                    f"feed_gap:{symbol}:seq={event.seq}", now
+                self._cb.trip(
+                    f"feed_gap:{symbol}:seq={event.seq}",
+                    measured=float(gap), threshold=0.0,
+                    config_key="live.feed_gap", ts=now,
                 )
                 return
             self._last_bar_seq[symbol] = event.seq
@@ -583,8 +585,9 @@ class LiveEngine:
                         "Propfirm governor %s — tripping CB: %s",
                         gd.action.value, gd.reason,
                     )
-                    self._cb._trip(
-                        f"propfirm_governor:{gd.action.value}:{gd.reason}", ts=now,
+                    self._cb.trip(
+                        f"propfirm_governor:{gd.action.value}:{gd.reason}",
+                        config_key="live.propfirm_governor", ts=now,
                     )
                 elif gd.action == GovernorAction.SOFT_STOP:
                     gov_soft = True
