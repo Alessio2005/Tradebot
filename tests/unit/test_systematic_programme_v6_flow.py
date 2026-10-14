@@ -576,7 +576,7 @@ def test_a_liquidation_in_the_holdout_falsifies_through_its_frozen_gate(
     assert out["verdict"] == "promote_to_paper_trading"
 
     squeezed = frozen("squeezed", name="K3_CARRY_PM_2X", keep=("holdout_liquidated",),
-                      world=synthetic_world(spike=(190, 2.0)))
+                      world=synthetic_world(spike=(HOLDOUT[0] + 15, 2.0)))
     out = v6.read_oos(squeezed.root, log=quiet)
     assert out["reads"]["holdout"]["n_liquidations"] == 1
     assert out["reads"]["backcast"]["n_liquidations"] == 0

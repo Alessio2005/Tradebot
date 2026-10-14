@@ -388,13 +388,14 @@ class TestSmallHelpers:
 
     def test_every_k_keeps_the_first_decision_and_then_each_kth_decision_only(self) -> None:
         idx = pd.date_range("2021-01-01", periods=8, freq="D", tz="UTC")
-        decisions = [False, True, True, False, True, True, True, True]  # eerste besluit op bar 1
+        decisions = [False, True, True, False, True, True, True, True]  # zes besluiten, het eerste op bar 1
         t = SleeveTargets(name="T", weights=pd.DataFrame({"A": np.arange(8.0)}, index=idx),
                           rebalance=pd.Series(decisions, index=idx))
         thinned = programme._every(t, 3)
-        assert thinned.rebalance.tolist() == [False, True, False, False, True, False, False, True]
+        # Besluit 0 en besluit 3 (bar 1 en bar 5): geteld over besluiten, niet over kalenderbars.
+        assert thinned.rebalance.tolist() == [False, True, False, False, False, True, False, False]
         assert thinned.weights["A"].notna().tolist() == thinned.rebalance.tolist()
-        assert thinned.weights["A"][thinned.rebalance].tolist() == [1.0, 4.0, 7.0]
+        assert thinned.weights["A"][thinned.rebalance].tolist() == [1.0, 5.0]
         assert thinned.name == "T"
 
 

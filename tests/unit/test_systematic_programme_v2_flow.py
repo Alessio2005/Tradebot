@@ -66,7 +66,7 @@ def make_panels(symbols: tuple[str, ...] = SYMBOLS, n_bars: int = N_BARS,
     if "DOGEUSDT" in close:
         close.loc[close.index[:30], "DOGEUSDT"] = np.nan        # late notering
     if "LTCUSDT" in close:
-        close.loc[close.index[150:], "LTCUSDT"] = np.nan        # delisting binnen W_DEV
+        close.loc[close.index[152:], "LTCUSDT"] = np.nan        # delisting binnen W_DEV
     spread = np.abs(rng.normal(0.0, 0.01, size=close.shape)) * close
     quote_volume = pd.DataFrame(np.exp(rng.normal(17.0, 0.6, size=close.shape)), index=idx,
                                 columns=close.columns)

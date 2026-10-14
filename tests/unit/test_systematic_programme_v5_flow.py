@@ -50,14 +50,16 @@ GIT_SHA = "abc1234"
 SEED_TOTAL = 18
 
 # --------------------------------------------------------------------------- #
-# De wereld: 6 munten, 260 dagbars vanaf 2021-01-01. De bevroren panelen hebben de eerste
-# 220 bars (tot en met het einde van de holdout), de vooruit-panelen alle 260.
+# De wereld: 6 munten, 205 dagbars vanaf 2021-01-01. De bevroren panelen hebben de eerste
+# 164 bars (tot en met het einde van de holdout), de vooruit-panelen alle 205. Het universum
+# vraagt 30 bars opwarming; elk venster heeft de 30 waarnemingen die een Sharpe-standaardfout
+# minimaal vraagt, zodat een run in seconden loopt.
 # --------------------------------------------------------------------------- #
 SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT", "XRPUSDT", "DOGEUSDT")
 T0 = pd.Timestamp("2021-01-01", tz="UTC")
-N_BASE, N_WORLD = 220, 260
-BACKCAST, TRAIN, VALIDATE, HOLDOUT = (35, 64), (65, 134), (135, 174), (175, 219)
-FORWARD_START = 226
+N_BASE, N_WORLD = 164, 205
+BACKCAST, TRAIN, VALIDATE, HOLDOUT = (32, 61), (62, 95), (96, 127), (128, 163)
+FORWARD_START = 170
 PANEL_BASE = "data/binance_vision"
 FORWARD_BASE = "data/binance_vision/forward"
 PANEL_SETS = {"panels": ("close", "high", "low", "quote_volume", "funding"),
@@ -391,7 +393,7 @@ def test_load_market_cuts_at_the_end_and_top_n_overrides_the_universe(tmp_path: 
 def test_liquidations_are_read_from_the_basis_account_of_every_combination(tmp_path: Path) -> None:
     """Een squeeze op één dag boven de futureswallet: precies één liquidatie, in elke vorm van
     de audit (los basisboek, of de subrekeningen van de combinatie met trend)."""
-    root = write_root(tmp_path, "v5", world=synthetic_world(spike=(100, 3.0)))
+    root = write_root(tmp_path, "v5", world=synthetic_world(spike=(TRAIN[0] + 20, 3.0)))
     cfg = v5_cfg(root)
     market, costs = v5.load_market(root, cfg), v5.costs_for(root, cfg)
     alone = v5.simulate("H1_BASIS", market, cfg, costs)
@@ -541,8 +543,13 @@ def test_every_w_dev_record_carries_its_provenance_gates_and_battery(chain: Simp
         assert metrics["net_sharpe_train"] == rec["train"]["sharpe"]
         assert metrics["pbo"] == rec["pbo"]["pbo"]
         assert metrics["dsr_w_dev"] == rec["dsr"][f"m_{m_prog}"]["dsr"]
-        ratio = bat["costs"]["x2"] / rec["w_dev"]["sharpe"]
-        assert metrics["sharpe_ratio_2x_cost_over_base"] == pytest.approx(ratio)
+        if rec["w_dev"]["sharpe"] > 0:
+            ratio = bat["costs"]["x2"] / rec["w_dev"]["sharpe"]
+            assert metrics["sharpe_ratio_2x_cost_over_base"] == pytest.approx(ratio)
+        else:     # zonder positieve Sharpe is de kostenverhouding ongedefinieerd, en dat bindt
+            assert math.isnan(metrics["sharpe_ratio_2x_cost_over_base"])
+            assert rec["gates"]["g5_cost_fragile"]["binds"] is True
+            assert rec["n_binding_w_dev"] >= 1
         assert 0.0 <= rec["robustness_score"]["total"] <= 100.0
 
 
