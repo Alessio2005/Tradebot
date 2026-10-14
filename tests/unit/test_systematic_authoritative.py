@@ -149,6 +149,37 @@ class TestTheRun:
         assert out["impact_status"] == "IMPACT_UNCALIBRATED"
         assert out["audit"]["risk_policy_hash"] == out["risk_policy_hash"]
 
+    def test_the_audit_counts_the_bars_from_the_first_tradable_bar_and_shows_that_costs_were_paid(
+        self, run: SimpleNamespace,
+    ) -> None:
+        cfg = programme.robust_book_config(run.root / "conf/model/robust_book.yaml")
+        live = run.market.live(cfg.sizing.min_history_bars)
+        first = live.any(axis=1).idxmax()
+        audit = run.out["audit"]
+        assert audit["n_bars"] == int((run.market.index >= first).sum())
+        assert audit["n_orders"] > 0 and audit["n_fills"] > 0
+        assert audit["total_fees"] > 0.0 and audit["final_equity"] > 0.0
+
+    def test_the_engine_gets_the_fees_of_the_repository_one_bar_of_latency_and_the_assumed_spread(
+        self, run: SimpleNamespace, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        seen: list[tuple[Any, ...]] = []
+        real = authoritative.build_engine
+
+        def spy(*args: Any, **kwargs: Any) -> Any:
+            seen.append((*args, kwargs))
+            return real(*args, **kwargs)
+        monkeypatch.setattr(authoritative, "build_engine", spy)
+        monkeypatch.setattr(authoritative, "load_market", lambda root, cfg: run.market)
+        root = tmp_path / "root"
+        shutil.copytree(run.root, root)
+        authoritative.run_authoritative(root)
+        (_risk, _impact, venue, spread, kwargs), = seen
+        assert (venue.maker_fee_bps, venue.taker_fee_bps) == (2.0, 6.0)      # FEES van de wegwerpmap
+        assert venue.latency_bars == 1                                      # het besluit op t vult op t+1
+        assert spread.half_spread_bps == 2.5 and spread.source == "conf/execution/fees.yaml"
+        assert kwargs == {"initial_equity": 100000.0}                       # conf/backtest/default.yaml
+
     def test_the_result_is_written_next_to_the_gate_record_and_is_what_was_returned(
         self, run: SimpleNamespace,
     ) -> None:
