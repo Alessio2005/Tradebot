@@ -391,6 +391,15 @@ def fit_student_t_hmm(
         # in de factor verschilden; 200 EM-iteraties droegen de 1-ULP-kiem tot
         # daar. Op het contigue blok is de invoer precies de array zelf, en
         # dan kiest numpy altijd dezelfde kernel.
+        #
+        # Dit is DI-31, en de eerdere toeschrijving aan multithreaded OpenBLAS
+        # in de M-stap klopt niet. Met de oude regel en OpenBLAS op één thread
+        # drijft de fit nog steeds (8 van 20 herfits na een heapverstoring,
+        # gemeten 2026-10-14), en in een verse Python-3.13-omgeving uit de
+        # lockfiles bouwt numpy 1.26.4 uit de sdist zonder BLAS: `@` raakt
+        # OpenBLAS daar niet eens. De grens is scherp: `nomemoverlap` telt
+        # AANSLUITENDE bereiken als overlap, dus bij een oneven `n` (de
+        # trainvensters zijn 395, 495, ... bars) valt ook kolom 1 al terug.
         log_u = np.log(u)
         weight = gamma * u
         new_means = (weight.T @ observations) / weight.sum(axis=0)[:, None]
