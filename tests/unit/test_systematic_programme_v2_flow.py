@@ -803,7 +803,7 @@ def test_every_verdict_string_maps_to_a_ledger_result_and_the_unknown_one_is_arc
 
 
 def test_a_verdict_cannot_be_booked_before_the_holdout_was_read(frozen_root):
-    with pytest.raises(FileNotFoundError, match="holdout_read.json"):
+    with pytest.raises(FileNotFoundError, match=r"holdout_read\.json"):
         v2.book_verdict(frozen_root)
     assert len(ledger_entries(frozen_root)) == 1
 
