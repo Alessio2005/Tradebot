@@ -113,7 +113,7 @@ def _verified(path: Path, obj: S3Object) -> bool:
         return False
     if "-" in obj.etag:  # multipart-ETag is geen MD5; grootte is dan de toets
         return True
-    return hashlib.md5(path.read_bytes()).hexdigest() == obj.etag
+    return hashlib.md5(path.read_bytes(), usedforsecurity=False).hexdigest() == obj.etag  # ETag-integriteit
 
 
 def _fetch(obj: S3Object, raw_dir: Path) -> Path:
@@ -122,7 +122,7 @@ def _fetch(obj: S3Object, raw_dir: Path) -> Path:
         return path
     data = _get(key=obj.key).content
     if "-" not in obj.etag:
-        got = hashlib.md5(data).hexdigest()
+        got = hashlib.md5(data, usedforsecurity=False).hexdigest()  # ETag-integriteit, geen beveiliging
         require(got == obj.etag, "Download wijkt af van de S3-ETag.", DataContractError,
                 key=obj.key, etag=obj.etag, md5=got)
     path.parent.mkdir(parents=True, exist_ok=True)
