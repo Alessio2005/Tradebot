@@ -13,13 +13,13 @@ C = [
     StopCriterion("negative_control_reversed", "reversed_minus_baseline_sharpe", ">=", 0.0, "archive", "r"),
     StopCriterion("no_edge_after_costs", "ensemble_net_sharpe", "<=", 0.0, "falsify", "r"),
     StopCriterion("filter_adds_nothing", "sharpe_diff_ci_low", "<=", 0.0, "archive", "r"),
-    StopCriterion("dsr_below_threshold", "dsr", "<", 0.95, "archive", "r"),
+    StopCriterion("sharpe_interval_includes_zero", "sharpe_ci_low", "<=", 0.0, "archive", "r"),
     StopCriterion("insufficient_trades", "n_trades", "<", 100.0, "descope", "r"),
     StopCriterion("holdout_brier_worse", "holdout_brier_diff_ci_low", ">", 0.0, "archive", "r"),
     StopCriterion("promotion_requires_all_clear", "n_binding_stop_criteria", "<=", 0.0, "promote", "r"),
 ]
 GOOD = {"max_abs_shuffle_auc_deviation": 0.01, "reversed_minus_baseline_sharpe": -0.4,
-        "ensemble_net_sharpe": 1.4, "sharpe_diff_ci_low": 0.1, "dsr": 0.97, "n_trades": 250.0}
+        "ensemble_net_sharpe": 1.4, "sharpe_diff_ci_low": 0.1, "sharpe_ci_low": 0.3, "n_trades": 250.0}
 
 
 def test_all_clear_is_a_pass() -> None:
@@ -34,7 +34,7 @@ def test_all_clear_is_a_pass() -> None:
         ("reversed_minus_baseline_sharpe", 0.1, "INVALID"),
         ("ensemble_net_sharpe", -0.2, "FALSIFIED"),
         ("sharpe_diff_ci_low", -0.1, "UNPROVEN"),
-        ("dsr", 0.90, "UNPROVEN"),
+        ("sharpe_ci_low", -0.1, "UNPROVEN"),
         ("n_trades", 40.0, "UNPROVEN"),
     ],
 )
@@ -46,7 +46,7 @@ def test_each_gate_can_go_red(metric, value, status) -> None:
 
 def test_a_missing_measurement_crashes() -> None:
     values = dict(GOOD)
-    del values["dsr"]
+    del values["sharpe_ci_low"]
     with pytest.raises(DataContractError, match="meting"):
         judge(C, values, stage="development")
 

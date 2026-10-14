@@ -1,0 +1,27 @@
+# Vastgelegd en gepusht VOOR de holdout wordt gelezen. De git-commit van dit bestand is de tijdstempel.
+hypothesis_id: trend-btc-ma100-v1
+
+rule: >-
+  BTCUSDT-perpetual, dagbars. Long (1x, geen hefboom) op bar t als de close van bar t-1 boven het
+  100-daags gemiddelde van de closes tot en met t-1 lag; anders vlak. Order op die close.
+  Kosten per positiewijziging: 5,5 bp taker + 1 bp halve spread (conf/execution/fees.yaml).
+  Funding wordt betaald door de long, uit de gecertificeerde fundingreeks. Kapitaal 20.000.
+
+parameters_searched: none
+  # De 100 dagen is niet gezocht en niet getuned; er is geen andere waarde geprobeerd.
+
+development_result_recorded_before_holdout: artefacts/governance/trend_btc_holdout.json (sleutel `development`)
+
+holdout:
+  window: vanaf 2026-06-24 (split van artefacts/governance/holdout_lock.json) tot de laatste bar
+  reads_allowed: 1   # per hypothesis_id; de lezing wordt in holdout_lock.json geregistreerd
+
+success_criterion: >-
+  Netto jaarlijks rendement op de holdout (samengesteld, (1+totaal)^(365/n)-1) van minimaal 20%.
+  Daarnaast gerapporteerd, zonder drempel: totaal rendement, Sharpe, max drawdown, tijd in de markt
+  en dezelfde cijfers voor buy & hold.
+
+honest_limit: >-
+  De holdout is ~61 dagbars. Over zo'n korte periode is de standaardfout van een jaarcijfer groter dan
+  het cijfer zelf; een uitkomst boven of onder 20% zegt vooral iets over die twee maanden. Het is een
+  rooktest, geen bewijs, en dit bestand zegt niet anders.

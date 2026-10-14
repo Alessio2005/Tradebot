@@ -41,6 +41,7 @@ class WeeklyMetaConfig(StrictModel):
     forest_n_estimators: Annotated[int, Field(ge=10)]
     forest_max_depth: Annotated[int, Field(ge=1, le=5)]
     forest_min_samples_leaf: Annotated[int, Field(ge=1)]
+    forest_max_features: Annotated[int, Field(ge=1)]
     calibration_fraction: Fraction
     kelly_multiple: Annotated[float, Field(gt=0.0, le=0.5)]
     posterior_quantile: Fraction
@@ -49,6 +50,9 @@ class WeeklyMetaConfig(StrictModel):
     resize_band: Annotated[float, Field(ge=0.0, lt=1.0)]
     corr_window: Annotated[int, Field(ge=20)]
     account_equity: Positive
+    impact_eta: Positive
+    impact_eta_low: Positive
+    impact_eta_high: Positive
     mc_paths: Annotated[int, Field(ge=1000)]
     mc_max_drawdown: Fraction
     mc_max_probability_1y: Fraction

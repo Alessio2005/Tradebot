@@ -1,0 +1,258 @@
+{
+  "content": {
+    "data_hashes": [
+      [
+        "crypto/funding/AVAXUSDT/8h",
+        "8edfe83d0a02f02a6871a9a95877d054"
+      ],
+      [
+        "crypto/funding/BTCUSDT/8h",
+        "a69aa5fbc2c0e0c3a214c4b672b8f4e8"
+      ],
+      [
+        "crypto/funding/DOTUSDT/8h",
+        "28f49d9a617fd93f36023efc35b568be"
+      ],
+      [
+        "crypto/funding/ETHUSDT/8h",
+        "02aef54a332ac99c5f93205d375f8737"
+      ],
+      [
+        "crypto/funding/LINKUSDT/8h",
+        "ce6cfcd63ddd681178ebb611b87fd621"
+      ],
+      [
+        "crypto/funding/SOLUSDT/8h",
+        "8f2c70dbf68f1fe635c937b2e6b67c36"
+      ],
+      [
+        "crypto/ohlcv/AVAXUSDT/1d",
+        "af05b4f95d0e282111641f85904c22f9"
+      ],
+      [
+        "crypto/ohlcv/BTCUSDT/1d",
+        "4f21f2c7ab071ddc19da5eb3f38172f3"
+      ],
+      [
+        "crypto/ohlcv/DOTUSDT/1d",
+        "17be1f4206997f12fd7e1825f123299b"
+      ],
+      [
+        "crypto/ohlcv/ETHUSDT/1d",
+        "d67c9bb18b2c794ba416067556227a5a"
+      ],
+      [
+        "crypto/ohlcv/LINKUSDT/1d",
+        "8d6a82f316253c2626d016bbbad804d4"
+      ],
+      [
+        "crypto/ohlcv/SOLUSDT/1d",
+        "1d64b001993b575f34ef04ce548616c5"
+      ],
+      [
+        "crypto/open_interest/AVAXUSDT/1d",
+        "5f642bd6e318ad795103682c530dd952"
+      ],
+      [
+        "crypto/open_interest/BTCUSDT/1d",
+        "4fe481c71f8237e9ba2bbd80f0d84e96"
+      ],
+      [
+        "crypto/open_interest/DOTUSDT/1d",
+        "1795c58ed7ab641fd80219a26272b313"
+      ],
+      [
+        "crypto/open_interest/ETHUSDT/1d",
+        "be986e9314c9f28ef3fd147b01bfefd4"
+      ],
+      [
+        "crypto/open_interest/LINKUSDT/1d",
+        "9024d7e536d7ced7e8e23a4dc97eb952"
+      ],
+      [
+        "crypto/open_interest/SOLUSDT/1d",
+        "9267e0accf0055a1cba7c9db1ab5d4e2"
+      ]
+    ],
+    "evaluation_start": "2022-01-01",
+    "granularity": "1d",
+    "hypothesis": "Een ensemble van een L2-logistische regressie en een ondiepe random forest, gekalibreerd met Platt op een gepurgede binnensplit, dat alleen de doorbraken handelt waarvan de gekalibreerde kans boven break-even en boven de frequentiedrempel ligt, levert na kosten, funding en impact een hogere netto Sharpe dan hetzelfde CUSUM-signaal zonder filter, met een DSR van ten minste 0,95 bij M = 4, onder purged walk-forward met embargo.",
+    "null_hypothesis": "Het filter voegt na kosten niets toe aan het ongefilterde CUSUM-signaal, of de gefilterde strategie heeft geen netto Sharpe die zich onderscheidt van de beste van vier pogingen.",
+    "parameters": {
+      "M": 4,
+      "M_registered_total": 4,
+      "M_seed_total": 0,
+      "weekly_meta": {
+        "account_equity": 100000.0,
+        "barrier_sigma": 2.23606797749979,
+        "baseline_risk_fraction": 0.01,
+        "calibration_fraction": 0.25,
+        "corr_window": 60,
+        "cpcv_n_groups": 6,
+        "cpcv_n_test_groups": 2,
+        "events_per_week_target": 2.5,
+        "first_test_start_utc": "2022-01-01T00:00:00+00:00",
+        "forest_max_depth": 3,
+        "forest_min_samples_leaf": 50,
+        "forest_n_estimators": 500,
+        "holdout_brier_margin": 0.0,
+        "holdout_split_utc": "2026-06-24T00:00:00+00:00",
+        "horizon_bars": 10,
+        "k_grid": [
+          1.0,
+          1.5,
+          2.0,
+          2.5,
+          3.0,
+          3.5,
+          4.0,
+          5.0
+        ],
+        "kelly_multiple": 0.25,
+        "logreg_c": 0.1,
+        "mc_max_drawdown": 0.25,
+        "mc_max_probability_1y": 0.1,
+        "mc_paths": 10000,
+        "min_trades": 100,
+        "n_probability_bins": 10,
+        "n_shuffle_replicates": 5,
+        "pbo_max": 0.25,
+        "planned_trials": 4,
+        "posterior_quantile": 0.25,
+        "resize_band": 0.25,
+        "seed": 20260926,
+        "shuffle_auc_band": [
+          0.45,
+          0.55
+        ],
+        "stop_slippage_bps": 5.0,
+        "symbols": [
+          "BTCUSDT",
+          "ETHUSDT",
+          "SOLUSDT",
+          "AVAXUSDT",
+          "LINKUSDT",
+          "DOTUSDT"
+        ],
+        "test_bars": 91,
+        "trades_per_week_target": 1.5
+      }
+    },
+    "period_end": "2026-06-23",
+    "period_start": "2020-03-26",
+    "planned_trials": 4,
+    "primary_metric": "ensemble_net_sharpe",
+    "stop_criteria": [
+      {
+        "action": "archive",
+        "metric": "max_abs_shuffle_auc_deviation",
+        "name": "negative_control_shuffle",
+        "operator": ">",
+        "rationale": "Op geschudde labels hoort de OOS-AUC binnen 0,45-0,55 te liggen. Daarbuiten lekt de pijplijn informatie en is de run ongeldig.",
+        "threshold": 0.05
+      },
+      {
+        "action": "archive",
+        "metric": "reversed_minus_baseline_sharpe",
+        "name": "negative_control_reversed",
+        "operator": ">=",
+        "rationale": "Het omgekeerde primaire signaal moet slechter zijn dan het echte. Is het dat niet, dan meet de constructie de doorbraak niet.",
+        "threshold": 0.0
+      },
+      {
+        "action": "falsify",
+        "metric": "ensemble_net_sharpe",
+        "name": "no_edge_after_costs",
+        "operator": "<=",
+        "rationale": "Een niet-positieve netto Sharpe betekent geen edge na kosten.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_diff_ci_low",
+        "name": "filter_adds_nothing",
+        "operator": "<=",
+        "rationale": "De ondergrens van het Ledoit-Wolf-interval op (ensemble - ongefilterd) moet boven nul liggen; anders is niet aangetoond dat het ML-filter iets toevoegt.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ci_low",
+        "name": "sharpe_interval_includes_zero",
+        "operator": "<=",
+        "rationale": "De blokbootstrap-ondergrens van de netto Sharpe moet boven nul liggen.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "dsr",
+        "name": "dsr_below_threshold",
+        "operator": "<",
+        "rationale": "Onder DSR 0,95 bij M = 4 is de Sharpe niet te onderscheiden van selectieruis.",
+        "threshold": 0.95
+      },
+      {
+        "action": "archive",
+        "metric": "hit_rate_ci_low_minus_break_even",
+        "name": "hit_rate_not_above_break_even",
+        "operator": "<=",
+        "rationale": "De Wilson-ondergrens van het trefpercentage moet boven het gemiddelde break-even-percentage 1/2 + c/(2b) van de genomen trades liggen.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "pbo",
+        "name": "overfit_probability",
+        "operator": ">=",
+        "rationale": "Een PBO van 0,25 of meer over de vier varianten is te veel overfitkans.",
+        "threshold": 0.25
+      },
+      {
+        "action": "archive",
+        "metric": "mc_drawdown_probability_1y",
+        "name": "drawdown_risk",
+        "operator": ">",
+        "rationale": "De Monte Carlo-kans op een drawdown van 25 % (de mandaatgrens) binnen een jaar mag bij kwart-Kelly niet boven 10 % liggen. De fractie wordt daarna NIET bijgesteld; een andere fractie is een nieuwe preregistratie.",
+        "threshold": 0.1
+      },
+      {
+        "action": "descope",
+        "metric": "n_trades",
+        "name": "insufficient_trades",
+        "operator": "<",
+        "rationale": "Onder 100 OOS-trades is geen enkele trefkansuitspraak te dragen.",
+        "threshold": 100.0
+      },
+      {
+        "action": "archive",
+        "metric": "holdout_brier_diff_ci_low",
+        "name": "holdout_brier_worse",
+        "operator": ">",
+        "rationale": "Rooktest op de holdout: ligt het 95 %-interval van (Brier model - Brier basisfrequentie) volledig boven nul, dan is het model daar aantoonbaar slechter dan niets weten, en gaat het niet naar papertrading.",
+        "threshold": 0.0
+      },
+      {
+        "action": "promote",
+        "metric": "n_binding_stop_criteria",
+        "name": "promotion_requires_all_clear",
+        "operator": "<=",
+        "rationale": "Doorgaan naar Plan 2 vereist dat geen enkel criterium hierboven bindt.",
+        "threshold": 0.0
+      }
+    ],
+    "title": "CUSUM-doorbraak met een licht, gekalibreerd ML-filter op 1:1-barrières en binaire Kelly-sizing, op zes crypto-perpetuals op dagbars.",
+    "universe": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "AVAXUSDT",
+      "LINKUSDT",
+      "DOTUSDT"
+    ],
+    "wave": "weekly_meta_v1"
+  },
+  "frozen_utc": "2026-10-02T13:16:29.414439+00:00",
+  "git_sha": "704eaa3",
+  "ledger_total_at_freeze": 4,
+  "preregistration_id": "5d8322bf6701eccc7698702e3ac0a5aa"
+}

@@ -9,8 +9,7 @@ import pytest
 
 from tests.weekly_fixtures import synthetic_market
 from tradebot.registry.preregistration import StopCriterion
-from tradebot.registry.trial_counter import TrialCount
-from tradebot.schemas.config import ExecutionConfig, RiskConfig, ValidationConfig, load_config
+from tradebot.schemas.config import ExecutionConfig, RiskConfig, load_config
 from tradebot.schemas.weekly_meta import weekly_meta_config
 from tradebot.validation.weekly_campaign import run_campaign_on_market, trade_candidates
 from tradebot.validation.weekly_verdict import DEVELOPMENT_METRICS
@@ -26,15 +25,15 @@ def result():
         "holdout_split_utc": str(market.grid[-1] + pd.Timedelta(days=1)),
         "forest_n_estimators": 40, "n_shuffle_replicates": 1, "mc_paths": 1000,
         "k_grid": (1.0, 1.5, 2.0),
+        # De synthetische markt is klein en kent geen echte doorbraken: met het productiedoel van
+        # 2,5 per week kiest hij de grootste k en blijft het ensemble-boek vlak (nul variantie).
+        "events_per_week_target": 5.5,
     })
     criteria = [StopCriterion(f"c_{m}", m, "<", -1e9, "archive", "synthetic")
                 for m in DEVELOPMENT_METRICS]
     return run_campaign_on_market(
         market, cfg, criteria=criteria,
-        trial_count=TrialCount(value=4, source="frozen", origin="test",
-                               seed_total=0, registered_total=4),
         exec_cfg=load_config(ROOT / "conf/execution/fees.yaml", ExecutionConfig),
-        val_cfg=load_config(ROOT / "conf/validation/default.yaml", ValidationConfig),
         risk_cfg=load_config(ROOT / "conf/risk/default.yaml", RiskConfig),
         impact=None)
 
@@ -69,3 +68,18 @@ def test_candidates_never_use_a_threshold_below_break_even() -> None:
     assert (cands["p_trade"] >= cands["p_be"]).all()
     assert (cands["entry_bar"] == events["event_bar"] + 1).all()
     assert (cands["p_low"] < cands["p"]).all()
+
+
+def test_the_small_account_impact_swaps_only_eta_and_keeps_the_uncalibrated_label() -> None:
+    from tradebot.execution.impact_model import ImpactParams, ImpactStatus
+    from tradebot.validation.weekly_campaign import small_account_impact
+    base = ImpactParams(eta=2.99, kappa_d=0.67, status=ImpactStatus.IMPACT_UNCALIBRATED, method="m",
+                        data_hash="h", sample_size=10, period_start="a", period_end="b",
+                        instruments=("BTCUSDT",), eta_ci_low=1.9, eta_ci_high=4.2)
+    cfg = weekly_meta_config()
+    out = small_account_impact(base, cfg)
+    assert (out.eta, out.eta_ci_low, out.eta_ci_high) == (cfg.impact_eta, cfg.impact_eta_low,
+                                                          cfg.impact_eta_high)
+    assert out.status is ImpactStatus.IMPACT_UNCALIBRATED
+    assert (out.kappa_d, out.data_hash) == (base.kappa_d, base.data_hash)
+    assert "ongekalibreerd" in out.method

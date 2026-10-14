@@ -6,13 +6,14 @@ Volgorde, en waarom zij vastligt:
 3. Kandidaten per model; het ensemble met Kelly, de referentie ongefilterd met
    een vaste risicofractie; allemaal door hetzelfde boek en dezelfde risicolaag.
 4. Negatieve controles: geschudde labels en de omgekeerde richting.
-5. Inferentie: Lo-SE, blokbootstrap, Ledoit-Wolf-verschil, DSR bij de bevroren M,
+5. Inferentie: Lo-SE, blokbootstrap, Ledoit-Wolf-verschil, gewone netto Sharpe (geen DSR, geen trial-telling),
    Wilson-interval op de trefkans, PBO over de vier varianten, Monte Carlo-drawdown.
 6. Het oordeel komt uit de bevroren stop-criteria (Taak 10).
 CPCV-paden worden gerapporteerd, niet gepoort.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -37,7 +38,6 @@ from ..labeling.barrier_fills import round_trip_cost
 from ..labeling.breakout import calibrate_k
 from ..monitoring.prob_calibration import expected_calibration_error
 from ..registry.preregistration import StopCriterion, require_preregistration
-from ..registry.trial_counter import TrialCount, frozen_trial_count
 from ..risk.binary_kelly import (
     break_even_probability,
     monte_carlo_drawdown_probability,
@@ -48,7 +48,6 @@ from ..schemas.config import (
     ExecutionConfig,
     ImpactConfig,
     RiskConfig,
-    ValidationConfig,
     load_config,
 )
 from ..schemas.weekly_meta import WeeklyMetaConfig, weekly_meta_config
@@ -56,7 +55,6 @@ from ..train.light_models import MODEL_KINDS, fit_light_model
 from ..train.meta_label import FoldPredictions, shuffled_targets, walk_forward_fit_predict
 from ..train.weekly_dataset import WeeklyDataset, build_weekly_dataset
 from ..utils.failfast import DataContractError, require
-from .dsr import dsr_gate
 from .holdout import development_slice
 from .inference import block_bootstrap_ci, sharpe_difference_test, sharpe_with_se
 from .weekly_verdict import Verdict, judge
@@ -157,6 +155,17 @@ def _cpcv_path_sharpes(wd: WeeklyDataset, cfg: WeeklyMetaConfig, inputs: BookInp
     return [sharpe_with_se(p, bars_per_year=BARS_PER_YEAR).sharpe for p in paths]
 
 
+def _order_to_adv(market: WeeklyMarket, taken: pd.DataFrame) -> dict[str, float]:
+    """Orderomvang als fractie van de gemiddelde dagomzet, bij de entry van elke trade."""
+    adv = market.adv_usd.reindex(columns=list(market.symbols)).to_numpy(np.float64)
+    cols = {s: j for j, s in enumerate(market.symbols)}
+    ratio = np.array([abs(float(r.qty) * float(r.entry_price)) / adv[int(r.entry_bar), cols[r.symbol]]
+                      for r in taken.itertuples()])
+    ratio = ratio[np.isfinite(ratio)]
+    return {"median": float(np.median(ratio)), "p95": float(np.quantile(ratio, 0.95)),
+            "max": float(ratio.max())}
+
+
 def _sharpe_or_none(returns: pd.Series) -> float | None:
     """Sharpe van een informatief boek; `None` als het boek nooit handelde (nul variantie).
 
@@ -181,9 +190,7 @@ def run_campaign_on_market(
     cfg: WeeklyMetaConfig,
     *,
     criteria: Sequence[StopCriterion],
-    trial_count: TrialCount,
     exec_cfg: ExecutionConfig,
-    val_cfg: ValidationConfig,
     risk_cfg: RiskConfig,
     impact: ImpactParams | None,
 ) -> CampaignResult:
@@ -243,7 +250,6 @@ def run_campaign_on_market(
     diff = sharpe_difference_test(ens, base, bars_per_year=BARS_PER_YEAR, seed=cfg.seed,
                                   align="common_valid")
     ci = block_bootstrap_ci(ens, bars_per_year=BARS_PER_YEAR, seed=cfg.seed)
-    dsr = dsr_gate(ens.to_numpy(), trial_count=trial_count, config=val_cfg)
 
     taken = books["ensemble"].trades
     n_trades = int(len(taken))
@@ -278,7 +284,6 @@ def run_campaign_on_market(
         "ensemble_net_sharpe": float(ens_se.sharpe),
         "sharpe_diff_ci_low": float(diff.ci_low),
         "sharpe_ci_low": float(ci.low),
-        "dsr": float(dsr.dsr),
         "hit_rate_ci_low_minus_break_even": float(hit_low - p_be_mean),
         "pbo": pbo,
         "mc_drawdown_probability_1y": float(mc),
@@ -304,7 +309,6 @@ def run_campaign_on_market(
                       for kind in MODEL_KINDS}},
         "sharpe_difference": {"delta": float(diff.delta_sharpe), "ci_low": float(diff.ci_low),
                               "ci_high": float(diff.ci_high), "p_value": float(diff.p_value)},
-        "dsr": {"dsr": float(dsr.dsr), "passed": bool(dsr.passed), "M": int(trial_count.value)},
         "cpcv_path_sharpes": cpcv,
         # compute_pbo waarschuwt zelf: onder S=50 varianten is de PBO "bimodale ruis". Hier zijn er
         # vier (referentie + drie modellen); lees `pbo` als indicatie, niet als bewijs.
@@ -312,6 +316,10 @@ def run_campaign_on_market(
         "pbo_below_stability_floor": bool(variants.shape[1] < 50),
         "costs": {"fees": books["ensemble"].total_fees, "funding": books["ensemble"].total_funding,
                   "impact": books["ensemble"].total_impact, "round_trip": cost_rt},
+        "order_to_adv": _order_to_adv(market, taken) if n_trades else None,
+        "impact_basis": None if impact is None else {
+            "eta": impact.eta, "status": impact.status.value, "method": impact.method},
+        "account_equity": cfg.account_equity,
         "n_risk_exits": int((taken["risk_exit_bar"] >= 0).sum()) if n_trades else 0,
         "risk_policy_hash": risk_config_hash(risk_cfg),
         "risk_audit_header": engine.audit_header(),
@@ -319,6 +327,14 @@ def run_campaign_on_market(
         "halted": books["ensemble"].halted,
     }
     return CampaignResult(values=values, verdict=verdict, record=record)
+
+
+def small_account_impact(base: ImpactParams, cfg: WeeklyMetaConfig) -> ImpactParams:
+    """De impactparameters voor het kleine account: de eta uit de config, status ongewijzigd."""
+    return dataclasses.replace(
+        base, eta=cfg.impact_eta, eta_ci_low=cfg.impact_eta_low, eta_ci_high=cfg.impact_eta_high,
+        method=(f"literatuurprior eta={cfg.impact_eta} (Bouchaud-Bonart, BTC-perps) voor een "
+                f"account van {cfg.account_equity:,.0f}; geen orderboekdata, dus ongekalibreerd"))
 
 
 def main() -> None:
@@ -336,16 +352,14 @@ def main() -> None:
     dev_index = development_slice(pd.DataFrame(index=full.grid), lock_path=lock).index
     market = full.truncate(dev_index[-1] + pd.Timedelta(hours=1))
     imp = load_config(root / "conf/execution/impact.yaml", ImpactConfig)
-    impact = ImpactParams(
+    impact = small_account_impact(ImpactParams(
         eta=imp.eta, kappa_d=imp.kappa_d, status=ImpactStatus(imp.status), method=imp.method,
         data_hash=imp.data_hash, sample_size=imp.sample_size, period_start=imp.period_start,
         period_end=imp.period_end, instruments=imp.instruments, eta_ci_low=imp.eta_ci_low,
-        eta_ci_high=imp.eta_ci_high)
+        eta_ci_high=imp.eta_ci_high), cfg)
     result = run_campaign_on_market(
         market, cfg, criteria=prereg.stop_criteria,
-        trial_count=frozen_trial_count(prereg_path),
         exec_cfg=load_config(root / "conf/execution/fees.yaml", ExecutionConfig),
-        val_cfg=load_config(root / "conf/validation/default.yaml", ValidationConfig),
         risk_cfg=load_config(root / "conf/risk/default.yaml", RiskConfig),
         impact=impact)
     record = {**result.record, "values": result.values, "preregistration_id": prereg_id,

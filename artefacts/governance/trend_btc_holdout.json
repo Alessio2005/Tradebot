@@ -1,0 +1,47 @@
+{
+  "cost_per_side": 0.00065,
+  "development": {
+    "buy_and_hold": {
+      "annualised_return": 0.3863476183450476,
+      "max_drawdown": -0.7667946186218166,
+      "n_bars": 2181.0,
+      "sharpe": 0.8538622720855179,
+      "total_return": 6.042626018049764
+    },
+    "strategy": {
+      "annualised_return": 0.3374343592923157,
+      "max_drawdown": -0.4497388967282381,
+      "n_bars": 2181.0,
+      "sharpe": 0.9012930116008474,
+      "total_return": 4.682262457833347
+    }
+  },
+  "development_window": [
+    "2020-07-04 00:00:00+00:00",
+    "2026-06-23 00:00:00+00:00"
+  ],
+  "git_sha": "e1b57bb",
+  "holdout": {
+    "buy_and_hold": {
+      "annualised_return": 2.0441200737011562,
+      "max_drawdown": -0.06524100507706532,
+      "n_bars": 61.0,
+      "sharpe": 3.0494508312629445,
+      "total_return": 0.2044748106324017
+    },
+    "strategy": {
+      "annualised_return": 0.8738447923738093,
+      "max_drawdown": -0.016058388404686652,
+      "n_bars": 61.0,
+      "sharpe": 2.9400592868855786,
+      "total_return": 0.11065746150053934
+    }
+  },
+  "holdout_time_in_market": 0.04918032786885246,
+  "holdout_window": [
+    "2026-06-24 00:00:00+00:00",
+    "2026-08-23 00:00:00+00:00"
+  ],
+  "hypothesis_id": "trend-btc-ma100-v1",
+  "rule": "BTC long boven 100d-gemiddelde, anders vlak"
+}
