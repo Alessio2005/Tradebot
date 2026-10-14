@@ -335,6 +335,19 @@ def test_the_battery_gets_the_v3_builder_runner_family_kappa_and_the_spread_stre
                                pd.Timestamp("2021-06-30", tz="UTC"))
 
 
+def test_the_trials_and_the_alternative_universes_are_run_on_markets_that_stop_before_the_holdout(
+        scenarios):
+    """Niet alleen de cijfers maar ook de invoer: de holdout zit niet in de runs, ook al levert het
+    paneel hem wel (het loopt door tot 13 augustus)."""
+    cut = pd.Timestamp(HOLDOUT_START, tz="UTC")
+    flow = scenarios["promote"]
+    assert make_panels()["close"].index.max() >= cut and flow.calls
+    for name, kw in flow.calls:
+        assert kw["base"].frame.index.max() < cut, name
+        for label, alt in kw["alt_universes"].items():
+            assert alt.book.close.index.max() < cut, (name, label)
+
+
 def test_the_runner_the_battery_gets_trades_at_the_configured_rate_unless_told_otherwise(
         scenarios):
     cfg = robust_book_v3_config(scenarios["promote"].root / v3.CONFIG)

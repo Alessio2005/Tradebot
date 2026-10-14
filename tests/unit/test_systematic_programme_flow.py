@@ -638,6 +638,16 @@ class TestRunProgramme:
             "leave_one_out_positive_fraction": FakeBattery.LEAVE_ONE_OUT}
         assert record["pbo"]["n_variants"] == 7  # de familie van de dummy: basis + zes varianten
 
+    def test_the_trials_are_run_on_a_market_that_stops_before_the_gate_sample(
+        self, chain: SimpleNamespace,
+    ) -> None:
+        """Niet alleen de cijfers maar ook de invoer: het poortsample zit niet in de runs, ook al
+        levert de lader het wel (de markt loopt door tot na `gate_start`)."""
+        assert chain.market.index.max() >= utc(GATE_START)
+        assert chain.battery.calls
+        for call in chain.battery.calls:
+            assert call.base.frame.index.max() < utc(GATE_START), call.name
+
     def test_every_trial_leaves_a_record_and_a_daily_series_of_exactly_the_dev_window(
         self, chain: SimpleNamespace,
     ) -> None:

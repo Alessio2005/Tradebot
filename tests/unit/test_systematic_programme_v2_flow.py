@@ -610,6 +610,19 @@ def test_the_battery_is_called_per_candidate_with_the_recorded_sleeves_and_both_
                                pd.Timestamp("2021-06-30", tz="UTC"))
 
 
+def test_the_trials_and_the_alternative_universes_are_run_on_markets_that_stop_before_the_holdout(
+        scenarios):
+    """Niet alleen de cijfers maar ook de invoer: de holdout zit niet in de runs, ook al levert het
+    paneel hem wel (het loopt door tot 13 augustus)."""
+    cut = pd.Timestamp(HOLDOUT_START, tz="UTC")
+    flow = scenarios["promote"]
+    assert make_panels()["close"].index.max() >= cut and flow.calls
+    for name, kw in flow.calls:
+        assert kw["base"].frame.index.max() < cut, name
+        for label, alt in kw["alt_universes"].items():
+            assert alt.book.close.index.max() < cut, (name, label)
+
+
 def test_without_a_sleeve_above_the_threshold_x5_is_not_constructible_and_never_selected(
         scenarios):
     flow = scenarios["archived"]
