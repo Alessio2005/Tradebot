@@ -12,7 +12,6 @@ handtekening, zodat de gate-drempels uit de spec het oordeel bepalen en niet het
 """
 from __future__ import annotations
 
-import copy
 import functools
 import inspect
 import json
@@ -58,9 +57,11 @@ def make_panels(symbols: tuple[str, ...] = SYMBOLS, n_bars: int = N_BARS,
     rng = np.random.default_rng(seed)
     idx = pd.date_range("2021-01-01", periods=n_bars, freq="D", tz="UTC", name="asof_ts")
     common = rng.standard_t(4, size=n_bars) * 0.02
-    rets = np.column_stack([0.7 * common + rng.standard_t(4, size=n_bars) * 0.03
-                            + 0.001 * np.sin(np.arange(n_bars) / (40 + 7 * i))
-                            for i in range(len(symbols))]).clip(-0.5, 0.5)
+    drift = np.zeros((n_bars, len(symbols)))                    # hardnekkige trends per munt
+    for t in range(1, n_bars):
+        drift[t] = 0.97 * drift[t - 1] + 0.003 * rng.normal(size=len(symbols))
+    rets = (0.7 * common[:, None] + rng.standard_t(4, size=(n_bars, len(symbols))) * 0.03
+            + drift).clip(-0.5, 0.5)
     close = pd.DataFrame(100.0 * np.cumprod(1.0 + rets, axis=0), index=idx, columns=list(symbols))
     if "DOGEUSDT" in close:
         close.loc[close.index[:30], "DOGEUSDT"] = np.nan        # late notering
@@ -476,8 +477,8 @@ def test_the_delisted_coin_is_closed_by_the_book_and_the_exit_is_recorded(real_f
 
 
 def test_the_holdout_stays_unread_by_the_w_dev_run(real_flow):
-    assert not (real_flow.root / v2.LOCK_PATH).read_text().count("hypothesis_id")
     assert read_json(real_flow.root / v2.LOCK_PATH)["reads"] == []
+    assert not (real_flow.root / v2.ARTEFACT_DIR / "holdout_read.json").exists()
     for name in v2.TRIALS:
         csv = pd.read_csv(real_flow.root / v2.ARTEFACT_DIR / f"{name}_daily_w_dev.csv",
                           index_col=0, parse_dates=True)
@@ -499,7 +500,9 @@ def test_x5_takes_exactly_the_sleeves_whose_train_sharpe_clears_the_threshold(re
     sharpes = x5["train_sharpe_of_sleeves"]
     assert set(sharpes) == set(v2.SLEEVES)
     expected = [s for s in cfg.combo.candidates if sharpes[s] > cfg.combo.inclusion_min_train_sharpe]
-    assert expected, "de synthetische markt hoort minstens één sleeve met positieve TRAIN-Sharpe te geven"
+    # De synthetische markt geeft sleeves met een positieve én een negatieve TRAIN-Sharpe, zodat de
+    # regel naar beide kanten wordt toegepast.
+    assert 0 < len(expected) < len(cfg.combo.candidates)
     assert x5["included"] == expected == real_flow.summary["x5_included"]
     assert f"X5 neemt op: {tuple(expected)}" in real_flow.logs
 
@@ -582,8 +585,7 @@ def test_without_a_sleeve_above_the_threshold_x5_is_not_constructible_and_never_
     assert not (out / "X5_COMBO_daily_w_dev.csv").exists()
     assert flow.summary["x5_included"] == [] and "X5_COMBO" not in flow.summary["robustness_scores"]
     assert flow.summary["selected"] != "X5_COMBO"
-    assert "X5_COMBO" not in flow.summary["passes_all_w_dev_gates"] or \
-        flow.summary["passes_all_w_dev_gates"]["X5_COMBO"] is False
+    assert flow.summary["passes_all_w_dev_gates"]["X5_COMBO"] is False
     assert "X5_COMBO" not in flow.summary["table"]
     assert [name for name, _ in flow.calls] == list(v2.CANDIDATES[:-1])
     assert flow.holdout["included"] == []
@@ -592,10 +594,24 @@ def test_without_a_sleeve_above_the_threshold_x5_is_not_constructible_and_never_
 # --------------------------------------------------------------------------- #
 # read_holdout
 # --------------------------------------------------------------------------- #
+@pytest.fixture(scope="module")
+def real_holdout(real_flow, tmp_path_factory) -> SimpleNamespace:
+    """De ene holdout-lezing van de echte run, op een kopie van de wortel."""
+    root = copy_root(real_flow.root, tmp_path_factory.mktemp("v2_holdout") / "root")
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(v2, "current_git_sha", lambda: SHA)
+        logs: list[str] = []
+        out = v2.read_holdout(root, log=logs.append)
+    return SimpleNamespace(root=root, out=out, logs=logs)
+
+
+def _hid(flow: SimpleNamespace) -> str:
+    return f"robust_book_v2/{flow.summary['preregistration_id']}/{flow.summary['selected']}"
+
+
 def test_the_holdout_read_is_registered_before_the_first_holdout_number_exists(
         real_flow, tmp_path, monkeypatch):
     root = copy_root(real_flow.root, tmp_path / "root")
-    hid = f"robust_book_v2/{real_flow.summary['preregistration_id']}/{real_flow.summary['selected']}"
     registered_when_running = []
     real_run = v2.run
 
@@ -604,38 +620,47 @@ def test_the_holdout_read_is_registered_before_the_first_holdout_number_exists(
         return real_run(*args, **kwargs)
     monkeypatch.setattr(v2, "run", spy)
     out = v2.read_holdout(root, log=lambda _: None)
-    assert out["hypothesis_id"] == hid
-    assert registered_when_running[0] == [hid]                  # geregistreerd vóór de eerste berekening
-    assert lock_reads(root) == [hid]                            # en ook één keer, niet vaker
+    assert out["hypothesis_id"] == _hid(real_flow)
+    assert registered_when_running[0] == [_hid(real_flow)]     # geregistreerd vóór de eerste berekening
+    assert len(registered_when_running) == 3                    # kandidaat plus twee referenties
+    assert lock_reads(root) == [_hid(real_flow)]                # één lezing, niet drie
 
 
-def test_the_holdout_read_reports_only_the_selected_candidate_and_both_references(
-        real_flow, tmp_path):
-    root = copy_root(real_flow.root, tmp_path / "root")
-    logs: list[str] = []
-    out = v2.read_holdout(root, log=logs.append)
+def test_the_holdout_read_reports_the_selected_candidate_and_both_references_only(
+        real_flow, real_holdout):
+    out, root = real_holdout.out, real_holdout.root
     name = real_flow.summary["selected"]
-    assert out["candidate"] == name == read_json(root / v2.ARTEFACT_DIR / "holdout_read.json")["candidate"]
+    assert out["candidate"] == name and out["hypothesis_id"] == _hid(real_flow)
     assert out["included"] == real_flow.summary["x5_included"]
     assert set(out["references_on_holdout"]) == set(v2.REFERENCES)
-    # Venster: vanaf de eerste bar van het slot, afgekapt op holdout_end (het paneel loopt door tot 13 aug).
+    assert read_json(root / v2.ARTEFACT_DIR / "holdout_read.json") == out
+    assert sorted(p.name for p in (root / v2.ARTEFACT_DIR).glob("*_daily_holdout.csv")) == [
+        f"{name}_daily_holdout.csv"]
+    assert out[EVIDENCE_KEY] == NOT_ADMISSIBLE
+    dev = read_json(root / v2.ARTEFACT_DIR / f"{name}.json")["w_dev"]["sharpe"]
+    assert out["w_dev_sharpe"] == dev
+    assert real_holdout.logs[-1].startswith(f"holdout {name}: Sharpe ")
+    assert real_holdout.logs[-1].endswith(out["verdict"])
+
+
+def test_the_holdout_window_starts_at_the_frozen_split_and_ends_at_holdout_end(real_holdout):
+    out, root = real_holdout.out, real_holdout.root
+    # Het paneel loopt door tot 13 augustus; de config sluit de holdout op 10 augustus.
     assert out["holdout_window"] == [HOLDOUT_START, HOLDOUT_END]
-    csv = pd.read_csv(root / v2.ARTEFACT_DIR / f"{name}_daily_holdout.csv", index_col=0,
-                      parse_dates=True)
+    csv = pd.read_csv(root / v2.ARTEFACT_DIR / f"{out['candidate']}_daily_holdout.csv",
+                      index_col=0, parse_dates=True)
     assert [str(csv.index[0].date()), str(csv.index[-1].date())] == [HOLDOUT_START, HOLDOUT_END]
     assert out["holdout"]["n_obs"] == len(csv) == 41
-    assert out[EVIDENCE_KEY] == NOT_ADMISSIBLE
-    assert out["w_dev_sharpe"] == read_json(root / v2.ARTEFACT_DIR / f"{name}.json")["w_dev"]["sharpe"]
-    assert not any(f"{r}_daily_holdout.csv" in p.name for r in v2.REFERENCES
-                   for p in (root / v2.ARTEFACT_DIR).iterdir())
+    assert out["holdout"]["start"] == HOLDOUT_START and out["holdout"]["end"] == HOLDOUT_END
+    assert set(out["yearly"]) == {"2021"}
 
 
-def test_the_holdout_gates_are_judged_on_the_z_score_and_the_holdout_drawdown(real_flow, tmp_path):
-    root = copy_root(real_flow.root, tmp_path / "root")
-    out = v2.read_holdout(root, log=lambda _: None)
+def test_the_holdout_gates_are_judged_on_the_z_score_and_the_holdout_drawdown(real_holdout):
+    out, root = real_holdout.out, real_holdout.root
     z, mdd = out["gate_metrics"]["gate_sharpe_z_vs_dev"], out["gate_metrics"]["max_drawdown_gate"]
     expected_z = (out["holdout"]["sharpe"] - out["w_dev_sharpe"]) / out["holdout"]["sharpe_se"]
     assert z == pytest.approx(expected_z) and mdd == out["holdout"]["max_drawdown"]
+    assert set(out["gates"]) == set(HOLDOUT_GATES)
     assert out["gates"]["gate_sharpe_collapse"]["binds"] == (z < -1.645)
     assert out["gates"]["gate_drawdown"]["binds"] == (mdd > 0.25)
     n_w_dev = read_json(root / v2.ARTEFACT_DIR / f"{out['candidate']}.json")["n_binding_w_dev"]
@@ -644,3 +669,231 @@ def test_the_holdout_gates_are_judged_on_the_z_score_and_the_holdout_drawdown(re
                 "falsified_on_holdout" if any(g["binds"] for g in out["gates"].values())
                 else "archived_w_dev_gates")
     assert out["verdict"] == expected
+
+
+def test_a_second_read_of_the_same_hypothesis_is_refused_and_the_first_result_stays(
+        real_holdout, tmp_path):
+    root = copy_root(real_holdout.root, tmp_path / "root")
+    before = (root / v2.ARTEFACT_DIR / "holdout_read.json").read_bytes()
+    with pytest.raises(HoldoutAlreadyUsed, match="heeft het poortsample al gelezen"):
+        v2.read_holdout(root, log=lambda _: None)
+    assert (root / v2.ARTEFACT_DIR / "holdout_read.json").read_bytes() == before
+    assert len(lock_reads(root)) == 1
+
+
+def test_the_holdout_read_refuses_a_w_dev_run_of_another_preregistration_and_reads_nothing(
+        real_flow, tmp_path):
+    root = copy_root(real_flow.root, tmp_path / "root")
+    path = root / v2.ARTEFACT_DIR / "programme_w_dev.json"
+    path.write_text(json.dumps({**read_json(path), "preregistration_id": "f" * 32}), encoding="utf-8")
+    with pytest.raises(DataContractError, match="hoort bij een andere preregistratie"):
+        v2.read_holdout(root, log=lambda _: None)
+    assert lock_reads(root) == []                               # de lezing is niet verbruikt
+    assert not (root / v2.ARTEFACT_DIR / "holdout_read.json").exists()
+
+
+def test_the_holdout_read_refuses_when_the_data_changed_since_the_freeze(real_flow, tmp_path):
+    root = copy_root(real_flow.root, tmp_path / "root")
+    funding = root / "data/binance_vision/panels/funding.parquet"
+    funding.write_bytes(funding.read_bytes() + b"x")
+    with pytest.raises(DataContractError, match="Onbekende pre-registratie-ID"):
+        v2.read_holdout(root, log=lambda _: None)
+    assert lock_reads(root) == []
+
+
+def test_the_holdout_read_without_a_frozen_lock_is_refused(real_flow, tmp_path):
+    root = copy_root(real_flow.root, tmp_path / "root")
+    (root / v2.LOCK_PATH).unlink()
+    with pytest.raises(DataContractError, match="ontbreekt"):
+        v2.read_holdout(root, log=lambda _: None)
+    assert not (root / v2.ARTEFACT_DIR / "holdout_read.json").exists()
+
+
+def test_the_holdout_read_stops_when_the_full_run_does_not_reproduce_the_w_dev_sharpe(
+        real_flow, tmp_path):
+    root = copy_root(real_flow.root, tmp_path / "root")
+    rec_path = root / v2.ARTEFACT_DIR / f"{real_flow.summary['selected']}.json"
+    rec = read_json(rec_path)
+    rec["w_dev"]["sharpe"] += 1e-6
+    rec_path.write_text(json.dumps(rec), encoding="utf-8")
+    with pytest.raises(DataContractError, match="de holdout lekte"):
+        v2.read_holdout(root, log=lambda _: None)
+    assert lock_reads(root) == [_hid(real_flow)]                # de lezing staat er wel
+    assert not (root / v2.ARTEFACT_DIR / "holdout_read.json").exists()
+
+
+def test_a_holdout_of_fewer_than_thirty_bars_is_refused_but_the_read_stays_registered(tmp_path):
+    root = build_root(tmp_path / "root", panels=make_panels(n_bars=200))     # t/m 19 juli: 19 bars
+    v2.freeze(root, git_sha=SHA)
+    prereg_id = next((root / v2.PREREG_DIR).glob("preregistration_*.json")).stem.split("_")[1]
+    (root / v2.ARTEFACT_DIR).mkdir(parents=True)
+    (root / v2.ARTEFACT_DIR / "programme_w_dev.json").write_text(json.dumps(
+        {"preregistration_id": prereg_id, "selected": "X4_TREND_LF", "x5_included": []}),
+        encoding="utf-8")
+    with pytest.raises(DataContractError, match="minimaal 30 eindige observaties, kreeg 19"):
+        v2.read_holdout(root, log=lambda _: None)
+    assert lock_reads(root) == [f"robust_book_v2/{prereg_id}/X4_TREND_LF"]
+
+
+def test_the_combination_is_rebuilt_from_the_sleeves_the_w_dev_run_recorded(real_flow, tmp_path):
+    root = copy_root(real_flow.root, tmp_path / "root")
+    path = root / v2.ARTEFACT_DIR / "programme_w_dev.json"
+    path.write_text(json.dumps({**read_json(path), "selected": "X5_COMBO"}), encoding="utf-8")
+    out = v2.read_holdout(root, log=lambda _: None)             # reproduceert de W_DEV-Sharpe van X5
+    assert out["candidate"] == "X5_COMBO" and out["included"] == real_flow.summary["x5_included"]
+    assert out["hypothesis_id"].endswith("/X5_COMBO")
+    assert out["w_dev_sharpe"] == read_json(root / v2.ARTEFACT_DIR / "X5_COMBO.json")["w_dev"]["sharpe"]
+
+
+def test_a_combination_without_recorded_sleeves_cannot_be_read(real_flow, tmp_path):
+    root = copy_root(real_flow.root, tmp_path / "root")
+    path = root / v2.ARTEFACT_DIR / "programme_w_dev.json"
+    path.write_text(json.dumps({**read_json(path), "selected": "X5_COMBO", "x5_included": []}),
+                    encoding="utf-8")
+    with pytest.raises(DataContractError, match="X5 zonder opgenomen sleeves"):
+        v2.read_holdout(root, log=lambda _: None)
+
+
+def test_build_refuses_a_combination_without_sleeves():
+    with pytest.raises(DataContractError, match="X5 zonder opgenomen sleeves"):
+        v2.build("X5_COMBO", None, None, included=())
+
+
+# --------------------------------------------------------------------------- #
+# book_verdict
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(("name", "ledger_result"), [
+    ("promote", "accepted"), ("falsified", "falsified"), ("archived", "archived")])
+def test_the_verdict_is_booked_as_a_zero_trial_amendment_of_the_programme_entry(
+        scenarios, tmp_path, name, ledger_result):
+    flow = scenarios[name]
+    root = copy_root(flow.root, tmp_path / "root")
+    before = HypothesisLedger(root / v2.LEDGER_PATH).total_n_hypotheses()
+    v2.book_verdict(root)
+
+    programme, verdict = ledger_entries(root)
+    hold = flow.holdout
+    assert HypothesisLedger(root / v2.LEDGER_PATH).total_n_hypotheses() == before   # telt nul trials
+    assert (verdict["wave"], verdict["unit"], verdict["n_trials"], verdict["result"]) == (
+        2, "robust_book_v2_verdict", 0, ledger_result)
+    assert verdict["amends"] == programme["config_hash"]
+    assert verdict["preregistration_id"] == programme["preregistration_id"] == (
+        flow.summary["preregistration_id"])
+    assert verdict["git_sha"] == SHA and verdict["data_hash"] == programme["data_hash"]
+    assert verdict["metrics"] == {
+        "selected": hold["candidate"], "w_dev_sharpe": hold["w_dev_sharpe"],
+        "holdout_sharpe": hold["holdout"]["sharpe"], "verdict": hold["verdict"],
+        "robustness_scores": flow.summary["robustness_scores"]}
+
+
+@pytest.mark.parametrize(("verdict", "ledger_result"), [
+    ("promote_to_paper_trading", "accepted"), ("falsified_on_holdout", "falsified"),
+    ("archived_w_dev_gates", "archived"), ("some_future_verdict", "archived")])
+def test_every_verdict_string_maps_to_a_ledger_result_and_the_unknown_one_is_archived(
+        frozen_root, verdict, ledger_result):
+    out = frozen_root / v2.ARTEFACT_DIR
+    out.mkdir(parents=True)
+    (out / "holdout_read.json").write_text(json.dumps(
+        {"verdict": verdict, "candidate": "X1_XSMOM", "w_dev_sharpe": 1.5,
+         "holdout": {"sharpe": 0.5}}), encoding="utf-8")
+    (out / "programme_w_dev.json").write_text(json.dumps(
+        {"robustness_scores": {"X1_XSMOM": 61.0}}), encoding="utf-8")
+    v2.book_verdict(frozen_root)
+    assert ledger_entries(frozen_root)[-1]["result"] == ledger_result
+
+
+def test_a_verdict_cannot_be_booked_before_the_holdout_was_read(frozen_root):
+    with pytest.raises(FileNotFoundError, match="holdout_read.json"):
+        v2.book_verdict(frozen_root)
+    assert len(ledger_entries(frozen_root)) == 1
+
+
+def test_a_verdict_on_a_programme_that_was_never_booked_is_refused(tmp_path):
+    root = build_root(tmp_path / "root")
+    out = root / v2.ARTEFACT_DIR
+    out.mkdir(parents=True)
+    (out / "holdout_read.json").write_text(json.dumps(
+        {"verdict": "archived_w_dev_gates", "candidate": "X1_XSMOM", "w_dev_sharpe": 1.0,
+         "holdout": {"sharpe": 0.0}}), encoding="utf-8")
+    (out / "programme_w_dev.json").write_text(json.dumps({"robustness_scores": {}}), encoding="utf-8")
+    with pytest.raises(ValueError, match="Amendement wijst naar config_hash"):
+        v2.book_verdict(root)
+    assert ledger_entries(root) == []
+
+
+# --------------------------------------------------------------------------- #
+# main
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def commands(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Vervang de vier opdrachten, zodat `main` nooit de echte wortel van de repository raakt."""
+    called: list[str] = []
+    monkeypatch.setattr(v2, "freeze", lambda: called.append("freeze") or Path("pre_x.json"))
+    monkeypatch.setattr(v2, "run_programme",
+                        lambda: called.append("run") or {"selected": "X1", "score": np.float32(12.5)})
+    monkeypatch.setattr(v2, "read_holdout",
+                        lambda: called.append("holdout") or {"verdict": "archived_w_dev_gates"})
+    monkeypatch.setattr(v2, "book_verdict", lambda: called.append("verdict"))
+    return called
+
+
+@pytest.mark.parametrize(("command", "printed"), [
+    ("freeze", "pre_x.json\n"),
+    ("run", json.dumps({"selected": "X1", "score": 12.5}, indent=2) + "\n"),
+    ("holdout", json.dumps({"verdict": "archived_w_dev_gates"}, indent=2) + "\n"),
+    ("verdict", "")])
+def test_main_runs_exactly_the_requested_command_and_prints_its_result(
+        commands, capsys, command, printed):
+    v2.main([command])
+    assert commands == [command]
+    assert capsys.readouterr().out == printed
+
+
+@pytest.mark.parametrize("argv", [[], ["thaw"], ["FREEZE"], ["freeze", "run"]])
+def test_main_refuses_a_missing_unknown_or_double_command_before_running_anything(
+        commands, argv):
+    with pytest.raises(DataContractError, match=r"Gebruik: python -I -m tradebot\.systematic\.programme_v2"):
+        v2.main(argv)
+    assert commands == []
+
+
+@pytest.mark.filterwarnings("ignore:.*found in sys.modules after import of package:RuntimeWarning")
+def test_the_module_runs_as_a_script_and_refuses_a_call_without_command(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["programme_v2"])
+    with pytest.raises(DataContractError, match="Gebruik"):
+        runpy.run_module("tradebot.systematic.programme_v2", run_name="__main__")
+
+
+# --------------------------------------------------------------------------- #
+# Bevindingen: gepind, niet aangepast (het onderzoeksgedrag is vooraf geregistreerd)
+# --------------------------------------------------------------------------- #
+@pytest.mark.xfail(strict=True, reason=(
+    "BEVINDING, niet aangepast: read_holdout vergelijkt de split van het slot niet met "
+    "windows.holdout_start. Staat het slot eerder, dan overlapt de 'holdout' W_DEV. v1 "
+    "(programme.py: 'gate_start wijkt af van de bevroren holdout-split') weigert dat wel."))
+def test_a_lock_with_another_split_than_the_configured_holdout_start_is_refused(
+        real_flow, tmp_path):
+    root = copy_root(real_flow.root, tmp_path / "root")
+    lock = root / v2.LOCK_PATH
+    lock.write_text(json.dumps({**read_json(lock), "split_utc": "2021-06-01T00:00:00+00:00"}),
+                    encoding="utf-8")
+    with pytest.raises(DataContractError, match="split"):
+        v2.read_holdout(root, log=lambda _: None)
+    assert lock_reads(root) == []                               # geweigerd vóór de lezing wordt verbruikt
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "BEVINDING, niet aangepast: run_programme leest de DSR-M live uit de ledger. Is er na het "
+    "bevriezen iets bijgeboekt, dan verschuift M en is dezelfde run niet reproduceerbaar; de "
+    "preregistratie noemt M als vast getal ('cumulatieve ledger-M (14)')."))
+def test_the_dsr_trial_count_stays_the_one_of_the_freeze_when_the_ledger_grows(
+        scenarios, tmp_path, monkeypatch):
+    root = copy_root(scenarios["promote"].root, tmp_path / "root")
+    frozen_total = read_json(scenarios["promote"].frozen)["ledger_total_at_freeze"]
+    HypothesisLedger(root / v2.LEDGER_PATH).append(LedgerEntry.from_config(
+        wave=3, unit="robust_book_v3_programme", market="crypto", config={"p": 1}, git_sha=SHA,
+        data_hash="0" * 16, preregistration_id="f" * 32, n_trials=3))
+    monkeypatch.setattr(v2, "battery", light_battery(v2.battery, []))
+    monkeypatch.setattr(v2, "pbo_record", fake_pbo)
+    summary = v2.run_programme(root, log=lambda _: None)
+    assert summary["m_programme"] == frozen_total
