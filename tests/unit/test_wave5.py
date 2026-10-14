@@ -93,30 +93,63 @@ class TestP2OnlineQuantile:
 
 
 # ---------------------------------------------------------------------------
-# train.quant_arch — dynamic_embargo_bars
+# train.quant_arch — dynamic_embargo_bars (re-export of cv.purge, R-3)
+# Expected values: max(min_embargo, ceil(max(h) * sf)), default sf = 2.5.
 # ---------------------------------------------------------------------------
 
 class TestDynamicEmbargoBars:
-    def test_positive_output(self) -> None:
+    def test_is_the_cv_purge_implementation(self) -> None:
+        import tradebot.train
+        from tradebot.cv.purge import dynamic_embargo_bars as canonical
         from tradebot.train.quant_arch import dynamic_embargo_bars
-        result = dynamic_embargo_bars(horizons_bars=[10, 20, 30])
-        assert result > 0
+        assert dynamic_embargo_bars is canonical
+        assert tradebot.train.dynamic_embargo_bars is canonical
+        assert "dynamic_embargo_bars" in tradebot.train.__all__
+
+    def test_default_safety_factor_is_2_5(self) -> None:
+        from tradebot.cv.purge import DEFAULT_SAFETY_FACTOR
+        from tradebot.train.quant_arch import dynamic_embargo_bars
+        assert DEFAULT_SAFETY_FACTOR == 2.5
+        assert dynamic_embargo_bars(horizons_bars=[10, 20, 30]) == 75  # ceil(30 * 2.5)
 
     def test_longer_horizons_yield_more_bars(self) -> None:
         from tradebot.train.quant_arch import dynamic_embargo_bars
-        short = dynamic_embargo_bars(horizons_bars=[5])
-        long_ = dynamic_embargo_bars(horizons_bars=[5, 50, 100])
-        assert long_ >= short
+        assert dynamic_embargo_bars(horizons_bars=[5]) == 13               # ceil(12.5)
+        assert dynamic_embargo_bars(horizons_bars=[5, 50, 100]) == 250     # ceil(100 * 2.5)
 
     def test_min_embargo_respected(self) -> None:
         from tradebot.train.quant_arch import dynamic_embargo_bars
-        result = dynamic_embargo_bars(horizons_bars=[1], min_embargo=42)
-        assert result >= 42
+        assert dynamic_embargo_bars(horizons_bars=[1], min_embargo=42) == 42  # max(42, 3)
+        assert dynamic_embargo_bars(horizons_bars=[], min_embargo=7) == 7
 
     def test_returns_int(self) -> None:
         from tradebot.train.quant_arch import dynamic_embargo_bars
         result = dynamic_embargo_bars(horizons_bars=[15, 30])
         assert isinstance(result, int)
+        assert result == 75  # ceil(30 * 2.5)
+
+    def test_safety_factor_below_one_raises(self) -> None:
+        from tradebot.train.quant_arch import dynamic_embargo_bars
+        with pytest.raises(ValueError, match="safety_factor"):
+            dynamic_embargo_bars(horizons_bars=[5], safety_factor=0.99)
+
+    def test_safety_factor_below_two_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        from tradebot.train.quant_arch import dynamic_embargo_bars
+        with caplog.at_level("WARNING", logger="tradebot.cv.purge"):
+            assert dynamic_embargo_bars(horizons_bars=[5], safety_factor=1.2) == 6   # ceil(6.0)
+            assert dynamic_embargo_bars(horizons_bars=[7], safety_factor=1.0) == 7   # ceil(7.0)
+        warnings = [r for r in caplog.records if r.name == "tradebot.cv.purge"]
+        assert len(warnings) == 2
+        assert all("crisis-aware floor" in r.getMessage() for r in warnings)
+
+    def test_safety_factor_at_two_does_not_warn(
+        self, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        from tradebot.train.quant_arch import dynamic_embargo_bars
+        with caplog.at_level("WARNING", logger="tradebot.cv.purge"):
+            assert dynamic_embargo_bars(horizons_bars=[5], safety_factor=2.0) == 10  # ceil(10.0)
+            assert dynamic_embargo_bars(horizons_bars=[5]) == 13
+        assert not [r for r in caplog.records if r.name == "tradebot.cv.purge"]
 
 
 # ---------------------------------------------------------------------------
