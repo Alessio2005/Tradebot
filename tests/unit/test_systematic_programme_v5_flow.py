@@ -172,14 +172,10 @@ def edit_yaml(path: Path, edit: Callable[[dict[str, Any]], None]) -> None:
     path.write_text(yaml.safe_dump(d, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
-def write_root(root: Path, version: str, *, world: Mapping[str, Mapping[str, pd.DataFrame]]
-               | None = None, bind: Sequence[str] = (), keep: Sequence[str] = (),
-               backcast_lock: bool | None = None,
+def write_conf(root: Path, version: str, *, bind: Sequence[str] = (), keep: Sequence[str] = (),
                edit_config: Callable[[dict[str, Any]], None] | None = None,
-               edit_spec: Callable[[dict[str, Any]], None] | None = None) -> Path:
-    """Een complete tijdelijke repo-root: config, preregistratie, impactparameters, panelen,
-    manifesten, een lege ledger en het holdout-slot (zoals v2 het bevroor). Het
-    backcast-slot bestaat alleen vanaf v6: v5 bevriest het zelf."""
+               edit_spec: Callable[[dict[str, Any]], None] | None = None) -> None:
+    """De config, de preregistratie en de impactparameters van `version` onder `root`."""
     cfg = model_config(version)
     spec = preregistration_spec(version, bind=bind, keep=keep)
     if edit_config is not None:
@@ -193,6 +189,14 @@ def write_root(root: Path, version: str, *, world: Mapping[str, Mapping[str, pd.
                                 encoding="utf-8")
     (root / "conf/execution").mkdir(parents=True, exist_ok=True)
     shutil.copyfile(REPO / "conf/execution/impact.yaml", root / "conf/execution/impact.yaml")
+
+
+def write_root(root: Path, version: str, *, world: Mapping[str, Mapping[str, pd.DataFrame]]
+               | None = None, backcast_lock: bool | None = None, **conf: Any) -> Path:
+    """Een complete tijdelijke repo-root: config, preregistratie, impactparameters, panelen,
+    manifesten, een lege ledger en het holdout-slot (zoals v2 het bevroor). Het
+    backcast-slot bestaat alleen vanaf v6: v5 bevriest het zelf. `conf`: zie `write_conf`."""
+    write_conf(root, version, **conf)
     write_panels(root, synthetic_world() if world is None else world, n_bars=N_BASE)
     write_manifests(root)
     ledger = root / v2.LEDGER_PATH

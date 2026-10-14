@@ -84,11 +84,9 @@ def programme_dev_sharpe(root: Path, prog: v6.Programme, name: str) -> float:
     return v2._sr(res.window(v2._ts(w.train_start), v2._ts(w.w_dev_end)))
 
 
-def frozen_programme(root: Path, prog: v6.Programme = v6.V6, *, name: str | None = None,
-                     n_binding: int = 0, dev_sharpe: float | None = None,
-                     **kw: Any) -> SimpleNamespace:
-    """Een root waarin `prog` is bevroren en de W_DEV-artefacten van `name` staan."""
-    write_root(root, version_of(prog), **kw)
+def seed_programme(root: Path, prog: v6.Programme = v6.V6, *, name: str | None = None,
+                   n_binding: int = 0, dev_sharpe: float | None = None) -> SimpleNamespace:
+    """Bevries `prog` in een bestaande root en laat de W_DEV-artefacten van `name` achter."""
     v6.freeze(root, git_sha=GIT_SHA, prog=prog)
     name = name or prog.candidates[0]
     prereg_id = v6._prereg(root, programme_cfg(root, prog), prog)[0].preregistration_id
@@ -98,6 +96,14 @@ def frozen_programme(root: Path, prog: v6.Programme = v6.V6, *, name: str | None
                           selection_rule="lowest_leverage_all_clear")
     return SimpleNamespace(root=root, prog=prog, prereg_id=prereg_id, name=name,
                            dev_sharpe=sharpe, hid=f"{prog.name}/{prereg_id}/{name}")
+
+
+def frozen_programme(root: Path, prog: v6.Programme = v6.V6, *, name: str | None = None,
+                     n_binding: int = 0, dev_sharpe: float | None = None,
+                     **kw: Any) -> SimpleNamespace:
+    """Een nieuwe root waarin `prog` is bevroren en de W_DEV-artefacten van `name` staan."""
+    write_root(root, version_of(prog), **kw)
+    return seed_programme(root, prog, name=name, n_binding=n_binding, dev_sharpe=dev_sharpe)
 
 
 def reads_in(root: Path, lock: Path) -> list[str]:

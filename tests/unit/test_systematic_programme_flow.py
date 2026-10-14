@@ -23,6 +23,7 @@ import runpy
 import sys
 import zlib
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -50,7 +51,7 @@ from tradebot.systematic import evaluate, programme
 from tradebot.systematic.book import BookResult, CostSpec
 from tradebot.systematic.evaluate import summarize
 from tradebot.systematic.market import BookMarket, from_weekly_market
-from tradebot.systematic.sleeves import SleeveTargets
+from tradebot.systematic.sleeves import SizingParams, SleeveTargets
 from tradebot.utils.failfast import ConfigContractError, DataContractError
 from tradebot.utils.hashing import hash_config
 from tradebot.validation.holdout import HoldoutAlreadyUsed, freeze_holdout
@@ -353,7 +354,7 @@ class TestSmallHelpers:
     def test_a_missing_cost_file_stops_the_costs(self, tmp_path: Path) -> None:
         root = write_root(tmp_path)
         (root / "conf/execution/impact.yaml").unlink()
-        with pytest.raises(ConfigContractError, match="impact.yaml"):
+        with pytest.raises(ConfigContractError, match=r"impact\.yaml"):
             programme.cost_spec(root, load_cfg(root))
 
     def test_the_market_comes_from_the_weekly_loader_for_exactly_the_configured_symbols(
@@ -753,7 +754,7 @@ class TestRunProgramme:
         self, chain: SimpleNamespace,
     ) -> None:
         win = chain.cfg.windows
-        for name in ("B1_BTC_HOLD", "C4_CARRY_XS"):
+        for name in ("B1_BTC_HOLD", "C2_TREND_LF"):
             res = independent_run(chain.root, chain.market, name, until=utc(GATE_START))
             expected = summarize(res.window(utc(win.w_dev_start), utc(win.w_dev_end)))
             table = chain.summary["table"][name]
@@ -892,7 +893,7 @@ class TestReadGate:
         install(monkeypatch, flow_market(), loads=loads)
         root = write_root(tmp_path)
         programme.freeze(root, git_sha=GIT)
-        with pytest.raises(FileNotFoundError, match="programme_w_dev.json"):
+        with pytest.raises(FileNotFoundError, match=r"programme_w_dev\.json"):
             programme.read_gate(root, log=lambda _m: None)
         assert loads == [] and read_json(root / programme.LOCK_PATH)["reads"] == []
 
@@ -1031,90 +1032,126 @@ class TestTheVerdict:
 # De batterij: de takken die de flowtoets niet raakt
 # --------------------------------------------------------------------------- #
 COSTS = CostSpec(taker_fee=5.5e-4, half_spread=1e-4, impact=None, aum_usd=1e5)
+ONE_VARIANT = "max_scale_1.0"
+
+
+def run_battery(name: str, included: tuple[str, ...]) -> SimpleNamespace:
+    """De echte `programme.battery` op een markt van drie munten en een config met een kern van één munt.
+
+    Een kern van één munt (BTC) is volgens het schema geldig en maakt de twee overslaan-takken
+    bereikbaar: met de standaardkern (BTC en ETH) laat elk universum minstens één kernmunt over.
+    Twee binnenstappen zijn verkleind omdat ze niet het onderwerp zijn: één trekking per ruis- en
+    gatenreeks (`N_SEEDS`) en een parameterfamilie van één lid (de familie heeft zijn eigen toets,
+    `test_systematic_programme.py::test_the_perturbation_family_matches_the_preregistration`).
+    """
+    cfg = RobustBookConfig.model_validate(small_config(len(programme.TRIALS)))
+    cfg = cfg.model_copy(update={"core": cfg.core.model_copy(update={"assets": ("BTCUSDT",)})})
+    market = synthetic_market(n_bars=220).subset(("BTCUSDT", "ETHUSDT", "SOLUSDT"))
+    window = (market.index[120], market.index[200])
+
+    def one_variant(_name: str, config: RobustBookConfig, _included: tuple[str, ...]) -> dict[str, dict]:
+        return {ONE_VARIANT: {"sizing": replace(SizingParams.from_config(config), max_scale=1.0)}}
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(programme, "N_SEEDS", 1)
+        mp.setattr(programme, "perturbation_family", one_variant)
+        base = programme.run_targets(programme.build_trial(name, market, cfg, included=included),
+                                     market, COSTS, lag=1)
+        bat, family = programme.battery(name, market, cfg, COSTS, included=included, base=base, w_dev=window)
+    return SimpleNamespace(bat=bat, family=family, base=base, market=market, cfg=cfg, window=window,
+                           name=name, included=included)
+
+
+def window_sharpe(res: BookResult, window: tuple[pd.Timestamp, pd.Timestamp]) -> float:
+    return float(summarize(res.window(*window), bootstrap=False)["sharpe"])
+
+
+ALL_FIVE = {"without_BTCUSDT", "without_ETHUSDT", "without_SOLUSDT", "btc_eth_only", "without_btc_alts_only"}
+KEEPS_BTC = {"without_ETHUSDT", "without_SOLUSDT", "btc_eth_only"}
+
+
+@pytest.fixture(scope="module")
+def carry() -> SimpleNamespace:
+    return run_battery("C4_CARRY_XS", ())
+
+
+@pytest.fixture(scope="module")
+def core() -> SimpleNamespace:
+    return run_battery("C3_VOLMAN_CORE", ())
+
+
+@pytest.fixture(scope="module")
+def combo_with_core() -> SimpleNamespace:
+    return run_battery("C5_COMBO", ("C3_VOLMAN_CORE", "C4_CARRY_XS"))
+
+
+@pytest.fixture(scope="module")
+def combo_without_core() -> SimpleNamespace:
+    return run_battery("C5_COMBO", ("C4_CARRY_XS",))
 
 
 class TestBatteryBranches:
-    """De echte `programme.battery` op een kleine markt van drie munten en een kern van één munt."""
-
-    @staticmethod
-    def _setup(monkeypatch: pytest.MonkeyPatch) -> tuple[BookMarket, RobustBookConfig, tuple[pd.Timestamp, pd.Timestamp]]:
-        monkeypatch.setattr(programme, "N_SEEDS", 1)
-        market = synthetic_market(n_bars=330).subset(("BTCUSDT", "ETHUSDT", "SOLUSDT"))
-        cfg = robust_book_config()
-        cfg = cfg.model_copy(update={"core": cfg.core.model_copy(update={"assets": ("BTCUSDT",)})})
-        return market, cfg, (market.index[150], market.index[300])
-
-    @staticmethod
-    def _sharpe(res: BookResult, window: tuple[pd.Timestamp, pd.Timestamp]) -> float:
-        return float(summarize(res.window(*window), bootstrap=False)["sharpe"])
-
     def test_the_carry_candidate_varies_its_own_rebalance_interval_not_the_thinned_decisions(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self, carry: SimpleNamespace,
     ) -> None:
-        market, cfg, window = self._setup(monkeypatch)
-        name = "C4_CARRY_XS"
-        base = programme.run_targets(programme.build_trial(name, market, cfg), market, COSTS, lag=1)
-        bat, family = programme.battery(name, market, cfg, COSTS, included=(), base=base, w_dev=window)
-
-        assert set(bat["rebalance"]) == {"every_3", "every_14"}
-        t_base = programme.build_trial(name, market, cfg)
+        m, cfg = carry.market, carry.cfg
+        assert set(carry.bat["rebalance"]) == {"every_3", "every_14"}
+        t_base = programme.build_trial(carry.name, m, cfg)
         for k in (3, 14):
-            own = programme.build_trial(name, market, cfg, carry_rebalance=k)
-            expected = self._sharpe(programme.run_targets(own, market, COSTS, lag=1), window)
-            thinned = self._sharpe(programme.run_targets(programme._every(t_base, k), market, COSTS, lag=1), window)
-            assert bat["rebalance"][f"every_{k}"] == pytest.approx(expected)
-            assert bat["rebalance"][f"every_{k}"] != pytest.approx(thinned)
-        # Een kern van één munt laat de universa van een kandidaat zonder kern ongemoeid.
-        assert set(bat["universe"]) == {"without_BTCUSDT", "without_ETHUSDT", "without_SOLUSDT",
-                                        "btc_eth_only", "without_btc_alts_only"}
-        assert {"carry_window_3", "carry_window_14", "carry_window_30"} <= set(bat["perturbation"])
-        assert len(family) == 1 + len(bat["perturbation"])
+            own = programme.build_trial(carry.name, m, cfg, carry_rebalance=k)
+            expected = window_sharpe(programme.run_targets(own, m, COSTS, lag=1), carry.window)
+            thinned = window_sharpe(programme.run_targets(programme._every(t_base, k), m, COSTS, lag=1),
+                                    carry.window)
+            assert carry.bat["rebalance"][f"every_{k}"] == pytest.approx(expected)
+            assert carry.bat["rebalance"][f"every_{k}"] != pytest.approx(thinned)
 
-    def test_every_battery_result_the_programme_reads_exists_and_the_noise_runs_the_patched_seed_count(
-        self, monkeypatch: pytest.MonkeyPatch,
+    def test_a_candidate_without_a_core_keeps_every_universe_even_when_the_core_is_one_coin(
+        self, carry: SimpleNamespace,
     ) -> None:
-        market, cfg, window = self._setup(monkeypatch)
-        name = "C4_CARRY_XS"
-        base = programme.run_targets(programme.build_trial(name, market, cfg), market, COSTS, lag=1)
-        bat, _ = programme.battery(name, market, cfg, COSTS, included=(), base=base, w_dev=window)
-        assert bat["base_sharpe"] == pytest.approx(self._sharpe(base, window))
-        assert {"x0", "x2", "x3", "plus_10bp_slippage"} == set(bat["costs"])
-        assert {"lag_2", "lag_3"} == set(bat["delay"])
-        assert isinstance(bat["plateau_fraction"], float) and isinstance(bat["min_perturbation_sharpe"], float)
+        assert set(carry.bat["universe"]) == ALL_FIVE
+
+    def test_the_battery_delivers_every_figure_run_programme_reads(self, carry: SimpleNamespace) -> None:
+        bat = carry.bat
+        assert bat["base_sharpe"] == pytest.approx(window_sharpe(carry.base, carry.window))
+        assert set(bat["costs"]) == {"x0", "x2", "x3", "plus_10bp_slippage"}
+        assert set(bat["capacity"]) == {"aum_1000000", "aum_10000000", "aum_100000000"}
+        assert set(bat["delay"]) == {"lag_2", "lag_3"}
+        assert set(bat["perturbation"]) == {ONE_VARIANT} and set(carry.family) == {"base", ONE_VARIANT}
+        assert bat["min_perturbation_sharpe"] == bat["median_perturbation_sharpe"] == bat["perturbation"][ONE_VARIANT]
+        assert bat["plateau_fraction"] in (0.0, 1.0)
         assert 0.0 <= bat["leave_one_out_positive_fraction"] <= 1.0
-        assert bat["signal_noise"]["n_seeds"] == bat["missing_data"]["n_seeds"] == 1
-        assert bat["signal_noise"]["min"] == bat["signal_noise"]["median"] == bat["signal_noise"]["max"]
+        assert set(bat["monte_carlo_drawdown"]) == {"one_year", "full_window"}
+
+    def test_the_noise_and_the_gaps_run_as_many_draws_as_the_seed_count_says(self, carry: SimpleNamespace) -> None:
+        for key in ("signal_noise", "missing_data"):
+            draw = carry.bat[key]
+            assert draw["n_seeds"] == 1
+            assert draw["min"] == draw["median"] == draw["max"]
 
     def test_a_core_candidate_skips_the_universes_that_leave_it_without_a_core_asset(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self, core: SimpleNamespace,
     ) -> None:
-        market, cfg, window = self._setup(monkeypatch)
-        name = "C3_VOLMAN_CORE"
-        base = programme.run_targets(programme.build_trial(name, market, cfg), market, COSTS, lag=1)
-        bat, _ = programme.battery(name, market, cfg, COSTS, included=(), base=base, w_dev=window)
+        assert set(core.bat["universe"]) == KEEPS_BTC
+        assert set(core.bat["rebalance"]) == {"every_3", "every_7"}
 
-        assert set(bat["universe"]) == {"without_ETHUSDT", "without_SOLUSDT", "btc_eth_only"}
-        sub = market.subset(("BTCUSDT", "SOLUSDT"))
-        run = programme.run_targets(programme.build_trial(name, sub, cfg), sub, COSTS, lag=1)
-        assert bat["universe"]["without_ETHUSDT"] == pytest.approx(self._sharpe(run, window))
-        loo = [bat["universe"][k] > 0 for k in ("without_ETHUSDT", "without_SOLUSDT")]
-        assert bat["leave_one_out_positive_fraction"] == pytest.approx(float(np.mean(loo)))
-        assert set(bat["rebalance"]) == {"every_3", "every_7"}
+    def test_a_universe_runs_the_candidate_on_that_universe_only(self, core: SimpleNamespace) -> None:
+        sub = core.market.subset(("BTCUSDT", "SOLUSDT"))
+        run = programme.run_targets(programme.build_trial(core.name, sub, core.cfg), sub, COSTS, lag=1)
+        assert core.bat["universe"]["without_ETHUSDT"] == pytest.approx(window_sharpe(run, core.window))
 
-    def test_a_combination_with_the_core_sleeve_skips_them_too_but_one_without_it_does_not(
-        self, monkeypatch: pytest.MonkeyPatch,
+    def test_the_leave_one_out_fraction_counts_only_the_universes_that_were_run(self, core: SimpleNamespace) -> None:
+        loo = [core.bat["universe"][k] > 0 for k in ("without_ETHUSDT", "without_SOLUSDT")]
+        assert core.bat["leave_one_out_positive_fraction"] == pytest.approx(float(np.mean(loo)))
+
+    def test_a_combination_with_the_core_sleeve_skips_the_same_universes(
+        self, combo_with_core: SimpleNamespace,
     ) -> None:
-        market, cfg, window = self._setup(monkeypatch)
-        results = {}
-        for members in (("C3_VOLMAN_CORE", "C4_CARRY_XS"), ("C4_CARRY_XS",)):
-            base = programme.run_targets(programme.build_trial("C5_COMBO", market, cfg, included=members),
-                                         market, COSTS, lag=1)
-            bat, _ = programme.battery("C5_COMBO", market, cfg, COSTS, included=members, base=base,
-                                       w_dev=window)
-            results[members] = set(bat["universe"])
-        assert results[("C3_VOLMAN_CORE", "C4_CARRY_XS")] == {"without_ETHUSDT", "without_SOLUSDT", "btc_eth_only"}
-        assert results[("C4_CARRY_XS",)] == {"without_BTCUSDT", "without_ETHUSDT", "without_SOLUSDT",
-                                             "btc_eth_only", "without_btc_alts_only"}
+        assert set(combo_with_core.bat["universe"]) == KEEPS_BTC
+
+    def test_a_combination_without_the_core_sleeve_keeps_every_universe(
+        self, combo_without_core: SimpleNamespace,
+    ) -> None:
+        assert set(combo_without_core.bat["universe"]) == ALL_FIVE
 
 
 # --------------------------------------------------------------------------- #
