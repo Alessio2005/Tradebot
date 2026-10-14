@@ -1,0 +1,42 @@
+{
+  "frozen_utc": "2026-10-07T15:16:46.380860+00:00",
+  "git_sha": "c5e7b64",
+  "reads": [
+    {
+      "hypothesis_id": "robust_book_v2/b97b3b8e38a44fe23626342775b86cf7/X4_TREND_LF",
+      "read_utc": "2026-10-07T15:34:06.570985+00:00"
+    },
+    {
+      "hypothesis_id": "robust_book_v3/cb45bd8c6980f7926c2246eb6ce1d706/Y4_TREND_LF",
+      "read_utc": "2026-10-07T15:46:56.940900+00:00"
+    },
+    {
+      "hypothesis_id": "robust_book_v4/3d623e462367f81ac34cb676346a3188/Y5_COMBO",
+      "read_utc": "2026-10-07T15:52:32.294543+00:00"
+    },
+    {
+      "hypothesis_id": "robust_book_v5/4df1a5d0cd590b67965127db4e6e480a/H3_BASIS_MAJORS",
+      "read_utc": "2026-10-07T17:22:16.472338+00:00"
+    },
+    {
+      "hypothesis_id": "robust_book_v6/b62c8bc358a1de4422e19e1fc824d7a5/K1_CARRY_PM_1X",
+      "read_utc": "2026-10-09T16:21:23.022425+00:00"
+    },
+    {
+      "hypothesis_id": "robust_book_v7/04af949bfb9adfde53c502931c78a33e/S2_CARRY_PM_TRANCHE",
+      "read_utc": "2026-10-09T16:24:44.110994+00:00"
+    },
+    {
+      "hypothesis_id": "robust_book_v8/1b771576762caa74ea6d7e95cd5f7343/T2_CARRY_TRANCHE_JUMPCAP",
+      "read_utc": "2026-10-09T16:34:28.899607+00:00"
+    }
+  ],
+  "resumes": [
+    {
+      "hypothesis_id": "robust_book_v5/4df1a5d0cd590b67965127db4e6e480a/H3_BASIS_MAJORS",
+      "reason": "De berekening crashte na de registratie op een identiek-nul rendement in de holdout (geen positie); de backcast-uitkomst is nooit getoond of opgeslagen. Afgemaakt met een venster-zonder-positie-regel, verder ongewijzigd.",
+      "resumed_utc": "2026-10-07T17:25:50.363302+00:00"
+    }
+  ],
+  "split_utc": "2025-07-01T00:00:00+00:00"
+}

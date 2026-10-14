@@ -1,0 +1,90 @@
+{
+  "binding_w_dev": {
+    "K1_CARRY_PM_1X": [
+      "g2_cagr_below_target",
+      "g5_cost_fragile"
+    ],
+    "K2_CARRY_PM_1P5X": [
+      "g2_cagr_below_target",
+      "g5_cost_fragile"
+    ],
+    "K3_CARRY_PM_2X": [
+      "g2_cagr_below_target",
+      "g5_cost_fragile"
+    ]
+  },
+  "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+  "git_sha": "ab9dac9",
+  "m_including_known_prior": 76,
+  "m_programme": 24,
+  "passes_all_w_dev_gates": {
+    "K1_CARRY_PM_1X": false,
+    "K2_CARRY_PM_1P5X": false,
+    "K3_CARRY_PM_2X": false
+  },
+  "preregistration_id": "b62c8bc358a1de4422e19e1fc824d7a5",
+  "programme": "robust_book_v6",
+  "robustness_scores": {
+    "K1_CARRY_PM_1X": 88.83217219947531,
+    "K2_CARRY_PM_1P5X": 86.07419933936089,
+    "K3_CARRY_PM_2X": 83.99964846877907
+  },
+  "selected": "K1_CARRY_PM_1X",
+  "selection_rule": "robustness_score_none_clear",
+  "table": {
+    "K1_CARRY_PM_1X": {
+      "ann_financing": -0.0012974453213368724,
+      "ann_funding": 0.142297972810408,
+      "ann_turnover": 5.705301335788244,
+      "ann_vol": 0.021099784743437332,
+      "avg_gross_leverage": 0.9090970864379171,
+      "avg_loan": 0.0031868879551852068,
+      "cagr": 0.12094865945838262,
+      "calmar": 5.2911160431443225,
+      "max_drawdown": 0.022858818153326143,
+      "min_stress_headroom": 18.583122583873294,
+      "n_liquidations": 0,
+      "sharpe": 5.422599331327764,
+      "sharpe_ci_high": 8.041127417383061,
+      "sharpe_ci_low": 2.420116723555583,
+      "sharpe_se": 1.4942937964953849,
+      "sortino": 5.5221882959823
+    },
+    "K2_CARRY_PM_1P5X": {
+      "ann_financing": -0.034321193918772835,
+      "ann_funding": 0.20526187692309386,
+      "ann_turnover": 7.876547365680888,
+      "ann_vol": 0.02949522106129682,
+      "avg_gross_leverage": 1.2623111416951405,
+      "avg_loan": 0.10736111195898196,
+      "cagr": 0.13557797048801024,
+      "calmar": 3.838786819587963,
+      "max_drawdown": 0.035317921223498035,
+      "min_stress_headroom": 5.897813090757502,
+      "n_liquidations": 0,
+      "sharpe": 4.32610178698692,
+      "sharpe_ci_high": 6.852772391539262,
+      "sharpe_ci_low": 1.5463286252327146,
+      "sharpe_se": 1.4090671603555547,
+      "sortino": 4.103511397068392
+    },
+    "K3_CARRY_PM_2X": {
+      "ann_financing": -0.06415899552998133,
+      "ann_funding": 0.24780829329133242,
+      "ann_turnover": 9.734693626462372,
+      "ann_vol": 0.035880491309476244,
+      "avg_gross_leverage": 1.511406560945166,
+      "avg_loan": 0.21718495344467584,
+      "cagr": 0.13991760164886435,
+      "calmar": 2.8747037522863477,
+      "max_drawdown": 0.04867200717207233,
+      "min_stress_headroom": 4.759934765846156,
+      "n_liquidations": 0,
+      "sharpe": 3.668453027736288,
+      "sharpe_ci_high": 6.2669023813864655,
+      "sharpe_ci_low": 1.0016815620344526,
+      "sharpe_se": 1.4489471002142886,
+      "sortino": 3.231965329063406
+    }
+  }
+}

@@ -4,6 +4,43 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Robuust boek v6–v8 (2026-10-09) — hefboom, uitvoering, sprongrisico
+- **Eigenaarsbesluit:** hoog risico toegestaan; hefboom niet langer uitgesloten.
+  Mandaat ongewijzigd: bruto ≤ 4,0, ADV-participatie ≤ 1 %, max drawdown 25 %.
+  Rapport: `docs/research/2026-10-09-robust-book-v6-v8-report.md`.
+- **Nieuw boek `systematic/leverage.py`:** de basiscarry van v5 in een
+  unified-margin-account.
+  - Spot als onderpand met haircut; USDT-lening tegen `max(8 %, BTC-carry)`.
+  - Liquidatietoets op de intraday **mark price**: nieuwe data, 895/900 perps,
+    MD5-geverifieerd.
+  - Governor op uniMMR ≥ 3 en bruto ≤ 4; ADV-cap tegen de lopende equity.
+  - Gespreide uitvoering (v7), een gefinancierde tranche (v7) en een
+    sprongrisicogrens (v8).
+- **v6 (M = 24):** 1×/1,5×/2× per been op W_DEV gaf Sharpe 5,4 / 4,3 / 3,7 en CAGR
+  12,1 / 13,6 / 14,0 %. Alle drie binden op G2 en G5. Hefboom is bijna NPV-nul, omdat
+  de leenrente met de carry meebeweegt.
+- **v7 (M = 26):** spreiding over 5 dagen plus een tranche alleen waar carry ≥
+  rente + 10 pp. **S2 haalt op W_DEV alle poorten:** Sharpe 5,35, CAGR 16,7 %,
+  MDD 1,1 %.
+- **De stille killer:** in de holdout 2025–26 liet de carry-screen alleen
+  pump-and-dump-microcaps door (dag-σ 0,24–1,05). Dat is adverse selectie, geen
+  carry.
+  - v6-K1: −8,6 % (z = −14,9), gefalsificeerd.
+  - v7-S2: −5,7 % (z = −16,7), gefalsificeerd.
+- **v8 (M = 27):** een sprongrisicogrens (dag-σ ≤ 0,20), afgeleid uit de bevroren
+  kosten- en instapparameters.
+  - T2: W_DEV Sharpe 5,33, CAGR 15,9 %, alle poorten vrij.
+  - Backcast 2020: Sharpe 9,0, CAGR 24,7 %.
+  - Holdout −1,1 % (DD 1,4 %), formeel gefalsificeerd door de bevroren z-regel.
+  - Hele cyclus 2020-04 .. 2026-09: **Sharpe 5,05, CAGR 13,4 %, MDD 2,0 %**.
+- **Vooruit-slot** (vanaf 2026-10-01), bevroren op 2026-10-09 vóór alle lezingen: de
+  enige schone toets. Lezing vanaf april 2027 via `binance_vision forward` en
+  `programme_v8 forward`.
+- **Scenario:** met één beurs en ~3 %/jaar kans op een faillissement zakt de echte
+  Sharpe naar ~0,8. Meerdere beurzen zijn een voorwaarde voor de doelstelling.
+- **Reproduceerbaarheid:** v5 reproduceert bit-identiek op opnieuw opgehaalde data;
+  v6 en v7 na elke refactor.
+
 ## Mandaatwijziging (2026-09-12) — eigen kapitaal i.p.v. propfirm
 - **Risicobudget herijkt.** Er wordt niet meer met propfirms gewerkt; de
   drempels die contractnaleving waren zijn vervangen door een

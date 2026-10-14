@@ -1,0 +1,136 @@
+{
+  "candidate": "H3_BASIS_MAJORS",
+  "caveat": "De backcast is nooit gemeten. De holdout is besmet (fundingniveau gezien in v4) en telt alleen als falsificatie.",
+  "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+  "gate_metrics": {
+    "backcast_max_drawdown": 0.00155645083219758,
+    "backcast_net_sharpe": 11.463448260195317,
+    "backcast_sharpe_z_vs_dev": 2.7866280385322786,
+    "holdout_max_drawdown": 0.0,
+    "holdout_sharpe_z_vs_dev": NaN
+  },
+  "gates": {
+    "backcast_drawdown": {
+      "binds": false,
+      "metric": "backcast_max_drawdown",
+      "operator": ">",
+      "threshold": 0.25,
+      "value": 0.00155645083219758
+    },
+    "backcast_no_positive_sharpe": {
+      "binds": false,
+      "metric": "backcast_net_sharpe",
+      "operator": "<=",
+      "threshold": 0.0,
+      "value": 11.463448260195317
+    },
+    "backcast_sharpe_collapse": {
+      "binds": false,
+      "metric": "backcast_sharpe_z_vs_dev",
+      "operator": "<",
+      "threshold": -1.645,
+      "value": 2.7866280385322786
+    },
+    "holdout_drawdown": {
+      "binds": false,
+      "metric": "holdout_max_drawdown",
+      "operator": ">",
+      "threshold": 0.25,
+      "value": 0.0
+    },
+    "holdout_sharpe_collapse": {
+      "binds": true,
+      "metric": "holdout_sharpe_z_vs_dev",
+      "operator": "<",
+      "threshold": -1.645,
+      "value": NaN
+    }
+  },
+  "hypothesis_id": "robust_book_v5/4df1a5d0cd590b67965127db4e6e480a/H3_BASIS_MAJORS",
+  "n_binding_total": 2,
+  "n_binding_w_dev": 1,
+  "n_liquidations_full_run": 0,
+  "reads": {
+    "backcast": {
+      "invested": true,
+      "max_gross_leverage": 1.5948742232089081,
+      "pct_bars_invested": 1.0,
+      "summary": {
+        "ann_fees": -0.004008971745379963,
+        "ann_funding": 0.12324104942747556,
+        "ann_gross": 0.0002859292407077169,
+        "ann_impact": -0.003522942368414633,
+        "ann_net": 0.11392591343215958,
+        "ann_slippage": 0.0,
+        "ann_spread": -0.002069151122228879,
+        "ann_turnover": 5.167968804342128,
+        "ann_vol": 0.009938188828203291,
+        "avg_gross_leverage": 1.0527975221347172,
+        "avg_net_leverage": 0.00037715386657425796,
+        "best_day": 0.002545540175683536,
+        "bootstrap_block_length": 20,
+        "bootstrap_n_boot": 10000,
+        "cagr": 0.12059408975705721,
+        "calmar": 77.48017943283716,
+        "end": "2020-12-31",
+        "gross_plus_funding_sharpe": 12.530476964234767,
+        "gross_sharpe": 0.05931235155989607,
+        "hit_rate_days": 0.8290909090909091,
+        "kurtosis": 6.26131174591637,
+        "max_drawdown": 0.00155645083219758,
+        "max_gross_leverage": 1.5948742232089081,
+        "n_obs": 275,
+        "n_trades": 13,
+        "p_sharpe_gt_0": 0.9999999999945628,
+        "pct_bars_invested": 1.0,
+        "sharpe": 11.463448260195317,
+        "sharpe_ci_high": 14.642103154462728,
+        "sharpe_ci_low": 8.87920119578685,
+        "sharpe_per_bar": 0.6000243054761394,
+        "sharpe_se": 1.687184173098239,
+        "skew": 1.0575549949793224,
+        "sortino": 17.533072738507787,
+        "start": "2020-04-01",
+        "t_stat": 6.794426146817488,
+        "t_years": 0.7534246575342466,
+        "worst_day": -0.0014389900016801294
+      },
+      "window": [
+        "2020-04-01",
+        "2020-12-31"
+      ],
+      "yearly": {
+        "2020": {
+          "max_drawdown": 0.00155645083219758,
+          "n_obs": 275,
+          "return": 0.08957113478170342,
+          "sharpe": 11.463448260195317
+        }
+      },
+      "z_vs_dev": 2.7866280385322786
+    },
+    "holdout": {
+      "invested": false,
+      "max_gross_leverage": 0.0,
+      "note": "flat: geen positie in het hele venster",
+      "pct_bars_invested": 0.0,
+      "summary": {
+        "ann_funding": 0.0,
+        "cagr": 0.0,
+        "max_drawdown": 0.0,
+        "n_obs": 457,
+        "sharpe": NaN,
+        "sharpe_se": NaN
+      },
+      "window": [
+        "2025-07-01",
+        "2026-09-30"
+      ],
+      "yearly": null,
+      "z_vs_dev": NaN
+    }
+  },
+  "resumed_after_crash": "De berekening crashte na de registratie op een identiek-nul rendement in de holdout (geen positie); de backcast-uitkomst is nooit getoond of opgeslagen. Afgemaakt met een venster-zonder-positie-regel, verder ongewijzigd.",
+  "verdict": "falsified_out_of_sample",
+  "w_dev_sharpe": 6.761893537271867
+}

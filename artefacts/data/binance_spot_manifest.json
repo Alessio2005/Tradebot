@@ -1,0 +1,1936 @@
+{
+  "source": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+  "first_month": "2019-12",
+  "last_month": "2026-09",
+  "n_perps": 900,
+  "n_mapped": 481,
+  "n_objects": 21199,
+  "objects_sha256": "9d2b3eefdb1022eede0f8a82ba8a93c558d24d0ea716b4a25ee09d16cfd312a5",
+  "bytes": 36931982,
+  "mapping": {
+    "0GUSDT": [
+      "0GUSDT",
+      1.0
+    ],
+    "1000BONKUSDT": [
+      "BONKUSDT",
+      1000.0
+    ],
+    "1000BTTCUSDT": [
+      "BTTCUSDT",
+      1000.0
+    ],
+    "1000CATUSDT": [
+      "1000CATUSDT",
+      1.0
+    ],
+    "1000CHEEMSUSDT": [
+      "1000CHEEMSUSDT",
+      1.0
+    ],
+    "1000FLOKIUSDT": [
+      "FLOKIUSDT",
+      1000.0
+    ],
+    "1000LUNCUSDT": [
+      "LUNCUSDT",
+      1000.0
+    ],
+    "1000PEPEUSDT": [
+      "PEPEUSDT",
+      1000.0
+    ],
+    "1000SATSUSDT": [
+      "1000SATSUSDT",
+      1.0
+    ],
+    "1000SHIBUSDT": [
+      "SHIBUSDT",
+      1000.0
+    ],
+    "1000XECUSDT": [
+      "XECUSDT",
+      1000.0
+    ],
+    "1INCHUSDT": [
+      "1INCHUSDT",
+      1.0
+    ],
+    "1MBABYDOGEUSDT": [
+      "1MBABYDOGEUSDT",
+      1.0
+    ],
+    "2ZUSDT": [
+      "2ZUSDT",
+      1.0
+    ],
+    "A2ZUSDT": [
+      "A2ZUSDT",
+      1.0
+    ],
+    "AAVEUSDT": [
+      "AAVEUSDT",
+      1.0
+    ],
+    "ACEUSDT": [
+      "ACEUSDT",
+      1.0
+    ],
+    "ACHUSDT": [
+      "ACHUSDT",
+      1.0
+    ],
+    "ACTUSDT": [
+      "ACTUSDT",
+      1.0
+    ],
+    "ACXUSDT": [
+      "ACXUSDT",
+      1.0
+    ],
+    "ADAUSDT": [
+      "ADAUSDT",
+      1.0
+    ],
+    "AERGOUSDT": [
+      "AERGOUSDT",
+      1.0
+    ],
+    "AEROUSDT": [
+      "AEROUSDT",
+      1.0
+    ],
+    "AEVOUSDT": [
+      "AEVOUSDT",
+      1.0
+    ],
+    "AGIXUSDT": [
+      "AGIXUSDT",
+      1.0
+    ],
+    "AGLDUSDT": [
+      "AGLDUSDT",
+      1.0
+    ],
+    "AIGENSYNUSDT": [
+      "AIGENSYNUSDT",
+      1.0
+    ],
+    "AIUSDT": [
+      "AIUSDT",
+      1.0
+    ],
+    "AIXBTUSDT": [
+      "AIXBTUSDT",
+      1.0
+    ],
+    "AKROUSDT": [
+      "AKROUSDT",
+      1.0
+    ],
+    "ALGOUSDT": [
+      "ALGOUSDT",
+      1.0
+    ],
+    "ALICEUSDT": [
+      "ALICEUSDT",
+      1.0
+    ],
+    "ALLOUSDT": [
+      "ALLOUSDT",
+      1.0
+    ],
+    "ALPACAUSDT": [
+      "ALPACAUSDT",
+      1.0
+    ],
+    "ALPHAUSDT": [
+      "ALPHAUSDT",
+      1.0
+    ],
+    "ALPINEUSDT": [
+      "ALPINEUSDT",
+      1.0
+    ],
+    "ALTUSDT": [
+      "ALTUSDT",
+      1.0
+    ],
+    "AMBUSDT": [
+      "AMBUSDT",
+      1.0
+    ],
+    "ANCUSDT": [
+      "ANCUSDT",
+      1.0
+    ],
+    "ANIMEUSDT": [
+      "ANIMEUSDT",
+      1.0
+    ],
+    "ANKRUSDT": [
+      "ANKRUSDT",
+      1.0
+    ],
+    "ANTUSDT": [
+      "ANTUSDT",
+      1.0
+    ],
+    "APEUSDT": [
+      "APEUSDT",
+      1.0
+    ],
+    "API3USDT": [
+      "API3USDT",
+      1.0
+    ],
+    "APTUSDT": [
+      "APTUSDT",
+      1.0
+    ],
+    "ARBUSDT": [
+      "ARBUSDT",
+      1.0
+    ],
+    "ARKMUSDT": [
+      "ARKMUSDT",
+      1.0
+    ],
+    "ARKUSDT": [
+      "ARKUSDT",
+      1.0
+    ],
+    "ARPAUSDT": [
+      "ARPAUSDT",
+      1.0
+    ],
+    "ARUSDT": [
+      "ARUSDT",
+      1.0
+    ],
+    "ASRUSDT": [
+      "ASRUSDT",
+      1.0
+    ],
+    "ASTERUSDT": [
+      "ASTERUSDT",
+      1.0
+    ],
+    "ASTRUSDT": [
+      "ASTRUSDT",
+      1.0
+    ],
+    "ATAUSDT": [
+      "ATAUSDT",
+      1.0
+    ],
+    "ATOMUSDT": [
+      "ATOMUSDT",
+      1.0
+    ],
+    "ATUSDT": [
+      "ATUSDT",
+      1.0
+    ],
+    "AUCTIONUSDT": [
+      "AUCTIONUSDT",
+      1.0
+    ],
+    "AUDIOUSDT": [
+      "AUDIOUSDT",
+      1.0
+    ],
+    "AUSDT": [
+      "AUSDT",
+      1.0
+    ],
+    "AVAUSDT": [
+      "AVAUSDT",
+      1.0
+    ],
+    "AVAXUSDT": [
+      "AVAXUSDT",
+      1.0
+    ],
+    "AVNTUSDT": [
+      "AVNTUSDT",
+      1.0
+    ],
+    "AWEUSDT": [
+      "AWEUSDT",
+      1.0
+    ],
+    "AXLUSDT": [
+      "AXLUSDT",
+      1.0
+    ],
+    "AXSUSDT": [
+      "AXSUSDT",
+      1.0
+    ],
+    "BABYUSDT": [
+      "BABYUSDT",
+      1.0
+    ],
+    "BADGERUSDT": [
+      "BADGERUSDT",
+      1.0
+    ],
+    "BAKEUSDT": [
+      "BAKEUSDT",
+      1.0
+    ],
+    "BALUSDT": [
+      "BALUSDT",
+      1.0
+    ],
+    "BANANAS31USDT": [
+      "BANANAS31USDT",
+      1.0
+    ],
+    "BANANAUSDT": [
+      "BANANAUSDT",
+      1.0
+    ],
+    "BANDUSDT": [
+      "BANDUSDT",
+      1.0
+    ],
+    "BANKUSDT": [
+      "BANKUSDT",
+      1.0
+    ],
+    "BARDUSDT": [
+      "BARDUSDT",
+      1.0
+    ],
+    "BATUSDT": [
+      "BATUSDT",
+      1.0
+    ],
+    "BBUSDT": [
+      "BBUSDT",
+      1.0
+    ],
+    "BCHUSDT": [
+      "BCHUSDT",
+      1.0
+    ],
+    "BEAMXUSDT": [
+      "BEAMXUSDT",
+      1.0
+    ],
+    "BELUSDT": [
+      "BELUSDT",
+      1.0
+    ],
+    "BERAUSDT": [
+      "BERAUSDT",
+      1.0
+    ],
+    "BICOUSDT": [
+      "BICOUSDT",
+      1.0
+    ],
+    "BIGTIMEUSDT": [
+      "BIGTIMEUSDT",
+      1.0
+    ],
+    "BIOUSDT": [
+      "BIOUSDT",
+      1.0
+    ],
+    "BLURUSDT": [
+      "BLURUSDT",
+      1.0
+    ],
+    "BLZUSDT": [
+      "BLZUSDT",
+      1.0
+    ],
+    "BMTUSDT": [
+      "BMTUSDT",
+      1.0
+    ],
+    "BNBUSDT": [
+      "BNBUSDT",
+      1.0
+    ],
+    "BNTUSDT": [
+      "BNTUSDT",
+      1.0
+    ],
+    "BNXUSDT": [
+      "BNXUSDT",
+      1.0
+    ],
+    "BOMEUSDT": [
+      "BOMEUSDT",
+      1.0
+    ],
+    "BONDUSDT": [
+      "BONDUSDT",
+      1.0
+    ],
+    "BREVUSDT": [
+      "BREVUSDT",
+      1.0
+    ],
+    "BROCCOLI714USDT": [
+      "BROCCOLI714USDT",
+      1.0
+    ],
+    "BSWUSDT": [
+      "BSWUSDT",
+      1.0
+    ],
+    "BTCSTUSDT": [
+      "BTCSTUSDT",
+      1.0
+    ],
+    "BTCUSDT": [
+      "BTCUSDT",
+      1.0
+    ],
+    "BTSUSDT": [
+      "BTSUSDT",
+      1.0
+    ],
+    "BTTUSDT": [
+      "BTTUSDT",
+      1.0
+    ],
+    "BZRXUSDT": [
+      "BZRXUSDT",
+      1.0
+    ],
+    "C98USDT": [
+      "C98USDT",
+      1.0
+    ],
+    "CAKEUSDT": [
+      "CAKEUSDT",
+      1.0
+    ],
+    "CATIUSDT": [
+      "CATIUSDT",
+      1.0
+    ],
+    "CELOUSDT": [
+      "CELOUSDT",
+      1.0
+    ],
+    "CELRUSDT": [
+      "CELRUSDT",
+      1.0
+    ],
+    "CETUSUSDT": [
+      "CETUSUSDT",
+      1.0
+    ],
+    "CFGUSDT": [
+      "CFGUSDT",
+      1.0
+    ],
+    "CFXUSDT": [
+      "CFXUSDT",
+      1.0
+    ],
+    "CGPTUSDT": [
+      "CGPTUSDT",
+      1.0
+    ],
+    "CHESSUSDT": [
+      "CHESSUSDT",
+      1.0
+    ],
+    "CHIPUSDT": [
+      "CHIPUSDT",
+      1.0
+    ],
+    "CHRUSDT": [
+      "CHRUSDT",
+      1.0
+    ],
+    "CHZUSDT": [
+      "CHZUSDT",
+      1.0
+    ],
+    "CKBUSDT": [
+      "CKBUSDT",
+      1.0
+    ],
+    "COCOSUSDT": [
+      "COCOSUSDT",
+      1.0
+    ],
+    "COMBOUSDT": [
+      "COMBOUSDT",
+      1.0
+    ],
+    "COMPUSDT": [
+      "COMPUSDT",
+      1.0
+    ],
+    "COOKIEUSDT": [
+      "COOKIEUSDT",
+      1.0
+    ],
+    "COSUSDT": [
+      "COSUSDT",
+      1.0
+    ],
+    "COTIUSDT": [
+      "COTIUSDT",
+      1.0
+    ],
+    "COWUSDT": [
+      "COWUSDT",
+      1.0
+    ],
+    "CRVUSDT": [
+      "CRVUSDT",
+      1.0
+    ],
+    "CTKUSDT": [
+      "CTKUSDT",
+      1.0
+    ],
+    "CTSIUSDT": [
+      "CTSIUSDT",
+      1.0
+    ],
+    "CUSDT": [
+      "CUSDT",
+      1.0
+    ],
+    "CVCUSDT": [
+      "CVCUSDT",
+      1.0
+    ],
+    "CVXUSDT": [
+      "CVXUSDT",
+      1.0
+    ],
+    "CYBERUSDT": [
+      "CYBERUSDT",
+      1.0
+    ],
+    "DARUSDT": [
+      "DARUSDT",
+      1.0
+    ],
+    "DASHUSDT": [
+      "DASHUSDT",
+      1.0
+    ],
+    "DEGOUSDT": [
+      "DEGOUSDT",
+      1.0
+    ],
+    "DENTUSDT": [
+      "DENTUSDT",
+      1.0
+    ],
+    "DEXEUSDT": [
+      "DEXEUSDT",
+      1.0
+    ],
+    "DFUSDT": [
+      "DFUSDT",
+      1.0
+    ],
+    "DGBUSDT": [
+      "DGBUSDT",
+      1.0
+    ],
+    "DIAUSDT": [
+      "DIAUSDT",
+      1.0
+    ],
+    "DODOUSDT": [
+      "DODOUSDT",
+      1.0
+    ],
+    "DOGEUSDT": [
+      "DOGEUSDT",
+      1.0
+    ],
+    "DOGSUSDT": [
+      "DOGSUSDT",
+      1.0
+    ],
+    "DOLOUSDT": [
+      "DOLOUSDT",
+      1.0
+    ],
+    "DOTUSDT": [
+      "DOTUSDT",
+      1.0
+    ],
+    "DUSDT": [
+      "DUSDT",
+      1.0
+    ],
+    "DUSKUSDT": [
+      "DUSKUSDT",
+      1.0
+    ],
+    "DYDXUSDT": [
+      "DYDXUSDT",
+      1.0
+    ],
+    "DYMUSDT": [
+      "DYMUSDT",
+      1.0
+    ],
+    "EDENUSDT": [
+      "EDENUSDT",
+      1.0
+    ],
+    "EDUUSDT": [
+      "EDUUSDT",
+      1.0
+    ],
+    "EGLDUSDT": [
+      "EGLDUSDT",
+      1.0
+    ],
+    "EIGENUSDT": [
+      "EIGENUSDT",
+      1.0
+    ],
+    "ENAUSDT": [
+      "ENAUSDT",
+      1.0
+    ],
+    "ENJUSDT": [
+      "ENJUSDT",
+      1.0
+    ],
+    "ENSOUSDT": [
+      "ENSOUSDT",
+      1.0
+    ],
+    "ENSUSDT": [
+      "ENSUSDT",
+      1.0
+    ],
+    "EOSUSDT": [
+      "EOSUSDT",
+      1.0
+    ],
+    "EPICUSDT": [
+      "EPICUSDT",
+      1.0
+    ],
+    "ERAUSDT": [
+      "ERAUSDT",
+      1.0
+    ],
+    "ESPUSDT": [
+      "ESPUSDT",
+      1.0
+    ],
+    "ETCUSDT": [
+      "ETCUSDT",
+      1.0
+    ],
+    "ETHFIUSDT": [
+      "ETHFIUSDT",
+      1.0
+    ],
+    "ETHUSDT": [
+      "ETHUSDT",
+      1.0
+    ],
+    "EULUSDT": [
+      "EULUSDT",
+      1.0
+    ],
+    "FETUSDT": [
+      "FETUSDT",
+      1.0
+    ],
+    "FFUSDT": [
+      "FFUSDT",
+      1.0
+    ],
+    "FIDAUSDT": [
+      "FIDAUSDT",
+      1.0
+    ],
+    "FILUSDT": [
+      "FILUSDT",
+      1.0
+    ],
+    "FIOUSDT": [
+      "FIOUSDT",
+      1.0
+    ],
+    "FISUSDT": [
+      "FISUSDT",
+      1.0
+    ],
+    "FLMUSDT": [
+      "FLMUSDT",
+      1.0
+    ],
+    "FLOWUSDT": [
+      "FLOWUSDT",
+      1.0
+    ],
+    "FLUXUSDT": [
+      "FLUXUSDT",
+      1.0
+    ],
+    "FOGOUSDT": [
+      "FOGOUSDT",
+      1.0
+    ],
+    "FORMUSDT": [
+      "FORMUSDT",
+      1.0
+    ],
+    "FORTHUSDT": [
+      "FORTHUSDT",
+      1.0
+    ],
+    "FRAXUSDT": [
+      "FRAXUSDT",
+      1.0
+    ],
+    "FRONTUSDT": [
+      "FRONTUSDT",
+      1.0
+    ],
+    "FTMUSDT": [
+      "FTMUSDT",
+      1.0
+    ],
+    "FTTUSDT": [
+      "FTTUSDT",
+      1.0
+    ],
+    "FUNUSDT": [
+      "FUNUSDT",
+      1.0
+    ],
+    "FUSDT": [
+      "FUSDT",
+      1.0
+    ],
+    "FXSUSDT": [
+      "FXSUSDT",
+      1.0
+    ],
+    "GALAUSDT": [
+      "GALAUSDT",
+      1.0
+    ],
+    "GALUSDT": [
+      "GALUSDT",
+      1.0
+    ],
+    "GASUSDT": [
+      "GASUSDT",
+      1.0
+    ],
+    "GENIUSUSDT": [
+      "GENIUSUSDT",
+      1.0
+    ],
+    "GHSTUSDT": [
+      "GHSTUSDT",
+      1.0
+    ],
+    "GIGGLEUSDT": [
+      "GIGGLEUSDT",
+      1.0
+    ],
+    "GLMRUSDT": [
+      "GLMRUSDT",
+      1.0
+    ],
+    "GLMUSDT": [
+      "GLMUSDT",
+      1.0
+    ],
+    "GMTUSDT": [
+      "GMTUSDT",
+      1.0
+    ],
+    "GMXUSDT": [
+      "GMXUSDT",
+      1.0
+    ],
+    "GPSUSDT": [
+      "GPSUSDT",
+      1.0
+    ],
+    "GRAMUSDT": [
+      "GRAMUSDT",
+      1.0
+    ],
+    "GRTUSDT": [
+      "GRTUSDT",
+      1.0
+    ],
+    "GTCUSDT": [
+      "GTCUSDT",
+      1.0
+    ],
+    "GUNUSDT": [
+      "GUNUSDT",
+      1.0
+    ],
+    "GUSDT": [
+      "GUSDT",
+      1.0
+    ],
+    "HAEDALUSDT": [
+      "HAEDALUSDT",
+      1.0
+    ],
+    "HBARUSDT": [
+      "HBARUSDT",
+      1.0
+    ],
+    "HEIUSDT": [
+      "HEIUSDT",
+      1.0
+    ],
+    "HEMIUSDT": [
+      "HEMIUSDT",
+      1.0
+    ],
+    "HFTUSDT": [
+      "HFTUSDT",
+      1.0
+    ],
+    "HIFIUSDT": [
+      "HIFIUSDT",
+      1.0
+    ],
+    "HIGHUSDT": [
+      "HIGHUSDT",
+      1.0
+    ],
+    "HIVEUSDT": [
+      "HIVEUSDT",
+      1.0
+    ],
+    "HMSTRUSDT": [
+      "HMSTRUSDT",
+      1.0
+    ],
+    "HNTUSDT": [
+      "HNTUSDT",
+      1.0
+    ],
+    "HOLOUSDT": [
+      "HOLOUSDT",
+      1.0
+    ],
+    "HOMEUSDT": [
+      "HOMEUSDT",
+      1.0
+    ],
+    "HOOKUSDT": [
+      "HOOKUSDT",
+      1.0
+    ],
+    "HOTUSDT": [
+      "HOTUSDT",
+      1.0
+    ],
+    "HUMAUSDT": [
+      "HUMAUSDT",
+      1.0
+    ],
+    "HYPERUSDT": [
+      "HYPERUSDT",
+      1.0
+    ],
+    "HYPEUSDT": [
+      "HYPEUSDT",
+      1.0
+    ],
+    "ICPUSDT": [
+      "ICPUSDT",
+      1.0
+    ],
+    "ICXUSDT": [
+      "ICXUSDT",
+      1.0
+    ],
+    "IDEXUSDT": [
+      "IDEXUSDT",
+      1.0
+    ],
+    "IDUSDT": [
+      "IDUSDT",
+      1.0
+    ],
+    "ILVUSDT": [
+      "ILVUSDT",
+      1.0
+    ],
+    "IMXUSDT": [
+      "IMXUSDT",
+      1.0
+    ],
+    "INITUSDT": [
+      "INITUSDT",
+      1.0
+    ],
+    "INJUSDT": [
+      "INJUSDT",
+      1.0
+    ],
+    "IOSTUSDT": [
+      "IOSTUSDT",
+      1.0
+    ],
+    "IOTAUSDT": [
+      "IOTAUSDT",
+      1.0
+    ],
+    "IOTXUSDT": [
+      "IOTXUSDT",
+      1.0
+    ],
+    "IOUSDT": [
+      "IOUSDT",
+      1.0
+    ],
+    "JASMYUSDT": [
+      "JASMYUSDT",
+      1.0
+    ],
+    "JOEUSDT": [
+      "JOEUSDT",
+      1.0
+    ],
+    "JSTUSDT": [
+      "JSTUSDT",
+      1.0
+    ],
+    "JTOUSDT": [
+      "JTOUSDT",
+      1.0
+    ],
+    "JUPUSDT": [
+      "JUPUSDT",
+      1.0
+    ],
+    "KAIAUSDT": [
+      "KAIAUSDT",
+      1.0
+    ],
+    "KAITOUSDT": [
+      "KAITOUSDT",
+      1.0
+    ],
+    "KATUSDT": [
+      "KATUSDT",
+      1.0
+    ],
+    "KAVAUSDT": [
+      "KAVAUSDT",
+      1.0
+    ],
+    "KDAUSDT": [
+      "KDAUSDT",
+      1.0
+    ],
+    "KEEPUSDT": [
+      "KEEPUSDT",
+      1.0
+    ],
+    "KERNELUSDT": [
+      "KERNELUSDT",
+      1.0
+    ],
+    "KEYUSDT": [
+      "KEYUSDT",
+      1.0
+    ],
+    "KITEUSDT": [
+      "KITEUSDT",
+      1.0
+    ],
+    "KLAYUSDT": [
+      "KLAYUSDT",
+      1.0
+    ],
+    "KMNOUSDT": [
+      "KMNOUSDT",
+      1.0
+    ],
+    "KNCUSDT": [
+      "KNCUSDT",
+      1.0
+    ],
+    "KSMUSDT": [
+      "KSMUSDT",
+      1.0
+    ],
+    "LAUSDT": [
+      "LAUSDT",
+      1.0
+    ],
+    "LAYERUSDT": [
+      "LAYERUSDT",
+      1.0
+    ],
+    "LDOUSDT": [
+      "LDOUSDT",
+      1.0
+    ],
+    "LENDUSDT": [
+      "LENDUSDT",
+      1.0
+    ],
+    "LEVERUSDT": [
+      "LEVERUSDT",
+      1.0
+    ],
+    "LINAUSDT": [
+      "LINAUSDT",
+      1.0
+    ],
+    "LINEAUSDT": [
+      "LINEAUSDT",
+      1.0
+    ],
+    "LINKUSDT": [
+      "LINKUSDT",
+      1.0
+    ],
+    "LISTAUSDT": [
+      "LISTAUSDT",
+      1.0
+    ],
+    "LITUSDT": [
+      "LITUSDT",
+      1.0
+    ],
+    "LOKAUSDT": [
+      "LOKAUSDT",
+      1.0
+    ],
+    "LOOMUSDT": [
+      "LOOMUSDT",
+      1.0
+    ],
+    "LPTUSDT": [
+      "LPTUSDT",
+      1.0
+    ],
+    "LQTYUSDT": [
+      "LQTYUSDT",
+      1.0
+    ],
+    "LRCUSDT": [
+      "LRCUSDT",
+      1.0
+    ],
+    "LSKUSDT": [
+      "LSKUSDT",
+      1.0
+    ],
+    "LTCUSDT": [
+      "LTCUSDT",
+      1.0
+    ],
+    "LUMIAUSDT": [
+      "LUMIAUSDT",
+      1.0
+    ],
+    "LUNAUSDT": [
+      "LUNAUSDT",
+      1.0
+    ],
+    "MAGICUSDT": [
+      "MAGICUSDT",
+      1.0
+    ],
+    "MANAUSDT": [
+      "MANAUSDT",
+      1.0
+    ],
+    "MANTAUSDT": [
+      "MANTAUSDT",
+      1.0
+    ],
+    "MANTRAUSDT": [
+      "MANTRAUSDT",
+      1.0
+    ],
+    "MARSCOINUSDT": [
+      "MARSCOINUSDT",
+      1.0
+    ],
+    "MASKUSDT": [
+      "MASKUSDT",
+      1.0
+    ],
+    "MATICUSDT": [
+      "MATICUSDT",
+      1.0
+    ],
+    "MAVUSDT": [
+      "MAVUSDT",
+      1.0
+    ],
+    "MBLUSDT": [
+      "MBLUSDT",
+      1.0
+    ],
+    "MBOXUSDT": [
+      "MBOXUSDT",
+      1.0
+    ],
+    "MDTUSDT": [
+      "MDTUSDT",
+      1.0
+    ],
+    "MEGAUSDT": [
+      "MEGAUSDT",
+      1.0
+    ],
+    "MEMEUSDT": [
+      "MEMEUSDT",
+      1.0
+    ],
+    "METISUSDT": [
+      "METISUSDT",
+      1.0
+    ],
+    "METUSDT": [
+      "METUSDT",
+      1.0
+    ],
+    "MEUSDT": [
+      "MEUSDT",
+      1.0
+    ],
+    "MINAUSDT": [
+      "MINAUSDT",
+      1.0
+    ],
+    "MIRAUSDT": [
+      "MIRAUSDT",
+      1.0
+    ],
+    "MITOUSDT": [
+      "MITOUSDT",
+      1.0
+    ],
+    "MKRUSDT": [
+      "MKRUSDT",
+      1.0
+    ],
+    "MLNUSDT": [
+      "MLNUSDT",
+      1.0
+    ],
+    "MMTUSDT": [
+      "MMTUSDT",
+      1.0
+    ],
+    "MORPHOUSDT": [
+      "MORPHOUSDT",
+      1.0
+    ],
+    "MOVEUSDT": [
+      "MOVEUSDT",
+      1.0
+    ],
+    "MOVRUSDT": [
+      "MOVRUSDT",
+      1.0
+    ],
+    "MTLUSDT": [
+      "MTLUSDT",
+      1.0
+    ],
+    "MUBARAKUSDT": [
+      "MUBARAKUSDT",
+      1.0
+    ],
+    "NEARUSDT": [
+      "NEARUSDT",
+      1.0
+    ],
+    "NEIROUSDT": [
+      "NEIROUSDT",
+      1.0
+    ],
+    "NEOUSDT": [
+      "NEOUSDT",
+      1.0
+    ],
+    "NEWTUSDT": [
+      "NEWTUSDT",
+      1.0
+    ],
+    "NFPUSDT": [
+      "NFPUSDT",
+      1.0
+    ],
+    "NIGHTUSDT": [
+      "NIGHTUSDT",
+      1.0
+    ],
+    "NILUSDT": [
+      "NILUSDT",
+      1.0
+    ],
+    "NKNUSDT": [
+      "NKNUSDT",
+      1.0
+    ],
+    "NMRUSDT": [
+      "NMRUSDT",
+      1.0
+    ],
+    "NOMUSDT": [
+      "NOMUSDT",
+      1.0
+    ],
+    "NOTUSDT": [
+      "NOTUSDT",
+      1.0
+    ],
+    "NTRNUSDT": [
+      "NTRNUSDT",
+      1.0
+    ],
+    "NULSUSDT": [
+      "NULSUSDT",
+      1.0
+    ],
+    "NUUSDT": [
+      "NUUSDT",
+      1.0
+    ],
+    "NXPCUSDT": [
+      "NXPCUSDT",
+      1.0
+    ],
+    "OCEANUSDT": [
+      "OCEANUSDT",
+      1.0
+    ],
+    "OGNUSDT": [
+      "OGNUSDT",
+      1.0
+    ],
+    "OGUSDT": [
+      "OGUSDT",
+      1.0
+    ],
+    "OMGUSDT": [
+      "OMGUSDT",
+      1.0
+    ],
+    "OMNIUSDT": [
+      "OMNIUSDT",
+      1.0
+    ],
+    "OMUSDT": [
+      "OMUSDT",
+      1.0
+    ],
+    "ONDOUSDT": [
+      "ONDOUSDT",
+      1.0
+    ],
+    "ONEUSDT": [
+      "ONEUSDT",
+      1.0
+    ],
+    "ONGUSDT": [
+      "ONGUSDT",
+      1.0
+    ],
+    "ONTUSDT": [
+      "ONTUSDT",
+      1.0
+    ],
+    "OPENUSDT": [
+      "OPENUSDT",
+      1.0
+    ],
+    "OPGUSDT": [
+      "OPGUSDT",
+      1.0
+    ],
+    "OPNUSDT": [
+      "OPNUSDT",
+      1.0
+    ],
+    "OPUSDT": [
+      "OPUSDT",
+      1.0
+    ],
+    "ORCAUSDT": [
+      "ORCAUSDT",
+      1.0
+    ],
+    "ORDIUSDT": [
+      "ORDIUSDT",
+      1.0
+    ],
+    "OXTUSDT": [
+      "OXTUSDT",
+      1.0
+    ],
+    "PARTIUSDT": [
+      "PARTIUSDT",
+      1.0
+    ],
+    "PAXGUSDT": [
+      "PAXGUSDT",
+      1.0
+    ],
+    "PENDLEUSDT": [
+      "PENDLEUSDT",
+      1.0
+    ],
+    "PENGUUSDT": [
+      "PENGUUSDT",
+      1.0
+    ],
+    "PEOPLEUSDT": [
+      "PEOPLEUSDT",
+      1.0
+    ],
+    "PERPUSDT": [
+      "PERPUSDT",
+      1.0
+    ],
+    "PHAUSDT": [
+      "PHAUSDT",
+      1.0
+    ],
+    "PHBUSDT": [
+      "PHBUSDT",
+      1.0
+    ],
+    "PIXELUSDT": [
+      "PIXELUSDT",
+      1.0
+    ],
+    "PLUMEUSDT": [
+      "PLUMEUSDT",
+      1.0
+    ],
+    "PNUTUSDT": [
+      "PNUTUSDT",
+      1.0
+    ],
+    "POLUSDT": [
+      "POLUSDT",
+      1.0
+    ],
+    "POLYXUSDT": [
+      "POLYXUSDT",
+      1.0
+    ],
+    "PORTALUSDT": [
+      "PORTALUSDT",
+      1.0
+    ],
+    "POWRUSDT": [
+      "POWRUSDT",
+      1.0
+    ],
+    "PROMUSDT": [
+      "PROMUSDT",
+      1.0
+    ],
+    "PROVEUSDT": [
+      "PROVEUSDT",
+      1.0
+    ],
+    "PUMPUSDT": [
+      "PUMPUSDT",
+      1.0
+    ],
+    "PUNDIXUSDT": [
+      "PUNDIXUSDT",
+      1.0
+    ],
+    "PYTHUSDT": [
+      "PYTHUSDT",
+      1.0
+    ],
+    "QNTUSDT": [
+      "QNTUSDT",
+      1.0
+    ],
+    "QTUMUSDT": [
+      "QTUMUSDT",
+      1.0
+    ],
+    "QUICKUSDT": [
+      "QUICKUSDT",
+      1.0
+    ],
+    "RADUSDT": [
+      "RADUSDT",
+      1.0
+    ],
+    "RAREUSDT": [
+      "RAREUSDT",
+      1.0
+    ],
+    "RAYUSDT": [
+      "RAYUSDT",
+      1.0
+    ],
+    "RDNTUSDT": [
+      "RDNTUSDT",
+      1.0
+    ],
+    "REDUSDT": [
+      "REDUSDT",
+      1.0
+    ],
+    "REEFUSDT": [
+      "REEFUSDT",
+      1.0
+    ],
+    "REIUSDT": [
+      "REIUSDT",
+      1.0
+    ],
+    "RENDERUSDT": [
+      "RENDERUSDT",
+      1.0
+    ],
+    "RENUSDT": [
+      "RENUSDT",
+      1.0
+    ],
+    "RESOLVUSDT": [
+      "RESOLVUSDT",
+      1.0
+    ],
+    "REUSDT": [
+      "REUSDT",
+      1.0
+    ],
+    "REZUSDT": [
+      "REZUSDT",
+      1.0
+    ],
+    "RIFUSDT": [
+      "RIFUSDT",
+      1.0
+    ],
+    "RLCUSDT": [
+      "RLCUSDT",
+      1.0
+    ],
+    "RNDRUSDT": [
+      "RNDRUSDT",
+      1.0
+    ],
+    "ROBOUSDT": [
+      "ROBOUSDT",
+      1.0
+    ],
+    "RONINUSDT": [
+      "RONINUSDT",
+      1.0
+    ],
+    "ROSEUSDT": [
+      "ROSEUSDT",
+      1.0
+    ],
+    "RPLUSDT": [
+      "RPLUSDT",
+      1.0
+    ],
+    "RSRUSDT": [
+      "RSRUSDT",
+      1.0
+    ],
+    "RUNEUSDT": [
+      "RUNEUSDT",
+      1.0
+    ],
+    "RVNUSDT": [
+      "RVNUSDT",
+      1.0
+    ],
+    "SAGAUSDT": [
+      "SAGAUSDT",
+      1.0
+    ],
+    "SAHARAUSDT": [
+      "SAHARAUSDT",
+      1.0
+    ],
+    "SANDUSDT": [
+      "SANDUSDT",
+      1.0
+    ],
+    "SANTOSUSDT": [
+      "SANTOSUSDT",
+      1.0
+    ],
+    "SAPIENUSDT": [
+      "SAPIENUSDT",
+      1.0
+    ],
+    "SCRTUSDT": [
+      "SCRTUSDT",
+      1.0
+    ],
+    "SCRUSDT": [
+      "SCRUSDT",
+      1.0
+    ],
+    "SCUSDT": [
+      "SCUSDT",
+      1.0
+    ],
+    "SEIUSDT": [
+      "SEIUSDT",
+      1.0
+    ],
+    "SENTUSDT": [
+      "SENTUSDT",
+      1.0
+    ],
+    "SFPUSDT": [
+      "SFPUSDT",
+      1.0
+    ],
+    "SHELLUSDT": [
+      "SHELLUSDT",
+      1.0
+    ],
+    "SIGNUSDT": [
+      "SIGNUSDT",
+      1.0
+    ],
+    "SKLUSDT": [
+      "SKLUSDT",
+      1.0
+    ],
+    "SKYUSDT": [
+      "SKYUSDT",
+      1.0
+    ],
+    "SLPUSDT": [
+      "SLPUSDT",
+      1.0
+    ],
+    "SNTUSDT": [
+      "SNTUSDT",
+      1.0
+    ],
+    "SNXUSDT": [
+      "SNXUSDT",
+      1.0
+    ],
+    "SOLUSDT": [
+      "SOLUSDT",
+      1.0
+    ],
+    "SOLVUSDT": [
+      "SOLVUSDT",
+      1.0
+    ],
+    "SOMIUSDT": [
+      "SOMIUSDT",
+      1.0
+    ],
+    "SOPHUSDT": [
+      "SOPHUSDT",
+      1.0
+    ],
+    "SPELLUSDT": [
+      "SPELLUSDT",
+      1.0
+    ],
+    "SPKUSDT": [
+      "SPKUSDT",
+      1.0
+    ],
+    "SRMUSDT": [
+      "SRMUSDT",
+      1.0
+    ],
+    "SSVUSDT": [
+      "SSVUSDT",
+      1.0
+    ],
+    "STEEMUSDT": [
+      "STEEMUSDT",
+      1.0
+    ],
+    "STGUSDT": [
+      "STGUSDT",
+      1.0
+    ],
+    "STMXUSDT": [
+      "STMXUSDT",
+      1.0
+    ],
+    "STORJUSDT": [
+      "STORJUSDT",
+      1.0
+    ],
+    "STOUSDT": [
+      "STOUSDT",
+      1.0
+    ],
+    "STPTUSDT": [
+      "STPTUSDT",
+      1.0
+    ],
+    "STRAXUSDT": [
+      "STRAXUSDT",
+      1.0
+    ],
+    "STRKUSDT": [
+      "STRKUSDT",
+      1.0
+    ],
+    "STXUSDT": [
+      "STXUSDT",
+      1.0
+    ],
+    "SUIUSDT": [
+      "SUIUSDT",
+      1.0
+    ],
+    "SUNUSDT": [
+      "SUNUSDT",
+      1.0
+    ],
+    "SUPERUSDT": [
+      "SUPERUSDT",
+      1.0
+    ],
+    "SUSDT": [
+      "SUSDT",
+      1.0
+    ],
+    "SUSHIUSDT": [
+      "SUSHIUSDT",
+      1.0
+    ],
+    "SXPUSDT": [
+      "SXPUSDT",
+      1.0
+    ],
+    "SXTUSDT": [
+      "SXTUSDT",
+      1.0
+    ],
+    "SYNUSDT": [
+      "SYNUSDT",
+      1.0
+    ],
+    "SYRUPUSDT": [
+      "SYRUPUSDT",
+      1.0
+    ],
+    "SYSUSDT": [
+      "SYSUSDT",
+      1.0
+    ],
+    "TAOUSDT": [
+      "TAOUSDT",
+      1.0
+    ],
+    "THETAUSDT": [
+      "THETAUSDT",
+      1.0
+    ],
+    "THEUSDT": [
+      "THEUSDT",
+      1.0
+    ],
+    "TIAUSDT": [
+      "TIAUSDT",
+      1.0
+    ],
+    "TLMUSDT": [
+      "TLMUSDT",
+      1.0
+    ],
+    "TNSRUSDT": [
+      "TNSRUSDT",
+      1.0
+    ],
+    "TOMOUSDT": [
+      "TOMOUSDT",
+      1.0
+    ],
+    "TONUSDT": [
+      "TONUSDT",
+      1.0
+    ],
+    "TOWNSUSDT": [
+      "TOWNSUSDT",
+      1.0
+    ],
+    "TRBUSDT": [
+      "TRBUSDT",
+      1.0
+    ],
+    "TREEUSDT": [
+      "TREEUSDT",
+      1.0
+    ],
+    "TROYUSDT": [
+      "TROYUSDT",
+      1.0
+    ],
+    "TRUMPUSDT": [
+      "TRUMPUSDT",
+      1.0
+    ],
+    "TRUUSDT": [
+      "TRUUSDT",
+      1.0
+    ],
+    "TRXUSDT": [
+      "TRXUSDT",
+      1.0
+    ],
+    "TSTUSDT": [
+      "TSTUSDT",
+      1.0
+    ],
+    "TURBOUSDT": [
+      "TURBOUSDT",
+      1.0
+    ],
+    "TURTLEUSDT": [
+      "TURTLEUSDT",
+      1.0
+    ],
+    "TUSDT": [
+      "TUSDT",
+      1.0
+    ],
+    "TUTUSDT": [
+      "TUTUSDT",
+      1.0
+    ],
+    "TWTUSDT": [
+      "TWTUSDT",
+      1.0
+    ],
+    "UMAUSDT": [
+      "UMAUSDT",
+      1.0
+    ],
+    "UNFIUSDT": [
+      "UNFIUSDT",
+      1.0
+    ],
+    "UNIUSDT": [
+      "UNIUSDT",
+      1.0
+    ],
+    "USDCUSDT": [
+      "USDCUSDT",
+      1.0
+    ],
+    "USTCUSDT": [
+      "USTCUSDT",
+      1.0
+    ],
+    "USUALUSDT": [
+      "USUALUSDT",
+      1.0
+    ],
+    "VANAUSDT": [
+      "VANAUSDT",
+      1.0
+    ],
+    "VANRYUSDT": [
+      "VANRYUSDT",
+      1.0
+    ],
+    "VELODROMEUSDT": [
+      "VELODROMEUSDT",
+      1.0
+    ],
+    "VETUSDT": [
+      "VETUSDT",
+      1.0
+    ],
+    "VICUSDT": [
+      "VICUSDT",
+      1.0
+    ],
+    "VIDTUSDT": [
+      "VIDTUSDT",
+      1.0
+    ],
+    "VIRTUALUSDT": [
+      "VIRTUALUSDT",
+      1.0
+    ],
+    "VOXELUSDT": [
+      "VOXELUSDT",
+      1.0
+    ],
+    "VTHOUSDT": [
+      "VTHOUSDT",
+      1.0
+    ],
+    "WALUSDT": [
+      "WALUSDT",
+      1.0
+    ],
+    "WAVESUSDT": [
+      "WAVESUSDT",
+      1.0
+    ],
+    "WAXPUSDT": [
+      "WAXPUSDT",
+      1.0
+    ],
+    "WCTUSDT": [
+      "WCTUSDT",
+      1.0
+    ],
+    "WIFUSDT": [
+      "WIFUSDT",
+      1.0
+    ],
+    "WLDUSDT": [
+      "WLDUSDT",
+      1.0
+    ],
+    "WLFIUSDT": [
+      "WLFIUSDT",
+      1.0
+    ],
+    "WOOUSDT": [
+      "WOOUSDT",
+      1.0
+    ],
+    "WUSDT": [
+      "WUSDT",
+      1.0
+    ],
+    "XAIUSDT": [
+      "XAIUSDT",
+      1.0
+    ],
+    "XAUTUSDT": [
+      "XAUTUSDT",
+      1.0
+    ],
+    "XEMUSDT": [
+      "XEMUSDT",
+      1.0
+    ],
+    "XLMUSDT": [
+      "XLMUSDT",
+      1.0
+    ],
+    "XMRUSDT": [
+      "XMRUSDT",
+      1.0
+    ],
+    "XPLUSDT": [
+      "XPLUSDT",
+      1.0
+    ],
+    "XRPUSDT": [
+      "XRPUSDT",
+      1.0
+    ],
+    "XTZUSDT": [
+      "XTZUSDT",
+      1.0
+    ],
+    "XVGUSDT": [
+      "XVGUSDT",
+      1.0
+    ],
+    "XVSUSDT": [
+      "XVSUSDT",
+      1.0
+    ],
+    "YBUSDT": [
+      "YBUSDT",
+      1.0
+    ],
+    "YFIIUSDT": [
+      "YFIIUSDT",
+      1.0
+    ],
+    "YFIUSDT": [
+      "YFIUSDT",
+      1.0
+    ],
+    "YGGUSDT": [
+      "YGGUSDT",
+      1.0
+    ],
+    "ZAMAUSDT": [
+      "ZAMAUSDT",
+      1.0
+    ],
+    "ZBTUSDT": [
+      "ZBTUSDT",
+      1.0
+    ],
+    "ZECUSDT": [
+      "ZECUSDT",
+      1.0
+    ],
+    "ZENUSDT": [
+      "ZENUSDT",
+      1.0
+    ],
+    "ZILUSDT": [
+      "ZILUSDT",
+      1.0
+    ],
+    "ZKCUSDT": [
+      "ZKCUSDT",
+      1.0
+    ],
+    "ZKPUSDT": [
+      "ZKPUSDT",
+      1.0
+    ],
+    "ZKUSDT": [
+      "ZKUSDT",
+      1.0
+    ],
+    "ZROUSDT": [
+      "ZROUSDT",
+      1.0
+    ],
+    "ZRXUSDT": [
+      "ZRXUSDT",
+      1.0
+    ],
+    "\u5e01\u5b89\u4eba\u751fUSDT": [
+      "\u5e01\u5b89\u4eba\u751fUSDT",
+      1.0
+    ],
+    "\u725b\u6765USDT": [
+      "\u725b\u6765USDT",
+      1.0
+    ]
+  }
+}

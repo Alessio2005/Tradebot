@@ -1,0 +1,252 @@
+{
+  "content": {
+    "data_hashes": [
+      [
+        "binance_um/objects",
+        "31d979002a074b6a"
+      ],
+      [
+        "binance_um/panel/close",
+        "30646a979d93bcd5"
+      ],
+      [
+        "binance_um/panel/funding",
+        "f386d0710d2daedc"
+      ],
+      [
+        "binance_um/panel/high",
+        "79885e549290f42c"
+      ],
+      [
+        "binance_um/panel/low",
+        "7e81ae1a2ff9cbe6"
+      ],
+      [
+        "binance_um/panel/open",
+        "1b9872a10c3e74a5"
+      ],
+      [
+        "binance_um/panel/quote_volume",
+        "c6687935764234d1"
+      ]
+    ],
+    "evaluation_start": "2021-01-01",
+    "granularity": "1d",
+    "hypothesis": "Breedte verhoogt het niveau: ten minste een van de vijf vooraf vastgelegde kandidaten (X1 XS-momentum, X2 XS-carry, X3 trend-LS, X4 trend-LF, X5 combinatie) haalt op W_DEV na alle kosten een netto Sharpe van ten minste 1,0 en een netto CAGR van ten minste 15 % bij een vol-doel van 20 %, consistent over TRAIN en VALIDATE, robuust voor dubbele kosten, een dag vertraging en parameterverstoring, met een DSR van ten minste 0,95 bij de cumulatieve ledger-M en een PBO onder 0,5, en houdt dat in de ene holdout-lezing zonder significante ineenstorting vast.",
+    "null_hypothesis": "Geen enkele kandidaat haalt die combinatie: de factorpremies op crypto-perps zijn na realistische kosten niet groot genoeg, of alleen in een deel van de periode aanwezig. Een positief resultaat op een andere kandidaat dan die met de hoogste vooraf gedefinieerde robuustheidsscore weerlegt de nulhypothese niet.",
+    "parameters": {
+      "combo": {
+        "candidates": [
+          "X1_XSMOM",
+          "X2_XSCARRY",
+          "X4_TREND_LF"
+        ],
+        "inclusion_min_train_sharpe": 0.0
+      },
+      "costs": {
+        "impact_y": 1.0,
+        "impact_y_stress": 2.991922,
+        "max_half_spread_bps": 25.0,
+        "min_half_spread_bps": 1.0,
+        "spread_window": 60,
+        "taker_fee_bps": 5.5
+      },
+      "execution": {
+        "aum_usd": 1000000.0,
+        "lag_bars": 1
+      },
+      "known_prior_trials": 52,
+      "planned_trials": 7,
+      "sizing": {
+        "asset_vol_target": 0.2,
+        "gross_cap": 4.0,
+        "max_scale": 3.0,
+        "per_asset_cap": 0.2,
+        "portfolio_vol_target": 0.2,
+        "vol_span": 60
+      },
+      "trend": {
+        "lookbacks": [
+          5,
+          7,
+          10,
+          14,
+          20,
+          28,
+          40,
+          56,
+          80,
+          112,
+          160
+        ],
+        "z_clip": 1.0
+      },
+      "universe": {
+        "adv_window": 30,
+        "min_adv_usd": 5000000.0,
+        "min_ann_vol": 0.15,
+        "min_history_bars": 90,
+        "top_n": 50,
+        "vol_window": 60
+      },
+      "windows": {
+        "holdout_end": "2026-09-30",
+        "holdout_start": "2025-07-01",
+        "train_end": "2023-12-31",
+        "train_start": "2021-01-01",
+        "validate_start": "2024-01-01",
+        "w_dev_end": "2025-06-30"
+      },
+      "xscarry": {
+        "rebalance_bars": 7,
+        "signal_lag_bars": 1,
+        "window_bars": 7
+      },
+      "xsmom": {
+        "lookbacks": [
+          7,
+          14,
+          28,
+          56
+        ],
+        "rebalance_bars": 7,
+        "winsor": 3.0
+      }
+    },
+    "period_end": "2026-09-30",
+    "period_start": "2020-01-01",
+    "planned_trials": 7,
+    "primary_metric": "net_sharpe_w_dev",
+    "stop_criteria": [
+      {
+        "action": "archive",
+        "metric": "net_sharpe_w_dev",
+        "name": "g1_sharpe_below_target",
+        "operator": "<",
+        "rationale": "De opdracht vraagt een netto Sharpe van ten minste 1,0.",
+        "threshold": 1.0
+      },
+      {
+        "action": "archive",
+        "metric": "net_cagr_w_dev",
+        "name": "g2_cagr_below_target",
+        "operator": "<",
+        "rationale": "De opdracht vraagt een netto CAGR van ten minste 15 %, bij het vaste vol-doel van 20 %: de doelstelling halen met extra hefboom is uitdrukkelijk uitgesloten.",
+        "threshold": 0.15
+      },
+      {
+        "action": "archive",
+        "metric": "net_sharpe_train",
+        "name": "g3_train_inconsistent",
+        "operator": "<",
+        "rationale": "Een edge die alleen in één helft van W_DEV bestaat, is een regime, geen edge.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "net_sharpe_validate",
+        "name": "g3_validate_inconsistent",
+        "operator": "<",
+        "rationale": "Idem, voor de tweede helft.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "max_drawdown_w_dev",
+        "name": "g4_drawdown",
+        "operator": ">",
+        "rationale": "Mandaatgrens conf/risk/default.yaml::max_drawdown_pct.",
+        "threshold": 0.25
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ratio_2x_cost_over_base",
+        "name": "g5_cost_fragile",
+        "operator": "<",
+        "rationale": "Bij dubbele kosten moet minstens 75 % van de Sharpe overblijven.",
+        "threshold": 0.75
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ratio_lag2_over_base",
+        "name": "g5_delay_fragile",
+        "operator": "<",
+        "rationale": "Eén dag vertraging mag de Sharpe niet meer dan halveren.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "plateau_fraction",
+        "name": "g6_no_plateau",
+        "operator": "<",
+        "rationale": "Minstens 80 % van de parameterverstoringen moet meer dan de helft van de basis-Sharpe houden; anders staat de kandidaat op een piek, niet op een plateau.",
+        "threshold": 0.8
+      },
+      {
+        "action": "archive",
+        "metric": "min_perturbation_sharpe",
+        "name": "g6_negative_perturbation",
+        "operator": "<",
+        "rationale": "Geen enkele redelijke parameterverstoring mag de Sharpe negatief maken.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ci_low_w_dev",
+        "name": "g7_interval_includes_zero",
+        "operator": "<=",
+        "rationale": "De circulaire-blokbootstrap-ondergrens (95 %) moet boven nul liggen.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "dsr_w_dev",
+        "name": "g8_dsr_below_threshold",
+        "operator": "<",
+        "rationale": "Onder DSR 0,95 bij de cumulatieve ledger-M (14) is de Sharpe niet te onderscheiden van selectieruis.",
+        "threshold": 0.95
+      },
+      {
+        "action": "archive",
+        "metric": "pbo",
+        "name": "g9_overfit_probability",
+        "operator": ">=",
+        "rationale": "Een PBO van 0,5 of meer betekent dat de beste in-sample variant out-of-sample meestal onder de mediaan valt.",
+        "threshold": 0.5
+      },
+      {
+        "action": "falsify",
+        "metric": "gate_sharpe_z_vs_dev",
+        "name": "gate_sharpe_collapse",
+        "operator": "<",
+        "rationale": "Eén lezing van de holdout: valt de Sharpe daar eenzijdig significant (5 %) onder de W_DEV-schatting, dan is de backtest-Sharpe niet te reproduceren.",
+        "threshold": -1.645
+      },
+      {
+        "action": "falsify",
+        "metric": "max_drawdown_gate",
+        "name": "gate_drawdown",
+        "operator": ">",
+        "rationale": "Ook in de holdout geldt de mandaatgrens.",
+        "threshold": 0.25
+      },
+      {
+        "action": "promote",
+        "metric": "n_binding_stop_criteria",
+        "name": "promotion_requires_all_clear",
+        "operator": "<=",
+        "rationale": "Papertrading vereist dat geen enkel criterium hierboven bindt.",
+        "threshold": 0.0
+      }
+    ],
+    "title": "Cross-sectioneel momentum, funding-carry en tijdreeks-trend op een point-in-time top-50 van alle Binance USDT-M-perpetuals (inclusief gedeliste), vol-getarget op 20 %, en hun gelijk-risicocombinatie, netto van fees, een uit OHLC geschatte spread, impact en funding.",
+    "universe": [
+      "BINANCE_USDT_M_TOP50_PIT"
+    ],
+    "wave": "robust_book_v2_breadth"
+  },
+  "frozen_utc": "2026-10-07T15:16:46.380330+00:00",
+  "git_sha": "c5e7b64",
+  "ledger_total_at_freeze": 14,
+  "preregistration_id": "b97b3b8e38a44fe23626342775b86cf7"
+}

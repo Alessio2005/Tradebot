@@ -1,0 +1,121 @@
+{
+  "c5_included": [
+    "C1_TREND_LS",
+    "C2_TREND_LF",
+    "C4_CARRY_XS"
+  ],
+  "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+  "git_sha": "cf9625d",
+  "m_including_known_prior": 59,
+  "m_programme": 7,
+  "passes_all_w_dev_gates": {
+    "C1_TREND_LS": false,
+    "C2_TREND_LF": false,
+    "C3_VOLMAN_CORE": false,
+    "C4_CARRY_XS": false,
+    "C5_COMBO": false
+  },
+  "preregistration_id": "eecdb3a109bf10972f17acd3b0146716",
+  "programme": "robust_book_v1",
+  "robustness_scores": {
+    "C1_TREND_LS": 39.183727621863994,
+    "C2_TREND_LF": 80.42998826983288,
+    "C3_VOLMAN_CORE": 55.582334509620104,
+    "C4_CARRY_XS": 48.498500971228395,
+    "C5_COMBO": 68.6951285131791
+  },
+  "selected": "C2_TREND_LF",
+  "table": {
+    "B1_BTC_HOLD": {
+      "ann_turnover": 0.09652752574111906,
+      "ann_vol": 0.5312115339675819,
+      "avg_gross_leverage": 1.0,
+      "cagr": 0.06829022130383233,
+      "calmar": 0.0884607886583193,
+      "max_drawdown": 0.7719829580946198,
+      "sharpe": 0.39005303374746186,
+      "sharpe_ci_high": 1.3809609023862008,
+      "sharpe_ci_low": -0.5882954392078047,
+      "sharpe_se": 0.5053871073450976,
+      "sortino": 0.5456189186553153
+    },
+    "B2_EW_HOLD": {
+      "ann_turnover": 5.530795826811785,
+      "ann_vol": 0.7373564835351467,
+      "avg_gross_leverage": 1.0,
+      "cagr": -0.1254194553453789,
+      "calmar": -0.1477885739820176,
+      "max_drawdown": 0.848641082095017,
+      "sharpe": 0.18955122538530098,
+      "sharpe_ci_high": 1.1795711330783476,
+      "sharpe_ci_low": -0.7762223525417127,
+      "sharpe_se": 0.48921500608812085,
+      "sortino": 0.26830031659440773
+    },
+    "C1_TREND_LS": {
+      "ann_turnover": 22.223795552276073,
+      "ann_vol": 0.15311055198196227,
+      "avg_gross_leverage": 0.22598518298883635,
+      "cagr": 0.03603350890822288,
+      "calmar": 0.20219647334577778,
+      "max_drawdown": 0.1782103728713492,
+      "sharpe": 0.30763923339142996,
+      "sharpe_ci_high": 1.2297427991698058,
+      "sharpe_ci_low": -0.6577961534037899,
+      "sharpe_se": 0.48666211640132,
+      "sortino": 0.4186824166519961
+    },
+    "C2_TREND_LF": {
+      "ann_turnover": 9.853164326020446,
+      "ann_vol": 0.10189458786088929,
+      "avg_gross_leverage": 0.10878183786764861,
+      "cagr": 0.06954310692944876,
+      "calmar": 0.520069781011635,
+      "max_drawdown": 0.13371879980062318,
+      "sharpe": 0.7107509670536197,
+      "sharpe_ci_high": 1.6919973587119375,
+      "sharpe_ci_low": -0.29692708729072204,
+      "sharpe_se": 0.5525362853692319,
+      "sortino": 0.8048348254351512
+    },
+    "C3_VOLMAN_CORE": {
+      "ann_turnover": 3.4296075946715097,
+      "ann_vol": 0.20727378041834565,
+      "avg_gross_leverage": 0.3797713489916119,
+      "cagr": 0.07924953782054689,
+      "calmar": 0.23725700695487,
+      "max_drawdown": 0.3340240140331088,
+      "sharpe": 0.47142667589136694,
+      "sharpe_ci_high": 1.4871500583494601,
+      "sharpe_ci_low": -0.5209199232442565,
+      "sharpe_se": 0.5216722109486317,
+      "sortino": 0.6803164341915205
+    },
+    "C4_CARRY_XS": {
+      "ann_turnover": 52.10716638257034,
+      "ann_vol": 0.21207810404414348,
+      "avg_gross_leverage": 1.1824570573306092,
+      "cagr": 0.0552172765829384,
+      "calmar": 0.21959588609069763,
+      "max_drawdown": 0.2514495037495034,
+      "sharpe": 0.35919247257172715,
+      "sharpe_ci_high": 1.3749067313049448,
+      "sharpe_ci_low": -0.6662895354128344,
+      "sharpe_se": 0.5143333144118261,
+      "sortino": 0.5360679288731747
+    },
+    "C5_COMBO": {
+      "ann_turnover": 53.89195321278796,
+      "ann_vol": 0.17783333354666458,
+      "avg_gross_leverage": 0.7605915387199422,
+      "cagr": 0.10159166067305159,
+      "calmar": 0.5912583874968687,
+      "max_drawdown": 0.17182278141227997,
+      "sharpe": 0.6325822979726888,
+      "sharpe_ci_high": 1.592349830777852,
+      "sharpe_ci_low": -0.3376935713420796,
+      "sharpe_se": 0.5075906972462892,
+      "sortino": 0.9760721084529531
+    }
+  }
+}

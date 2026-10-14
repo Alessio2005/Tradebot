@@ -1,0 +1,120 @@
+{
+  "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+  "git_sha": "8dd791c",
+  "m_including_known_prior": 66,
+  "m_programme": 14,
+  "passes_all_w_dev_gates": {
+    "X1_XSMOM": false,
+    "X2_XSCARRY": false,
+    "X3_TREND_LS": false,
+    "X4_TREND_LF": false,
+    "X5_COMBO": false
+  },
+  "preregistration_id": "b97b3b8e38a44fe23626342775b86cf7",
+  "programme": "robust_book_v2",
+  "robustness_scores": {
+    "X1_XSMOM": 2.090819097839031,
+    "X2_XSCARRY": 39.01757793507007,
+    "X3_TREND_LS": 49.24465111168258,
+    "X4_TREND_LF": 71.70019821906342,
+    "X5_COMBO": 36.36202350751013
+  },
+  "selected": "X4_TREND_LF",
+  "table": {
+    "R1_BTC_HOLD": {
+      "ann_turnover": 0.1365144794175239,
+      "ann_vol": 0.6067081850301321,
+      "avg_gross_leverage": 1.0,
+      "cagr": 0.18166949845032287,
+      "calmar": 0.23013483871352086,
+      "max_drawdown": 0.789404591959546,
+      "sharpe": 0.5780589034696328,
+      "sharpe_ci_high": 1.48708603855114,
+      "sharpe_ci_low": -0.34552106746375216,
+      "sharpe_se": 0.4630254150475275,
+      "sortino": 0.8290708367463754
+    },
+    "R2_EW50_HOLD": {
+      "ann_turnover": 19.93665582695326,
+      "ann_vol": 0.8998541573663844,
+      "avg_gross_leverage": 1.0,
+      "cagr": -0.06457700841274017,
+      "calmar": -0.07174633521154541,
+      "max_drawdown": 0.9000739650650259,
+      "sharpe": 0.385202221225627,
+      "sharpe_ci_high": 1.2973019651803275,
+      "sharpe_ci_low": -0.5009751064946646,
+      "sharpe_se": 0.4489776417118916,
+      "sortino": 0.5125319164107616
+    },
+    "X1_XSMOM": {
+      "ann_turnover": 54.82346822483114,
+      "ann_vol": 0.19777157791251432,
+      "avg_gross_leverage": 1.3453190744630705,
+      "cagr": -0.04709702992830889,
+      "calmar": -0.11813161222469619,
+      "max_drawdown": 0.3986826984019011,
+      "sharpe": -0.1447985839858674,
+      "sharpe_ci_high": 0.7786013499350057,
+      "sharpe_ci_low": -1.036274653398358,
+      "sharpe_se": 0.45323393811064594,
+      "sortino": -0.20553884849429782
+    },
+    "X2_XSCARRY": {
+      "ann_turnover": 67.65612256650641,
+      "ann_vol": 0.21726580835132583,
+      "avg_gross_leverage": 1.7073636101363088,
+      "cagr": 0.044306917799509016,
+      "calmar": 0.1003274170594411,
+      "max_drawdown": 0.44162322820748434,
+      "sharpe": 0.30814349542965064,
+      "sharpe_ci_high": 1.25341312163959,
+      "sharpe_ci_low": -0.6082628549890551,
+      "sharpe_se": 0.4866167602374102,
+      "sortino": 0.4482107467215382
+    },
+    "X3_TREND_LS": {
+      "ann_turnover": 22.82857058394014,
+      "ann_vol": 0.15465250462433608,
+      "avg_gross_leverage": 0.21608421669141772,
+      "cagr": 0.05737168004323023,
+      "calmar": 0.3188745697773343,
+      "max_drawdown": 0.17991927071290784,
+      "sharpe": 0.4379943181685277,
+      "sharpe_ci_high": 1.2974412883794488,
+      "sharpe_ci_low": -0.4264795030026232,
+      "sharpe_se": 0.45521886726268745,
+      "sortino": 0.5978141612700502
+    },
+    "X4_TREND_LF": {
+      "ann_turnover": 10.471885950109494,
+      "ann_vol": 0.11139092447555828,
+      "avg_gross_leverage": 0.10540874941891414,
+      "cagr": 0.08221746992752155,
+      "calmar": 0.529569813320302,
+      "max_drawdown": 0.15525331667232628,
+      "sharpe": 0.7651857562399357,
+      "sharpe_ci_high": 1.731054229343699,
+      "sharpe_ci_low": -0.17168652032621307,
+      "sharpe_se": 0.5086458542353227,
+      "sortino": 0.8976225935071213
+    },
+    "X5_COMBO": {
+      "ann_turnover": 94.16170523345268,
+      "ann_vol": 0.19914959743875507,
+      "avg_gross_leverage": 1.68009435055282,
+      "cagr": 0.047595529356281085,
+      "calmar": 0.10880224495703196,
+      "max_drawdown": 0.4374498832728815,
+      "sharpe": 0.3329200833650665,
+      "sharpe_ci_high": 1.3133498753442292,
+      "sharpe_ci_low": -0.6606323614428548,
+      "sharpe_se": 0.5307617195427594,
+      "sortino": 0.5286632380874191
+    }
+  },
+  "x5_included": [
+    "X2_XSCARRY",
+    "X4_TREND_LF"
+  ]
+}

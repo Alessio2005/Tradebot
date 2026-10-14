@@ -1,0 +1,63 @@
+{
+  "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+  "git_sha": "01fa00a",
+  "m_including_known_prior": 73,
+  "m_programme": 21,
+  "passes_all_w_dev_gates": {
+    "H1_BASIS": false,
+    "H2_BASIS_TREND": false,
+    "H3_BASIS_MAJORS": false
+  },
+  "preregistration_id": "4df1a5d0cd590b67965127db4e6e480a",
+  "programme": "robust_book_v5",
+  "robustness_scores": {
+    "H1_BASIS": 90.09472935212656,
+    "H2_BASIS_TREND": 85.86555638228127,
+    "H3_BASIS_MAJORS": 98.56193871211066
+  },
+  "selected": "H3_BASIS_MAJORS",
+  "table": {
+    "H1_BASIS": {
+      "ann_funding": 0.09981680299890719,
+      "ann_turnover": 4.383594442573276,
+      "ann_vol": 0.014564586084430335,
+      "avg_gross_leverage": 0.6621115044401076,
+      "cagr": 0.08575909971646145,
+      "calmar": 6.065631511509816,
+      "max_drawdown": 0.014138527794464534,
+      "sharpe": 5.657190281690403,
+      "sharpe_ci_high": 8.262208694783272,
+      "sharpe_ci_low": 2.699211345283718,
+      "sharpe_se": 1.4862972255271234,
+      "sortino": 5.871177321161386
+    },
+    "H2_BASIS_TREND": {
+      "ann_funding": 0.04053878907785193,
+      "ann_turnover": 4.019083964021072,
+      "ann_vol": 0.05773666611095159,
+      "avg_gross_leverage": 0.384317418334882,
+      "cagr": 0.09273397949193418,
+      "calmar": 1.3869748615149184,
+      "max_drawdown": 0.06686060581562799,
+      "sharpe": 1.5650476869761656,
+      "sharpe_ci_high": 2.5701426812873422,
+      "sharpe_ci_low": 0.5895066437880401,
+      "sharpe_se": 0.5512187922661329,
+      "sortino": 1.874398191103297
+    },
+    "H3_BASIS_MAJORS": {
+      "ann_funding": 0.0712066091784024,
+      "ann_turnover": 2.629795788076273,
+      "ann_vol": 0.010008015043818472,
+      "avg_gross_leverage": 0.5202883265198418,
+      "cagr": 0.06995532850324881,
+      "calmar": 16.756789150863398,
+      "max_drawdown": 0.004174745404589897,
+      "sharpe": 6.761893537271867,
+      "sharpe_ci_high": 9.082310512435951,
+      "sharpe_ci_low": 4.693761254348257,
+      "sharpe_se": 0.6458170343486481,
+      "sortino": 10.45856321534235
+    }
+  }
+}

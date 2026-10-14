@@ -1,0 +1,87 @@
+{
+  "candidate": "Y4_TREND_LF",
+  "caveat": "De holdout is voor de trendfamilie al gelezen in v2 (X4_TREND_LF).",
+  "evidence_class": "NOT_ADMISSIBLE_AS_PROMOTION_EVIDENCE",
+  "gate_metrics": {
+    "gate_sharpe_z_vs_dev": -1.0057241727244297,
+    "max_drawdown_gate": 0.10540077756295112
+  },
+  "gates": {
+    "gate_drawdown": {
+      "binds": false,
+      "metric": "max_drawdown_gate",
+      "operator": ">",
+      "threshold": 0.25,
+      "value": 0.10540077756295112
+    },
+    "gate_sharpe_collapse": {
+      "binds": false,
+      "metric": "gate_sharpe_z_vs_dev",
+      "operator": "<",
+      "threshold": -1.645,
+      "value": -1.0057241727244297
+    }
+  },
+  "holdout": {
+    "ann_fees": -0.002310989865927312,
+    "ann_funding": 0.02134443493472736,
+    "ann_gross": -0.017194714583353806,
+    "ann_impact": -0.0004953910665359971,
+    "ann_net": 8.27994920397829e-05,
+    "ann_slippage": 0.0,
+    "ann_spread": -0.0012605399268694431,
+    "ann_turnover": 4.201619106701759,
+    "ann_vol": 0.0746279357441144,
+    "avg_gross_leverage": 0.10889952118584136,
+    "avg_net_leverage": 0.10889952118584136,
+    "best_day": 0.017632519108812694,
+    "bootstrap_block_length": 5,
+    "bootstrap_n_boot": 10000,
+    "cagr": -0.0027000840168301954,
+    "calmar": -0.02561730643037768,
+    "end": "2026-09-30",
+    "gross_plus_funding_sharpe": 0.05560226598524003,
+    "gross_sharpe": -0.2303398387726819,
+    "hit_rate_days": 0.5492341356673961,
+    "kurtosis": 11.167855574370796,
+    "max_drawdown": 0.10540077756295112,
+    "max_gross_leverage": 0.3420295102816906,
+    "n_obs": 457,
+    "n_trades": 30977,
+    "p_sharpe_gt_0": 0.5005175160925989,
+    "pct_bars_invested": 1.0,
+    "sharpe": 0.0011094972842835595,
+    "sharpe_ci_high": 1.7628939716518053,
+    "sharpe_ci_low": -1.594564903976005,
+    "sharpe_per_bar": 5.8073742064289016e-05,
+    "sharpe_se": 0.8552879009582929,
+    "skew": -1.0690536570829567,
+    "sortino": 0.0012037446682565693,
+    "start": "2025-07-01",
+    "t_stat": 0.0012972208341079559,
+    "t_years": 1.252054794520548,
+    "worst_day": -0.02404502241722828
+  },
+  "holdout_window": [
+    "2025-07-01",
+    "2026-09-30"
+  ],
+  "hypothesis_id": "robust_book_v3/cb45bd8c6980f7926c2246eb6ce1d706/Y4_TREND_LF",
+  "n_binding_total": 6,
+  "verdict": "archived_w_dev_gates",
+  "w_dev_sharpe": 0.8612932139167766,
+  "yearly": {
+    "2025": {
+      "max_drawdown": 0.08603754393493349,
+      "n_obs": 184,
+      "return": -0.027034634117437117,
+      "sharpe": -0.5259123121459768
+    },
+    "2026": {
+      "max_drawdown": 0.030349592433691546,
+      "n_obs": 273,
+      "return": 0.024312409225882403,
+      "sharpe": 0.5894109092841712
+    }
+  }
+}

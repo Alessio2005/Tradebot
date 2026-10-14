@@ -1,0 +1,284 @@
+{
+  "content": {
+    "data_hashes": [
+      [
+        "crypto/funding/AVAXUSDT/8h",
+        "8edfe83d0a02f02a6871a9a95877d054"
+      ],
+      [
+        "crypto/funding/BTCUSDT/8h",
+        "a69aa5fbc2c0e0c3a214c4b672b8f4e8"
+      ],
+      [
+        "crypto/funding/DOTUSDT/8h",
+        "28f49d9a617fd93f36023efc35b568be"
+      ],
+      [
+        "crypto/funding/ETHUSDT/8h",
+        "02aef54a332ac99c5f93205d375f8737"
+      ],
+      [
+        "crypto/funding/LINKUSDT/8h",
+        "ce6cfcd63ddd681178ebb611b87fd621"
+      ],
+      [
+        "crypto/funding/SOLUSDT/8h",
+        "8f2c70dbf68f1fe635c937b2e6b67c36"
+      ],
+      [
+        "crypto/ohlcv/AVAXUSDT/1d",
+        "af05b4f95d0e282111641f85904c22f9"
+      ],
+      [
+        "crypto/ohlcv/BTCUSDT/1d",
+        "4f21f2c7ab071ddc19da5eb3f38172f3"
+      ],
+      [
+        "crypto/ohlcv/DOTUSDT/1d",
+        "17be1f4206997f12fd7e1825f123299b"
+      ],
+      [
+        "crypto/ohlcv/ETHUSDT/1d",
+        "d67c9bb18b2c794ba416067556227a5a"
+      ],
+      [
+        "crypto/ohlcv/LINKUSDT/1d",
+        "8d6a82f316253c2626d016bbbad804d4"
+      ],
+      [
+        "crypto/ohlcv/SOLUSDT/1d",
+        "1d64b001993b575f34ef04ce548616c5"
+      ],
+      [
+        "crypto/open_interest/AVAXUSDT/1d",
+        "5f642bd6e318ad795103682c530dd952"
+      ],
+      [
+        "crypto/open_interest/BTCUSDT/1d",
+        "4fe481c71f8237e9ba2bbd80f0d84e96"
+      ],
+      [
+        "crypto/open_interest/DOTUSDT/1d",
+        "1795c58ed7ab641fd80219a26272b313"
+      ],
+      [
+        "crypto/open_interest/ETHUSDT/1d",
+        "be986e9314c9f28ef3fd147b01bfefd4"
+      ],
+      [
+        "crypto/open_interest/LINKUSDT/1d",
+        "9024d7e536d7ced7e8e23a4dc97eb952"
+      ],
+      [
+        "crypto/open_interest/SOLUSDT/1d",
+        "9267e0accf0055a1cba7c9db1ab5d4e2"
+      ]
+    ],
+    "evaluation_start": "2021-11-15",
+    "granularity": "1d",
+    "hypothesis": "Ten minste één van de vijf vooraf vastgelegde kandidaten (C1 trend long-short, C2 trend long-flat, C3 vol-gemanaged kern, C4 funding-carry, C5 combinatie) haalt op W_DEV (2021-11-15 .. 2025-09-04) na alle kosten een netto Sharpe van ten minste 1,0 en een netto CAGR van ten minste 15 % bij een portefeuille-volatiliteitsdoel van 20 %, consistent over TRAIN en VALIDATE, robuust voor dubbele kosten, een dag vertraging en parameterverstoring, met een DSR van ten minste 0,95 bij M = 7 en een PBO onder 0,5, en houdt dat in de ene lezing van het poortsample (2025-09-05 .. 2026-08-23) zonder significante ineenstorting vast.",
+    "null_hypothesis": "Geen enkele kandidaat haalt die combinatie. De verwachting vooraf (prior, gebaseerd op 52 eerdere trials op deze zes munten) is een netto Sharpe van 0,3 tot 0,7: met een effectieve breedte van ongeveer 1,3 onafhankelijke weddenschappen is een Sharpe van 1 op deze data niet aantoonbaar. Een positief resultaat op een andere kandidaat dan die met de hoogste vooraf gedefinieerde robuustheidsscore weerlegt de nulhypothese niet: dat zou selectie zijn.",
+    "parameters": {
+      "carry": {
+        "rebalance_bars": 7,
+        "signal_lag_bars": 1,
+        "window_bars": 7
+      },
+      "combo": {
+        "inclusion_min_train_sharpe": 0.0
+      },
+      "core": {
+        "assets": [
+          "BTCUSDT",
+          "ETHUSDT"
+        ]
+      },
+      "execution": {
+        "aum_usd": 100000.0,
+        "lag_bars": 1
+      },
+      "known_prior_trials": 52,
+      "planned_trials": 7,
+      "sizing": {
+        "asset_vol_target": 0.2,
+        "gross_cap": 3.0,
+        "max_scale": 2.0,
+        "min_history_bars": 60,
+        "per_asset_cap": 1.0,
+        "portfolio_vol_target": 0.2,
+        "vol_span": 60
+      },
+      "symbols": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT",
+        "AVAXUSDT",
+        "LINKUSDT",
+        "DOTUSDT"
+      ],
+      "trend": {
+        "lookbacks": [
+          5,
+          7,
+          10,
+          14,
+          20,
+          28,
+          40,
+          56,
+          80,
+          112,
+          160
+        ],
+        "z_clip": 1.0
+      },
+      "windows": {
+        "gate_start": "2025-09-05",
+        "train_end": "2023-12-31",
+        "validate_start": "2024-01-01",
+        "w_dev_end": "2025-09-04",
+        "w_dev_start": "2021-11-15"
+      }
+    },
+    "period_end": "2026-08-23",
+    "period_start": "2020-03-26",
+    "planned_trials": 7,
+    "primary_metric": "net_sharpe_w_dev",
+    "stop_criteria": [
+      {
+        "action": "archive",
+        "metric": "net_sharpe_w_dev",
+        "name": "g1_sharpe_below_target",
+        "operator": "<",
+        "rationale": "De opdracht vraagt een netto Sharpe van ten minste 1,0.",
+        "threshold": 1.0
+      },
+      {
+        "action": "archive",
+        "metric": "net_cagr_w_dev",
+        "name": "g2_cagr_below_target",
+        "operator": "<",
+        "rationale": "De opdracht vraagt een netto CAGR van ten minste 15 %, bij het vaste vol-doel van 20 %: de doelstelling halen met extra hefboom is uitdrukkelijk uitgesloten.",
+        "threshold": 0.15
+      },
+      {
+        "action": "archive",
+        "metric": "net_sharpe_train",
+        "name": "g3_train_inconsistent",
+        "operator": "<",
+        "rationale": "Een edge die alleen in één helft van W_DEV bestaat, is een regime, geen edge.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "net_sharpe_validate",
+        "name": "g3_validate_inconsistent",
+        "operator": "<",
+        "rationale": "Idem, voor de tweede helft.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "max_drawdown_w_dev",
+        "name": "g4_drawdown",
+        "operator": ">",
+        "rationale": "Mandaatgrens conf/risk/default.yaml::max_drawdown_pct.",
+        "threshold": 0.25
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ratio_2x_cost_over_base",
+        "name": "g5_cost_fragile",
+        "operator": "<",
+        "rationale": "Bij dubbele kosten moet minstens 75 % van de Sharpe overblijven.",
+        "threshold": 0.75
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ratio_lag2_over_base",
+        "name": "g5_delay_fragile",
+        "operator": "<",
+        "rationale": "Eén dag vertraging mag de Sharpe niet meer dan halveren.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "plateau_fraction",
+        "name": "g6_no_plateau",
+        "operator": "<",
+        "rationale": "Minstens 80 % van de parameterverstoringen moet meer dan de helft van de basis-Sharpe houden; anders staat de kandidaat op een piek, niet op een plateau.",
+        "threshold": 0.8
+      },
+      {
+        "action": "archive",
+        "metric": "min_perturbation_sharpe",
+        "name": "g6_negative_perturbation",
+        "operator": "<",
+        "rationale": "Geen enkele redelijke parameterverstoring mag de Sharpe negatief maken.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ci_low_w_dev",
+        "name": "g7_interval_includes_zero",
+        "operator": "<=",
+        "rationale": "De circulaire-blokbootstrap-ondergrens (95 %) moet boven nul liggen.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "dsr_w_dev",
+        "name": "g8_dsr_below_threshold",
+        "operator": "<",
+        "rationale": "Onder DSR 0,95 bij M = 7 is de Sharpe niet te onderscheiden van selectieruis.",
+        "threshold": 0.95
+      },
+      {
+        "action": "archive",
+        "metric": "pbo",
+        "name": "g9_overfit_probability",
+        "operator": ">=",
+        "rationale": "Een PBO van 0,5 of meer betekent dat de beste in-sample variant out-of-sample meestal onder de mediaan valt.",
+        "threshold": 0.5
+      },
+      {
+        "action": "falsify",
+        "metric": "gate_sharpe_z_vs_dev",
+        "name": "gate_sharpe_collapse",
+        "operator": "<",
+        "rationale": "Eén lezing van het poortsample: valt de Sharpe daar eenzijdig significant (5 %) onder de W_DEV-schatting, dan is de backtest-Sharpe niet te reproduceren.",
+        "threshold": -1.645
+      },
+      {
+        "action": "falsify",
+        "metric": "max_drawdown_gate",
+        "name": "gate_drawdown",
+        "operator": ">",
+        "rationale": "Ook in het poortsample geldt de mandaatgrens.",
+        "threshold": 0.25
+      },
+      {
+        "action": "promote",
+        "metric": "n_binding_stop_criteria",
+        "name": "promotion_requires_all_clear",
+        "operator": "<=",
+        "rationale": "Papertrading vereist dat geen enkel criterium hierboven bindt.",
+        "threshold": 0.0
+      }
+    ],
+    "title": "Een vol-getarget boek uit drie economisch verschillende premies -- vol-gemanaged beta op BTC/ETH, symmetrisch tijdreeks-momentum over een vast lookbackraster en dollar-neutrale funding-carry -- en hun gelijk-risicocombinatie, op zes crypto- perpetuals op dagbars, netto van fees, spread, impact en funding.",
+    "universe": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "AVAXUSDT",
+      "LINKUSDT",
+      "DOTUSDT"
+    ],
+    "wave": "robust_book_v1"
+  },
+  "frozen_utc": "2026-10-07T14:00:06.173757+00:00",
+  "git_sha": "c360960",
+  "ledger_total_at_freeze": 7,
+  "preregistration_id": "eecdb3a109bf10972f17acd3b0146716"
+}

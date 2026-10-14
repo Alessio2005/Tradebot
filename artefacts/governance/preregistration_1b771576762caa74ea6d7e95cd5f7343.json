@@ -1,0 +1,465 @@
+{
+  "content": {
+    "data_hashes": [
+      [
+        "binance_mark/objects",
+        "4305ca6c4edfc6d7"
+      ],
+      [
+        "binance_mark/panel/close",
+        "c4e70c176eff726a"
+      ],
+      [
+        "binance_mark/panel/high",
+        "dd49e9cca94e484b"
+      ],
+      [
+        "binance_mark/panel/low",
+        "bc3532df4b7085ab"
+      ],
+      [
+        "binance_spot/objects",
+        "9d2b3eefdb1022ee"
+      ],
+      [
+        "binance_spot/panel/close",
+        "1f8bb370fdd1ad77"
+      ],
+      [
+        "binance_spot/panel/high",
+        "1b0415cfeaf6b990"
+      ],
+      [
+        "binance_spot/panel/low",
+        "fddfb1eb0000c304"
+      ],
+      [
+        "binance_spot/panel/quote_volume",
+        "af439ee693e6cb51"
+      ],
+      [
+        "binance_um/objects",
+        "31d979002a074b6a"
+      ],
+      [
+        "binance_um/panel/close",
+        "30646a979d93bcd5"
+      ],
+      [
+        "binance_um/panel/funding",
+        "f386d0710d2daedc"
+      ],
+      [
+        "binance_um/panel/high",
+        "79885e549290f42c"
+      ],
+      [
+        "binance_um/panel/low",
+        "7e81ae1a2ff9cbe6"
+      ],
+      [
+        "binance_um/panel/open",
+        "1b9872a10c3e74a5"
+      ],
+      [
+        "binance_um/panel/quote_volume",
+        "c6687935764234d1"
+      ]
+    ],
+    "evaluation_start": "2021-01-01",
+    "granularity": "1d",
+    "hypothesis": "T2 haalt op W_DEV een netto Sharpe van ten minste 1,0 en een netto CAGR van ten minste 15 %, met alle poorten van v6/v7 vrij (DSR bij M = 27); en de sprongrisicogrens stopt het verlies dat v6 en v7 in de holdout leden, zonder dat het vooruit-sample instort of het boek ooit geliquideerd wordt.",
+    "null_hypothesis": "De grens kost op W_DEV te veel carry om de doelstelling te halen, of het verlies in een regime zonder brede carry komt ook uit munten onder de grens. Een goed holdout-resultaat weerlegt de nulhypothese niet: die periode heeft het ontwerp gestuurd.",
+    "parameters": {
+      "backcast": {
+        "end": "2020-12-31",
+        "start": "2020-04-01"
+      },
+      "basis": {
+        "band": 0.5,
+        "combo_trend_share": 0.5,
+        "enter_apr": 0.15,
+        "exit_apr": 0.05,
+        "funding_span": 30,
+        "hedge_tolerance": 0.02,
+        "maintenance_margin": 0.02,
+        "majors": [
+          "BTCUSDT",
+          "ETHUSDT"
+        ],
+        "margin_floor": 0.25,
+        "max_abs_basis": 0.05,
+        "min_spot_adv_usd": 2000000.0,
+        "notional": 0.7,
+        "slots": 10,
+        "spot_half_spread_bps": 5.0,
+        "spot_half_spread_stress_bps": 10.0,
+        "spot_taker_fee_bps": 10.0
+      },
+      "combo": {
+        "candidates": [
+          "X1_XSMOM",
+          "X2_XSCARRY",
+          "X4_TREND_LF"
+        ],
+        "inclusion_min_train_sharpe": 0.0
+      },
+      "costs": {
+        "impact_y": 1.0,
+        "impact_y_stress": 2.991922,
+        "max_half_spread_bps": 25.0,
+        "min_half_spread_bps": 1.0,
+        "spread_window": 60,
+        "taker_fee_bps": 5.5
+      },
+      "execution": {
+        "aum_usd": 1000000.0,
+        "lag_bars": 1
+      },
+      "forward": {
+        "min_months": 6,
+        "start": "2026-10-01"
+      },
+      "known_prior_trials": 52,
+      "leverage": {
+        "adv_participation_cap": 0.01,
+        "candidates": {
+          "T2_CARRY_TRANCHE_JUMPCAP": 2.0
+        },
+        "financing_floor_apr": 0.08,
+        "financing_multiplier": 1.0,
+        "financing_optimistic_apr": 0.06,
+        "financing_stress_floor_apr": 0.12,
+        "financing_stress_multiplier": 1.5,
+        "gross_cap": 4.0,
+        "haircut_alt": 0.2,
+        "haircut_alt_stress": 0.35,
+        "haircut_major": 0.05,
+        "liquidation_fee": 0.015,
+        "loan_maintenance": 0.05,
+        "maintenance_margin": 0.02,
+        "maintenance_margin_stress": 0.03,
+        "majors": [
+          "BTCUSDT",
+          "ETHUSDT"
+        ],
+        "min_uni_mmr": 3.0
+      },
+      "planned_trials": 1,
+      "sizing": {
+        "asset_vol_target": 0.2,
+        "gross_cap": 4.0,
+        "max_scale": 3.0,
+        "per_asset_cap": 0.2,
+        "portfolio_vol_target": 0.2,
+        "vol_span": 60
+      },
+      "trend": {
+        "lookbacks": [
+          5,
+          7,
+          10,
+          14,
+          20,
+          28,
+          40,
+          56,
+          80,
+          112,
+          160
+        ],
+        "z_clip": 1.0
+      },
+      "universe": {
+        "adv_window": 30,
+        "min_adv_usd": 5000000.0,
+        "min_ann_vol": 0.15,
+        "min_history_bars": 90,
+        "top_n": 50,
+        "vol_window": 60
+      },
+      "v3": {
+        "half_spread_bps": 3.0,
+        "half_spread_stress_bps": 6.0,
+        "trade_rate": 0.2,
+        "trade_rate_family": [
+          0.1,
+          0.33,
+          1.0
+        ]
+      },
+      "v7": {
+        "lever_spread_apr": 0.1,
+        "slice_days": 5,
+        "tranche": [
+          "T2_CARRY_TRANCHE_JUMPCAP"
+        ]
+      },
+      "v8": {
+        "max_daily_sigma": 0.2
+      },
+      "windows": {
+        "holdout_end": "2026-09-30",
+        "holdout_start": "2025-07-01",
+        "train_end": "2023-12-31",
+        "train_start": "2021-01-01",
+        "validate_start": "2024-01-01",
+        "w_dev_end": "2025-06-30"
+      },
+      "xscarry": {
+        "rebalance_bars": 7,
+        "signal_lag_bars": 1,
+        "window_bars": 7
+      },
+      "xsmom": {
+        "lookbacks": [
+          7,
+          14,
+          28,
+          56
+        ],
+        "rebalance_bars": 7,
+        "winsor": 3.0
+      }
+    },
+    "period_end": "2026-09-30",
+    "period_start": "2020-01-01",
+    "planned_trials": 1,
+    "primary_metric": "net_sharpe_w_dev",
+    "stop_criteria": [
+      {
+        "action": "archive",
+        "metric": "net_sharpe_w_dev",
+        "name": "g1_sharpe_below_target",
+        "operator": "<",
+        "rationale": "De opdracht vraagt een netto Sharpe van ten minste 1,0.",
+        "threshold": 1.0
+      },
+      {
+        "action": "archive",
+        "metric": "net_cagr_w_dev",
+        "name": "g2_cagr_below_target",
+        "operator": "<",
+        "rationale": "De opdracht vraagt een netto CAGR van ten minste 15 %. Drempel ongewijzigd uit v5; het kapitaalmodel is nu het unified-margin-account met hefboom tot bruto 4,0, volgens het eigenaarsbesluit van 2026-10-09 (in v5 was meer notional uitgesloten).",
+        "threshold": 0.15
+      },
+      {
+        "action": "archive",
+        "metric": "net_sharpe_train",
+        "name": "g3_train_inconsistent",
+        "operator": "<",
+        "rationale": "Een edge die alleen in één helft van W_DEV bestaat, is een regime, geen edge.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "net_sharpe_validate",
+        "name": "g3_validate_inconsistent",
+        "operator": "<",
+        "rationale": "Idem, voor de tweede helft.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "max_drawdown_w_dev",
+        "name": "g4_drawdown",
+        "operator": ">",
+        "rationale": "Mandaatgrens conf/risk/default.yaml::max_drawdown_pct.",
+        "threshold": 0.25
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ratio_2x_cost_over_base",
+        "name": "g5_cost_fragile",
+        "operator": "<",
+        "rationale": "Bij dubbele kosten moet minstens 75 % van de Sharpe overblijven.",
+        "threshold": 0.75
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ratio_lag2_over_base",
+        "name": "g5_delay_fragile",
+        "operator": "<",
+        "rationale": "Eén dag vertraging mag de Sharpe niet meer dan halveren.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "plateau_fraction",
+        "name": "g6_no_plateau",
+        "operator": "<",
+        "rationale": "Minstens 80 % van de parameterverstoringen moet meer dan de helft van de basis-Sharpe houden; anders staat de kandidaat op een piek, niet op een plateau.",
+        "threshold": 0.8
+      },
+      {
+        "action": "archive",
+        "metric": "min_perturbation_sharpe",
+        "name": "g6_negative_perturbation",
+        "operator": "<",
+        "rationale": "Geen enkele redelijke parameterverstoring mag de Sharpe negatief maken.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "sharpe_ci_low_w_dev",
+        "name": "g7_interval_includes_zero",
+        "operator": "<=",
+        "rationale": "De circulaire-blokbootstrap-ondergrens (95 %) moet boven nul liggen.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "dsr_w_dev",
+        "name": "g8_dsr_below_threshold",
+        "operator": "<",
+        "rationale": "Onder DSR 0,95 bij de cumulatieve ledger-M (27) is de Sharpe niet te onderscheiden van selectieruis.",
+        "threshold": 0.95
+      },
+      {
+        "action": "archive",
+        "metric": "pbo",
+        "name": "g9_overfit_probability",
+        "operator": ">=",
+        "rationale": "Een PBO van 0,5 of meer betekent dat de beste in-sample variant out-of-sample meestal onder de mediaan valt.",
+        "threshold": 0.5
+      },
+      {
+        "action": "archive",
+        "metric": "n_liquidations_w_dev",
+        "name": "g10_liquidated_w_dev",
+        "operator": ">",
+        "rationale": "Een boek met hefboom dat in de historie ook maar een keer geliquideerd wordt, heeft zijn staartrisico al laten zien. Nul is de enige verdedigbare drempel.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "n_liquidations_margin_stress_w_dev",
+        "name": "g11_liquidated_under_margin_stress",
+        "operator": ">",
+        "rationale": "Haircuts en onderhoudsmarges per tier zijn niet in de data; ze zijn conservatief gekozen. Ook met een alts-haircut van 35 % en 3 % perp-onderhoud mag het boek nooit geliquideerd worden.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "net_sharpe_financing_stress_w_dev",
+        "name": "g12_financing_stress_sharpe",
+        "operator": "<",
+        "rationale": "De leenrente is niet in de data. Onder max(12 %, 1,5 x BTC-carry) moet de Sharpe- doelstelling nog gehaald worden.",
+        "threshold": 1.0
+      },
+      {
+        "action": "archive",
+        "metric": "net_cagr_financing_stress_w_dev",
+        "name": "g12_financing_stress_cagr",
+        "operator": "<",
+        "rationale": "Idem voor het rendement: onder de financieringsstress blijft minstens 10 % CAGR over (twee derde van de doelstelling, zoals de kostenstress een kwart van de Sharpe mag kosten).",
+        "threshold": 0.1
+      },
+      {
+        "action": "falsify",
+        "metric": "backcast_sharpe_z_vs_dev",
+        "name": "backcast_sharpe_collapse",
+        "operator": "<",
+        "rationale": "De backcast (2020-04 .. 2020-12) is voor de carryfamilie besmet (v5, v6 en v7 lazen daar) en kan alleen verwerpen: een eenzijdig significante ineenstorting.",
+        "threshold": -1.645
+      },
+      {
+        "action": "falsify",
+        "metric": "backcast_max_drawdown",
+        "name": "backcast_drawdown",
+        "operator": ">",
+        "rationale": "Ook in de backcast geldt de mandaatgrens.",
+        "threshold": 0.25
+      },
+      {
+        "action": "falsify",
+        "metric": "backcast_n_liquidations",
+        "name": "backcast_liquidated",
+        "operator": ">",
+        "rationale": "Een liquidatie in de backcast falsificeert het risicomodel.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "backcast_net_sharpe",
+        "name": "backcast_no_positive_sharpe",
+        "operator": "<=",
+        "rationale": "Een niet-positieve netto Sharpe op de backcast bevestigt niets.",
+        "threshold": 0.0
+      },
+      {
+        "action": "falsify",
+        "metric": "holdout_sharpe_z_vs_dev",
+        "name": "holdout_sharpe_collapse",
+        "operator": "<",
+        "rationale": "De holdout is VERBRUIKT: v8 is ontworpen nadat v6 en v7 daar faalden (pump-munten). Hij kan alleen nog verwerpen (de grens stopt het verlies niet); een goed resultaat bevestigt niets. Een venster zonder positie heeft een ongedefinieerde Sharpe; die bindt, zoals in v5.",
+        "threshold": -1.645
+      },
+      {
+        "action": "falsify",
+        "metric": "holdout_max_drawdown",
+        "name": "holdout_drawdown",
+        "operator": ">",
+        "rationale": "Ook in de holdout geldt de mandaatgrens.",
+        "threshold": 0.25
+      },
+      {
+        "action": "falsify",
+        "metric": "holdout_n_liquidations",
+        "name": "holdout_liquidated",
+        "operator": ">",
+        "rationale": "Een liquidatie in de holdout falsificeert het risicomodel.",
+        "threshold": 0.0
+      },
+      {
+        "action": "falsify",
+        "metric": "forward_sharpe_z_vs_dev",
+        "name": "forward_sharpe_collapse",
+        "operator": "<",
+        "rationale": "Het vooruit-sample (vanaf 2026-10-01, slot bevroren op 2026-10-09 met v6, gedeeld door de carryfamilie, een lezing per hypothese-id) bestond bij het bevriezen niet: de enige schone toets. Gelezen eenmaal, na minstens zes volle maanden.",
+        "threshold": -1.645
+      },
+      {
+        "action": "falsify",
+        "metric": "forward_max_drawdown",
+        "name": "forward_drawdown",
+        "operator": ">",
+        "rationale": "Ook vooruit geldt de mandaatgrens.",
+        "threshold": 0.25
+      },
+      {
+        "action": "falsify",
+        "metric": "forward_n_liquidations",
+        "name": "forward_liquidated",
+        "operator": ">",
+        "rationale": "Een liquidatie vooruit falsificeert het risicomodel.",
+        "threshold": 0.0
+      },
+      {
+        "action": "archive",
+        "metric": "forward_net_sharpe",
+        "name": "forward_no_positive_sharpe",
+        "operator": "<=",
+        "rationale": "Een niet-positieve netto Sharpe vooruit is geen basis voor kapitaal.",
+        "threshold": 0.0
+      },
+      {
+        "action": "promote",
+        "metric": "n_binding_stop_criteria",
+        "name": "promotion_requires_all_clear",
+        "operator": "<=",
+        "rationale": "Papertrading vereist dat geen enkel criterium over W_DEV, de backcast en de holdout bindt; kapitaal vereist daarbovenop een schone vooruit-lezing.",
+        "threshold": 0.0
+      }
+    ],
+    "title": "Het boek van v7-S2 (basiscarry van v5-H1 in een unified-margin-account, gefinancierde tranche waar carry de leenrente met 10 pp verslaat, gespreide uitvoering), met een sprongrisicogrens: een munt met een dag-sigma boven 20 % is niet verhandelbaar (geen instap, en een gehouden munt gaat eruit).",
+    "universe": [
+      "BINANCE_USDT_M_TOP50_PIT_WITH_SPOT"
+    ],
+    "wave": "robust_book_v8_jump_risk"
+  },
+  "frozen_utc": "2026-10-09T16:30:17.471854+00:00",
+  "git_sha": "5d0be75",
+  "ledger_total_at_freeze": 27,
+  "preregistration_id": "1b771576762caa74ea6d7e95cd5f7343"
+}

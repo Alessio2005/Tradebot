@@ -1,0 +1,30 @@
+{
+  "frozen_utc": "2026-10-07T17:15:47.022937+00:00",
+  "git_sha": "7499921",
+  "reads": [
+    {
+      "hypothesis_id": "robust_book_v5/4df1a5d0cd590b67965127db4e6e480a/H3_BASIS_MAJORS",
+      "read_utc": "2026-10-07T17:22:16.468965+00:00"
+    },
+    {
+      "hypothesis_id": "robust_book_v6/b62c8bc358a1de4422e19e1fc824d7a5/K1_CARRY_PM_1X",
+      "read_utc": "2026-10-09T16:21:23.018659+00:00"
+    },
+    {
+      "hypothesis_id": "robust_book_v7/04af949bfb9adfde53c502931c78a33e/S2_CARRY_PM_TRANCHE",
+      "read_utc": "2026-10-09T16:24:44.107559+00:00"
+    },
+    {
+      "hypothesis_id": "robust_book_v8/1b771576762caa74ea6d7e95cd5f7343/T2_CARRY_TRANCHE_JUMPCAP",
+      "read_utc": "2026-10-09T16:34:28.896813+00:00"
+    }
+  ],
+  "resumes": [
+    {
+      "hypothesis_id": "robust_book_v5/4df1a5d0cd590b67965127db4e6e480a/H3_BASIS_MAJORS",
+      "reason": "De berekening crashte na de registratie op een identiek-nul rendement in de holdout (geen positie); de backcast-uitkomst is nooit getoond of opgeslagen. Afgemaakt met een venster-zonder-positie-regel, verder ongewijzigd.",
+      "resumed_utc": "2026-10-07T17:25:50.362155+00:00"
+    }
+  ],
+  "split_utc": "2021-01-01T00:00:00+00:00"
+}
