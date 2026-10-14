@@ -318,17 +318,21 @@ class TestWeeklyCampaignEntrypoint:
                                  verdict=verdict)
         monkeypatch.chdir(tmp_path)
         module = weekly_campaign
-        monkeypatch.setattr(module, "weekly_meta_config",
-                            lambda: SimpleNamespace(symbols=("BTC",)))
+        monkeypatch.setattr(module, "weekly_meta_config", lambda: SimpleNamespace(
+            symbols=("BTC",), account_equity=10_000.0, impact_eta=0.5,
+            impact_eta_low=0.25, impact_eta_high=1.0))
         monkeypatch.setattr(module, "require_preregistration",
                             lambda pid, directory: SimpleNamespace(stop_criteria=()))
         monkeypatch.setattr(module, "load_weekly_market", lambda root, symbols: market)
         monkeypatch.setattr(module, "development_slice",
                             lambda frame, lock_path: frame)
-        monkeypatch.setattr(module, "frozen_trial_count", lambda path: FROZEN)
         monkeypatch.setattr(module, "current_git_sha", lambda: "beef123")
-        monkeypatch.setattr(module, "run_campaign_on_market",
-                            lambda *a, **kw: result)
+        seen: dict[str, object] = {}
+
+        def campaign(*args: object, **kwargs: object) -> SimpleNamespace:
+            seen.update(kwargs)
+            return result
+        monkeypatch.setattr(module, "run_campaign_on_market", campaign)
         (tmp_path / "conf").symlink_to(ROOT / "conf")
         (tmp_path / Path(module.ARTEFACT).parent).mkdir(parents=True, exist_ok=True)
         module.main()
@@ -336,6 +340,9 @@ class TestWeeklyCampaignEntrypoint:
         assert '"preregistration_id": "abc"' in written
         assert '"git_sha": "beef123"' in written
         assert "UNPROVEN" in capsys.readouterr().out
+        # De impact is die van het kleine account: eta uit de config, niet uit impact.yaml.
+        assert seen["impact"].eta == 0.5 and "10,000" in seen["impact"].method  # type: ignore[attr-defined]
+        assert "trial_count" not in seen and "val_cfg" not in seen
 
     @pytest.mark.filterwarnings(
         "ignore:.*found in sys.modules after import of package:RuntimeWarning")

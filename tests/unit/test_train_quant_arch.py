@@ -202,12 +202,21 @@ class TestP2OnlineQuantile:
 # dynamic embargo
 # --------------------------------------------------------------------------- #
 class TestDynamicEmbargo:
-    def test_the_embargo_is_the_longest_horizon_times_the_safety_factor_rounded_up(self) -> None:
-        assert dynamic_embargo_bars([5, 10, 20]) == 24
-        assert dynamic_embargo_bars([10], safety_factor=1.25) == 13
+    """`quant_arch` hergebruikt de functie uit `cv.purge` (R-3: een implementatie per grootheid);
+    de uitgebreide gevallen staan in `test_wave5.py`."""
 
-    def test_a_safety_factor_below_one_is_raised_to_one(self) -> None:
-        assert dynamic_embargo_bars([10], safety_factor=0.5) == 10
+    def test_it_is_the_canonical_cv_function(self) -> None:
+        from tradebot.cv import purge
+        assert dynamic_embargo_bars is purge.dynamic_embargo_bars
+
+    def test_the_embargo_is_the_longest_horizon_times_the_safety_factor_rounded_up(self) -> None:
+        assert dynamic_embargo_bars([5, 10, 20]) == 50                  # standaardfactor 2,5
+        assert dynamic_embargo_bars([10], safety_factor=2.0) == 20
+        assert dynamic_embargo_bars([10], safety_factor=2.05) == 21
+
+    def test_a_safety_factor_below_one_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="safety_factor must be"):
+            dynamic_embargo_bars([10], safety_factor=0.5)
 
     def test_no_horizons_give_the_minimum_and_the_minimum_is_a_floor(self) -> None:
         assert dynamic_embargo_bars([], min_embargo=3) == 3
