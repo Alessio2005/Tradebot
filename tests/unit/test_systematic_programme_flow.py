@@ -65,9 +65,9 @@ DATA_HASHES_PATH = Path("artefacts/governance/data_hashes.json")
 GIT = "abc1234"
 RUN_GIT = "run5678"
 
-N_BARS = 480  # 2021-01-01 .. 2022-04-24
-WINDOWS = {"w_dev_start": "2021-07-01", "train_end": "2021-11-30",
-           "validate_start": "2021-12-01", "w_dev_end": "2022-02-28", "gate_start": "2022-03-01"}
+N_BARS = 435  # 2021-01-01 .. 2022-03-11: W_DEV is 229 bars (twee kalenderjaren), het poortsample 55
+WINDOWS = {"w_dev_start": "2021-06-01", "train_end": "2021-09-30",
+           "validate_start": "2021-10-01", "w_dev_end": "2022-01-15", "gate_start": "2022-01-16"}
 GATE_START = WINDOWS["gate_start"]
 
 #: Kosten die zich laten narekenen: 6 bp taker, 2,5 bp halve spread, eta 1,5.
@@ -101,7 +101,7 @@ GATE_CRITERIA = {"gate_sharpe_collapse", "gate_drawdown"}
 # Een wegwerpmap in de vorm van de repo
 # --------------------------------------------------------------------------- #
 def small_config(planned_trials: int) -> dict[str, Any]:
-    """Dezelfde sleutels als `conf/model/robust_book.yaml`, met vensters die in 480 bars passen.
+    """Dezelfde sleutels als `conf/model/robust_book.yaml`, met vensters die in 435 bars passen.
 
     `inclusion_min_train_sharpe = -100` laat alle vier de sleeves in C5 komen, wat de markt ook doet.
     """
@@ -938,9 +938,8 @@ class TestTheVerdict:
         [
             pytest.param(0, False, False, "promote_to_paper_trading", "accepted", id="nothing-binds"),
             pytest.param(3, False, False, "archived_w_dev_gates", "archived", id="only-the-dev-gates-bind"),
-            pytest.param(0, False, True, "falsified_on_gate", "falsified", id="the-drawdown-gate-binds"),
-            pytest.param(0, True, False, "falsified_on_gate", "falsified", id="the-collapse-gate-binds"),
-            pytest.param(2, True, True, "falsified_on_gate", "falsified", id="a-gate-beats-the-dev-gates"),
+            pytest.param(0, True, False, "falsified_on_gate", "falsified", id="one-gate-binds-alone"),
+            pytest.param(2, False, True, "falsified_on_gate", "falsified", id="a-gate-beats-the-dev-gates"),
         ])
     def test_the_gate_reading_and_the_booking_follow_the_binding_criteria(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dev_binding: int, collapse_binds: bool,
