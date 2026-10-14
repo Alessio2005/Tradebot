@@ -1,0 +1,30 @@
+{"name": "SCREEN_mom_1", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_mom_3", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_mom_7", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_mom_14", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_mom_28", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_mom_56", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_mom_112", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_fund_z", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_fund_lvl7", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_oi_chg1", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_oi_chg5", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_vol_surge", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_rv_ratio", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_resid_z20", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_btc_lead", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_dist_hi20", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "SCREEN_dist_lo20", "family": "screen", "note": "discovery-only predictor screen, h in {1,5}"}
+{"name": "TR_LS", "family": "sleeve", "note": "pv20 weekly/daily as pre-registered", "disc_sharpe": 1.3465496715808571}
+{"name": "TR_LF", "family": "sleeve", "note": "pv20 weekly/daily as pre-registered", "disc_sharpe": 1.5711128699145884}
+{"name": "XS_MOM", "family": "sleeve", "note": "pv20 weekly/daily as pre-registered", "disc_sharpe": 0.5891703266696394}
+{"name": "FUND_XS", "family": "sleeve", "note": "pv20 weekly/daily as pre-registered", "disc_sharpe": -0.12313724617175592}
+{"name": "TR_BRK_LS", "family": "sleeve", "note": "discovery variant", "disc_sharpe": 0.6587334660125413}
+{"name": "TR_BRK_LF", "family": "sleeve", "note": "discovery variant", "disc_sharpe": 0.8884421620499792}
+{"name": "TR_SM_LS", "family": "sleeve", "note": "discovery variant", "disc_sharpe": 1.043230573452198}
+{"name": "TREND_MIX", "family": "sleeve", "note": "discovery combo", "disc_sharpe": 1.4892150458106583}
+{"name": "COMBO_TX", "family": "sleeve", "note": "discovery combo", "disc_sharpe": 1.6302499568363924}
+{"name": "TREND_MULTIVERSE_AVG", "family": "sleeve", "note": "equal-weight average of 54 trend specs; no selection"}
+{"name": "SCREEN_dow", "family": "screen", "note": "weekday effect, EW index, discovery"}
+{"name": "VOLFC_family", "family": "risk", "note": "vol-forecast QLIKE comparison, EWMA94/97/GK/HAR"}
+{"name": "ML_RIDGE", "family": "ml", "note": "pooled ridge a=1000, quarterly refit, TS and XS book (one trial)"}
