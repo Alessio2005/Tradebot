@@ -79,7 +79,7 @@ def http_get_text(
             if attempt == 4:
                 raise
             time.sleep(2.0 ** attempt)  # 2s, 4s, 8s
-    raise RuntimeError("unreachable")
+    raise RuntimeError("unreachable")  # pragma: no cover - poging 4 retourneert of raised altijd
 
 
 def read_csv_text(text: str, **kwargs) -> pd.DataFrame:

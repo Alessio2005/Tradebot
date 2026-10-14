@@ -86,7 +86,9 @@ def historical_cvar(
         return 0.0
     var = float(-np.quantile(r, 1.0 - confidence))
     tail = r[r <= -var]
-    if tail.size == 0:
+    # Onbereikbaar: `-var` is `np.quantile(r, 1 - confidence)` en die ligt nooit
+    # onder `min(r)`, dus het minimum zit altijd in de staart.
+    if tail.size == 0:  # pragma: no cover
         return var
     return float(-np.mean(tail))
 

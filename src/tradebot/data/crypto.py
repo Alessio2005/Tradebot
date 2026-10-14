@@ -178,6 +178,8 @@ class BybitPublicClient:
             usecols=lambda c: str(c).lower() in ("timestamp", "side", "size", "price"),
             chunksize=1_000_000,
         ):
+            if chunk.empty:      # header-only tape: nothing to resample
+                continue
             cols_lower = {str(c).lower(): c for c in chunk.columns}
             ts_col   = cols_lower.get("timestamp")
             side_col = cols_lower.get("side")
@@ -409,8 +411,6 @@ class CryptoIngestionEngine:
         ]
         if not self.symbols:
             self.symbols = [single]
-        if not self.symbols:
-            self.symbols = ["BTCUSDT"]
 
         self.target_symbol        = single
         self.fetch_symbol         = single

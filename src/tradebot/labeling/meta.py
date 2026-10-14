@@ -536,12 +536,14 @@ class CausalScout:
 
         AUDIT-FIX (N18): zie PrimaryScout.from_config docstring.
         """
-        # Hergebruik PrimaryScout's factory-logica voor YAML-laden
+        # Hergebruik PrimaryScout's factory-logica voor YAML-laden. De kwargs van
+        # CausalScout (fast_ema, slow_ema, t_horizon, ...) horen daar niet bij: het
+        # tijdelijke object levert alleen de half_spread, en PrimaryScout kent ze
+        # niet (TypeError bij elke aanroep met een CausalScout-eigen argument).
         tmp = PrimaryScout.from_config(
             symbol=symbol,
             cfg_dir=cfg_dir,
             global_spread=global_spread,
-            **scout_kwargs,
         )
         # Zet half_spread uit het PrimaryScout-object over naar CausalScout
         scout_kwargs["half_spread"] = tmp.half_spread

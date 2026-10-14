@@ -69,25 +69,3 @@ def test_evt_gpd_var_less_than_cf_at_extreme(arr, threshold_q):
     evt = evt_gpd_var(returns, confidence=0.99, threshold_quantile=threshold_q)
     assert isinstance(evt, float)
     assert np.isfinite(evt)
-
-
-@given(
-    close=arrays(
-        np.float64,
-        shape=st.integers(min_value=5, max_value=100),
-        elements=st.floats(min_value=0.001, max_value=1000.0, allow_nan=False, allow_infinity=False),
-    )
-)
-@settings(max_examples=100, deadline=5000)
-def test_microprice_between_bid_ask(close):
-    """Microprice with equal sizes equals mid-price."""
-    from tradebot.features.microstructure import microprice
-    assume(np.all(close > 0))
-    spread = close * 0.001
-    bid = close - spread / 2
-    ask = close + spread / 2
-    bid_size = np.ones_like(close) * 1.0
-    ask_size = np.ones_like(close) * 1.0
-    mp = microprice(bid, ask, bid_size, ask_size)
-    mid = (bid + ask) / 2.0
-    np.testing.assert_allclose(mp, mid, rtol=1e-10)

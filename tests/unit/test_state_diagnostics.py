@@ -284,3 +284,15 @@ def test_the_pool_hides_more_than_a_factor_five_between_symbols() -> None:
                           "ann_return", "se", "t_stat_clustered"):
                 assert field in cell
             assert cell["n_bars"] > 0
+
+
+def test_the_window_length_travels_with_the_report() -> None:
+    """Meetcontract §10: elke grootheid reist met haar venster."""
+    result = _diagnose()
+    assert result.t_years == result.n_bars / 365.0
+    record = result.to_dict()
+    assert record["window"] == {
+        "n_bars": result.n_bars, "bars_per_year": 365.0,
+        "t_years": result.t_years, "n_symbols": 1}
+    assert record["transition_matrix"]["states"] == [s.name for s in VolState]
+    assert set(record["per_symbol"]) == {"A"}

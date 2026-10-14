@@ -50,7 +50,10 @@ def _purged_timeseries_splits(
             continue
         train_idx = np.arange(0, fold_end, dtype=np.int64)
         test_idx = np.arange(test_start, test_end, dtype=np.int64)
-        if len(train_idx) < 2 or len(test_idx) < 2:
+        # Onbereikbaar: n_samples >= 2 * (n_splits + 1) geeft fold_size >= 2,
+        # dus train heeft minstens twee bars; test is hierboven al op >= 2
+        # gecontroleerd. De grens blijft staan voor wie de layout ooit wijzigt.
+        if len(train_idx) < 2 or len(test_idx) < 2:  # pragma: no cover
             continue
         splits.append((train_idx, test_idx))
     return splits

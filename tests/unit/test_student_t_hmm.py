@@ -266,3 +266,85 @@ class TestEm:
                    M2HmmConfig(n_iter=2, em_tolerance=1e-12))
         assert isinstance(fit, StudentTFit)
         assert fit.converged is False
+
+
+class TestShapesAndCovarianceTypes:
+    def test_the_density_accepts_a_flat_series(self) -> None:
+        y = np.linspace(-0.05, 0.05, 11)
+        args = (np.array([[0.0], [0.01]]), np.array([[1e-4], [4e-4]]),
+                np.array([5.0, 9.0]), "diag")
+        assert np.array_equal(student_t_log_density(y, *args),
+                              student_t_log_density(y[:, None], *args))
+
+    def test_the_em_accepts_a_flat_series(self) -> None:
+        observations = _two_regime_series()
+        start = deterministic_start(observations, 2, "diag")
+        flat = fit_student_t_hmm(observations[:, 0], start=start,
+                                 gaussian_loglikelihood=0.0, cfg=CFG)
+        column = fit_student_t_hmm(observations, start=start,
+                                   gaussian_loglikelihood=0.0, cfg=CFG)
+        assert np.array_equal(flat.dof, column.dof)
+        assert np.array_equal(flat.covars, column.covars)
+
+    def test_full_covariance_agrees_with_diag_in_one_dimension(self) -> None:
+        """Univariaat zijn `full` en `diag` hetzelfde model; de EM moet daar
+        dezelfde schalen vinden, alleen in een (k, 1, 1)-vorm."""
+        observations = _two_regime_series()
+        cfg_full = M2HmmConfig(covariance_type="full")
+        full = fit_student_t_hmm(
+            observations, start=deterministic_start(observations, 2, "full"),
+            gaussian_loglikelihood=0.0, cfg=cfg_full)
+        diag = fit_student_t_hmm(
+            observations, start=deterministic_start(observations, 2, "diag"),
+            gaussian_loglikelihood=0.0, cfg=CFG)
+        assert full.covars.shape == (2, 1, 1)
+        assert np.allclose(full.covars[:, 0, 0], diag.covars[:, 0], rtol=1e-6)
+        assert np.allclose(full.dof, diag.dof, rtol=1e-6)
+
+
+class TestCollapseBeforeTheMStep:
+    """Twee manieren waarop een toestand instort voordat de M-stap iets
+    zinnigs kan schatten. Beide zijn een geteld RESULTAAT (`degenerate`), en de
+    parameters zijn die van de laatste geldige iteratie."""
+
+    @staticmethod
+    def _start(spike_mean: float) -> dict[str, np.ndarray]:
+        # Toestand 1 is een naald: een schaal van 1e-300 rond `spike_mean`.
+        # Elke andere bar krijgt onder die toestand een dichtheid die tot
+        # exact nul onderloopt; dat is wat de verantwoordelijkheid ergens
+        # anders dan op de naald op exact nul zet.
+        return {
+            "start_prob": np.array([0.5, 0.5]),
+            "trans_mat": np.full((2, 2), 0.5),
+            "means": np.array([[1.0], [spike_mean]]),
+            "covars": np.array([[1e-4], [1e-300]]),
+        }
+
+    def test_a_state_that_only_owns_the_last_bar_has_no_transition_row(
+        self,
+    ) -> None:
+        """Alle verantwoordelijkheid op de LAATSTE bar: de toestand telt als
+        bezet (precies 1), maar er is geen enkele overgang uit hem waargenomen
+        en zijn rij van de transitiematrix is niet gedefinieerd."""
+        rng = np.random.default_rng(4)
+        observations = np.append(1.0 + 0.01 * rng.standard_normal(40), 0.0)
+        fit = fit_student_t_hmm(
+            observations[:, None], start=self._start(0.0),
+            gaussian_loglikelihood=0.0, cfg=CFG)
+        assert fit.degenerate is True
+        assert fit.converged is False
+        assert fit.n_iter_used == 1
+
+    def test_a_scale_that_lands_on_exactly_zero_is_degenerate(self) -> None:
+        """Zes IDENTIEKE bars die als enige onder een toestand vallen: zijn
+        gemiddelde is exact hun waarde en zijn schaal exact nul."""
+        rng = np.random.default_rng(4)
+        observations = 1.0 + 0.01 * rng.standard_normal(40)
+        observations[20:26] = 0.0
+        fit = fit_student_t_hmm(
+            observations[:, None], start=self._start(0.0),
+            gaussian_loglikelihood=0.0, cfg=CFG)
+        assert fit.degenerate is True
+        assert fit.n_iter_used == 1
+        # Teruggerold naar de start: de schaal van nul is NIET teruggegeven.
+        assert float(np.asarray(fit.covars).min()) == 1e-300

@@ -168,7 +168,7 @@ def _triple_barrier_per_event(
                 realized_ret[j] = (exit_price - curr_price) / curr_price
             else:
                 realized_ret[j] = (curr_price - exit_price) / curr_price
-        else:
+        else:  # pragma: no cover - exit_bar = min(timeout_idx_raw, n_total - 1) < n_total
             realized_ret[j] = 0.0
 
     return barrier_labels, t1_indices, realized_ret

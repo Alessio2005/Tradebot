@@ -156,7 +156,7 @@ def check_feature_stationarity(
             report.n_non_stationary,
             p_threshold,
             sorted(
-                ((c, report.p_values[c]) for c in report.non_stationary),
+                ((c, report.p_values.get(c, 1.0)) for c in report.non_stationary),
                 key=lambda kv: -kv[1],
             )[:5],
         )

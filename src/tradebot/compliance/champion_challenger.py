@@ -197,7 +197,9 @@ class ChampionChallenger:
         x = d - mean_d
         nw_sum = 0.0
         for lag in range(1, k + 1):
-            if n - lag < 1:
+            # Onbereikbaar: k is hierboven geklemd op n - 2 en n >= 4, dus
+            # n - lag >= 2. De grens blijft staan voor wie de klem ooit loslaat.
+            if n - lag < 1:  # pragma: no cover
                 break
             gamma_lag = float(np.dot(x[:-lag], x[lag:])) / (n - lag)
             # Bartlett-kernel weight

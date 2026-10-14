@@ -266,7 +266,10 @@ def run_campaign_on_market(
             n_trades=min(n_trades, max(1, int(round(per_year)))),
             drawdown=cfg.mc_max_drawdown, block_length=max(1, int(round(per_year / 26.0))),
             n_paths=cfg.mc_paths, seed=cfg.seed)
-    else:
+    # Onbereikbaar: `run_barrier_book` boekt een trade bij ENTRY, dus zonder
+    # trades is er geen positie en is `ens` overal nul; `sharpe_with_se(ens)`
+    # hierboven weigert die nul-variantiereeks al voordat deze regel komt.
+    else:  # pragma: no cover
         hit_low, p_be_mean, mc = 0.0, 1.0, 1.0
 
     variants = np.column_stack([base.to_numpy()] + [books[k_].returns.loc[window].to_numpy()

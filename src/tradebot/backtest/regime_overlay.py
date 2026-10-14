@@ -197,7 +197,9 @@ def run_overlay_arm(
     fills = pd.Series(0, index=index)
     for report in result.reports:
         ts = report.order.ts_earliest_fill
-        if ts not in turnover.index:
+        # De engine zet ts_earliest_fill op de volgende slice en `index` is afgedwongen gelijk
+        # aan de prijsindex, dus elk rapport valt op een bekende bar.
+        if ts not in turnover.index:  # pragma: no cover
             continue
         orders[ts] += 1
         spread_cost[ts] += report.spread_cost

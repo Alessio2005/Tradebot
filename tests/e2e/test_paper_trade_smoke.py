@@ -43,6 +43,7 @@ def _make_bars(n: int = 24, seed: int = 42) -> pd.DataFrame:
     )
 
 
+@pytest.mark.e2e
 @pytest.mark.slow
 def test_paper_trade_24h_no_crash(tmp_path: Path) -> None:
     """Run LiveEngine in paper-mode over 24 synthetic bars without crash."""

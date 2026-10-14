@@ -26,6 +26,7 @@ def large_ohlcv():
     return pd.DataFrame({"open": open_, "high": high, "low": low, "close": close, "volume": 1e6}, index=idx)
 
 
+@pytest.mark.benchmark
 @pytest.mark.slow
 def test_gk_kernel_speed(large_ohlcv, benchmark=None) -> None:
     """GK volatility on 5k bars should complete < 500 ms."""
@@ -53,6 +54,7 @@ def test_gk_kernel_speed(large_ohlcv, benchmark=None) -> None:
         assert elapsed < 0.5, f"GK kernel too slow: {elapsed:.3f}s per call"
 
 
+@pytest.mark.benchmark
 @pytest.mark.slow
 def test_sb_kernel_speed(benchmark=None) -> None:
     """Sequential bootstrap on 1k samples should complete < 2 s."""

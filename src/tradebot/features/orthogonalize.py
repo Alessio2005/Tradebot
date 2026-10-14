@@ -170,15 +170,10 @@ class FeatureOrthogonalizer:
             return keep_all, list(feature_names)
 
         rho_result = spearmanr_func(X_calib, axis=0, nan_policy="omit")
-        # spearmanr retourneert een SpearmanrResult (namedtuple-like)
-        # met .correlation en .pvalue attributen, of in oudere versies
-        # een tuple. Gebruik getattr om beide te ondersteunen.
-        rho = getattr(rho_result, "correlation", None)
-        if rho is None:
-            rho = rho_result[0]
-        rho_arr = np.asarray(rho, dtype=np.float64)
-        if rho_arr.ndim == 0:  # p == 2 edge-case
-            rho_arr = np.array([[1.0, float(rho_arr)], [float(rho_arr), 1.0]])
+        # Zowel het resultaatobject als een kale tuple zijn indexeerbaar op
+        # [0] = de correlatiematrix. Met p > 2 (zie de vroege exit hierboven)
+        # is die altijd (p, p).
+        rho_arr = np.asarray(rho_result[0], dtype=np.float64)
         # NaN-safety: vervang door 0 (geen correlatie).
         rho_arr = np.nan_to_num(rho_arr, nan=0.0, posinf=0.0, neginf=0.0)
         np.fill_diagonal(rho_arr, 1.0)
@@ -188,8 +183,6 @@ class FeatureOrthogonalizer:
         dist = np.clip(dist, 0.0, 2.0)
         # squareform eist hol-diagonale afstand + 0 op de diagonaal.
         np.fill_diagonal(dist, 0.0)
-        if squareform is None:
-            return keep_all, list(feature_names)
         cond = squareform(dist, checks=False)
         Z = linkage(cond, method="complete")
         cluster_ids = fcluster(
@@ -206,9 +199,6 @@ class FeatureOrthogonalizer:
                 continue
             best = members[int(np.argmax(stds[members]))]
             mask[best] = True
-
-        if not mask.any():
-            return keep_all, list(feature_names)
 
         kept_names = [nm for nm, keep in zip(feature_names, mask) if keep]
         logger.info(
@@ -300,10 +290,6 @@ class FeatureOrthogonalizer:
         X_calib_valid = X_calib_valid[:, dedup_mask]
 
         # ── Stap 2: StandardScaler (fit op kalibratie-subset) ─────────
-        if StandardScaler is None:  # pragma: no cover
-            self._is_fitted = True
-            self._output_names = list(feature_names)
-            return X.astype(np.float32), list(feature_names)
         scaler = StandardScaler()
         scaler.fit(X_calib_valid)
         X_scaled       = scaler.transform(X_valid)
@@ -317,10 +303,6 @@ class FeatureOrthogonalizer:
         # vooraf exact te weten zonder te fitten. Als de drempel te weinig
         # componenten geeft (<min_components), is één extra fit onvermijdelijk.
         # In de normale situatie (voldoende variance) volstaat één fit.
-        if PCA is None:  # pragma: no cover
-            self._is_fitted = True
-            self._output_names = list(feature_names)
-            return X.astype(np.float32), list(feature_names)
         n_comp_request = min(
             max(self.min_components, 1),
             X_calib_valid.shape[1],
@@ -449,10 +431,6 @@ class FeatureOrthogonalizer:
         X_all_valid   = X_all_valid[:, dedup_mask]
 
         # Stap 2: StandardScaler gefit op train-subset
-        if StandardScaler is None or PCA is None:  # pragma: no cover
-            self._is_fitted = True
-            self._output_names = list(feature_names)
-            return X.astype(np.float32), list(feature_names)
         scaler = StandardScaler()
         scaler.fit(X_train_valid)
         X_train_scaled = scaler.transform(X_train_valid)
@@ -524,9 +502,7 @@ class FeatureOrthogonalizer:
             DataContractError,
         )
 
-        if self._var_mask is None:
-            return X.astype(np.float32)
-
+        assert self._var_mask is not None  # _var_mask, _scaler en _pca worden samen gezet
         X_valid  = X[:, self._var_mask].astype(np.float64)
         if self._dedup_mask is not None and self._dedup_mask.shape[0] == X_valid.shape[1]:
             X_valid = X_valid[:, self._dedup_mask]

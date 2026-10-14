@@ -72,6 +72,13 @@ market_data_parquet/
 # zou niets doen.
 !data/pit_store/**
 
+# De bevroren regressie-baselines zijn de tweede uitzondering op `*.npy`
+# (DI-25): zonder ze in de checkout heeft test_bitequivalence.py geen meetlat
+# en staat de nachtelijke regressie-job rood. Ze zijn 4 kB en veranderen alleen
+# met een bewuste, gereviewde commit (`tests/regression/regenerate_baselines.py`).
+!tests/regression/baselines/
+!tests/regression/baselines/*.npy
+
 # --- DAG-artefacten (D-8): mappen bestaan, inhoud is reproduceerbaar --------
 artefacts/features/*
 artefacts/models/*

@@ -422,7 +422,7 @@ def calculate_shannon_entropy(
             pos = q * (window - 1)
             lo = math.floor(pos)
             hi = math.ceil(pos)
-            if hi >= window:
+            if hi >= window:  # pragma: no cover - q < 1, dus pos < window - 1 en ceil(pos) <= window - 1
                 hi = window - 1
             frac = pos - float(lo)
             edges[k] = sorted_win[lo] + frac * (sorted_win[hi] - sorted_win[lo])
@@ -438,10 +438,11 @@ def calculate_shannon_entropy(
                     hi = mid
                 else:
                     lo = mid + 1
-            bin_idx = lo if val <= edges[lo] else num_bins - 1
-            # Rand-tolerantie voor de laatste bin.
-            if bin_idx >= num_bins:
-                bin_idx = num_bins - 1
+            # `lo` is de kleinste edge-index met val <= edges[lo], of num_bins - 1 (de
+            # laatste bin) als val boven alle edges ligt. `edges` heeft num_bins - 1
+            # elementen: edges[lo] lezen op lo = num_bins - 1 las een element voorbij
+            # het einde (numba controleert dat niet, Python gooit een IndexError).
+            bin_idx = lo
             counts[bin_idx] += 1
 
         entropy = 0.0

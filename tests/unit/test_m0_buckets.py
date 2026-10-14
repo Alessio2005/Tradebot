@@ -238,3 +238,15 @@ class TestInputContract:
         result = _classify(_regime_series(), self.CFG)
         assert np.isnan(result.buckets.iloc[0])
         assert result.n_defined < result.n_total
+
+
+def test_mean_duration_without_a_transition_is_the_whole_defined_window() -> None:
+    """Geen enkele wisseling: één regime dat het hele gedefinieerde venster
+    beslaat. `n / (0 + 1)` zou hetzelfde geven; de vertakking maakt het
+    expliciet en houdt de deling uit de nul-randgeval-redenering."""
+    empty = pd.Series(dtype="float64")
+    assignment = BucketAssignment(
+        symbol="X", buckets=empty, zscore=empty, atr_ratio=empty,
+        n_total=50, n_defined=40, occupancy={"LOW": 40}, n_transitions=0)
+    assert assignment.mean_duration == 40.0
+    assert assignment.as_record()["mean_duration_bars"] == 40.0
