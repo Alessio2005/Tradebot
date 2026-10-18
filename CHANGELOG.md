@@ -33,7 +33,11 @@
   | Py 3.13, numpy zonder BLAS | 15/40 | 0/360 |
 
   De vergelijking van de causaliteitstest zelf, onder dezelfde verstoring,
-  faalde met de oude regel 12/12 en 5/6 en op HEAD 0/48 en 0/12. Een spion
+  faalde met de oude regel 12/12 en 5/6 en op HEAD 0/48 en 0/12. Onder
+  pytest zelf (`-p randomly`, `test_regime_conditioning.py` +
+  `test_student_t_hmm.py`, Py 3.13) slaagt de causaliteitstest op HEAD in
+  30 van 30 seeds; met de oude regel faalt hij in 8 van 10 seeds en de
+  bewakingstest in alle 10. Een spion
   over een volledige `build_conditioner` vond geen enkele transcendente
   ufunc-aanroep (numpy, scipy, hmmlearn) met een niet-contigue invoer.
 - **Geen numerieke wijziging en geen besluit nodig.** Tolerantie, markers en
