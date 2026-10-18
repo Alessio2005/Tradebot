@@ -99,12 +99,6 @@ class TestFit:
         assert s._is_full and s._buffer_idx == 0
         np.testing.assert_array_equal(s.data_buffer, X[-50:])
 
-    @pytest.mark.xfail(strict=True, reason=(
-        "BEVINDING, niet aangepast: `fit` met meer dan vijf rijen overschrijft de exacte "
-        "batch-mediaan en -spreiding met de P²-schatting, en die loopt weg (zie "
-        "test_train_quant_arch): op N(0,1)-data wordt center_ ~ 3,0 in plaats van ~ 0 en "
-        "scale_ ~ 4,1 in plaats van 3,3. Training en live gebruiken dezelfde scaler, dus de "
-        "inputs zijn consistent maar verschoven."))
     def test_the_fitted_center_and_scale_match_the_batch_statistics(self) -> None:
         X = _x(2000, 3)
         s = RollingRobustScaler(window=2000).fit(X)

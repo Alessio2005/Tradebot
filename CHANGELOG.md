@@ -4,6 +4,24 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## P²-kwantielschatter hersteld (2026-10-18)
+- **Fout:** `P2OnlineQuantile` (`train/quant_arch.py`) en
+  `RollingRobustScaler._p2_update_single` (`train/_scalers.py`) rekenden de
+  gewenste markerposities uit als `1 + 2q·n`, `1 + 4q·n`, `3 + 2q·n`. Jain &
+  Chlamtac (1985) schrijven `1 + (n-1)q/2`, `1 + (n-1)q`, `1 + (n-1)(1+q)/2`
+  voor. Daarnaast startten de WERKELIJKE posities op de gewenste startwaarden
+  `1, 1+2q, 1+4q, 3+2q, 5` in plaats van op `1..5`.
+- **Gevolg:** de schatting liep weg. De mediaan op een N(0,1)-steekproef kwam
+  uit op 3,4. `RollingRobustScaler.fit` overschrijft de batch-mediaan en
+  -spreiding met deze schatting, dus `center_` lag rond 3,0 in plaats van 0.
+- **Na de fix:** mediaan −0,016 tegen −0,014 echt (n = 4000). `center_` en
+  `scale_` liggen binnen 0,01 resp. 1,1 % van de batchwaarden.
+- De drie `xfail`-tests die dit vastlegden, zijn nu gewone tests. Alleen het
+  CatBoost-pad (`train/catboost.py`, `train/ensemble.py`) gebruikt de scaler.
+  Het robuuste boek (`systematic/`) en de weekly-strategie
+  (`train/light_models.py`) raken hem niet, en `artefacts/models/` bevat geen
+  gefitte scaler: er verandert geen bevroren resultaat.
+
 ## DI-31 herzien (2026-10-14) — numpy's kernelkeuze, niet OpenBLAS
 - **Symptoom:** `test_the_multiplier_is_causal[hmm3-diag-student_t]` faalde af
   en toe met `atol=0, rtol=0`. De volledige en de afgekapte run fitten

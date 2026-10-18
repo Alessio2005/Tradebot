@@ -226,11 +226,10 @@ class RollingRobustScaler:
         n_feat = first_samples.shape[1]
         sorted_samples = np.sort(first_samples, axis=0)
         q_heights = sorted_samples.T.astype(np.float64)  # (n_feat, 5)
-        q_positions = np.tile(
-            np.array([1.0, 1.0 + 2.0 * quantile, 1.0 + 4.0 * quantile,
-                      3.0 + 2.0 * quantile, 5.0], dtype=np.float64),
-            (n_feat, 1),
-        )
+        # De WERKELIJKE posities van de vijf gesorteerde startwaarden zijn 1..5;
+        # 1, 1+2q, 1+4q, 3+2q, 5 zijn de GEWENSTE posities bij n = 5, en die
+        # rekent `_p2_update_single` zelf uit; `quantile` is hier dus niet nodig.
+        q_positions = np.tile(np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float64), (n_feat, 1))
         return q_heights, q_positions
 
     @staticmethod
@@ -269,11 +268,13 @@ class RollingRobustScaler:
         for i in range(k + 1, 5):
             q_n[i] += 1.0
 
-        # Stap 3: desired posities.
+        # Stap 3: gewenste posities na `count` waarnemingen (Jain & Chlamtac
+        # 1985, tabel 1): 1, 1 + (n-1)q/2, 1 + (n-1)q, 1 + (n-1)(1+q)/2, n.
+        m = float(count - 1)
         n_prime0 = 1.0
-        n_prime1 = 1.0 + 2.0 * quantile * count
-        n_prime2 = 1.0 + 4.0 * quantile * count
-        n_prime3 = 3.0 + 2.0 * quantile * count
+        n_prime1 = 1.0 + m * quantile / 2.0
+        n_prime2 = 1.0 + m * quantile
+        n_prime3 = 1.0 + m * (1.0 + quantile) / 2.0
         n_prime4 = float(count)
         n_prime = (n_prime0, n_prime1, n_prime2, n_prime3, n_prime4)
 

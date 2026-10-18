@@ -229,12 +229,16 @@ def _p2_update_njit(
     for i in range(k + 1, 5):
         q_n[i] += 1.0
 
+    # Gewenste markerposities na n waarnemingen (Jain & Chlamtac 1985, tabel 1):
+    # 1, 1 + (n-1)q/2, 1 + (n-1)q, 1 + (n-1)(1+q)/2, n. Bij n = 5 zijn dat de
+    # startwaarden 1, 1+2q, 1+4q, 3+2q, 5.
     new_count = count + 1
+    m = float(new_count - 1)
     n_prime = np.empty(5, dtype=np.float64)
     n_prime[0] = 1.0
-    n_prime[1] = 1.0 + 2.0 * quantile * new_count
-    n_prime[2] = 1.0 + 4.0 * quantile * new_count
-    n_prime[3] = 3.0 + 2.0 * quantile * new_count
+    n_prime[1] = 1.0 + m * quantile / 2.0
+    n_prime[2] = 1.0 + m * quantile
+    n_prime[3] = 1.0 + m * (1.0 + quantile) / 2.0
     n_prime[4] = float(new_count)
 
     for i in range(1, 4):
@@ -295,11 +299,9 @@ class P2OnlineQuantile:
     def _initialize(self, first5: np.ndarray) -> None:
         sorted_block = np.sort(first5, axis=0)
         self._heights = sorted_block.T.astype(np.float64).copy()  # (n_feat, 5)
-        q = self.quantile
-        positions_template = np.array(
-            [1.0, 1.0 + 2.0 * q, 1.0 + 4.0 * q, 3.0 + 2.0 * q, 5.0],
-            dtype=np.float64,
-        )
+        # De WERKELIJKE posities van de vijf gesorteerde startwaarden zijn 1..5;
+        # 1, 1+2q, 1+4q, 3+2q, 5 zijn de GEWENSTE posities bij n = 5.
+        positions_template = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float64)
         self._positions = np.tile(positions_template, (self.n_features, 1))
         self._count = 5
 

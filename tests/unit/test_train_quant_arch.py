@@ -115,7 +115,7 @@ def _streams() -> list[tuple[str, float, np.ndarray]]:
 
 def _run(kernel, stream: np.ndarray, quantile: float) -> np.ndarray:
     heights = np.sort(stream[:5]).astype(np.float64)
-    positions = np.array([1.0, 1.0 + 2.0 * quantile, 1.0 + 4.0 * quantile, 3.0 + 2.0 * quantile, 5.0])
+    positions = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     count = 5
     for x in stream[5:]:
         count = kernel(float(x), heights, positions, quantile, count)
@@ -140,19 +140,18 @@ class TestP2Kernel:
             assert heights[1] == pytest.approx(1.0 + (2.0 - 1.0) / 2.0)        # lineaire stap omhoog
             assert positions[1] == 2.0
 
-
-_P2_FINDING = (
-    "BEVINDING, niet aangepast: de gewenste markerposities in de P²-update zijn "
-    "n'_1 = 1 + 2q*n, n'_2 = 1 + 4q*n, n'_3 = 3 + 2q*n, terwijl Jain & Chlamtac "
-    "n'_1 = 1 + q(n-1)/2, n'_2 = 1 + q(n-1), n'_3 = 1 + (1+q)(n-1)/2 voorschrijven "
-    "(de formules vallen alleen samen bij de vijf startwaarnemingen). De schatting loopt "
-    "daardoor weg: mediaan 3,4 op een N(0,1)-steekproef met mediaan 0,0. Dezelfde formule "
-    "staat in `RollingRobustScaler._p2_update_single`, dat de productie-scaler voedt."
-)
+    def test_coinciding_upper_markers_are_moved_down_in_a_linear_step(self) -> None:
+        def state():
+            return (np.array([0.0, 1.0, 2.0, 3.0, 9.0]), np.array([1.0, 3.0, 6.0, 6.0, 9.0]))
+        for kernel in (qa._p2_update_njit, qa._p2_update_njit.py_func):
+            heights, positions = state()
+            count = kernel(5.0, heights, positions, 0.05, 10)
+            assert count == 11 and np.isfinite(heights).all()
+            assert positions[2] == 5.0
+            assert heights[2] == pytest.approx(2.0 - (2.0 - heights[1]) / 4.0)  # lineaire stap omlaag
 
 
 class TestP2OnlineQuantile:
-    @pytest.mark.xfail(strict=True, reason=_P2_FINDING)
     def test_the_median_estimate_is_close_to_the_sample_median(self) -> None:
         x = np.random.default_rng(1).normal(size=4000)
         est = P2OnlineQuantile(quantile=0.5, n_features=1)
@@ -160,7 +159,6 @@ class TestP2OnlineQuantile:
             est.update([v])
         assert est.value()[0] == pytest.approx(np.median(x), abs=0.05)
 
-    @pytest.mark.xfail(strict=True, reason=_P2_FINDING)
     def test_the_estimate_tracks_every_feature_independently(self) -> None:
         rng = np.random.default_rng(2)
         x = np.column_stack([rng.normal(0, 1, 3000), rng.normal(50, 5, 3000)])
