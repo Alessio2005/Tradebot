@@ -4,6 +4,49 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## DI-31 herzien (2026-10-14) — numpy's kernelkeuze, niet OpenBLAS
+- **Symptoom:** `test_the_multiplier_is_causal[hmm3-diag-student_t]` faalde af
+  en toe met `atol=0, rtol=0`. De volledige en de afgekapte run fitten
+  bitidentieke trainvensters, maar de Student-t EM gaf soms andere bits terug.
+- **Oorzaak:** `np.log(u[:, i])` op een kolom-VIEW in de M-stap, opgelost in
+  `ad44372`. numpy 1.26 kiest voor float64-`log` de AVX-512-kernel alleen als
+  `nomemoverlap` invoer en uitvoer disjunct ziet. Voor kolom `i` neemt die
+  controle `stride * n` bytes, 8·i bytes voorbij het einde van `u`, en telt
+  hij aansluitende bereiken als overlap. Landt de verse uitvoer in het
+  heapblok direct na `u`, dan rekent numpy met scalaire libm: 1 ULP verschil
+  op ~25 % van de elementen. 200 EM-iteraties maken daar 1e-12 van in de
+  parameters en 1e-14 in de factor. Bij k = 2 haalt de overschrijding het
+  volgende blok nooit.
+- **Weerlegd: multithreaded OpenBLAS.** De oude regel drijft ook met OpenBLAS
+  op één thread (8 van 20 herfits). In een verse Python-3.13-omgeving uit de
+  lockfiles bouwt numpy 1.26.4 uit de sdist zonder BLAS, dus `@` raakt OpenBLAS
+  daar niet. De OpenBLAS 0.3.30 die DI-31 noemde is die van scipy, en de EM
+  roept die niet aan. `threadpool_limits` om de fit veranderde de
+  heapgeschiedenis en daarmee waar de uitvoer landde. Dat verklaart waarom
+  het de ene run repareerde en de pytest-run juist liet falen.
+- **Gemeten (2026-10-14).** Herfits van de acht opgenomen trainvensters na
+  een willekeurige heapverstoring:
+
+  | omgeving | oude regel | HEAD |
+  |---|---:|---:|
+  | Py 3.11, numpy-wheel (OpenBLAS 0.3.23) | 22/30 | 0/120 |
+  | Py 3.13, numpy zonder BLAS | 15/40 | 0/360 |
+
+  De vergelijking van de causaliteitstest zelf, onder dezelfde verstoring,
+  faalde met de oude regel 12/12 en 5/6 en op HEAD 0/48 en 0/12. Onder
+  pytest zelf (`-p randomly`, `test_regime_conditioning.py` +
+  `test_student_t_hmm.py`, Py 3.13) slaagt de causaliteitstest op HEAD in
+  30 van 30 seeds; met de oude regel faalt hij in 8 van 10 seeds en de
+  bewakingstest in alle 10. Een spion
+  over een volledige `build_conditioner` vond geen enkele transcendente
+  ufunc-aanroep (numpy, scipy, hmmlearn) met een niet-contigue invoer.
+- **Geen numerieke wijziging en geen besluit nodig.** Tolerantie, markers en
+  de bevroren H2-getallen blijven ongemoeid. De regel wordt bewaakt door
+  `test_transcendentals_never_see_a_strided_view`. Het register
+  `docs/DEFERRED_ISSUES.md` staat sinds `57d3fcf` niet meer in de repository;
+  deze notitie en de toelichting bij `log_u` in `regime/student_t.py` zijn
+  de bijgewerkte beschrijving.
+
 ## Robuust boek v6–v8 (2026-10-09) — hefboom, uitvoering, sprongrisico
 - **Eigenaarsbesluit:** hoog risico toegestaan; hefboom niet langer uitgesloten.
   Mandaat ongewijzigd: bruto ≤ 4,0, ADV-participatie ≤ 1 %, max drawdown 25 %.
