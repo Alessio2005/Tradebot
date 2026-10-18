@@ -140,6 +140,16 @@ class TestP2Kernel:
             assert heights[1] == pytest.approx(1.0 + (2.0 - 1.0) / 2.0)        # lineaire stap omhoog
             assert positions[1] == 2.0
 
+    def test_coinciding_upper_markers_are_moved_down_in_a_linear_step(self) -> None:
+        def state():
+            return (np.array([0.0, 1.0, 2.0, 3.0, 9.0]), np.array([1.0, 3.0, 6.0, 6.0, 9.0]))
+        for kernel in (qa._p2_update_njit, qa._p2_update_njit.py_func):
+            heights, positions = state()
+            count = kernel(5.0, heights, positions, 0.05, 10)
+            assert count == 11 and np.isfinite(heights).all()
+            assert positions[2] == 5.0
+            assert heights[2] == pytest.approx(2.0 - (2.0 - heights[1]) / 4.0)  # lineaire stap omlaag
+
 
 class TestP2OnlineQuantile:
     def test_the_median_estimate_is_close_to_the_sample_median(self) -> None:
