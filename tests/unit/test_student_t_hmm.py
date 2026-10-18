@@ -192,9 +192,10 @@ class TestEm:
         AVX-512-kernel of scalaire libm afhankelijk van waar de uitvoerbuffer
         op de heap landde, met 1 ULP verschil. `test_the_multiplier_is_causal
         [hmm3-diag-student_t]` faalde daarop: twee fits op DEZELFDE trainbars
-        gaven andere `nu`. Zie de toelichting bij `log_u` in `student_t.py`.
-        Deze test bewaakt de regel die dat oplost, en is in tegenstelling tot
-        het symptoom niet afhankelijk van de heapgeschiedenis of de CPU.
+        gaven andere `nu` (DI-31). Zie de toelichting bij `log_u` in
+        `student_t.py`. Deze test bewaakt de regel die dat oplost, en is in
+        tegenstelling tot het symptoom niet afhankelijk van de
+        heapgeschiedenis of de CPU.
         """
         from tradebot.regime import student_t as module
 
