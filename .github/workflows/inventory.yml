@@ -19,11 +19,11 @@ jobs:
   inventory:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.13.0"
+          python-version: "3.13"
 
       # De omgeving IS de lock. requirements-dev.lock pint de testketen en de
       # linters; zonder die pin verandert een tooling-release het oordeel van

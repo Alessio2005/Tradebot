@@ -2,7 +2,7 @@
 # conf/model/adequacy.yaml; per klasse een bestand zou die drempels zes keer inlezen.
 # Fase 10, stap 9 voegde `assert_realised_occupancy` toe -- de GEREALISEERDE tegenhanger
 # van `assess_hmm`, die naast hem hoort te staan omdat beide dezelfde grootheid meten
-# met een andere bron. Cap staat in scripts/check_file_size.py; groeien is rood.
+# met een andere bron.
 """Data Adequacy Gate — Phase 6, §3. Meet vóór de fit of de data de vraag draagt.
 
 WAAROM DEZE POORT BESTAAT

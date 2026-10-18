@@ -17,18 +17,17 @@ jobs:
   # ---------------------------------------------------------------------------
   # Job 1: regression + slow tests — bit-equivalence tegen BEVROREN baselines.
   #
-  # "DVC-tracked" stond hier en het was niet waar: er is geen .dvc-bestand en
-  # geen dvc.yaml-stage voor tests/regression/baselines/, en `.gitignore`
-  # regel 65 (`*.npy`) houdt ze uit de boom. Zie DI-25.
+  # De baselines staan in git: `.gitignore` sluit `*.npy` uit, met een
+  # uitzondering voor `tests/regression/baselines/*.npy`.
   # ---------------------------------------------------------------------------
   regression:
     name: Regression (bit-equivalence + slow tests)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -44,25 +43,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.lock -r requirements-dev.lock
           pip install -e . --no-deps
-      # `.gitignore` (`*.npy`) houdt de baselines uit de checkout, en
-      # test_bitequivalence.py doet `pytest.skip` als ze ontbreken. Deze stap
-      # staat daarom ROOD tot de baselines ergens vandaan komen, in plaats van
-      # een test die stil overslaat. Waar ze horen te wonen -- git, DVC of een
-      # release-artefact -- is een besluit van de eigenaar: DI-25.
-      - name: De bevroren baselines moeten er zijn (DI-25)
+      # De baselines staan in git. Deze stap blijft als vangnet: verdwijnt er
+      # een, dan wordt de job hier rood in plaats van dat de
+      # bit-equivalentietest zonder meetlat draait.
+      - name: De bevroren baselines moeten er zijn
         run: |
           missing=0
           for f in gk_volatility.npy sequential_bootstrap_indices.npy; do
             [ -f "tests/regression/baselines/$f" ] || { echo "::error::ontbreekt: $f"; missing=1; }
           done
           if [ "$missing" -eq 1 ]; then
-            echo "::error::De bit-equivalentietest heeft geen meetlat. Zie DI-25."
+            echo "::error::De bit-equivalentietest heeft geen meetlat."
             exit 1
           fi
       - name: Run slow + regression tests
         run: pytest -m "slow or regression" -q --tb=short --maxfail=10
       - name: Archive baseline artefacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: regression-baselines
@@ -77,8 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -91,7 +88,7 @@ jobs:
       - name: Benchmark
         run: pytest -m benchmark -q --tb=short -o log_cli=true
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: benchmark-${{ github.run_id }}
@@ -107,8 +104,8 @@ jobs:
     timeout-minutes: 20
     needs: regression
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       # Gepind (DI-16), zie de eerste job.
@@ -131,7 +128,7 @@ jobs:
         # stap erboven (`pytest tests/integration/test_tca_roundtrip.py`),
         # die niet gemaskeerd is.
       - name: Upload TCA report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: tca-report-${{ github.run_id }}
