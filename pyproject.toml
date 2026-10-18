@@ -11,7 +11,7 @@ name            = "tradebot"
 version         = "0.4.0"
 description     = "MFT crypto trading research stack — DAG-architectured CPCV/Optuna/Portfolio pipeline."
 readme          = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 license         = { text = "Proprietary" }
 authors         = [{ name = "Tradebot Quant Team" }]
 
@@ -43,7 +43,6 @@ dependencies = [
     "pyarrow>=14",
     "joblib>=1.3",
     "pandera[pandas]>=0.18",
-    "dvc>=3.30",           # data-lineage; verplicht vanaf Phase 1
     # Config + orchestration
     "hydra-core>=1.3",
     "omegaconf>=2.3",
@@ -72,6 +71,15 @@ dev = [
     "ruff>=0.1.8",
     "types-PyYAML",
     "types-requests",
+]
+# dvc is alleen een CLI voor het manifest `data/pit_store.dvc`: geen module in
+# src/ of tests/ importeert hem, en `tests/unit/test_pit_store_integrity.py`
+# rekent de dirhash zelf na. Als harde dependency haalde hij ~60 transitieve
+# pakketten binnen, waaronder diskcache 5.6.3 (PYSEC-2026-2447, geen fix), dat
+# de Security Scan op main rood hield. Wie de store met de dvc-CLI beheert,
+# installeert `.[data]`.
+data = [
+    "dvc>=3.30",
 ]
 # ccxt is een OPTIONELE alternatieve venue-adapter. De Phase 1-ingestion
 # gebruikt de Bybit V5 REST API rechtstreeks via `requests` (hard dependency),

@@ -1,8 +1,12 @@
 name: Security Scan
 
+# Ook op pull requests: zonder die trigger was deze poort alleen na de merge te
+# zien, en stond hij 18 runs achter elkaar rood zonder dat een PR het liet zien.
 on:
   push:
     branches: ["main"]
+  pull_request:
+  workflow_dispatch:
   schedule:
     - cron: "0 6 * * 1"    # Monday 06:00 UTC weekly
 
@@ -11,8 +15,8 @@ jobs:
     name: Bandit SAST
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       # Gepind, om dezelfde reden als ruff en mypy (DI-16): een ongepinde
@@ -25,8 +29,8 @@ jobs:
     name: pip-audit (dependency CVEs)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - run: pip install -r requirements-security.lock

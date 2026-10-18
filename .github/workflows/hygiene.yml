@@ -25,14 +25,14 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # registry/lineage.py heeft een resolvable git_sha nodig (D-9), en
           # backtest/evaluation.py::count_git_commits telt de volledige historie
           # als trial-count M voor de DSR. Een shallow clone maakt beide fout.
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -61,7 +61,7 @@ jobs:
           hard = ["statsmodels", "arch", "hmmlearn", "pydantic", "sklearn",
                   "catboost", "scipy", "numba", "pandas", "numpy", "pyarrow",
                   "yaml", "requests", "aiohttp", "websockets", "prometheus_client",
-                  "dvc", "optuna", "joblib", "pandera", "omegaconf", "tenacity",
+                  "optuna", "joblib", "pandera", "omegaconf", "tenacity",
                   "yfinance"]
           missing = [m for m in hard if u.find_spec(m) is None]
           if missing:
