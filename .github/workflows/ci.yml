@@ -2,15 +2,15 @@ name: CI
 
 on:
   push:
-    branches: ["main", "develop"]
+    branches: ["main"]
   pull_request:
-    branches: ["main", "develop"]
+    branches: ["main"]
 
 # De lockfiles zijn op 3.13 opgelost en de vier poortworkflows draaien op
 # 3.13. Diezelfde pins op 3.11 installeren is geen pin-probleem maar een
-# tweede omgeving: een andere minor geeft een andere resolutie.
-# `requires-python = ">=3.10"` in pyproject.toml is daarmee een claim die
-# door geen enkele job wordt getoetst; zie DI-24.
+# tweede omgeving: een andere minor geeft een andere resolutie. Daarom zegt
+# pyproject.toml `requires-python = ">=3.13"`: de enige interpreter die een job
+# toetst.
 env:
   PYTHON_VERSION: "3.13"
 
@@ -19,8 +19,8 @@ jobs:
     name: Lint (ruff + mypy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       # DE LINTERS ZIJN GEPIND, net als de runtime. `pyproject.toml` zet
@@ -49,8 +49,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       # Zelfde reden als in de lint-job: een testketen op ongepinde deps
@@ -62,14 +62,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.lock -r requirements-dev.lock
           pip install -e . --no-deps
+      # Geen dekkingsmeting en geen Codecov-upload hier. De upload had geen
+      # token en `fail_ci_if_error: false`, dus hij kon stil niets doen. De
+      # dekkingspoort (fail_under = 100) staat in `inventory.yml`.
       - name: Run fast tests
-        run: pytest -m "not slow and not regression" --cov=src/tradebot --cov-report=xml -q
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          file: coverage.xml
-          fail_ci_if_error: false
+        run: pytest -m "not slow and not regression" -q
 
   # Wat `test-fast` bewust deselecteert (`slow`, `regression`) plus de twee
   # markers die tot nu toe alleen in een nachtelijke workflow liepen
@@ -84,8 +81,8 @@ jobs:
     needs: lint
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install from lockfile

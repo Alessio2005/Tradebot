@@ -38,13 +38,13 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Een shallow clone maakt `get_git_sha()` onbetrouwbaar, en een
           # GateResult zonder resolvable git_sha is per audit §26 INVALIDE.
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip

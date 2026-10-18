@@ -1,10 +1,13 @@
+# De revs hieronder volgen requirements-dev.lock (ruff==0.15.12, mypy==2.3.1),
+# zodat een commit lokaal hetzelfde oordeel krijgt als CI. Geen ruff-format:
+# de repo is nooit geformatteerd (533 van 545 bestanden zouden wijzigen), en
+# die hook zou elk aangeraakt bestand volledig herschrijven.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.5
+    rev: v0.15.12
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
-      - id: ruff-format
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
@@ -20,7 +23,7 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+    rev: v2.3.1
     hooks:
       - id: mypy
         files: ^src/tradebot/(schemas|utils)/
