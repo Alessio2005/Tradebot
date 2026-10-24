@@ -21,6 +21,21 @@ pre-commit install
 De dvc-CLI voor het manifest `data/pit_store.dvc` is optioneel:
 `pip install -e ".[data]"`. De PIT-store zelf staat in git.
 
+## Stand (2026-10-24)
+
+Er is geen strategie die kapitaal verdient. De enige kandidaat is de spot-perp-carry
+v8-T2; zijn echte Sharpe is ~1,5 (niet de 5 uit `sqrt(365)`), en de schone toets is de
+vooruit-lezing vanaf april 2027. Zie `docs/research/2026-10-24-production-readiness-audit.md`.
+
+Het carryboek draait als shadowboek met dezelfde code als de backtest:
+
+```bash
+python -I -m tradebot.data.binance_vision forward YYYY-MM   # vooruit-panelen
+python -I -m tradebot.carry init --state state/carry.json   # beginstand = backtest tot de start
+python -I -m tradebot.carry step --state state/carry.json   # elke nieuwe gesettelde bar
+python -I -m tradebot.systematic.restate                    # de bevroren cijfers, eerlijk uitgedrukt
+```
+
 ## Veelgebruikte commando's
 
 ```bash

@@ -4,6 +4,39 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Productie-audit (2026-10-24) — eerlijke Sharpe, live-OMS, carry-uitvoeringspad, infra
+Rapport: `docs/research/2026-10-24-production-readiness-audit.md`. Geen bevroren poort,
+oordeel of ledger-entry veranderd; de backtest van v6–v8 is bit-identiek.
+- **SK-1, de Sharpe van het carryboek is 3–5x te hoog.** `sqrt(365)` op dagrendementen met
+  rho_1..3 ≈ 0,5. v8-T2 over de hele cyclus: 5,05 bevroren, **1,55 op maandrendementen**,
+  1,08 op kwartaalrendementen; jaarvol 8,4 % i.p.v. 2,5 %. Bij de prijsstrategieën vallen
+  beide samen. Nieuw: `validation/serial_sharpe.py` (maand, kwartaal, Lo met
+  Bartlett-gewichten), extra velden in `systematic/evaluate.summarize`, en
+  `systematic/restate.py` -> `artefacts/research/restatement.json`.
+- **Live-OMS (E-3..E-6, E-9):** live fills werden nooit in het interne boek geboekt (de
+  engine las equity en gewichten uit het papierboek); een HALT sloot alleen papierposities;
+  een lege orderstatus werd "volledig gevuld tegen prijs 0"; een tweede noodsluiting
+  plaatste niets (vaste `orderLinkId`, geen `reduceOnly`); een fout in het barpad stopte
+  de engine met open posities. Alle vijf opgelost en gereproduceerd in tests.
+- **Reconciliatie (E-7):** de `Reconciler` werd nergens gebruikt en keek alleen naar het
+  interne boek. Nu elke bar in live-modus, over de unie van beide boeken; een blijvend
+  verschil is een halt.
+- **Carry-uitvoeringspad (E-1):** `systematic/leverage.run_levered` is opgesplitst in
+  `LeveredBook.step` / `.decide_live`, bit-identiek over 16 scenario's. Nieuw pakket
+  `tradebot.carry`: orders per been in een margeveilige volgorde, staat per symbool,
+  venue-contract + paper-venue, reconciliatie (vangt ADL), kill switch, CLI. Shadowboek =
+  backtest, bit voor bit, ook met dagelijkse save/load en een groeiend paneel.
+- **Infra (E-2):** de images bouwden niet (Python 3.11 tegen >= 3.13, `COPY apps/` van een
+  niet-bestaande map, geen lock) en de manifests riepen niet-bestaande modules aan. Nu één
+  image uit de lock en een maandelijkse `cron-carry-shadow`; de stubs zijn weg en
+  `tests/unit/test_infra_contract.py` toetst dat wat aangeroepen wordt, bestaat.
+- **Strikte xfails opgelost (5 van 6):** de rolling Sharpe in de state-file (5s-bars, 252
+  dagen, kon nooit iets schrijven); holdoutsloten zonder splittoets (v2–v8 en de
+  vooruit-lezing, nu `programme_v2.require_lock_split`); de DSR-M live uit de ledger (nu
+  `programme_v2.frozen_m`). Open: de fracdiff-gewichtsvolgorde (bevroren features).
+- **Paper-trade-smoke** is hernoemd naar wat hij is (24 synthetische bars, geen orders) en
+  geen promotiepoort meer.
+
 ## P²-kwantielschatter hersteld (2026-10-18)
 - **Fout:** `P2OnlineQuantile` (`train/quant_arch.py`) en
   `RollingRobustScaler._p2_update_single` (`train/_scalers.py`) rekenden de
