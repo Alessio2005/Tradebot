@@ -18,6 +18,7 @@ from scipy import stats
 from ..backtest.metrics import annualized_return, deflated_sharpe, max_drawdown, sortino_ratio
 from ..backtest.pbo import compute_pbo
 from ..validation.inference import block_bootstrap_ci, sharpe_with_se
+from ..validation.serial_sharpe import serial_sharpe
 from .book import BookResult
 from .market import BARS_PER_YEAR, BookMarket
 
@@ -73,6 +74,15 @@ def summarize(res: BookResult, *, bootstrap: bool = True) -> dict[str, Any]:
         "hit_rate_days": float((r > 0).sum() / max((r != 0).sum(), 1)),
         "worst_day": float(r.min()), "best_day": float(r.max()),
     }
+    # Naast de bevroren Sharpe (iid, sqrt(365)): de puntschatting die de autocorrelatie van
+    # de dagrendementen meeneemt (audit 2026-10-24, SK-1). Rapportage, geen poort.
+    # Te kort venster (minder dan zes maanden of 31 bars): `None`, geen NaN.
+    ser = serial_sharpe(r, bars_per_year=int(BARS_PER_YEAR), lags=(30,))
+    for key, value in (("sharpe_monthly", ser.sharpe_monthly),
+                       ("sharpe_quarterly", ser.sharpe_quarterly),
+                       ("sharpe_lo30", ser.sharpe_lo[30]), ("rho1", ser.rho[0]),
+                       ("ann_vol_monthly", ser.ann_vol_monthly)):
+        out[key] = float(value) if math.isfinite(value) else None
     for c in COMPONENTS:
         out[f"ann_{c}"] = float(f[c].mean() * BARS_PER_YEAR)
     if bootstrap:
