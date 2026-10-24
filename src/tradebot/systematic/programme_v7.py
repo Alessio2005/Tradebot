@@ -22,9 +22,11 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
+
+import pandas as pd
 
 from ..schemas.robust_book_v2 import RobustBookV7Config, robust_book_v7_config
 from ..utils.failfast import DataContractError, require
@@ -32,9 +34,9 @@ from . import programme_v5 as v5
 from . import programme_v6 as v6
 from .book import BookResult
 from .harvest import BasisCosts
-from .leverage import MarginMarket, levered_targets, run_levered, tranche_targets
+from .leverage import MarginMarket, MarginSpec, levered_targets, run_levered, tranche_targets
 
-__all__ = ["CANDIDATES", "V7", "simulate", "simulate_book"]
+__all__ = ["CANDIDATES", "V7", "BookSpec", "book_spec", "simulate", "simulate_book"]
 
 CONFIG = Path("conf/model/robust_book_v7.yaml")
 SPEC_PATH = Path("conf/research/preregistration_robust_book_v7.yaml")
@@ -56,11 +58,33 @@ def simulate(name: str, m: MarginMarket, cfg: RobustBookV7Config, costs: BasisCo
     return simulate_book(name, m, cfg, costs, lag=lag, ov=ov)
 
 
-def simulate_book(name: str, m: MarginMarket, cfg: RobustBookV7Config, costs: BasisCosts, *,
-                  lag: int | None = None, ov: Mapping[str, Any] | None = None,
-                  max_sigma: float | None = None) -> BookResult:
-    """De simulatiekern van v7, gedeeld met v8 (`max_sigma`: de sprongrisicogrens; een
-    override `max_sigma` in `ov` wint, `None` daar zet hem uit)."""
+@dataclass(frozen=True)
+class BookSpec:
+    """Alles waarmee `run_levered` een v7/v8-kandidaat draait: het doel per bar, de
+    leenrente, en de vaste instellingen van het boek. Het live-pad (`tradebot.carry`)
+    bouwt zijn boek uit precies deze spec."""
+
+    target: pd.DataFrame
+    financing: pd.Series
+    lag: int
+    band: float
+    hedge_tolerance: float
+    margin: MarginSpec
+    skip: pd.Series | None
+    adv_cap: float
+    slice_step: float | None
+
+    def run_kwargs(self) -> dict[str, Any]:
+        return {"lag": self.lag, "band": self.band, "hedge_tolerance": self.hedge_tolerance,
+                "margin": self.margin, "financing": self.financing, "skip": self.skip,
+                "adv_cap": self.adv_cap, "slice_step": self.slice_step}
+
+
+def book_spec(name: str, m: MarginMarket, cfg: RobustBookV7Config, *,
+              lag: int | None = None, ov: Mapping[str, Any] | None = None,
+              max_sigma: float | None = None) -> BookSpec:
+    """De invoer van de simulatiekern van v7, gedeeld met v8 (`max_sigma`: de
+    sprongrisicogrens; een override `max_sigma` in `ov` wint, `None` daar zet hem uit)."""
     o = dict(ov or {})
     max_sigma = o["max_sigma"] if "max_sigma" in o else max_sigma
     lg = int(cfg.execution.lag_bars if lag is None else lag)
@@ -87,9 +111,17 @@ def simulate_book(name: str, m: MarginMarket, cfg: RobustBookV7Config, costs: Ba
         margin = replace(margin, min_uni_mmr=1.0, gross_cap=1e9)
     days = int(o.get("slice_days", x.slice_days))
     step = None if days <= 1 else (1.0 / slots) / days
-    return run_levered(tgt, m, costs, lag=lg, band=float(o.get("band", b.band)),
-                       hedge_tolerance=b.hedge_tolerance, margin=margin, financing=rate,
-                       skip=skip, adv_cap=lv.adv_participation_cap, slice_step=step)
+    return BookSpec(target=tgt, financing=rate, lag=lg, band=float(o.get("band", b.band)),
+                    hedge_tolerance=b.hedge_tolerance, margin=margin, skip=skip,
+                    adv_cap=lv.adv_participation_cap, slice_step=step)
+
+
+def simulate_book(name: str, m: MarginMarket, cfg: RobustBookV7Config, costs: BasisCosts, *,
+                  lag: int | None = None, ov: Mapping[str, Any] | None = None,
+                  max_sigma: float | None = None) -> BookResult:
+    """De simulatiekern van v7, gedeeld met v8 (zie `book_spec`)."""
+    spec = book_spec(name, m, cfg, lag=lag, ov=ov, max_sigma=max_sigma)
+    return run_levered(spec.target, m, costs, **spec.run_kwargs())
 
 
 def _family(name: str, cfg: RobustBookV7Config | None = None) -> dict[str, dict[str, Any]]:

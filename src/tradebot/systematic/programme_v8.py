@@ -33,7 +33,7 @@ from .book import BookResult
 from .harvest import BasisCosts
 from .leverage import MarginMarket
 
-__all__ = ["CANDIDATES", "V8", "simulate"]
+__all__ = ["CANDIDATES", "V8", "book_spec", "simulate"]
 
 CONFIG = Path("conf/model/robust_book_v8.yaml")
 SPEC_PATH = Path("conf/research/preregistration_robust_book_v8.yaml")
@@ -52,6 +52,12 @@ def simulate(name: str, m: MarginMarket, cfg: RobustBookV8Config, costs: BasisCo
     require(name in CANDIDATES, "Onbekende v8-kandidaat.", DataContractError, name=name)
     return v7.simulate_book(name, m, cfg, costs, lag=lag, ov=ov,
                             max_sigma=cfg.v8.max_daily_sigma)
+
+
+def book_spec(name: str, m: MarginMarket, cfg: RobustBookV8Config) -> v7.BookSpec:
+    """De invoer van de v8-kandidaat zoals `simulate` hem draait: wat het live-pad bouwt."""
+    require(name in CANDIDATES, "Onbekende v8-kandidaat.", DataContractError, name=name)
+    return v7.book_spec(name, m, cfg, max_sigma=cfg.v8.max_daily_sigma)
 
 
 def _family(name: str, cfg: RobustBookV8Config | None = None) -> dict[str, dict[str, Any]]:
