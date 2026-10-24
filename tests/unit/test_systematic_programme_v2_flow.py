@@ -914,10 +914,6 @@ def test_the_module_runs_as_a_script_and_refuses_a_call_without_command(monkeypa
 # --------------------------------------------------------------------------- #
 # Bevindingen: gepind, niet aangepast (het onderzoeksgedrag is vooraf geregistreerd)
 # --------------------------------------------------------------------------- #
-@pytest.mark.xfail(strict=True, reason=(
-    "BEVINDING, niet aangepast: read_holdout vergelijkt de split van het slot niet met "
-    "windows.holdout_start. Staat het slot eerder, dan overlapt de 'holdout' W_DEV. v1 "
-    "(programme.py: 'gate_start wijkt af van de bevroren holdout-split') weigert dat wel."))
 def test_a_lock_with_another_split_than_the_configured_holdout_start_is_refused(
         scenarios, tmp_path):
     root = copy_root(scenarios["promote"].pre_holdout, tmp_path / "root")
@@ -929,10 +925,6 @@ def test_a_lock_with_another_split_than_the_configured_holdout_start_is_refused(
     assert lock_reads(root) == []                               # geweigerd vóór de lezing wordt verbruikt
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BEVINDING, niet aangepast: run_programme leest de DSR-M live uit de ledger. Is er na het "
-    "bevriezen iets bijgeboekt, dan verschuift M en is dezelfde run niet reproduceerbaar; de "
-    "preregistratie noemt M als vast getal ('cumulatieve ledger-M (14)')."))
 def test_the_dsr_trial_count_stays_the_one_of_the_freeze_when_the_ledger_grows(
         scenarios, tmp_path, monkeypatch):
     flow = scenarios["archived"]                                # de goedkoopste run

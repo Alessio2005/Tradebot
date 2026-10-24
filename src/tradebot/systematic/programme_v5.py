@@ -305,7 +305,7 @@ def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print) -> d
     for name in CANDIDATES:
         log(f"run {name}")
         results[name] = simulate(name, m, cfg, costs)
-    m_prog = int(HypothesisLedger(root / v2.LEDGER_PATH).total_n_hypotheses())
+    m_prog = v2.frozen_m(root, prereg.preregistration_id)
     m_wide = m_prog + int(cfg.known_prior_trials)
     per_bar = [summarize(results[n].window(*w_dev), bootstrap=False)["sharpe_per_bar"]
                for n in CANDIDATES]
@@ -424,6 +424,8 @@ def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print,
     full = load_market(root, cfg)
     hid = f"robust_book_v5/{prereg.preregistration_id}/{name}"
     close = full.perp.book.close
+    v2.require_lock_split(root / BACKCAST_LOCK, cfg.windows.train_start)
+    v2.require_lock_split(root / v2.LOCK_PATH, cfg.windows.holdout_start)
     if resume_reason is None:
         back = backcast_gate_slice(close, lock_path=root / BACKCAST_LOCK, hypothesis_id=hid)
         hold = gate_slice(close, lock_path=root / v2.LOCK_PATH, hypothesis_id=hid)

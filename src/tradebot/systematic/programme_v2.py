@@ -28,6 +28,7 @@ from ..execution.trade_costs import load_impact_params
 from ..features.registry import current_git_sha
 from ..registry.hypothesis_ledger import HypothesisLedger, LedgerEntry
 from ..registry.preregistration import (
+    freeze_metadata,
     freeze_preregistration,
     load_preregistration_spec,
     require_preregistration,
@@ -83,6 +84,32 @@ MC_PATHS = 2000
 
 def _ts(s: str) -> pd.Timestamp:
     return pd.Timestamp(s, tz="UTC")
+
+
+def frozen_m(root: Path, preregistration_id: str) -> int:
+    """De DSR-M van een programma: de ledgerstand op het moment van bevriezen.
+
+    De freeze boekt de trials van het programma VOORDAT hij de stand vastlegt, dus dit is
+    alles wat er was plus deze golf. Tot de audit van 2026-10-24 lazen v2, v3, v5 en v6 de
+    ledger live: een herhaalde run na een volgend programma gebruikte een andere M."""
+    return int(freeze_metadata(preregistration_id,
+                               directory=root / PREREG_DIR)["ledger_total_at_freeze"])
+
+
+def require_lock_split(lock_path: Path, expected: str) -> None:
+    """Het slot moet splitsen waar de config het venster laat beginnen.
+
+    Staat de split van een holdoutslot vóór `windows.holdout_start`, dan overlapt de
+    'holdout' W_DEV; staat hij erna, dan valt er data tussen de twee. v1 weigerde dat al
+    (`gate_start wijkt af van de bevroren holdout-split`); v2-v8 lazen het slot zonder die
+    toets (audit 2026-10-24). Geweigerd VOORDAT de lezing in het slot wordt verbruikt."""
+    if not lock_path.is_file():
+        return   # een ontbrekend slot weigert `gate_slice` zelf, met zijn eigen melding
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    require(pd.Timestamp(lock["split_utc"]) == _ts(expected),
+            "De split van het slot wijkt af van het geconfigureerde venster.",
+            DataContractError, lock=str(lock_path.name), split=lock["split_utc"],
+            config=expected)
 
 
 def _params(cfg: RobustBookV2Config) -> dict[str, Any]:
@@ -369,8 +396,9 @@ def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print) -> d
     if included:
         results["X5_COMBO"] = run(build("X5_COMBO", m, cfg, included=included), m, costs, lag=lag)
 
-    ledger = HypothesisLedger(root / LEDGER_PATH)
-    m_prog = int(ledger.total_n_hypotheses())
+    # M van de FREEZE, niet de live ledger: wat er na het bevriezen bijkomt (een volgend
+    # programma, een bevestiging) mag de DSR van deze run niet verschuiven.
+    m_prog = frozen_m(root, prereg.preregistration_id)
     m_wide = m_prog + int(cfg.known_prior_trials)
     per_bar = [summarize(results[n].window(*w_dev), bootstrap=False)["sharpe_per_bar"]
                for n in TRIALS if n in results]
@@ -470,6 +498,7 @@ def read_holdout(root: Path = ROOT, *, log: Callable[[str], None] = print) -> di
     included = tuple(summary["x5_included"])
     full = load_breadth_market(root / PANEL_DIR, cfg)
     hid = f"robust_book_v2/{prereg.preregistration_id}/{name}"
+    require_lock_split(root / LOCK_PATH, cfg.windows.holdout_start)
     sl = gate_slice(full.book.close, lock_path=root / LOCK_PATH, hypothesis_id=hid)
     a = pd.Timestamp(sl.index[0])
     b = min(pd.Timestamp(sl.index[-1]), _ts(cfg.windows.holdout_end))
