@@ -35,6 +35,7 @@ from ..execution.fees import FeeSchedule, bybit_perp_schedule
 from ..monitoring.metrics import EngineMetrics, start_metrics_server
 from ..oms.audit_log import AuditLog
 from ..oms.paper_oms import PaperOMS
+from ..oms.reconciler import Reconciler, ReconcilerConfig, ReconciliationError
 from ..oms.router import OrderRouter
 from ..portfolio.constraints import PortfolioConstraints
 from ..risk.daily_loss_governor import (
@@ -213,6 +214,13 @@ class LiveEngine:
             paper_oms=self._paper_oms,
             live_mode=(config.mode == EngineMode.LIVE),
         )
+        # Live: het interne boek wordt na elke bar tegen de beurs gelegd (E-7). Een
+        # verschil dat twee passes standhoudt is een halt: het boek is dan onbekend.
+        self._reconciler = Reconciler(
+            self._paper_oms.tracker,
+            ReconcilerConfig(paper_mode=config.mode != EngineMode.LIVE,
+                             require_two_strikes=True),
+        )
         self._cb = CircuitBreaker(config.cb_config, self._state)
         # Propfirm governor (audit §3) — only active when limits are configured.
         self._governor: PropfirmGovernor | None = (
@@ -281,6 +289,15 @@ class LiveEngine:
         self._state_out_dir = config.state_out_dir
         self._state_out_dir.mkdir(parents=True, exist_ok=True)
         self._state_write_every_n = config.state_write_every_n
+        # De rolling Sharpe in de state-file: 32 dagen aan bar-close-samples op de
+        # GECONFIGUREERDE interval, geannualiseerd met 365 dagen (crypto handelt elke dag).
+        # Tot de audit van 2026-10-24 rekende hij met 5s-bars en 252 dagen, eiste hij 17.280
+        # samples en kapte hij de historie op 5.000 af: hij kon nooit iets anders dan None
+        # schrijven. Eén sample per bar: de extra sample op een rebalancebar gaf een
+        # nulrendement dat de vol drukte.
+        self._bar_seconds = pd.Timedelta(config.interval).total_seconds()
+        self._sharpe_window = int(round(32 * 86_400 / self._bar_seconds))
+        self._history_cap = self._sharpe_window + 1
         self._equity_history: list[float] = []
         self._start_ts: str = pd.Timestamp.now(tz="UTC").isoformat()
 
@@ -354,7 +371,17 @@ class LiveEngine:
                 logger.info("LiveEngine: feed exhausted — stopping.")
                 break
 
-            await self._process_bar(event)
+            try:
+                await self._process_bar(event)
+            except Exception as exc:
+                # Een fout in het barpad (een geweigerde order, een onbekende
+                # orderstatus, een datacontract) laat het boek in een onbekende
+                # staat. Eerst plat, dan de fout naar boven: niet doorhandelen en
+                # niet stil stoppen met open posities.
+                self._state.errors.append(f"{type(exc).__name__}: {exc}")
+                logger.critical("LiveEngine: bar path raised (%s) — emergency halt.", exc)
+                await self._emergency_halt()
+                raise
 
             if self._cb.is_active:
                 await self._halt()
@@ -655,6 +682,7 @@ class LiveEngine:
             # 5. Route orders — reset fat-finger guard after each fill
             for order in orders:
                 fill = await self._router.place_order(order)
+                self._reconciler.note_fill(order.symbol)
                 # Reset fat-finger guard so next rebalance isn't blocked
                 self._ec._last_order_qty[order.symbol] = 1e9
                 self._metrics.order_filled(
@@ -673,7 +701,6 @@ class LiveEngine:
             new_equity = self._paper_oms.tracker.equity
             self._state.update_equity(new_equity)
             self._state.positions = self._paper_oms.get_positions()
-            self._equity_history.append(new_equity)
 
             # P2-2 — equity + drawdown gauges
             self._metrics.equity_updated(
@@ -681,7 +708,7 @@ class LiveEngine:
                 drawdown=self._state.current_drawdown,
             )
 
-        # Periodic equity sample for rolling Sharpe (every bar, capped at 5000)
+        # Equity sample for the rolling Sharpe: one per bar, capped at the Sharpe window.
         eq_now = self._paper_oms.tracker.equity
         # CHIEF-4 (2026-05-28): track equity every bar (not only on rebalance)
         # so peak/intraday drawdown reflects intra-bar moves between trades.
@@ -697,8 +724,10 @@ class LiveEngine:
                 self._governor.reset_day(eq_now)
             self._last_session_date = cur_date
         self._equity_history.append(eq_now)
-        if len(self._equity_history) > 5000:
-            self._equity_history = self._equity_history[-5000:]
+        if len(self._equity_history) > self._history_cap:
+            self._equity_history = self._equity_history[-self._history_cap:]
+
+        await self._reconcile()
 
         # P2-2 — queue depth gauge (best-effort; queue may not be accessible)
         self._metrics.queue_depth(depth=self._queue.qsize())
@@ -722,32 +751,22 @@ class LiveEngine:
     # State file writes (for Streamlit dashboard)
     # ------------------------------------------------------------------
 
-    def _rolling_sharpe(self, window: int = 5000) -> float | None:
-        """Annualised Sharpe from the last `window` equity samples.
+    def _rolling_sharpe(self, window: int | None = None) -> float | None:
+        """Annualised Sharpe over the last `window` bar returns (default: 32 days of bars).
 
-        Returns None until at least 17 280 samples are available (= 1 full
-        calendar day of 5s-bar data: 24 h × 3600 s / 5 s).  Below this
-        threshold the annualised figure is meaningless: the annualisation
-        factor √(252 × 24 × 720) ≈ 2 086 amplifies any short-window drift
-        into triple- or double-digit values (observed: 41 at bar 3 500 /
-        5.8 h with equity +0.43 %).  The dashboard renders "—" for None.
-
-        S-1 (2026-05-27): initial threshold set to 2880 (≈ 4 h).
-        S-1b (2026-05-27): raised to 17 280 (= 1 day) after 41-Sharpe
-        artefact observed at bar 3 500.
-        """
-        hist = self._equity_history[-window:]
-        # S-1b (2026-05-27): require ≥ 17 280 samples (1 full calendar day
-        # of 5s bars) before reporting an annualised Sharpe.
-        if len(hist) < 17_280:
+        None until the window is full: a shorter sample, annualised, turns any drift into
+        a double-digit figure (S-1b, 2026-05-27: 41 after 5.8 hours). The dashboard
+        renders "—" for None."""
+        n = self._sharpe_window if window is None else int(window)
+        hist = self._equity_history[-(n + 1):]
+        if len(hist) < n + 1:
             return None
         rets = [(hist[i] - hist[i - 1]) / hist[i - 1] for i in range(1, len(hist))]
         mu = sum(rets) / len(rets)
         sigma = math.sqrt(sum((r - mu) ** 2 for r in rets) / len(rets))
         if sigma < 1e-12:
             return None
-        # 5s bars → 252 trading days × 24h × 720 bars/h
-        bars_per_year = 252 * 24 * 720
+        bars_per_year = 365.0 * 86_400 / self._bar_seconds
         return float(mu / sigma * math.sqrt(bars_per_year))
 
     def _write_state(self, current_bar_ts: pd.Timestamp | None = None) -> None:
@@ -824,31 +843,47 @@ class LiveEngine:
         with open(out_dir / "equity_curve.jsonl", "a", encoding="utf-8") as fh:
             fh.write(ec_line + "\n")
 
+    async def _reconcile(self) -> None:
+        """Live: leg het interne boek tegen de beursposities; een blijvend verschil is fataal.
+
+        In paper-modus is het interne boek de waarheid en doet dit niets."""
+        if self._cfg.mode is not EngineMode.LIVE:
+            return
+        results = self._reconciler.reconcile(await self._router.get_exchange_positions())
+        bad = [r.message for r in results if r.is_discrepant]
+        if bad:
+            raise ReconciliationError("; ".join(bad))
+
     # ------------------------------------------------------------------
     # Halt procedure
     # ------------------------------------------------------------------
 
     async def _halt(self) -> None:
+        """Sluit alles via de router: in live-modus de BEURSposities.
+
+        Tot de audit van 2026-10-24 (E-4) sloot deze halt `self._paper_oms`, ook in
+        live-modus: een drawdown- of daglimiet stopte de engine en liet de echte
+        posities ongemanaged op de beurs staan."""
         logger.critical(
             "LiveEngine: HALT triggered. reason=%s — closing all positions.",
             self._cb.halt_reason,
         )
-        fills = self._paper_oms.close_all()
-        logger.critical("LiveEngine: closed %d positions.", len(fills))
-        self._stop_event.set()
+        try:
+            fills = await self._router.close_all()
+            logger.critical("LiveEngine: closed %d positions.", len(fills))
+        finally:
+            self._stop_event.set()
 
     async def _emergency_halt(self) -> None:
-        """Emergency halt: cancel all open orders, log state, alert.
+        """Emergency halt: flatten every position via the router, then stop.
 
-        Called on KILL SWITCH signal (Wave 15 P0-5.1).
+        Called on KILL SWITCH signal (Wave 15 P0-5.1) and when the bar path raises.
         """
-        logger.critical("EMERGENCY HALT — cancelling all open orders.")
-        if hasattr(self, "_router") and self._router is not None:
+        logger.critical("EMERGENCY HALT — closing all positions.")
+        try:
             await self._router.close_all()
-        else:
-            # Fallback to paper OMS
-            self._paper_oms.close_all()
-        self._stop_event.set()
+        finally:
+            self._stop_event.set()
 
     # ------------------------------------------------------------------
     # Metrics

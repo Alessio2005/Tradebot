@@ -10,6 +10,7 @@ idempotent herhalen, en een retCode die geen 0 is niet als fill lezen.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import sys
 import types
@@ -28,6 +29,7 @@ from tradebot.oms.paper_oms import PaperOMS
 from tradebot.oms.position_tracker import PositionRecord, PositionTracker
 from tradebot.oms.reconciler import Reconciler, ReconcilerConfig
 from tradebot.oms.router import OrderRouter
+from tradebot.utils.failfast import DataContractError
 
 
 def _order(symbol: str = "BTCUSDT", side: OrderSide = OrderSide.BUY,
@@ -72,13 +74,19 @@ class _FakeBybit:
             "lotSizeFilter": {"qtyStep": "0.001", "minOrderQty": "0.001"}}]}}
         self.create: dict[str, Any] = {"retCode": 0, "result": {"orderId": "X1"}}
         self.realtime: dict[str, Any] = {"result": {"list": [
-            {"avgPrice": "40000", "cumExecQty": "0.1"}]}}
+            {"avgPrice": "40000", "cumExecQty": "0.1", "orderStatus": "Filled"}]}}
         self.positions: dict[str, Any] = {"result": {"list": [
             {"symbol": "BTCUSDT", "size": "0.2", "side": "Buy"},
             {"symbol": "ETHUSDT", "size": "1.5", "side": "Sell"},
             {"symbol": "SOLUSDT", "size": "0", "side": "Buy"}]}}
 
+        # Opeenvolgende antwoorden op order/realtime (de router peilt tot een eindstatus).
+        self.realtime_seq: list[dict[str, Any]] = []
+        self.bodies: list[dict[str, Any]] = []
+
     def _answer(self, url: str) -> dict[str, Any]:
+        if "order/realtime" in url and self.realtime_seq:
+            return self.realtime_seq.pop(0)
         for key, payload in (("instruments-info", self.instruments),
                              ("order/create", self.create),
                              ("order/realtime", self.realtime),
@@ -101,8 +109,9 @@ class _FakeBybit:
                 fake.calls.append(("GET", url))
                 return _Response(fake._answer(url))
 
-            def post(self, url: str, **_: Any) -> _Response:
+            def post(self, url: str, data: str = "", **_: Any) -> _Response:
                 fake.calls.append(("POST", url))
+                fake.bodies.append(json.loads(data))
                 return _Response(fake._answer(url))
 
         module = types.ModuleType("aiohttp")
@@ -117,8 +126,8 @@ def bybit(monkeypatch: pytest.MonkeyPatch) -> _FakeBybit:
     return fake
 
 
-def _live_router() -> OrderRouter:
-    return OrderRouter(PaperOMS(), live_mode=True)
+def _live_router(paper: PaperOMS | None = None) -> OrderRouter:
+    return OrderRouter(paper or PaperOMS(), live_mode=True, status_poll_interval_s=0.0)
 
 
 class TestRouterPaperMode:
@@ -189,6 +198,120 @@ class TestRouterLive:
         fills = asyncio.run(router.close_all())
         assert len(fills) == 2  # SOL staat vlak en wordt overgeslagen
         assert sum(c[0] == "POST" for c in bybit.calls) == 2
+
+
+def _status(status: str, qty: str = "0.1", price: str = "40000",
+            fee: str = "0") -> dict[str, Any]:
+    return {"result": {"list": [{"orderStatus": status, "cumExecQty": qty,
+                                 "avgPrice": price, "cumExecFee": fee}]}}
+
+
+class TestRouterBooksWhatTheExchangeDid:
+    """E-3/E-5/E-6 (audit 2026-10-24): het interne boek volgt de beurs, en alleen de beurs."""
+
+    def test_a_live_fill_lands_in_the_internal_book_with_its_fee(
+        self, bybit: _FakeBybit,
+    ) -> None:
+        bybit.realtime = _status("Filled", fee="2.2")
+        paper = PaperOMS(initial_equity=100_000.0)
+        router = _live_router(paper)
+        asyncio.run(router.place_order(_order()))
+        pos = paper.tracker.get_position("BTCUSDT")
+        assert pos is not None and pos.qty == pytest.approx(0.1)
+        assert pos.last_mark_price == 40_000.0
+        assert paper.tracker.equity == pytest.approx(100_000.0 - 2.2)
+
+    def test_an_idempotent_retry_does_not_book_the_fill_twice(
+        self, bybit: _FakeBybit,
+    ) -> None:
+        paper = PaperOMS()
+        router = _live_router(paper)
+        order = _order()
+        asyncio.run(router.place_order(order))
+        asyncio.run(router.place_order(order))
+        assert paper.tracker.get_position("BTCUSDT").qty == pytest.approx(0.1)  # type: ignore[union-attr]
+
+    def test_the_router_polls_until_the_order_is_terminal(self, bybit: _FakeBybit) -> None:
+        bybit.realtime_seq = [{"result": {"list": []}}, _status("New", qty="0"),
+                              _status("PartiallyFilled", qty="0.05"), _status("Filled")]
+        router = _live_router()
+        fill = asyncio.run(router.place_order(_order()))
+        assert fill.fill_qty == pytest.approx(0.1)
+        assert sum("order/realtime" in c[1] for c in bybit.calls) == 4
+
+    @pytest.mark.parametrize("answer, last", [
+        ({"result": {"list": []}}, "order not found"),
+        (_status("New", qty="0"), "New"),
+    ])
+    def test_no_terminal_status_is_an_error_and_books_nothing(
+        self, bybit: _FakeBybit, answer: dict[str, Any], last: str,
+    ) -> None:
+        """Vroeger: een lege lijst werd 'volledig gevuld tegen prijs 0'."""
+        bybit.realtime = answer
+        paper = PaperOMS()
+        router = OrderRouter(paper, live_mode=True, status_polls=3, status_poll_interval_s=0.0)
+        with pytest.raises(RuntimeError, match=f"no terminal status after 3 polls.*{last}"):
+            asyncio.run(router.place_order(_order()))
+        assert paper.tracker.get_all_positions() == {}
+
+    def test_a_cancelled_order_without_execution_is_not_a_fill(
+        self, bybit: _FakeBybit,
+    ) -> None:
+        bybit.realtime = _status("Cancelled", qty="0", price="0")
+        paper = PaperOMS()
+        order = _order()
+        with pytest.raises(RuntimeError, match="without an executed quantity"):
+            asyncio.run(_live_router(paper).place_order(order))
+        assert order.status is OrderStatus.CANCELLED
+        assert paper.tracker.get_all_positions() == {}
+
+    def test_an_execution_without_a_price_is_refused(self, bybit: _FakeBybit) -> None:
+        bybit.realtime = _status("Filled", price="0")
+        with pytest.raises(RuntimeError, match="without a valid average price"):
+            asyncio.run(_live_router().place_order(_order()))
+
+    def test_a_partial_fill_books_what_was_executed(
+        self, bybit: _FakeBybit, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        bybit.realtime = _status("PartiallyFilledCanceled", qty="0.04")
+        paper = PaperOMS()
+        order = _order()
+        with caplog.at_level(logging.WARNING, logger="tradebot.oms.router"):
+            fill = asyncio.run(_live_router(paper).place_order(order))
+        assert fill.fill_qty == pytest.approx(0.04) and order.status is OrderStatus.CANCELLED
+        assert paper.tracker.get_position("BTCUSDT").qty == pytest.approx(0.04)  # type: ignore[union-attr]
+        assert "partially filled" in caplog.text
+
+    def test_a_second_close_all_places_new_reduce_only_orders(
+        self, bybit: _FakeBybit,
+    ) -> None:
+        """Vroeger: vaste id `ord_close_{symbol}`; de tweede noodsluiting plaatste niets."""
+        bybit.positions = {"result": {"list": [{"symbol": "BTCUSDT", "size": "0.1",
+                                                "side": "Buy"}]}}
+        bybit.realtime = _status("Filled")
+        router = _live_router()
+        asyncio.run(router.close_all())
+        asyncio.run(router.close_all())
+        assert len(bybit.bodies) == 2
+        assert all(b["reduceOnly"] is True and b["side"] == "Sell" for b in bybit.bodies)
+        ids = [b["orderLinkId"] for b in bybit.bodies]
+        assert ids[0] != ids[1] and all(i.startswith("ord_close_BTCUSDT_") for i in ids)
+        assert all(len(i) <= 36 for i in ids)  # Bybit: orderLinkId hooguit 36 tekens
+
+    def test_an_ordinary_order_is_not_reduce_only(self, bybit: _FakeBybit) -> None:
+        asyncio.run(_live_router().place_order(_order()))
+        assert "reduceOnly" not in bybit.bodies[0]
+
+
+class TestTrackerCash:
+    def test_cash_moves_equity_without_a_position(self) -> None:
+        tracker = PositionTracker(initial_equity=1_000.0)
+        tracker.apply_cash(-2.5)
+        assert tracker.equity == pytest.approx(997.5) and tracker.get_all_positions() == {}
+
+    def test_a_non_finite_amount_is_refused(self) -> None:
+        with pytest.raises(DataContractError, match="eindig"):
+            PositionTracker().apply_cash(float("nan"))
 
 
 # --------------------------------------------------------------------------- #
@@ -297,6 +420,17 @@ class TestReconciler:
         assert second[0].is_discrepant is True
         rec.note_fill("BTC")  # zonder tijdstip: nu
         assert rec._last_fill_ts["BTC"] > 1_200.0
+
+    def test_a_position_only_the_exchange_knows_is_a_discrepancy(self) -> None:
+        """E-7 (audit 2026-10-24): de pas liep alleen over het interne boek."""
+        rec = Reconciler(PositionTracker(), ReconcilerConfig(
+            paper_mode=False, require_two_strikes=True))
+        first = rec.reconcile({"ETH": -1.5}, now=1_000.0)
+        second = rec.reconcile({"ETH": -1.5}, now=1_100.0)
+        assert [r.symbol for r in second] == ["ETH"]
+        assert first[0].is_discrepant is False and second[0].is_discrepant is True
+        assert second[0].internal_qty == 0.0 and second[0].qty_diff == pytest.approx(1.5)
+        assert "internal=0.000000" in second[0].message
 
 
 class TestAuditLog:

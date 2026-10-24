@@ -14,11 +14,16 @@ import logging
 import time
 from dataclasses import dataclass
 
+from ..utils.failfast import TradebotContractError
 from .position_tracker import PositionTracker
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["ReconcilerConfig", "ReconciliationResult", "Reconciler"]
+__all__ = ["ReconcilerConfig", "ReconciliationError", "ReconciliationResult", "Reconciler"]
+
+
+class ReconciliationError(TradebotContractError):
+    """Het interne boek en de beurs verschillen, ook na de grace- en two-strikes-regels."""
 
 
 @dataclass
@@ -116,16 +121,21 @@ class Reconciler:
 
         Returns
         -------
-        List of ReconciliationResult, one per symbol in the internal book.
+        List of ReconciliationResult, one per symbol in either book.
         """
         if self._cfg.paper_mode or exchange_positions is None:
             return []
 
         now_ts = float(now if now is not None else time.time())
         results: list[ReconciliationResult] = []
-        for symbol, pos in self._tracker.get_all_positions().items():
+        # De UNIE van beide boeken (audit 2026-10-24, E-7). Tot deze fix liep de pas
+        # alleen over het interne boek: een positie die wel op de beurs stond en niet
+        # intern -- precies wat een ongeboekte live fill achterlaat -- werd nooit gezien.
+        book = self._tracker.get_all_positions()
+        for symbol in sorted(set(book) | set(exchange_positions)):
+            internal_qty = book[symbol].qty if symbol in book else 0.0
             exch_qty = exchange_positions.get(symbol, 0.0)
-            diff = abs(pos.qty - exch_qty)
+            diff = abs(internal_qty - exch_qty)
             raw_discrepant = diff > self._cfg.qty_tolerance
 
             # CHIEF AUDIT-FIX #15: grace window for just-filled orders.
@@ -151,7 +161,7 @@ class Reconciler:
 
             if discrepant:
                 msg = (
-                    f"RECONCILIATION DISCREPANCY: {symbol} internal={pos.qty:.6f} "
+                    f"RECONCILIATION DISCREPANCY: {symbol} internal={internal_qty:.6f} "
                     f"exchange={exch_qty:.6f} diff={diff:.6f}"
                 )
                 logger.warning(msg)
@@ -168,12 +178,12 @@ class Reconciler:
                 )
                 logger.debug(msg)
             else:
-                msg = f"OK: {symbol} qty={pos.qty:.6f}"
+                msg = f"OK: {symbol} qty={internal_qty:.6f}"
 
             results.append(
                 ReconciliationResult(
                     symbol=symbol,
-                    internal_qty=pos.qty,
+                    internal_qty=internal_qty,
                     exchange_qty=exch_qty,
                     qty_diff=diff,
                     is_discrepant=discrepant,
