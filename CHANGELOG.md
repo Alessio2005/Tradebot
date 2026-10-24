@@ -36,6 +36,9 @@ oordeel of ledger-entry veranderd; de backtest van v6–v8 is bit-identiek.
   `programme_v2.frozen_m`). Open: de fracdiff-gewichtsvolgorde (bevroren features).
 - **Paper-trade-smoke** is hernoemd naar wat hij is (24 synthetische bars, geen orders) en
   geen promotiepoort meer.
+- **pip-audit** werd rood op nieuwe advisories (niet door deze diff): aiohttp 3.14.4 (met
+  yarl 1.25.1), certifi 2026.10.19 en pillow 13.0.0 via `pip-compile --upgrade-package`,
+  setuptools 84.1.0 in `requirements-dev.lock`.
 
 ## P²-kwantielschatter hersteld (2026-10-18)
 - **Fout:** `P2OnlineQuantile` (`train/quant_arch.py`) en
