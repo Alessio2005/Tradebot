@@ -96,10 +96,37 @@ def test_the_module_runs_as_a_script_and_refuses_arguments(monkeypatch: pytest.M
         runpy.run_module("tradebot.systematic.restate", run_name="__main__")
 
 
+def _close(a, b, path: str = "") -> list[str]:
+    """Waar twee JSON-bomen verschillen, met floats gelijk tot op 1e-12 relatief.
+
+    Exact gelijk is te streng over machines heen: een andere sommatievolgorde (BLAS,
+    pandas-groupby) verschuift de laatste bit (CI: 0.04843881078904571 tegen ...572)."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        if set(a) != set(b):
+            return [f"{path}: sleutels {sorted(set(a) ^ set(b))}"]
+        return [d for k in a for d in _close(a[k], b[k], f"{path}/{k}")]
+    if isinstance(a, list) and isinstance(b, list):
+        if len(a) != len(b):
+            return [f"{path}: lengte {len(a)} != {len(b)}"]
+        return [d for i, (x, y) in enumerate(zip(a, b, strict=True))
+                for d in _close(x, y, f"{path}[{i}]")]
+    if isinstance(a, float) and isinstance(b, float):
+        return [] if math.isclose(a, b, rel_tol=1e-12, abs_tol=1e-15) else [f"{path}: {a} != {b}"]
+    return [] if a == b else [f"{path}: {a!r} != {b!r}"]
+
+
+def test_the_tolerant_comparison_still_sees_real_differences():
+    assert _close({"a": [1.0, "x"]}, {"a": [1.0 + 1e-15, "x"]}) == []
+    assert _close({"a": 1.0}, {"a": 1.001}) == ["/a: 1.0 != 1.001"]
+    assert _close({"a": 1}, {"b": 1}) == [": sleutels ['a', 'b']"]
+    assert _close([1.0], [1.0, 2.0]) == [": lengte 1 != 2"]
+    assert _close("x", "y") == [": 'x' != 'y'"]
+
+
 def test_the_committed_restatement_matches_the_frozen_series():
     """Het artefact in de repo is wat de bevroren reeksen nu opleveren."""
     committed = json.loads((rs.ROOT / rs.OUT).read_text(encoding="utf-8"))
-    assert committed == json.loads(json.dumps(rs.restate(rs.ROOT), sort_keys=True))
+    assert _close(committed, json.loads(json.dumps(rs.restate(rs.ROOT), sort_keys=True))) == []
     t2 = committed["books"]["robust_book_v8"]["T2_CARRY_TRANCHE_JUMPCAP"]["full_cycle"]
     assert t2["sharpe_iid"] == pytest.approx(5.05, abs=0.01)
     assert t2["sharpe_monthly"] == pytest.approx(1.55, abs=0.01)
