@@ -1,4 +1,5 @@
-# Build context exclusions — keep Docker layers small.
+# Build-context exclusions voor Dockerfile.runner (BuildKit leest `<Dockerfile>.dockerignore`
+# naast de Dockerfile; een `.dockerignore` in infra/docker/ werd bij context ../.. nooit gelezen).
 .git/
 .dvc/
 .vscode/
@@ -14,12 +15,9 @@ __pycache__/
 build/
 dist/
 
-# Artefacts: bind-mount these via volumes, do not bake into image.
-artefacts/
-market_data_parquet/
-saved_models/
-reports/
-notebooks/.ipynb_checkpoints/
+# Data hoort op een volume, niet in het image. `artefacts/` (bevroren configs, sloten,
+# preregistraties: een paar MB) gaat WEL mee: de code leest ze uit de bronboom.
+data/binance_vision/
 
 # Local secrets
 .env
@@ -27,5 +25,3 @@ notebooks/.ipynb_checkpoints/
 *.pem
 *.key
 
-# Local docker state
-infra/compose/state/

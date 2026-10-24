@@ -1,81 +1,59 @@
-# Tradebot — Kubernetes manifests (Wave 11)
+# Tradebot — Kubernetes
 
-This directory contains **stub** manifests to deploy Tradebot v1.0 on any
-Kubernetes 1.27+ cluster. The manifests are deliberately minimal: no Helm
-chart, no operator, no ArgoCD glue. Adopt those layers when the on-call team
-is ready to own the cluster surface.
+Wat hier staat, kan draaien. De audit van 2026-10-24 (E-2,
+`docs/research/2026-10-24-production-readiness-audit.md`) vond een live-Deployment
+en twee CronJobs die `python -m apps.live_trader`, `apps.doctor` en
+`apps.monitor_drift` aanriepen: modules die niet bestaan. De images bouwden op
+Python 3.11 terwijl de package 3.13 eist. Die manifests zijn verwijderd.
+`tests/unit/test_infra_contract.py` bewaakt dat het niet terugkomt.
 
-## Files
+## Bestanden
 
-| File                          | Purpose                                          |
-|-------------------------------|--------------------------------------------------|
-| `namespace.yaml`              | Restricted-pod-security namespace `tradebot`     |
-| `configmap-tradebot.yaml`     | Non-secret runtime env (paths, logging, TZ)      |
-| `secret-binance.yaml`         | Template for API keys + Slack webhook            |
-| `pvc-state.yaml`              | RWO PVC for live-engine state + RWX for artefacts|
-| `cron-research.yaml`          | Nightly `dvc repro` (02:00 UTC)                  |
-| `cron-monitor-drift.yaml`     | Hourly drift monitor + alerting                  |
-| `deployment-live.yaml`        | Live engine Deployment + ClusterIP Service       |
-| `networkpolicy.yaml`          | Default-deny + Binance/Slack egress whitelist    |
+| Bestand | Doel |
+| --- | --- |
+| `namespace.yaml` | namespace `tradebot`, pod security `restricted` |
+| `configmap-tradebot.yaml` | niet-geheime omgeving (TZ, numba-cache) |
+| `pvc-state.yaml` | `tradebot-live-state` (staat van het boek), `tradebot-artefacts` (data en manifesten) |
+| `networkpolicy.yaml` | default deny, plus HTTPS-egress voor het shadowboek |
+| `cron-carry-shadow.yaml` | het carry-shadowboek (v8-T2), maandelijks |
 
-## Apply order
+## Volgorde
 
 ```bash
+docker build -f infra/docker/Dockerfile.runner -t <registry>/tradebot/runner:1.0.0 .
 kubectl apply -f infra/k8s/namespace.yaml
 kubectl apply -f infra/k8s/configmap-tradebot.yaml
-kubectl create -f infra/k8s/secret-binance.yaml   # edit first
 kubectl apply -f infra/k8s/pvc-state.yaml
 kubectl apply -f infra/k8s/networkpolicy.yaml
-kubectl apply -f infra/k8s/cron-research.yaml
-kubectl apply -f infra/k8s/cron-monitor-drift.yaml
-kubectl apply -f infra/k8s/deployment-live.yaml
+kubectl apply -f infra/k8s/cron-carry-shadow.yaml
 ```
 
-## Image build
-
-Push to your registry:
-```bash
-docker build -f infra/docker/Dockerfile.runner -t <registry>/tradebot/runner:0.5.0 .
-docker build -f infra/docker/Dockerfile.live   -t <registry>/tradebot/live:1.0.0  .
-docker push <registry>/tradebot/runner:0.5.0
-docker push <registry>/tradebot/live:1.0.0
-```
-
-Replace `tradebot/runner:0.5.0` and `tradebot/live:1.0.0` references in the
-manifests with your registry URL.
-
-## Promotion gate
-
-`live.mode=paper` is the default in `deployment-live.yaml`. Promote to
-`live.mode=live` only after:
-
-1. `paper-trade-ci.yml` (Wave 12) has been green for **≥ 7 consecutive runs**.
-2. `ShadowTrader` has logged **≥ 14 days** of challenger PnL alongside the
-   incumbent champion.
-3. `ChampionChallenger.evaluate()` reports `recommendation == "PROMOTE"`
-   (Diebold-Mariano p-value < 0.05 **AND** challenger Sharpe > champion + 0.05).
-4. The latest `MRMReport` is signed off (`approved_by` non-empty in the JSON).
-
-Update the `live.mode` arg in `deployment-live.yaml` and roll out:
-```bash
-kubectl -n tradebot rollout restart deployment/tradebot-live
-```
-
-## Halting the engine in an emergency
+Eenmalig, na de eerste `binance_vision forward`-build, de beginstand van het boek
+(de backtest tot `forward.start` in `conf/model/robust_book_v8.yaml`):
 
 ```bash
-kubectl -n tradebot scale deployment/tradebot-live --replicas=0
+kubectl -n tradebot create job --from=cronjob/carry-shadow carry-init -- \
+  python -I -m tradebot.carry init --state /opt/tradebot/state/carry.json
 ```
 
-Pre-stop hook gracefully cancels open orders (60 s grace period). For an
-unplanned outage, the circuit breaker should fire first; if it did not,
-manually inspect `tradebot-live-state` PVC content for the last
-`circuit_log.jsonl` entry.
+## Wat dit NIET is
 
-## What is **not** here (intentional)
+- **Geen live handel.** Het shadowboek is paper: het model is de venue. Het legt
+  elke maand per bar vast welke orders het boek zou hebben gestuurd, met dezelfde
+  mechaniek als de backtest (bit-identiek, zie `tests/unit/test_carry.py`).
+- **Geen dagelijks boek.** Binance publiceert funding en mark price als
+  maandarchieven. Een dagelijks (of live) boek vraagt een datafeed en een
+  venue-adapter van de beurs zelf (`src/tradebot/carry/venue.py` beschrijft het
+  contract).
+- **Geen promotiepoort.** De oude poort (“paper-trade-ci 7× groen”) toetste een
+  run van 24 synthetische bars zonder signalen, dus zonder één order. Wat een
+  promotie wel moet aantonen, staat in het auditrapport, §7.
 
-- Helm chart (use Kustomize overlays per env if needed)
-- Horizontal Pod Autoscaler (live engine is intentionally single-replica)
-- Service mesh integration (Istio/Linkerd — add later for mTLS at scale)
-- Vertical Pod Autoscaler (memory budget is stable; over-allocation is fine)
-- ArgoCD / Flux ApplicationSet (decide on GitOps tool first)
+## Noodstop
+
+Het shadowboek houdt geen echte posities. Een plat boek met de staat op stil
+(bijvoorbeeld voor een overgang naar een nieuwe staat):
+
+```bash
+python -I -m tradebot.carry unwind --state /opt/tradebot/state/carry.json --reason "<waarom>"
+```
