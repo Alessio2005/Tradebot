@@ -1,0 +1,44 @@
+{
+ "errors": {},
+ "files": {
+  "data/external/dtb3.csv": {
+   "first": "2019-09-03",
+   "last": "2026-09-30",
+   "rows": 1770,
+   "sha256": "69c2bb35dd81013f23fd054c22fe3994c6d17acab05d8d56ec1efbeab0a90125"
+  },
+  "data/external/estr.csv": {
+   "first": "2019-10-01",
+   "last": "2026-09-30",
+   "rows": 1793,
+   "sha256": "681f3c86e9d40d4909985964222b9271003e1b74cd4c2a03cf4e405b085df5a7"
+  },
+  "data/external/funding_daily.csv": {
+   "columns": [
+    "kraken_BTC",
+    "binance_BTC",
+    "kraken_ETH",
+    "binance_ETH"
+   ],
+   "first": "2020-01-01",
+   "last": "2026-09-30",
+   "rows": 2465,
+   "sha256": "b1488137271a3132b391bdfa80c6a7f054acf9a65b61d6c5309979d2fda9b037"
+  }
+ },
+ "last_day": "2026-09-30",
+ "sources": {
+  "binance": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+  "binance_symbols": {
+   "BTC": "BTCUSDT",
+   "ETH": "ETHUSDT"
+  },
+  "dtb3": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DTB3",
+  "estr": "https://data-api.ecb.europa.eu/service/data/EST/B.EU000A2X2A25.WT",
+  "kraken": "https://futures.kraken.com/derivatives/api/v4/historicalfundingrates",
+  "kraken_symbols": {
+   "BTC": "PF_XBTUSD",
+   "ETH": "PF_ETHUSD"
+  }
+ }
+}
