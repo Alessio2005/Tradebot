@@ -1,0 +1,238 @@
+# conf/research/preregistration_robust_book_v9.yaml
+# PRE-REGISTRATIE -- robuust boek v9: v5-H3 op Kraken EU, met de kasrente.
+# POST-HOC: ontworpen nadat de jaarrendementen van H3 bekend waren (v5, 2026-10-07) en
+# na de beurswissel van 2026-10-25. Zo geboekt. Bevroren door
+# `python -I -m tradebot.systematic.programme_v9 freeze`, vóór de eerste v9-run.
+# Ontwerp: docs/research/2026-10-25-robust-book-v9-kraken-cash.md.
+#
+# De poorten van v5-v8 staan er LETTERLIJK in (zelfde drempels), met één verschil in de
+# MAAT, en dat verschil is strenger: de Sharpe is die van het rendement BOVEN de T-bill.
+# Zonder die aftrek zou de kasrente zelf als edge tellen. Nieuw en strenger: de Sharpe op
+# maandrendementen (audit 2026-10-24, SK-1), elk kalenderjaar positief (eigenaarsdoel
+# 2026-10-25) en de T-bill verslaan over de hele cyclus. Geen drempel versoepeld.
+wave: robust_book_v9_kraken_cash
+
+title: >-
+  Het boek van v5-H3 (spot-perp-basiscarry in BTC en ETH, twee slots van 35 %) op Kraken
+  EU, met de spot als onderpand in de futureswallet, de fees van Kraken (tier $1 mln,
+  taker) en de kasrente (DTB3 min 50 bp) op het deel van het kapitaal dat het boek niet
+  gebruikt.
+
+hypothesis: >-
+  U1 haalt over de hele cyclus (2020-04 .. 2026-09) in elk kalenderjaar een positief
+  rendement en verslaat de T-bill, terwijl het op W_DEV alle poorten van v5-v8 haalt,
+  gemeten op het rendement boven de T-bill (DSR bij de cumulatieve ledger-M).
+
+null_hypothesis: >-
+  De kasrente verbergt alleen dat het boek in jaren zonder carry niets verdient: boven de
+  T-bill haalt U1 de Sharpe- of rendementsdoelstelling niet, of een jaar is ook met rente
+  negatief. Een goed resultaat op de vensters bevestigt niets: v5 las ze alle drie, en v9
+  is ontworpen met die jaarcijfers in de hand.
+
+universe: [KRAKEN_EU_BTC_ETH_PERP_WITH_SPOT_COLLATERAL]
+granularity: 1d
+period_start: "2020-04-01"
+period_end: "2026-09-30"
+evaluation_start: "2021-01-01"
+primary_metric: min_calendar_year_return
+
+planned_trials: 1
+
+data_series:
+  - robust_book_v5/H3_BASIS_MAJORS_daily (backcast, w_dev, holdout)
+  - fred/DTB3
+  - ecb/ESTR (gevoeligheid, euro)
+  - kraken_futures/historicalfundingrates (gevoeligheid)
+  - conf/execution/venues.yaml (kraken_eu)
+
+stop_criteria:
+  - name: g1_sharpe_below_target
+    metric: excess_sharpe_w_dev
+    operator: "<"
+    threshold: 1.0
+    action: archive
+    rationale: >-
+      De opdracht vraagt een netto Sharpe van ten minste 1,0. Gemeten boven de T-bill,
+      met de bevroren schatter (iid, sqrt(365)).
+  - name: g1m_monthly_sharpe_below_target
+    metric: excess_sharpe_monthly_w_dev
+    operator: "<"
+    threshold: 1.0
+    action: archive
+    rationale: >-
+      Dezelfde doelstelling op maandrendementen. De dagrendementen van de carry zijn
+      autogecorreleerd; de iid-Sharpe overschat ze 3-5 keer (audit 2026-10-24, SK-1).
+  - name: g2_cagr_below_target
+    metric: net_cagr_w_dev
+    operator: "<"
+    threshold: 0.15
+    action: archive
+    rationale: De opdracht vraagt een netto CAGR van ten minste 15 %. Drempel ongewijzigd uit v5-v8.
+  - name: g3_train_inconsistent
+    metric: excess_sharpe_train
+    operator: "<"
+    threshold: 0.5
+    action: archive
+    rationale: Een edge die alleen in één helft van W_DEV bestaat, is een regime, geen edge.
+  - name: g3_validate_inconsistent
+    metric: excess_sharpe_validate
+    operator: "<"
+    threshold: 0.5
+    action: archive
+    rationale: Idem, voor de tweede helft.
+  - name: g4_drawdown
+    metric: max_drawdown_w_dev
+    operator: ">"
+    threshold: 0.25
+    action: archive
+    rationale: Mandaatgrens conf/risk/default.yaml::max_drawdown_pct.
+  - name: g5_cost_fragile
+    metric: excess_sharpe_ratio_2x_cost_over_base
+    operator: "<"
+    threshold: 0.75
+    action: archive
+    rationale: Bij dubbele kosten (fees van Kraken, spread, impact) moet minstens 75 % van de Sharpe overblijven.
+  - name: g5_delay_fragile
+    metric: sharpe_ratio_lag2_over_base
+    operator: "<"
+    threshold: 0.5
+    action: archive
+    rationale: >-
+      Eén dag vertraging mag de Sharpe niet meer dan halveren. Overgenomen uit de batterij
+      van v5-H3: de handel is die van H3, bit voor bit.
+  - name: g6_no_plateau
+    metric: plateau_fraction
+    operator: "<"
+    threshold: 0.8
+    action: archive
+    rationale: Overgenomen uit de batterij van v5-H3 (dezelfde regels, dezelfde verstoringen).
+  - name: g6_negative_perturbation
+    metric: min_perturbation_sharpe
+    operator: "<"
+    threshold: 0.0
+    action: archive
+    rationale: Overgenomen uit de batterij van v5-H3.
+  - name: g7_interval_includes_zero
+    metric: excess_sharpe_ci_low_w_dev
+    operator: "<="
+    threshold: 0.0
+    action: archive
+    rationale: De circulaire-blokbootstrap-ondergrens (95 %) van de Sharpe boven de T-bill moet boven nul liggen.
+  - name: g8_dsr_below_threshold
+    metric: dsr_w_dev
+    operator: "<"
+    threshold: 0.95
+    action: archive
+    rationale: Onder DSR 0,95 bij de cumulatieve ledger-M is de Sharpe niet te onderscheiden van selectieruis.
+  - name: g9_overfit_probability
+    metric: pbo
+    operator: ">="
+    threshold: 0.5
+    action: archive
+    rationale: Overgenomen uit v5 (de PBO over de familie waaruit H3 gekozen is).
+  - name: g10_liquidated_w_dev
+    metric: n_liquidations_w_dev
+    operator: ">"
+    threshold: 0
+    action: archive
+    rationale: Een liquidatie in de historie is staartrisico dat zich al liet zien.
+  - name: g11_close_out_too_close
+    metric: close_out_price_multiple_stress
+    operator: "<"
+    threshold: 2.0
+    action: archive
+    rationale: >-
+      Retail op Kraken: initiële marge 50 % (2:1), sluiting op de helft daarvan. Met de spot
+      als onderpand onder een haircut van 35 % (de alts-stress van v6-v8) mag pas een
+      verdubbeling van BTC of ETH zonder herbalancering het boek sluiten.
+  - name: g13_losing_calendar_year
+    metric: min_calendar_year_return
+    operator: "<"
+    threshold: 0.0
+    action: archive
+    rationale: >-
+      Eigenaarsdoel 2026-10-25: elk jaar winstgevend. Over de hele cyclus, 2020 (vanaf
+      april) en 2026 (tot en met september) inbegrepen.
+  - name: g14_does_not_beat_cash
+    metric: excess_cagr_full_cycle
+    operator: "<="
+    threshold: 0.0
+    action: archive
+    rationale: Een boek dat over de hele cyclus de T-bill niet verslaat, is een duur geldmarktfonds.
+  - name: backcast_sharpe_collapse
+    metric: backcast_sharpe_z_vs_dev
+    operator: "<"
+    threshold: -1.645
+    action: falsify
+    rationale: De backcast is verbruikt (v5 las hem) en kan alleen verwerpen.
+  - name: backcast_drawdown
+    metric: backcast_max_drawdown
+    operator: ">"
+    threshold: 0.25
+    action: falsify
+    rationale: Ook in de backcast geldt de mandaatgrens.
+  - name: backcast_liquidated
+    metric: backcast_n_liquidations
+    operator: ">"
+    threshold: 0
+    action: falsify
+    rationale: Een liquidatie in de backcast falsificeert het risicomodel.
+  - name: backcast_no_positive_sharpe
+    metric: backcast_excess_sharpe
+    operator: "<="
+    threshold: 0.0
+    action: archive
+    rationale: Een niet-positieve Sharpe boven de T-bill op de backcast bevestigt niets.
+  - name: holdout_sharpe_collapse
+    metric: holdout_sharpe_z_vs_dev
+    operator: "<"
+    threshold: -1.645
+    action: falsify
+    rationale: De holdout is verbruikt (v5 las hem) en kan alleen verwerpen.
+  - name: holdout_drawdown
+    metric: holdout_max_drawdown
+    operator: ">"
+    threshold: 0.25
+    action: falsify
+    rationale: Ook in de holdout geldt de mandaatgrens.
+  - name: holdout_liquidated
+    metric: holdout_n_liquidations
+    operator: ">"
+    threshold: 0
+    action: falsify
+    rationale: Een liquidatie in de holdout falsificeert het risicomodel.
+  - name: forward_sharpe_collapse
+    metric: forward_sharpe_z_vs_dev
+    operator: "<"
+    threshold: -1.645
+    action: falsify
+    rationale: >-
+      Het vooruit-sample (vanaf 2026-10-01, slot bevroren op 2026-10-09) is de enige schone
+      toets. Gelezen eenmaal, na minstens zes volle maanden, op de funding en de prijzen van
+      Kraken.
+  - name: forward_drawdown
+    metric: forward_max_drawdown
+    operator: ">"
+    threshold: 0.25
+    action: falsify
+    rationale: Ook vooruit geldt de mandaatgrens.
+  - name: forward_liquidated
+    metric: forward_n_liquidations
+    operator: ">"
+    threshold: 0
+    action: falsify
+    rationale: Een liquidatie vooruit falsificeert het risicomodel.
+  - name: forward_losing_year
+    metric: forward_return
+    operator: "<"
+    threshold: 0.0
+    action: archive
+    rationale: Een negatief rendement vooruit weerlegt het eigenaarsdoel.
+  - name: promotion_requires_all_clear
+    metric: n_binding_stop_criteria
+    operator: "<="
+    threshold: 0
+    action: promote
+    rationale: >-
+      Papertrading vereist dat geen enkel criterium over W_DEV, de backcast, de holdout en
+      de hele cyclus bindt; kapitaal vereist daarbovenop een schone vooruit-lezing.

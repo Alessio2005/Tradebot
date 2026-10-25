@@ -1,0 +1,52 @@
+# conf/model/robust_book_v9.yaml — robuust boek v9: v5-H3 op Kraken EU, met de kasrente.
+# Gevalideerd door tradebot/systematic/programme_v9.py::load_config (onbekende sleutels
+# worden geweigerd). Ontwerp: docs/research/2026-10-25-robust-book-v9-kraken-cash.md.
+# Elke waarde is VOORAF gekozen, met de reden ernaast. Geen ervan is op data getuned: de
+# regels van het boek zijn die van v5-H3, bit voor bit (de bevroren dagreeks is de invoer).
+# Een wijziging na het bevriezen is een amendement en kost een trial.
+base:
+  programme: robust_book_v5
+  candidate: H3_BASIS_MAJORS
+  # H3: twee slots van 35 % spot (samen 0,70), 0,30 USD in de futureswallet. Op Kraken EU
+  # gaat de spot als onderpand mee de futureswallet in (BTC en ETH tellen); de 0,30 USD
+  # blijft buffer. Dit is de indeling, niet een parameter van het boek.
+  spot_leg: 0.70
+  margin_leg: 0.30
+
+venue:
+  name: kraken_eu
+  # De tier van een boek van $1 mln (= execution.aum_usd van v5). Taker, want de adapter
+  # stuurt marktorders: 22 bp spot + 5 bp perp = 27 bp per paar (het Binance-model: 15,5).
+  capital_usd: 1000000.0
+  maker: false
+
+cash:
+  # Wat het boek niet gebruikt, staat in een geldmarktfonds met T-bills: DTB3 min 50 bp
+  # (de kosten van het fonds en van de omzetting naar USDC). Nooit onder nul.
+  haircut_apr: 0.005
+  # Discontobasis is 360 dagen; 365 rekent iets minder rente en is dus de veilige kant.
+  day_count: 365
+  # Geld dat het boek vrijgeeft, gaat pas na een week naar het fonds: geen heen-en-weer
+  # bij een korte onderbreking.
+  release_after_days: 7
+  # Geld dat het boek nodig heeft, staat twee dagen vóór de transactie op de beurs. Het
+  # besluit valt een dag vooraf (lag 1); de tweede dag dekt de overboeking. Deze regel kan
+  # het rendement alleen VERLAGEN (minder rente), nooit een transactie beter maken.
+  lead_days: 2
+  # Een vaste werkvoorraad op de beurs (fees, afronding, schommeling van de marge).
+  operating_buffer: 0.05
+
+# De vensters van v5, ongewijzigd. Alle drie zijn verbruikt (v5 las ze); v9 meet ze om te
+# verwerpen, niet om te bevestigen.
+windows:
+  backcast_start: "2020-04-01"
+  backcast_end: "2020-12-31"
+  train_start: "2021-01-01"
+  train_end: "2023-12-31"
+  validate_start: "2024-01-01"
+  w_dev_end: "2025-06-30"
+  holdout_start: "2025-07-01"
+  holdout_end: "2026-09-30"
+
+# Eén trial: U1 = H3 op Kraken EU met kasrente.
+planned_trials: 1
