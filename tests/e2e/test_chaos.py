@@ -139,7 +139,8 @@ class _FlakyBybit:
                 fake.gets.append(url)
                 if "instruments-info" in url:
                     return _Reply({"result": {"list": [{"lotSizeFilter": {"qtyStep": "0.001", "minOrderQty": "0.001"}}]}})
-                return _Reply({"result": {"list": [{"avgPrice": "40000", "cumExecQty": "0.1"}]}})
+                return _Reply({"result": {"list": [{"avgPrice": "40000", "cumExecQty": "0.1",
+                                                    "orderStatus": "Filled"}]}})
 
             def post(self, url: str, data: str = "", **_: Any) -> _Reply:
                 import json

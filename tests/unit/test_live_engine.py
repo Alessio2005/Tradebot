@@ -28,6 +28,7 @@ from tradebot.live.execution_controller import ExecutionControllerConfig
 from tradebot.live.feed import BarEvent, Feed, FeedConfig
 from tradebot.live.portfolio_controller import PortfolioControllerConfig
 from tradebot.live.state import EngineMode
+from tradebot.oms.reconciler import ReconciliationError
 from tradebot.portfolio.constraints import PortfolioConstraints
 from tradebot.risk.daily_loss_governor import GovernorAction, PropfirmLimits
 from tradebot.schemas.config import RiskConfig, load_config
@@ -232,13 +233,87 @@ class TestRun:
             _run(engine.run())
         assert "EMERGENCY HALT" in caplog.text and engine._stop_event.is_set() and engine.bars_processed == 0
 
-    def test_the_emergency_halt_flattens_through_the_oms_when_there_is_no_router(self, tmp_path: Path) -> None:
+    def test_the_emergency_halt_flattens_through_the_router(self, tmp_path: Path) -> None:
         engine = _engine(tmp_path)
-        engine._router = None                                          # type: ignore[assignment]
         closed = []
         engine._paper_oms.close_all = lambda: closed.append(True) or []  # type: ignore[method-assign]
         _run(engine._emergency_halt())
         assert closed == [True] and engine._stop_event.is_set()
+
+    @pytest.mark.parametrize("halt", ["_halt", "_emergency_halt"])
+    def test_in_live_mode_a_halt_closes_the_exchange_not_the_paper_book(
+        self, tmp_path: Path, halt: str,
+    ) -> None:
+        """E-4 (audit 2026-10-24): de halt sloot de PAPIERposities, ook live."""
+        engine = _engine(tmp_path, mode="live")
+        live, paper = [], []
+
+        async def live_close() -> list:
+            live.append(True)
+            return []
+        engine._router._live_close_all = live_close                    # type: ignore[method-assign]
+        engine._paper_oms.close_all = lambda: paper.append(True) or []  # type: ignore[method-assign]
+        _run(getattr(engine, halt)())
+        assert live == [True] and paper == [] and engine._stop_event.is_set()
+
+    def test_in_paper_mode_reconciliation_does_not_ask_the_exchange(
+        self, tmp_path: Path,
+    ) -> None:
+        engine = _engine(tmp_path)
+
+        async def never() -> dict:
+            raise AssertionError("paper mode must not query the exchange")
+        engine._router.get_exchange_positions = never                  # type: ignore[method-assign]
+        _run(engine._reconcile())
+
+    def test_in_live_mode_a_persistent_discrepancy_is_fatal(self, tmp_path: Path) -> None:
+        """E-7: het interne boek wordt na elke bar tegen de beurs gelegd."""
+        engine = _engine(tmp_path, mode="live")
+
+        async def exchange() -> dict:
+            return {"BTCUSDT": 0.3}
+        engine._router.get_exchange_positions = exchange               # type: ignore[method-assign]
+        _run(engine._reconcile())                                      # eerste strike
+        with pytest.raises(ReconciliationError, match=r"BTCUSDT internal=0\.000000"):
+            _run(engine._reconcile())
+
+    def test_in_live_mode_matching_books_pass(self, tmp_path: Path) -> None:
+        engine = _engine(tmp_path, mode="live")
+
+        async def exchange() -> dict:
+            return {}
+        engine._router.get_exchange_positions = exchange               # type: ignore[method-assign]
+        _run(engine._reconcile())
+        _run(engine._reconcile())
+
+    def test_the_engine_stops_even_when_flattening_raises(self, tmp_path: Path) -> None:
+        engine = _engine(tmp_path)
+
+        def broken() -> list:
+            raise RuntimeError("exchange down")
+        engine._paper_oms.close_all = broken                           # type: ignore[method-assign]
+        with pytest.raises(RuntimeError, match="exchange down"):
+            _run(engine._halt())
+        assert engine._stop_event.is_set()
+
+    def test_an_error_in_the_bar_path_flattens_first_and_then_propagates(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        engine = _engine(tmp_path)
+        closed = []
+        engine._paper_oms.close_all = lambda: closed.append(True) or []  # type: ignore[method-assign]
+        engine._feed.start = lambda: asyncio.sleep(0)                  # type: ignore[method-assign]
+
+        async def boom(event: object) -> None:
+            raise RuntimeError("order rejected")
+        engine._process_bar = boom                                     # type: ignore[method-assign]
+        engine._queue.put_nowait(object())
+        with caplog.at_level(logging.CRITICAL, logger=eng.logger.name), \
+                pytest.raises(RuntimeError, match="order rejected"):
+            _run(engine.run())
+        assert closed == [True] and engine._stop_event.is_set()
+        assert engine.state.errors == ["RuntimeError: order rejected"]
+        assert "emergency halt" in caplog.text
 
     def test_an_idle_queue_checks_the_breaker_and_halts_when_it_trips(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
@@ -473,13 +548,14 @@ class TestRebalance:
         _run(engine._process_bar(_bar("ETHUSDT", minute=1, close=50.0)))
         assert engine._pending_rebalance == {"BTCUSDT": None, "ETHUSDT": None}
         assert set(engine.state.target_weights) == set(SYMBOLS) and engine.state.positions
-        assert engine.audit_log.records_written > 0 and len(engine._equity_history) >= 3
+        assert engine.audit_log.records_written > 0 and len(engine._equity_history) == 2  # één per bar
 
     def test_the_bar_processing_cap_and_latency_bookkeeping(self, tmp_path: Path) -> None:
         engine = _engine(tmp_path)
-        engine._equity_history = [1.0] * 5_000
+        engine._equity_history = [1.0] * engine._history_cap
         _run(engine._process_bar(_bar()))
-        assert len(engine._equity_history) == 5_000 and len(engine.latencies) == 1
+        assert len(engine._equity_history) == engine._history_cap == 32 * 24 + 1
+        assert len(engine.latencies) == 1
 
     def test_a_slow_bar_is_flagged(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
                                    caplog: pytest.LogCaptureFixture) -> None:
@@ -524,29 +600,35 @@ class TestStateDocument:
 
 
 class TestRollingSharpe:
-    def test_it_needs_a_full_day_of_five_second_samples(self, tmp_path: Path) -> None:
+    """32 dagen aan bar-samples op de geconfigureerde interval (hier 1h: 768 rendementen)."""
+
+    def test_it_needs_the_full_window(self, tmp_path: Path) -> None:
         engine = _engine(tmp_path)
-        engine._equity_history = list(100.0 + np.arange(17_279))
+        engine._equity_history = list(100.0 + np.arange(32 * 24))
         assert engine._rolling_sharpe() is None
 
     def test_a_flat_curve_has_no_sharpe_and_a_rising_noisy_one_is_positive(self, tmp_path: Path) -> None:
         engine = _engine(tmp_path)
-        engine._equity_history = [100.0] * 17_300
-        assert engine._rolling_sharpe(window=17_300) is None
+        engine._equity_history = [100.0] * 800
+        assert engine._rolling_sharpe() is None
         rng = np.random.default_rng(0)
-        engine._equity_history = list(100.0 * np.cumprod(1.0 + rng.normal(2e-6, 1e-4, 17_300)))
-        sharpe = engine._rolling_sharpe(window=17_300)
+        engine._equity_history = list(100.0 * np.cumprod(1.0 + rng.normal(2e-4, 1e-3, 800)))
+        sharpe = engine._rolling_sharpe()
         assert sharpe is not None and sharpe > 0
 
-    @pytest.mark.xfail(strict=True, reason=(
-        "BEVINDING, niet aangepast: `_rolling_sharpe()` neemt standaard de laatste 5.000 samples maar eist er "
-        "17.280, en `_equity_history` wordt zelf op 5.000 afgekapt. `_write_state` kan `rolling_sharpe_32d` "
-        "daardoor nooit anders dan None schrijven."))
     def test_the_sharpe_in_the_state_file_can_be_computed_once_the_history_is_full(self, tmp_path: Path) -> None:
+        """Was een strikte xfail: de historie werd op 5.000 afgekapt en de eis was 17.280."""
         engine = _engine(tmp_path)
         rng = np.random.default_rng(0)
-        engine._equity_history = list(100.0 * np.cumprod(1.0 + rng.normal(2e-6, 1e-4, 5_000)))
-        assert engine._rolling_sharpe() is not None
+        r = rng.normal(2e-4, 1e-3, engine._history_cap - 1)
+        engine._equity_history = list(100.0 * np.concatenate(([1.0], np.cumprod(1.0 + r))))
+        expected = r.mean() / r.std() * np.sqrt(365 * 24)
+        assert engine._rolling_sharpe() == pytest.approx(expected, rel=1e-9)
+
+    def test_the_window_follows_the_bar_interval(self, tmp_path: Path) -> None:
+        engine = _engine(tmp_path, interval="5m")
+        assert engine._sharpe_window == 32 * 24 * 12
+        assert engine._rolling_sharpe(window=3) is None
 
 
 class TestLatency:

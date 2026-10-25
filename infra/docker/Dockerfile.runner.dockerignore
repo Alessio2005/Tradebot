@@ -1,0 +1,27 @@
+# Build-context exclusions voor Dockerfile.runner (BuildKit leest `<Dockerfile>.dockerignore`
+# naast de Dockerfile; een `.dockerignore` in infra/docker/ werd bij context ../.. nooit gelezen).
+.git/
+.dvc/
+.vscode/
+.idea/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.numba_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+build/
+dist/
+
+# Data hoort op een volume, niet in het image. `artefacts/` (bevroren configs, sloten,
+# preregistraties: een paar MB) gaat WEL mee: de code leest ze uit de bronboom.
+data/binance_vision/
+
+# Local secrets
+.env
+.env.*
+*.pem
+*.key
+

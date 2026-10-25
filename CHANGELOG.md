@@ -4,6 +4,79 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Beurswissel Binance -> Kraken EU (2026-10-25)
+Rapport: `docs/research/2026-10-25-venue-kraken-vs-bybit.md`. Geen bevroren poort, oordeel of
+ledger-entry veranderd.
+- **Bybit valt af:** Bybit EU (MiCA) biedt NL/EER-klanten geen perps; zonder perp-short
+  bestaat het carryboek niet. **Kraken EU kan beide benen**, met 2:1 retail op perps, geen
+  unified margin en alleen BTC/ETH (plus fiat/stablecoins) als perp-onderpand.
+- **Welk boek past:** geen van de vier bevroren boeken in de Binance-indeling. Wel v5-H3
+  (BTC/ETH) met de spot als onderpand in de futureswallet: dezelfde regels, perp/onderpand
+  0,70. `conf/execution/venues.yaml` (profielen met bron en datum),
+  `carry/venues.py` (blokkades, kosten per beurs, fee-overlay) en
+  `artefacts/research/venue_comparison.json`.
+- **Kosten:** 12 bp per paar (Kraken $1 mln maker) tot 85 bp (nieuw account, taker), tegen
+  15,5 bp in het bevroren model. H3 over de hele cyclus: 6,2 % CAGR (Binance) -> 6,0 %
+  (Kraken $1 mln taker) -> 5,3 % (nieuw account).
+- **Kraken-adapter** `carry/kraken.py` (spot + futures, onderpand-overboeking, `reduceOnly`),
+  standaard dry-run; spot-handtekening getoetst tegen de gepubliceerde vector van Kraken.
+- **Onderzoeksdata via Actions:** `data/external_series.py` + `research-run.yml` (T-bill DTB3, €STR,
+  dagfunding Kraken en Binance voor BTC/ETH, tot en met 2026-09-30).
+
+## Productie-audit (2026-10-24) — eerlijke Sharpe, live-OMS, carry-uitvoeringspad, infra
+Rapport: `docs/research/2026-10-24-production-readiness-audit.md`. Geen bevroren poort,
+oordeel of ledger-entry veranderd; de backtest van v6–v8 is bit-identiek.
+- **SK-1, de Sharpe van het carryboek is 3–5x te hoog.** `sqrt(365)` op dagrendementen met
+  rho_1..3 ≈ 0,5. v8-T2 over de hele cyclus: 5,05 bevroren, **1,55 op maandrendementen**,
+  1,08 op kwartaalrendementen; jaarvol 8,4 % i.p.v. 2,5 %. Bij de prijsstrategieën vallen
+  beide samen. Nieuw: `validation/serial_sharpe.py` (maand, kwartaal, Lo met
+  Bartlett-gewichten), extra velden in `systematic/evaluate.summarize`, en
+  `systematic/restate.py` -> `artefacts/research/restatement.json`.
+- **Live-OMS (E-3..E-6, E-9):** live fills werden nooit in het interne boek geboekt (de
+  engine las equity en gewichten uit het papierboek); een HALT sloot alleen papierposities;
+  een lege orderstatus werd "volledig gevuld tegen prijs 0"; een tweede noodsluiting
+  plaatste niets (vaste `orderLinkId`, geen `reduceOnly`); een fout in het barpad stopte
+  de engine met open posities. Alle vijf opgelost en gereproduceerd in tests.
+- **Reconciliatie (E-7):** de `Reconciler` werd nergens gebruikt en keek alleen naar het
+  interne boek. Nu elke bar in live-modus, over de unie van beide boeken; een blijvend
+  verschil is een halt.
+- **Carry-uitvoeringspad (E-1):** `systematic/leverage.run_levered` is opgesplitst in
+  `LeveredBook.step` / `.decide_live`, bit-identiek over 16 scenario's. Nieuw pakket
+  `tradebot.carry`: orders per been in een margeveilige volgorde, staat per symbool,
+  venue-contract + paper-venue, reconciliatie (vangt ADL), kill switch, CLI. Shadowboek =
+  backtest, bit voor bit, ook met dagelijkse save/load en een groeiend paneel.
+- **Infra (E-2):** de images bouwden niet (Python 3.11 tegen >= 3.13, `COPY apps/` van een
+  niet-bestaande map, geen lock) en de manifests riepen niet-bestaande modules aan. Nu één
+  image uit de lock en een maandelijkse `cron-carry-shadow`; de stubs zijn weg en
+  `tests/unit/test_infra_contract.py` toetst dat wat aangeroepen wordt, bestaat.
+- **Strikte xfails opgelost (5 van 6):** de rolling Sharpe in de state-file (5s-bars, 252
+  dagen, kon nooit iets schrijven); holdoutsloten zonder splittoets (v2–v8 en de
+  vooruit-lezing, nu `programme_v2.require_lock_split`); de DSR-M live uit de ledger (nu
+  `programme_v2.frozen_m`). Open: de fracdiff-gewichtsvolgorde (bevroren features).
+- **Paper-trade-smoke** is hernoemd naar wat hij is (24 synthetische bars, geen orders) en
+  geen promotiepoort meer.
+- **pip-audit** werd rood op nieuwe advisories (niet door deze diff): aiohttp 3.14.4 (met
+  yarl 1.25.1), certifi 2026.10.19 en pillow 13.0.0 via `pip-compile --upgrade-package`,
+  setuptools 84.1.0 in `requirements-dev.lock`.
+
+## P²-kwantielschatter hersteld (2026-10-18)
+- **Fout:** `P2OnlineQuantile` (`train/quant_arch.py`) en
+  `RollingRobustScaler._p2_update_single` (`train/_scalers.py`) rekenden de
+  gewenste markerposities uit als `1 + 2q·n`, `1 + 4q·n`, `3 + 2q·n`. Jain &
+  Chlamtac (1985) schrijven `1 + (n-1)q/2`, `1 + (n-1)q`, `1 + (n-1)(1+q)/2`
+  voor. Daarnaast startten de WERKELIJKE posities op de gewenste startwaarden
+  `1, 1+2q, 1+4q, 3+2q, 5` in plaats van op `1..5`.
+- **Gevolg:** de schatting liep weg. De mediaan op een N(0,1)-steekproef kwam
+  uit op 3,4. `RollingRobustScaler.fit` overschrijft de batch-mediaan en
+  -spreiding met deze schatting, dus `center_` lag rond 3,0 in plaats van 0.
+- **Na de fix:** mediaan −0,016 tegen −0,014 echt (n = 4000). `center_` en
+  `scale_` liggen binnen 0,01 resp. 1,1 % van de batchwaarden.
+- De drie `xfail`-tests die dit vastlegden, zijn nu gewone tests. Alleen het
+  CatBoost-pad (`train/catboost.py`, `train/ensemble.py`) gebruikt de scaler.
+  Het robuuste boek (`systematic/`) en de weekly-strategie
+  (`train/light_models.py`) raken hem niet, en `artefacts/models/` bevat geen
+  gefitte scaler: er verandert geen bevroren resultaat.
+
 ## DI-31 herzien (2026-10-14) — numpy's kernelkeuze, niet OpenBLAS
 - **Symptoom:** `test_the_multiplier_is_causal[hmm3-diag-student_t]` faalde af
   en toe met `atol=0, rtol=0`. De volledige en de afgekapte run fitten

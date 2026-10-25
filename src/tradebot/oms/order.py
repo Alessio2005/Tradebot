@@ -66,6 +66,10 @@ class Order:
         Pre-trade Almgren-Chriss cost estimate in basis points.
     created_at :
         UTC timestamp of order creation.
+    reduce_only :
+        Alleen positie afbouwen, nooit openen of omdraaien. Een sluitorder die
+        zonder deze vlag een al (deels) gesloten positie raakt, opent een nieuwe
+        in de andere richting.
     """
 
     order_id: str
@@ -83,6 +87,7 @@ class Order:
     limit_price: float | None = None
     created_at: pd.Timestamp = field(default_factory=lambda: pd.Timestamp.now(tz="UTC"))
     status: OrderStatus = OrderStatus.PENDING
+    reduce_only: bool = False
 
 
 @dataclass

@@ -374,7 +374,7 @@ def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print,
     for name in prog.candidates:
         log(f"run {name}")
         results[name] = simulate(name, m, cfg, costs)
-    m_prog = int(HypothesisLedger(root / v2.LEDGER_PATH).total_n_hypotheses())
+    m_prog = v2.frozen_m(root, prereg.preregistration_id)
     m_wide = m_prog + int(cfg.known_prior_trials)
     per_bar = [summarize(results[n].window(*w_dev), bootstrap=False)["sharpe_per_bar"]
                for n in prog.candidates]
@@ -500,6 +500,8 @@ def read_oos(root: Path = ROOT, *, log: Callable[[str], None] = print,
     full = load_market(root, cfg)
     hid = f"{prog.name}/{prereg.preregistration_id}/{name}"
     close = full.basis.perp.book.close
+    v2.require_lock_split(root / v5.BACKCAST_LOCK, cfg.windows.train_start)
+    v2.require_lock_split(root / v2.LOCK_PATH, cfg.windows.holdout_start)
     back = backcast_gate_slice(close, lock_path=root / v5.BACKCAST_LOCK, hypothesis_id=hid)
     hold = gate_slice(close, lock_path=root / v2.LOCK_PATH, hypothesis_id=hid)
     res = simulate(name, full, cfg, costs_for(root, cfg))
@@ -610,6 +612,7 @@ def read_forward(root: Path = ROOT, *, panel_root: Path | None = None,
             DataContractError, last_bar=str(full.index.max()), needed=str(need))
     # R7: de lezing staat in het slot VOORDAT er over de vooruit-data wordt gerekend.
     hid = f"{prog.name}/{prereg_id}/{name}"
+    v2.require_lock_split(root / FORWARD_LOCK, cfg.forward.start)
     fwd = gate_slice(full.basis.perp.book.close, lock_path=root / FORWARD_LOCK, hypothesis_id=hid)
     fa, fb = pd.Timestamp(fwd.index[0]), pd.Timestamp(fwd.index[-1])
     res = simulate(name, full, cfg, costs_for(root, cfg))

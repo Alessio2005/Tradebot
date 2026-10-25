@@ -1,0 +1,79 @@
+# =============================================================================
+# CronJob — het carry-shadowboek (robuust boek v8-T2), maandelijks.
+#
+# Binance publiceert de dag-klines, funding en mark price als MAANDarchieven
+# (data.binance.vision). Begin elke maand, als de vorige maand er staat:
+#   1. `binance_vision forward <vorige maand>` bouwt de vooruit-panelen;
+#   2. `tradebot.carry step` verwerkt elke nieuwe gesettelde bar met hetzelfde boek als
+#      de backtest en schrijft per bar een beslisregel (orders, equity, uniMMR) naar
+#      /opt/tradebot/state/carry.jsonl.
+#
+# Eenmalig vooraf (handmatig, na de eerste `forward`-build):
+#   python -I -m tradebot.carry init --state /opt/tradebot/state/carry.json
+#
+# Dit is PAPER: het model is de venue, er gaan geen orders naar een beurs. Daarom geen
+# API-sleutels. Live handelen vraagt een venue-adapter (zie src/tradebot/carry/venue.py).
+# Image: infra/docker/Dockerfile.runner.
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: carry-shadow
+  namespace: tradebot
+  labels:
+    app.kubernetes.io/name: tradebot
+    app.kubernetes.io/component: carry-shadow
+spec:
+  schedule: "17 6 5 * *"      # de 5e van elke maand, 06:17 UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 6
+  failedJobsHistoryLimit: 6
+  startingDeadlineSeconds: 86400
+  jobTemplate:
+    spec:
+      backoffLimit: 0          # een stap is niet idempotent op een half geschreven staat
+      activeDeadlineSeconds: 14400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: tradebot
+            app.kubernetes.io/component: carry-shadow
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: carry-shadow
+              image: tradebot/runner:1.0.0
+              imagePullPolicy: IfNotPresent
+              workingDir: /opt/tradebot
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  month="$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)"
+                  python -I -m tradebot.data.binance_vision forward "$month"
+                  python -I -m tradebot.carry step --state /opt/tradebot/state/carry.json
+              envFrom:
+                - configMapRef: { name: tradebot-config }
+              resources:
+                requests: { cpu: "2", memory: "8Gi" }
+                limits:   { cpu: "4", memory: "16Gi" }
+              volumeMounts:
+                - { name: data,  mountPath: /opt/tradebot/data, subPath: data }
+                - { name: data,  mountPath: /opt/tradebot/artefacts/data/forward, subPath: manifests }
+                - { name: state, mountPath: /opt/tradebot/state }
+                - { name: tmp,   mountPath: /tmp }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem:   true
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - name: data
+              persistentVolumeClaim: { claimName: tradebot-artefacts }
+            - name: state
+              persistentVolumeClaim: { claimName: tradebot-live-state }
+            - name: tmp
+              emptyDir: {}

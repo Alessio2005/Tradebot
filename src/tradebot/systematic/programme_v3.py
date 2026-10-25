@@ -142,7 +142,7 @@ def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print) -> d
     for name in CANDIDATES:
         log(f"run {name}")
         results[name] = runner(build(name, m, cfg), m, costs, lag=lag)
-    m_prog = int(HypothesisLedger(root / v2.LEDGER_PATH).total_n_hypotheses())
+    m_prog = v2.frozen_m(root, prereg.preregistration_id)
     m_wide = m_prog + int(cfg.known_prior_trials)
     per_bar = [summarize(results[n].window(*w_dev), bootstrap=False)["sharpe_per_bar"]
                for n in CANDIDATES]
@@ -231,6 +231,7 @@ def read_holdout(root: Path = ROOT, *, log: Callable[[str], None] = print) -> di
     name = summary["selected"]
     full = load_breadth_market(root / v2.PANEL_DIR, cfg)
     hid = f"robust_book_v3/{prereg.preregistration_id}/{name}"
+    v2.require_lock_split(root / v2.LOCK_PATH, cfg.windows.holdout_start)
     sl = gate_slice(full.book.close, lock_path=root / v2.LOCK_PATH, hypothesis_id=hid)
     a = pd.Timestamp(sl.index[0])
     b = min(pd.Timestamp(sl.index[-1]), v2._ts(cfg.windows.holdout_end))
@@ -337,6 +338,7 @@ def read_confirm(root: Path = ROOT, *, log: Callable[[str], None] = print) -> di
     name = CONFIRM_CANDIDATE
     full = load_breadth_market(root / v2.PANEL_DIR, cfg)
     hid = f"robust_book_v4/{prereg.preregistration_id}/{name}"
+    v2.require_lock_split(root / v2.LOCK_PATH, cfg.windows.holdout_start)
     sl = gate_slice(full.book.close, lock_path=root / v2.LOCK_PATH, hypothesis_id=hid)
     a = pd.Timestamp(sl.index[0])
     b = min(pd.Timestamp(sl.index[-1]), v2._ts(cfg.windows.holdout_end))

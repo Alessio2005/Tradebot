@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from ..utils.failfast import DataContractError, require
 from .order import Fill, OrderSide
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,12 @@ class PositionTracker:
             symbol, side.value, fill.fill_qty, price,
             pos.qty, pos.avg_entry_price, pos.realised_pnl,
         )
+
+    def apply_cash(self, amount: float) -> None:
+        """Boek een kasstroom zonder positie: een fee (negatief) of funding."""
+        require(math.isfinite(amount), "Een kasstroom moet eindig zijn.", DataContractError,
+                amount=amount)
+        self._equity += float(amount)
 
     # ------------------------------------------------------------------
     # Mark-to-market

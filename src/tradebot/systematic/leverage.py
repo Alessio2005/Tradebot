@@ -49,6 +49,7 @@ SCREENINGSINSTRUMENT, zoals `book.py` en `harvest.py`: elke uitkomst draagt
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -64,6 +65,11 @@ from .market import BARS_PER_YEAR
 
 __all__ = [
     "FRAME_COLUMNS",
+    "LeverArrays",
+    "LeverBar",
+    "LeverStep",
+    "LeveredBook",
+    "lever_arrays",
     "tranche_targets",
     "MarginMarket",
     "MarginSpec",
@@ -284,28 +290,78 @@ def _move(num: np.ndarray, den: np.ndarray) -> np.ndarray:
 # --------------------------------------------------------------------------- #
 # Het boek
 # --------------------------------------------------------------------------- #
-def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag: int,
-                band: float, hedge_tolerance: float, margin: MarginSpec,
-                financing: pd.Series, skip: pd.Series | None = None,
-                adv_cap: float | None = None, slice_step: float | None = None) -> BookResult:
-    """Simuleer het hefboomboek. `target` rij *t* = besluit op de close van *t* (notional
-    per been per munt, ≥ 0), uitgevoerd tegen de close van *t + lag − 1*.
+# EEN implementatie voor backtest en live (audit 2026-10-24, E-1). `run_levered` rekent de
+# rijen voor (`LeverArrays`) en roept per bar `LeveredBook.step` aan; het live-pad
+# (`tradebot.carry`) roept dezelfde `step` aan op de laatste bar, met een boek dat uit zijn
+# opgeslagen staat is hersteld. Een tweede kopie van deze mechaniek in het live-pad zou
+# precies het soort sim-to-real-gat zijn dat dit boek moet uitsluiten.
+@dataclass(frozen=True)
+class LeverBar:
+    """Alles wat `LeveredBook.step` over één bar nodig heeft (rijen van lengte n)."""
 
-    `financing` (jaarrente, bekend op de close van *t*) geldt voor de lening die over bar
-    *t + 1* uitstaat. `skip` slaat de herbalancering over op die bars; gedwongen exits en
-    liquidaties gaan door.
+    where: str
+    first: bool
+    tgt: np.ndarray
+    skip: bool
+    r_s: np.ndarray
+    r_p: np.ndarray
+    fund: np.ndarray
+    mk_hi: np.ndarray
+    mk_lo: np.ndarray
+    s_hi: np.ndarray
+    s_lo: np.ndarray
+    pc_prev: np.ndarray
+    sc_prev: np.ndarray
+    rate_prev: float
+    both: np.ndarray
+    adv_min: np.ndarray
+    s_sig: np.ndarray
+    s_adv: np.ndarray
+    p_sig: np.ndarray
+    p_adv: np.ndarray
 
-    `adv_cap`: geen been groter dan die fractie van de 30d-ADV van het DUNSTE been
-    (min(spot, perp)), tegen de LOPENDE equity op de uitvoeringsbar
-    (`conf/risk/default.yaml::adv_participation_cap`, een marktfeit). Wat een slot door de
-    cap niet krijgt, blijft cash.
 
-    `slice_step` (v7): gespreide uitvoering. Een munt die naar een nieuw doel moet (instap,
-    uitstap, een resize buiten de band) beweegt per dag hooguit `slice_step` per been, tot
-    hij er is; het doel volgt intussen het laatste besluit. In het √-impactmodel kost een
-    trade ∝ q^1,5, dus k gelijke stappen kosten √k keer minder impact. Nooit gespreid:
-    een verdwenen koers (meteen dicht), een liquidatie, en de governor op het boek zelf.
-    Zonder `slice_step` is het boek exact dat van v6."""
+@dataclass(frozen=True)
+class LeverArrays:
+    """De voorberekende rijen van een markt: `bar(t)` geeft de invoer van bar *t*."""
+
+    index: pd.DatetimeIndex
+    symbols: tuple[str, ...]
+    tgt: np.ndarray
+    skp: np.ndarray
+    pc: np.ndarray
+    sc: np.ndarray
+    mk_hi: np.ndarray
+    mk_lo: np.ndarray
+    s_hi: np.ndarray
+    s_lo: np.ndarray
+    rp: np.ndarray
+    rs: np.ndarray
+    fund: np.ndarray
+    p_ok: np.ndarray
+    s_ok: np.ndarray
+    p_sig: np.ndarray
+    s_sig: np.ndarray
+    p_adv: np.ndarray
+    s_adv: np.ndarray
+    rate: np.ndarray
+    adv_min: np.ndarray
+
+    def bar(self, t: int) -> LeverBar:
+        first = t == 0
+        prev = 0 if first else t - 1
+        return LeverBar(
+            where=str(self.index[t]), first=first, tgt=self.tgt[t], skip=bool(self.skp[t]),
+            r_s=self.rs[t], r_p=self.rp[t], fund=self.fund[t], mk_hi=self.mk_hi[t],
+            mk_lo=self.mk_lo[t], s_hi=self.s_hi[t], s_lo=self.s_lo[t], pc_prev=self.pc[prev],
+            sc_prev=self.sc[prev], rate_prev=0.0 if first else float(self.rate[t - 1]),
+            both=self.p_ok[t] & self.s_ok[t], adv_min=self.adv_min[t], s_sig=self.s_sig[t],
+            s_adv=self.s_adv[t], p_sig=self.p_sig[t], p_adv=self.p_adv[t])
+
+
+def lever_arrays(target: pd.DataFrame, m: MarginMarket, *, lag: int, financing: pd.Series,
+                 skip: pd.Series | None = None) -> LeverArrays:
+    """Valideer de invoer van het hefboomboek en reken zijn rijen voor."""
     require(int(lag) >= 1, "Een vertraging van nul bars is lookahead.", DataContractError)
     b0 = m.basis
     require(bool(target.index.equals(m.index)) and list(target.columns) == list(m.symbols),
@@ -320,61 +376,132 @@ def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag
            else skip.reindex(m.index).fillna(False).shift(shift, fill_value=False)
            .to_numpy(dtype=bool))
     syms = list(m.symbols)
-    pc = b0.perp.book.close.to_numpy(dtype=np.float64)
-    sc = b0.spot_close.to_numpy(dtype=np.float64)
     last_hi = b0.perp.high.reindex(index=m.index, columns=syms).to_numpy(dtype=np.float64)
     last_lo = b0.perp.low.reindex(index=m.index, columns=syms).to_numpy(dtype=np.float64)
     mk_hi = m.mark_high.to_numpy(dtype=np.float64)
     mk_lo = m.mark_low.to_numpy(dtype=np.float64)
-    mk_hi = np.where(np.isfinite(mk_hi), mk_hi, last_hi)
-    mk_lo = np.where(np.isfinite(mk_lo), mk_lo, last_lo)
-    s_hi = m.spot_high.to_numpy(dtype=np.float64)
-    s_lo = m.spot_low.to_numpy(dtype=np.float64)
-    rp = b0.perp.book.ret.to_numpy(dtype=np.float64)
-    rs = b0.spot_ret.to_numpy(dtype=np.float64)
-    fund = b0.perp.book.funding.to_numpy(dtype=np.float64)
-    p_ok = b0.perp.book.close.notna().to_numpy()
-    s_ok = b0.spot_close.notna().to_numpy()
-    p_sig = b0.perp.book.sigma_daily.ffill().to_numpy(dtype=np.float64)
-    s_sig = b0.spot_sigma.ffill().to_numpy(dtype=np.float64)
     p_adv = b0.perp.book.adv_usd.where(b0.perp.book.adv_usd > 0.0).ffill().to_numpy(dtype=np.float64)
     s_adv = b0.spot_adv.where(b0.spot_adv > 0.0).ffill().to_numpy(dtype=np.float64)
-    rate = financing.to_numpy(dtype=np.float64)
-    require(adv_cap is None or 0.0 < float(adv_cap) <= 1.0, "Ongeldige ADV-cap.",
-            DataContractError, adv_cap=adv_cap)
-    adv_min = np.nan_to_num(np.fmin(s_adv, p_adv), nan=0.0)
-    require(slice_step is None or float(slice_step) > 0.0, "Ongeldige stapgrootte.",
-            DataContractError, slice_step=slice_step)
-    goal = np.full(len(m.symbols), np.nan)   # v7: het doel van een munt in beweging
-    h = margin.haircuts(syms)
-    mmr, mml = margin.maintenance_margin, margin.loan_maintenance
+    return LeverArrays(
+        index=pd.DatetimeIndex(m.index), symbols=tuple(syms), tgt=tgt, skp=skp,
+        pc=b0.perp.book.close.to_numpy(dtype=np.float64),
+        sc=b0.spot_close.to_numpy(dtype=np.float64),
+        mk_hi=np.where(np.isfinite(mk_hi), mk_hi, last_hi),
+        mk_lo=np.where(np.isfinite(mk_lo), mk_lo, last_lo),
+        s_hi=m.spot_high.to_numpy(dtype=np.float64), s_lo=m.spot_low.to_numpy(dtype=np.float64),
+        rp=b0.perp.book.ret.to_numpy(dtype=np.float64), rs=b0.spot_ret.to_numpy(dtype=np.float64),
+        fund=b0.perp.book.funding.to_numpy(dtype=np.float64),
+        p_ok=b0.perp.book.close.notna().to_numpy(), s_ok=b0.spot_close.notna().to_numpy(),
+        p_sig=b0.perp.book.sigma_daily.ffill().to_numpy(dtype=np.float64),
+        s_sig=b0.spot_sigma.ffill().to_numpy(dtype=np.float64), p_adv=p_adv, s_adv=s_adv,
+        rate=financing.to_numpy(dtype=np.float64),
+        adv_min=np.nan_to_num(np.fmin(s_adv, p_adv), nan=0.0))
 
-    t_len, n = tgt.shape
-    out = np.zeros((t_len, len(FRAME_COLUMNS)))
-    held = np.zeros((t_len, n))
-    trades = np.zeros((t_len, n))
-    a = np.zeros(n)   # spot long, fractie van de equity
-    b = np.zeros(n)   # perp short (als positieve grootte), fractie van de equity
-    equity = float(costs.perp.aum_usd)
-    n_forced = n_liq = n_governed = 0
-    min_headroom = float("inf")
-    for t in range(t_len):
-        where = str(m.index[t])
-        held[t] = (a + b) / 2.0
-        r_s = np.where(np.isfinite(rs[t]), rs[t], 0.0)
-        r_p = np.where(np.isfinite(rp[t]), rp[t], 0.0)
+
+@dataclass(frozen=True)
+class LeverStep:
+    """De uitkomst van één bar: de framerij, en de trades per been (fractie van `equity_pre`)."""
+
+    row: tuple[float, ...]
+    held: np.ndarray
+    trades: np.ndarray
+    da: np.ndarray
+    db: np.ndarray
+    equity_pre: float
+    liquidated: bool
+
+
+@dataclass(frozen=True)
+class _Marked:
+    """Het boek na de P&L van de bar en vóór het besluit (fracties van `equity_pre`)."""
+
+    held: np.ndarray
+    gross: float
+    funding: float
+    fin: float
+    liq: float
+    loan: float
+    headroom: float
+    liquidated: bool
+    port: float
+    a_d: np.ndarray
+    b_d: np.ndarray
+    equity_pre: float
+
+
+class LeveredBook:
+    """De toestand van het hefboomboek en zijn mechaniek per bar.
+
+    `a` = spot long, `b` = perp short (positieve grootte), beide als fractie van de equity
+    aan het einde van de vorige bar; `goal` het doel van een munt in beweging (v7);
+    `equity` in USD. Zie `run_levered` voor de conventies."""
+
+    def __init__(self, symbols: Sequence[str], costs: BasisCosts, *, band: float,
+                 hedge_tolerance: float, margin: MarginSpec, adv_cap: float | None = None,
+                 slice_step: float | None = None) -> None:
+        require(adv_cap is None or 0.0 < float(adv_cap) <= 1.0, "Ongeldige ADV-cap.",
+                DataContractError, adv_cap=adv_cap)
+        require(slice_step is None or float(slice_step) > 0.0, "Ongeldige stapgrootte.",
+                DataContractError, slice_step=slice_step)
+        self.symbols = tuple(symbols)
+        n = len(self.symbols)
+        self.costs, self.band, self.hedge_tolerance = costs, float(band), float(hedge_tolerance)
+        self.margin, self.adv_cap, self.slice_step = margin, adv_cap, slice_step
+        self.h = margin.haircuts(self.symbols)
+        self.a = np.zeros(n)
+        self.b = np.zeros(n)
+        self.goal = np.full(n, np.nan)   # v7: het doel van een munt in beweging
+        self.equity = float(costs.perp.aum_usd)
+        self.n_forced = self.n_liq = self.n_governed = 0
+        self.min_headroom = float("inf")
+
+    def step(self, bar: LeverBar) -> LeverStep:
+        """Eén bar van de backtest (en van het paper-/shadowboek): eerst de P&L van de
+        markt over de bar volgens het model, dan het besluit op zijn close."""
+        return self._decide(bar, self._mark(bar))
+
+    def decide_live(self, bar: LeverBar, a_d: np.ndarray, b_d: np.ndarray,
+                    equity: float) -> LeverStep:
+        """Het besluit op de close van `bar` voor een boek waarvan de BEURS de stand geeft.
+
+        `a_d`, `b_d` zijn de gemarkte benen (fractie van `equity`, de equity die de beurs
+        meldt). Het model-P&L-deel van `step` vervalt: de beurs heeft de bar al
+        afgerekend, inclusief funding, rente en een eventuele liquidatie of ADL."""
+        require(math.isfinite(equity) and equity > 0.0, "De beurs meldt geen positieve "
+                "equity.", DataContractError, equity=equity)
+        a_d = np.asarray(a_d, dtype=np.float64)
+        b_d = np.asarray(b_d, dtype=np.float64)
+        require(a_d.shape == b_d.shape == (len(self.symbols),) and bool(
+            (a_d >= 0.0).all() and (b_d >= 0.0).all()), "Ongeldige gemarkte benen.",
+            DataContractError)
+        self.equity = float(equity)
+        loan = max(float(a_d.sum()) - 1.0, 0.0)
+        return self._decide(bar, _Marked(held=(a_d + b_d) / 2.0, gross=0.0, funding=0.0,
+                                         fin=0.0, liq=0.0, loan=loan, headroom=float("nan"),
+                                         liquidated=False, port=0.0, a_d=a_d, b_d=b_d,
+                                         equity_pre=float(equity)))
+
+    def _mark(self, bar: LeverBar) -> _Marked:
+        a, b, h = self.a, self.b, self.h
+        margin = self.margin
+        mmr, mml = margin.maintenance_margin, margin.loan_maintenance
+        n = len(self.symbols)
+        where = bar.where
+        held = (a + b) / 2.0
+        r_s = np.where(np.isfinite(bar.r_s), bar.r_s, 0.0)
+        r_p = np.where(np.isfinite(bar.r_p), bar.r_p, 0.0)
         gross = float(a @ r_s - b @ r_p)
-        funding = float(b @ np.where(np.isfinite(fund[t]), fund[t], 0.0))
+        funding = float(b @ np.where(np.isfinite(bar.fund), bar.fund, 0.0))
         loan = max(float(a.sum()) - 1.0, 0.0)
-        fin = -loan * (float(rate[t - 1]) if t > 0 else 0.0) / BARS_PER_YEAR
+        fin = -loan * bar.rate_prev / BARS_PER_YEAR
         liq = 0.0
         headroom = float("nan")
         liquidated = False
-        if t > 0 and (a.any() or b.any()):
-            um = np.nan_to_num(_move(mk_hi[t], pc[t - 1]), nan=0.0, posinf=0.0, neginf=0.0)
-            dm = np.nan_to_num(_move(mk_lo[t], pc[t - 1]), nan=0.0, posinf=0.0, neginf=0.0)
-            us = np.nan_to_num(_move(s_hi[t], sc[t - 1]), nan=0.0, posinf=0.0, neginf=0.0)
-            ds = np.nan_to_num(_move(s_lo[t], sc[t - 1]), nan=0.0, posinf=0.0, neginf=0.0)
+        if not bar.first and (a.any() or b.any()):
+            um = np.nan_to_num(_move(bar.mk_hi, bar.pc_prev), nan=0.0, posinf=0.0, neginf=0.0)
+            dm = np.nan_to_num(_move(bar.mk_lo, bar.pc_prev), nan=0.0, posinf=0.0, neginf=0.0)
+            us = np.nan_to_num(_move(bar.s_hi, bar.sc_prev), nan=0.0, posinf=0.0, neginf=0.0)
+            ds = np.nan_to_num(_move(bar.s_lo, bar.sc_prev), nan=0.0, posinf=0.0, neginf=0.0)
             states = {"up": (np.minimum(us, um), um), "down": (np.minimum(ds, dm), dm)}
             ae0 = 1.0 - float(a @ h) + fin
             mm_s = mmr * float(b @ (1.0 + np.clip(um, 0.0, None))) + mml * loan
@@ -383,9 +510,9 @@ def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag
             worst = min(heads, key=lambda k: heads[k])
             if mm_s > 0.0:
                 headroom = heads[worst] / mm_s
-                min_headroom = min(min_headroom, headroom)
+                self.min_headroom = min(self.min_headroom, headroom)
             if heads[worst] < 0.0:
-                n_liq += 1
+                self.n_liq += 1
                 liquidated = True
                 sm, pm = states[worst]
                 e_s = 1.0 + float(a @ sm - b @ pm) + fin
@@ -400,20 +527,30 @@ def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag
                 DataContractError, bar=where)
         if liquidated:
             a_d, b_d = np.zeros(n), np.zeros(n)
-            goal[:] = np.nan
+            self.goal[:] = np.nan
         else:
             a_d = a * (1.0 + r_s) / (1.0 + port)
             b_d = b * (1.0 + r_p) / (1.0 + port)
-        equity_pre = equity * (1.0 + port)
+        return _Marked(held=held, gross=gross, funding=funding, fin=fin, liq=liq, loan=loan,
+                       headroom=headroom, liquidated=liquidated, port=port, a_d=a_d, b_d=b_d,
+                       equity_pre=self.equity * (1.0 + port))
 
+    def _decide(self, bar: LeverBar, mk: _Marked) -> LeverStep:
+        h, margin, band, hedge_tolerance = self.h, self.margin, self.band, self.hedge_tolerance
+        adv_cap, slice_step, costs = self.adv_cap, self.slice_step, self.costs
+        mmr, mml = margin.maintenance_margin, margin.loan_maintenance
+        where = bar.where
+        a_d, b_d, equity_pre, port = mk.a_d, mk.b_d, mk.equity_pre, mk.port
+        gross, funding, fin, liq, loan = mk.gross, mk.funding, mk.fin, mk.liq, mk.loan
         new_a, new_b = a_d.copy(), b_d.copy()
         governed = False
-        both = p_ok[t] & s_ok[t]
-        n_forced += int((~both & ((a_d > 0.0) | (b_d > 0.0))).sum())
-        if not skp[t]:
-            want = np.where(both, tgt[t], 0.0)
+        both = bar.both
+        goal = self.goal
+        self.n_forced += int((~both & ((a_d > 0.0) | (b_d > 0.0))).sum())
+        if not bar.skip:
+            want = np.where(both, bar.tgt, 0.0)
             if adv_cap is not None:
-                want = np.minimum(want, float(adv_cap) * adv_min[t] / equity_pre)
+                want = np.minimum(want, float(adv_cap) * bar.adv_min / equity_pre)
             level = (a_d + b_d) / 2.0
             off = want <= 0.0
             enter = (want > 0.0) & (level <= 0.0)
@@ -427,7 +564,7 @@ def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag
                 # De governor, getoetst NA de trade: bruto-cap en uniMMR-vloer. Geschonden
                 # -> het hele boek naar het doel, geschaald met de grootste toegestane factor.
                 if governed_scale(new_a, new_b, h, margin) < 1.0:
-                    n_governed += 1
+                    self.n_governed += 1
                     governed = True
                     base = np.where(want > 0.0, want, 0.0)
                     s = governed_scale(base, base, h, margin)
@@ -455,52 +592,90 @@ def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag
                 if s_book < 1.0:
                     governed = True
                     new_a, new_b = new_a * s_book, new_b * s_book
-                n_governed += int(governed)
+                self.n_governed += int(governed)
         # Een munt zonder koers op een van beide benen wordt gesloten, ook op een
         # overgeslagen bar: het verdwenen been tegen zijn laatste koers.
         new_a = np.where(both, new_a, 0.0)
         new_b = np.where(both, new_b, 0.0)
-        goal = np.where(both, goal, np.nan)
+        self.goal = np.where(both, goal, np.nan)
         da, db = new_a - a_d, new_b - b_d
         da[np.abs(da) < DUST] = 0.0
         db[np.abs(db) < DUST] = 0.0
         new_a, new_b = a_d + da, b_d + db
         ta, tb = np.abs(da), np.abs(db)
-        sf, ss, sl, si = _leg_cost(ta, costs.spot, equity_pre, s_sig[t], s_adv[t], where)
-        pf, ps, pl, pi = _leg_cost(tb, costs.perp, equity_pre, p_sig[t], p_adv[t], where)
+        sf, ss, sl, si = _leg_cost(ta, costs.spot, equity_pre, bar.s_sig, bar.s_adv, where)
+        pf, ps, pl, pi = _leg_cost(tb, costs.perp, equity_pre, bar.p_sig, bar.p_adv, where)
         fee, spread, slip, impact = sf + pf, ss + ps, sl + pl, si + pi
         cost = fee + spread + slip + impact
         require(cost < 1.0, "Kosten van meer dan de hele equity op één bar.", DataContractError)
         net = (1.0 + port) * (1.0 - cost) - 1.0
-        equity = equity_pre * (1.0 - cost)
+        self.equity = equity_pre * (1.0 - cost)
         scl = 1.0 + port
-        a, b = new_a, new_b
-        out[t] = (gross, funding, fin, liq, -fee * scl, -spread * scl, -slip * scl,
-                  -impact * scl, net, float(ta.sum() + tb.sum()), float(a.sum() + b.sum()),
-                  float(a.sum() - b.sum()), float(((ta > 0) | (tb > 0)).sum()),
-                  float((a > 0).sum()), float(a.sum()), loan,
-                  uni_mmr(a, b, h, maintenance_margin=mmr, loan_maintenance=mml), headroom,
-                  float(governed))
-        trades[t] = ta + tb
+        self.a, self.b = new_a, new_b
+        row = (gross, funding, fin, liq, -fee * scl, -spread * scl, -slip * scl,
+               -impact * scl, net, float(ta.sum() + tb.sum()), float(new_a.sum() + new_b.sum()),
+               float(new_a.sum() - new_b.sum()), float(((ta > 0) | (tb > 0)).sum()),
+               float((new_a > 0).sum()), float(new_a.sum()), loan,
+               uni_mmr(new_a, new_b, h, maintenance_margin=mmr, loan_maintenance=mml),
+               mk.headroom, float(governed))
+        return LeverStep(row=row, held=mk.held, trades=ta + tb, da=da, db=db,
+                         equity_pre=equity_pre, liquidated=mk.liquidated)
+
+    def audit(self, lag: int) -> dict:
+        return {EVIDENCE_KEY: NOT_ADMISSIBLE, "engine": "systematic.leverage", "lag": int(lag),
+                "costs": self.costs.as_record(), "margin": self.margin.as_record(),
+                "n_forced_exits": self.n_forced, "n_liquidations": self.n_liq,
+                "n_governed": self.n_governed,
+                "min_stress_headroom": (self.min_headroom if np.isfinite(self.min_headroom)
+                                        else float("nan")),
+                "band": self.band, "hedge_tolerance": self.hedge_tolerance,
+                "adv_cap": None if self.adv_cap is None else float(self.adv_cap),
+                "slice_step": None if self.slice_step is None else float(self.slice_step),
+                "convention": "besluit op close t, uitgevoerd tegen close t+lag-1, rendeert "
+                              "vanaf de bar erna; long spot, short perp; lening = spot boven "
+                              "de equity, rente bekend op de close ervoor; liquidatie op de "
+                              "mark price"}
+
+
+def run_levered(target: pd.DataFrame, m: MarginMarket, costs: BasisCosts, *, lag: int,
+                band: float, hedge_tolerance: float, margin: MarginSpec,
+                financing: pd.Series, skip: pd.Series | None = None,
+                adv_cap: float | None = None, slice_step: float | None = None) -> BookResult:
+    """Simuleer het hefboomboek. `target` rij *t* = besluit op de close van *t* (notional
+    per been per munt, ≥ 0), uitgevoerd tegen de close van *t + lag − 1*.
+
+    `financing` (jaarrente, bekend op de close van *t*) geldt voor de lening die over bar
+    *t + 1* uitstaat. `skip` slaat de herbalancering over op die bars; gedwongen exits en
+    liquidaties gaan door.
+
+    `adv_cap`: geen been groter dan die fractie van de 30d-ADV van het DUNSTE been
+    (min(spot, perp)), tegen de LOPENDE equity op de uitvoeringsbar
+    (`conf/risk/default.yaml::adv_participation_cap`, een marktfeit). Wat een slot door de
+    cap niet krijgt, blijft cash.
+
+    `slice_step` (v7): gespreide uitvoering. Een munt die naar een nieuw doel moet (instap,
+    uitstap, een resize buiten de band) beweegt per dag hooguit `slice_step` per been, tot
+    hij er is; het doel volgt intussen het laatste besluit. In het √-impactmodel kost een
+    trade ∝ q^1,5, dus k gelijke stappen kosten √k keer minder impact. Nooit gespreid:
+    een verdwenen koers (meteen dicht), een liquidatie, en de governor op het boek zelf.
+    Zonder `slice_step` is het boek exact dat van v6."""
+    arr = lever_arrays(target, m, lag=lag, financing=financing, skip=skip)
+    book = LeveredBook(arr.symbols, costs, band=band, hedge_tolerance=hedge_tolerance,
+                       margin=margin, adv_cap=adv_cap, slice_step=slice_step)
+    t_len, n = arr.tgt.shape
+    out = np.zeros((t_len, len(FRAME_COLUMNS)))
+    held = np.zeros((t_len, n))
+    trades = np.zeros((t_len, n))
+    for t in range(t_len):
+        res = book.step(arr.bar(t))
+        out[t], held[t], trades[t] = res.row, res.held, res.trades
 
     frame = pd.DataFrame(out, index=m.index, columns=list(FRAME_COLUMNS))
     identity = (frame[["gross", "funding", "financing", "liquidation", "fees", "spread",
                        "slippage", "impact"]].sum(axis=1) - frame["net"]).abs().max()
     require(float(identity) < 1e-12, "De P&L-trap sluit niet.", DataContractError,
             residual=float(identity))
+    syms = list(arr.symbols)
     return BookResult(
         frame=frame, held=pd.DataFrame(held, index=m.index, columns=syms),
-        trades=pd.DataFrame(trades, index=m.index, columns=syms),
-        audit={EVIDENCE_KEY: NOT_ADMISSIBLE, "engine": "systematic.leverage", "lag": int(lag),
-               "costs": costs.as_record(), "margin": margin.as_record(),
-               "n_forced_exits": n_forced, "n_liquidations": n_liq,
-               "n_governed": n_governed,
-               "min_stress_headroom": (min_headroom if np.isfinite(min_headroom)
-                                       else float("nan")),
-               "band": float(band), "hedge_tolerance": float(hedge_tolerance),
-               "adv_cap": None if adv_cap is None else float(adv_cap),
-               "slice_step": None if slice_step is None else float(slice_step),
-               "convention": "besluit op close t, uitgevoerd tegen close t+lag-1, rendeert "
-                             "vanaf de bar erna; long spot, short perp; lening = spot boven "
-                             "de equity, rente bekend op de close ervoor; liquidatie op de "
-                             "mark price"})
+        trades=pd.DataFrame(trades, index=m.index, columns=syms), audit=book.audit(lag))
