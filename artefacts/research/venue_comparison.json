@@ -1,0 +1,467 @@
+{
+ "books": {
+  "H3_BASIS_MAJORS": {
+   "binance_model": {
+    "cagr": 0.06179100011949812,
+    "sharpe_monthly": 1.6055957185893812,
+    "worst_year": -0.0007170495774020402,
+    "yearly_return": {
+     "2020": 0.08957113478196899,
+     "2021": 0.25917776846889784,
+     "2022": -0.0007170495774020402,
+     "2023": 0.0026440393823596864,
+     "2024": 0.06896430241413332,
+     "2025": 0.005124076373532738,
+     "2026": 0.0
+    },
+    "years_negative": [
+     "2022"
+    ]
+   },
+   "blockers": {
+    "binance": [
+     "niet beschikbaar voor Nederlandse klanten",
+     "geen perps voor Nederlandse/EER-klanten"
+    ],
+    "bybit_eu": [
+     "geen perps voor Nederlandse/EER-klanten"
+    ],
+    "kraken_eu": [
+     "perp-hefboom 2.33 boven het retailplafond 2.0 (ESMA: perps als CFD); professionele status of een been van hooguit 0.67x"
+    ]
+   },
+   "kraken_1m_maker": {
+    "cagr": 0.06224070872726584,
+    "sharpe_monthly": 1.6146126949474766,
+    "worst_year": -0.0004607624944060751,
+    "yearly_return": {
+     "2020": 0.09031467907622082,
+     "2021": 0.26015448034962163,
+     "2022": -0.0004607624944060751,
+     "2023": 0.0028899651731901788,
+     "2024": 0.06959766657075805,
+     "2025": 0.005327715393963484,
+     "2026": 0.0
+    },
+    "years_negative": [
+     "2022"
+    ]
+   },
+   "kraken_1m_taker": {
+    "cagr": 0.06031441801508364,
+    "sharpe_monthly": 1.5754003586699161,
+    "worst_year": -0.0015588441205640624,
+    "yearly_return": {
+     "2020": 0.08713101750532881,
+     "2021": 0.25597336884048816,
+     "2022": -0.0015588441205640624,
+     "2023": 0.001836209823206314,
+     "2024": 0.06688548797697358,
+     "2025": 0.004455119080452485,
+     "2026": 0.0
+    },
+    "years_negative": [
+     "2022"
+    ]
+   },
+   "kraken_entry_taker": {
+    "cagr": 0.05289138172153374,
+    "sharpe_monthly": 1.4104780931062864,
+    "worst_year": -0.005797606452949133,
+    "yearly_return": {
+     "2020": 0.07489321511848979,
+     "2021": 0.23992365048619724,
+     "2022": -0.005797606452949133,
+     "2023": -0.0022330993615895522,
+     "2024": 0.05645320747105753,
+     "2025": 0.0010845738609912559,
+     "2026": 0.0
+    },
+    "years_negative": [
+     "2022",
+     "2023"
+    ]
+   }
+  },
+  "H3_BASIS_MAJORS_COLLATERAL": {
+   "binance_model": {
+    "cagr": 0.06179100011949812,
+    "sharpe_monthly": 1.6055957185893812,
+    "worst_year": -0.0007170495774020402,
+    "yearly_return": {
+     "2020": 0.08957113478196899,
+     "2021": 0.25917776846889784,
+     "2022": -0.0007170495774020402,
+     "2023": 0.0026440393823596864,
+     "2024": 0.06896430241413332,
+     "2025": 0.005124076373532738,
+     "2026": 0.0
+    },
+    "years_negative": [
+     "2022"
+    ]
+   },
+   "blockers": {
+    "binance": [
+     "niet beschikbaar voor Nederlandse klanten",
+     "geen perps voor Nederlandse/EER-klanten"
+    ],
+    "bybit_eu": [
+     "geen perps voor Nederlandse/EER-klanten",
+     "spot telt niet als perp-onderpand voor BTC, ETH"
+    ],
+    "kraken_eu": []
+   },
+   "kraken_1m_maker": {
+    "cagr": 0.06224070872726584,
+    "sharpe_monthly": 1.6146126949474766,
+    "worst_year": -0.0004607624944060751,
+    "yearly_return": {
+     "2020": 0.09031467907622082,
+     "2021": 0.26015448034962163,
+     "2022": -0.0004607624944060751,
+     "2023": 0.0028899651731901788,
+     "2024": 0.06959766657075805,
+     "2025": 0.005327715393963484,
+     "2026": 0.0
+    },
+    "years_negative": [
+     "2022"
+    ]
+   },
+   "kraken_1m_taker": {
+    "cagr": 0.06031441801508364,
+    "sharpe_monthly": 1.5754003586699161,
+    "worst_year": -0.0015588441205640624,
+    "yearly_return": {
+     "2020": 0.08713101750532881,
+     "2021": 0.25597336884048816,
+     "2022": -0.0015588441205640624,
+     "2023": 0.001836209823206314,
+     "2024": 0.06688548797697358,
+     "2025": 0.004455119080452485,
+     "2026": 0.0
+    },
+    "years_negative": [
+     "2022"
+    ]
+   },
+   "kraken_entry_taker": {
+    "cagr": 0.05289138172153374,
+    "sharpe_monthly": 1.4104780931062864,
+    "worst_year": -0.005797606452949133,
+    "yearly_return": {
+     "2020": 0.07489321511848979,
+     "2021": 0.23992365048619724,
+     "2022": -0.005797606452949133,
+     "2023": -0.0022330993615895522,
+     "2024": 0.05645320747105753,
+     "2025": 0.0010845738609912559,
+     "2026": 0.0
+    },
+    "years_negative": [
+     "2022",
+     "2023"
+    ]
+   }
+  },
+  "K1_CARRY_PM_1X": {
+   "binance_model": {
+    "cagr": 0.08822550314399624,
+    "sharpe_monthly": 1.1850897222461625,
+    "worst_year": -0.0984165361736824,
+    "yearly_return": {
+     "2020": 0.15974268516259338,
+     "2021": 0.4849433234587446,
+     "2022": -0.0004939519418802885,
+     "2023": 0.0329670615355202,
+     "2024": 0.1110416184498686,
+     "2025": -0.0984165361736824,
+     "2026": -0.02693004719395331
+    },
+    "years_negative": [
+     "2022",
+     "2025",
+     "2026"
+    ]
+   },
+   "blockers": {
+    "binance": [
+     "niet beschikbaar voor Nederlandse klanten",
+     "geen perps voor Nederlandse/EER-klanten"
+    ],
+    "bybit_eu": [
+     "geen perps voor Nederlandse/EER-klanten",
+     "spot telt niet als perp-onderpand voor BTC, ETH, altcoins"
+    ],
+    "kraken_eu": [
+     "spot telt niet als perp-onderpand voor altcoins"
+    ]
+   },
+   "kraken_1m_maker": {
+    "cagr": 0.08926544902864286,
+    "sharpe_monthly": 1.1976943234943855,
+    "worst_year": -0.0974792079419523,
+    "yearly_return": {
+     "2020": 0.16071771926652656,
+     "2021": 0.4867090007947572,
+     "2022": -5.0453010518980435e-05,
+     "2023": 0.033900084179738554,
+     "2024": 0.11260814605026814,
+     "2025": -0.0974792079419523,
+     "2026": -0.026551135221086986
+    },
+    "years_negative": [
+     "2022",
+     "2025",
+     "2026"
+    ]
+   },
+   "kraken_1m_taker": {
+    "cagr": 0.08481521813169257,
+    "sharpe_monthly": 1.1434940733419652,
+    "worst_year": -0.10148968799509606,
+    "yearly_return": {
+     "2020": 0.15654444453670258,
+     "2021": 0.4791561450358919,
+     "2022": -0.0019499042922801468,
+     "2023": 0.02990700986735928,
+     "2024": 0.10590938527616012,
+     "2025": -0.10148968799509606,
+     "2026": -0.028174069208935504
+    },
+    "years_negative": [
+     "2022",
+     "2025",
+     "2026"
+    ]
+   },
+   "kraken_entry_taker": {
+    "cagr": 0.06777067565138939,
+    "sharpe_monthly": 0.9301418493545833,
+    "worst_year": -0.11683492470117618,
+    "yearly_return": {
+     "2020": 0.14054071750994335,
+     "2021": 0.4503009700591041,
+     "2022": -0.009263635773051004,
+     "2023": 0.014603703154996373,
+     "2024": 0.08037079217513332,
+     "2025": -0.11683492470117618,
+     "2026": -0.034425549789316445
+    },
+    "years_negative": [
+     "2022",
+     "2025",
+     "2026"
+    ]
+   }
+  },
+  "S2_CARRY_PM_TRANCHE": {
+   "binance_model": {
+    "cagr": 0.12855943996090669,
+    "sharpe_monthly": 1.3686220482722278,
+    "worst_year": -0.05257694457449935,
+    "yearly_return": {
+     "2020": 0.18073629010066106,
+     "2021": 0.6694169547802724,
+     "2022": 0.002595559115866175,
+     "2023": 0.03975253182034799,
+     "2024": 0.15636743168820444,
+     "2025": -0.05257694457449935,
+     "2026": -0.024535644491792907
+    },
+    "years_negative": [
+     "2025",
+     "2026"
+    ]
+   },
+   "blockers": {
+    "binance": [
+     "niet beschikbaar voor Nederlandse klanten",
+     "geen perps voor Nederlandse/EER-klanten"
+    ],
+    "bybit_eu": [
+     "geen perps voor Nederlandse/EER-klanten",
+     "geen unified margin: lening, spot-onderpand en perps zitten niet in \u00e9\u00e9n account",
+     "spot telt niet als perp-onderpand voor BTC, ETH, altcoins"
+    ],
+    "kraken_eu": [
+     "geen unified margin: lening, spot-onderpand en perps zitten niet in \u00e9\u00e9n account",
+     "spot telt niet als perp-onderpand voor altcoins"
+    ]
+   },
+   "kraken_1m_maker": {
+    "cagr": 0.13004973687148635,
+    "sharpe_monthly": 1.3803272101826585,
+    "worst_year": -0.05155874123027471,
+    "yearly_return": {
+     "2020": 0.1824837131430459,
+     "2021": 0.673508676451622,
+     "2022": 0.0030507228818079657,
+     "2023": 0.04070292294274869,
+     "2024": 0.1584972515267533,
+     "2025": -0.05155874123027471,
+     "2026": -0.02417017475920391
+    },
+    "years_negative": [
+     "2025",
+     "2026"
+    ]
+   },
+   "kraken_1m_taker": {
+    "cagr": 0.12367638510642864,
+    "sharpe_monthly": 1.329656937984077,
+    "worst_year": -0.05591489115513226,
+    "yearly_return": {
+     "2020": 0.17501273127397554,
+     "2021": 0.6560424579178012,
+     "2022": 0.0011014284832813193,
+     "2023": 0.03663577963613496,
+     "2024": 0.14939667585124639,
+     "2025": -0.05591489115513226,
+     "2026": -0.0257355268889623
+    },
+    "years_negative": [
+     "2025",
+     "2026"
+    ]
+   },
+   "kraken_entry_taker": {
+    "cagr": 0.09936460154668514,
+    "sharpe_monthly": 1.1214360324399775,
+    "worst_year": -0.07257393048814342,
+    "yearly_return": {
+     "2020": 0.1465619051046283,
+     "2021": 0.5901909963776952,
+     "2022": -0.006401394368494184,
+     "2023": 0.021054977101871764,
+     "2024": 0.11486809414442778,
+     "2025": -0.07257393048814342,
+     "2026": -0.03176504003545222
+    },
+    "years_negative": [
+     "2022",
+     "2025",
+     "2026"
+    ]
+   }
+  },
+  "T2_CARRY_TRANCHE_JUMPCAP": {
+   "binance_model": {
+    "cagr": 0.13359146371853114,
+    "sharpe_monthly": 1.5472069438263403,
+    "worst_year": -0.010323081667629408,
+    "yearly_return": {
+     "2020": 0.18073629010066106,
+     "2021": 0.6098604338693754,
+     "2022": 0.0021741829435726334,
+     "2023": 0.04029524647622651,
+     "2024": 0.15675103770536913,
+     "2025": -0.0036379522060457914,
+     "2026": -0.010323081667629408
+    },
+    "years_negative": [
+     "2025",
+     "2026"
+    ]
+   },
+   "blockers": {
+    "binance": [
+     "niet beschikbaar voor Nederlandse klanten",
+     "geen perps voor Nederlandse/EER-klanten"
+    ],
+    "bybit_eu": [
+     "geen perps voor Nederlandse/EER-klanten",
+     "geen unified margin: lening, spot-onderpand en perps zitten niet in \u00e9\u00e9n account",
+     "spot telt niet als perp-onderpand voor BTC, ETH, altcoins"
+    ],
+    "kraken_eu": [
+     "geen unified margin: lening, spot-onderpand en perps zitten niet in \u00e9\u00e9n account",
+     "spot telt niet als perp-onderpand voor altcoins"
+    ]
+   },
+   "kraken_1m_maker": {
+    "cagr": 0.13510514789006467,
+    "sharpe_monthly": 1.5597065915652857,
+    "worst_year": -0.010040686409643396,
+    "yearly_return": {
+     "2020": 0.1824837131430459,
+     "2021": 0.6143892150606087,
+     "2022": 0.002616219192728808,
+     "2023": 0.04125593946345063,
+     "2024": 0.15896936002938022,
+     "2025": -0.002814743643132611,
+     "2026": -0.010040686409643396
+    },
+    "years_negative": [
+     "2025",
+     "2026"
+    ]
+   },
+   "kraken_1m_taker": {
+    "cagr": 0.1286319351334051,
+    "sharpe_monthly": 1.5054813578805766,
+    "worst_year": -0.01125039726033994,
+    "yearly_return": {
+     "2020": 0.17501273127397554,
+     "2021": 0.5950687842303828,
+     "2022": 0.0007231122852076055,
+     "2023": 0.03714477297084229,
+     "2024": 0.14949179388089884,
+     "2025": -0.006338083194046384,
+     "2026": -0.01125039726033994
+    },
+    "years_negative": [
+     "2025",
+     "2026"
+    ]
+   },
+   "kraken_entry_taker": {
+    "cagr": 0.10394299754449654,
+    "sharpe_monthly": 1.2798283020546626,
+    "worst_year": -0.01984697741119712,
+    "yearly_return": {
+     "2020": 0.1465619051046283,
+     "2021": 0.5224992070171437,
+     "2022": -0.006564244452468282,
+     "2023": 0.021396853860968346,
+     "2024": 0.11356109001545889,
+     "2025": -0.01984697741119712,
+     "2026": -0.015914359260915
+    },
+    "years_negative": [
+     "2022",
+     "2025",
+     "2026"
+    ]
+   }
+  }
+ },
+ "scenarios": {
+  "binance_model": {
+   "capital_usd": 1000000.0,
+   "maker": false,
+   "pair_fee_bps": 15.5,
+   "venue": "binance"
+  },
+  "kraken_1m_maker": {
+   "capital_usd": 1000000.0,
+   "maker": true,
+   "pair_fee_bps": 12.0,
+   "venue": "kraken_eu"
+  },
+  "kraken_1m_taker": {
+   "capital_usd": 1000000.0,
+   "maker": false,
+   "pair_fee_bps": 27.0,
+   "venue": "kraken_eu"
+  },
+  "kraken_entry_taker": {
+   "capital_usd": 0.0,
+   "maker": false,
+   "pair_fee_bps": 85.0,
+   "venue": "kraken_eu"
+  }
+ },
+ "what": "Bevroren dagreeksen tegen de fees van een andere beurs (fee_overlay). Spread, impact en funding blijven die van Binance; het beleid (drempels) is niet opnieuw gekozen voor de hogere kosten."
+}

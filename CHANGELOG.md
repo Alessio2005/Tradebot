@@ -4,6 +4,25 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Beurswissel Binance -> Kraken EU (2026-10-25)
+Rapport: `docs/research/2026-10-25-venue-kraken-vs-bybit.md`. Geen bevroren poort, oordeel of
+ledger-entry veranderd.
+- **Bybit valt af:** Bybit EU (MiCA) biedt NL/EER-klanten geen perps; zonder perp-short
+  bestaat het carryboek niet. **Kraken EU kan beide benen**, met 2:1 retail op perps, geen
+  unified margin en alleen BTC/ETH (plus fiat/stablecoins) als perp-onderpand.
+- **Welk boek past:** geen van de vier bevroren boeken in de Binance-indeling. Wel v5-H3
+  (BTC/ETH) met de spot als onderpand in de futureswallet: dezelfde regels, perp/onderpand
+  0,70. `conf/execution/venues.yaml` (profielen met bron en datum),
+  `carry/venues.py` (blokkades, kosten per beurs, fee-overlay) en
+  `artefacts/research/venue_comparison.json`.
+- **Kosten:** 12 bp per paar (Kraken $1 mln maker) tot 85 bp (nieuw account, taker), tegen
+  15,5 bp in het bevroren model. H3 over de hele cyclus: 6,2 % CAGR (Binance) -> 6,0 %
+  (Kraken $1 mln taker) -> 5,3 % (nieuw account).
+- **Kraken-adapter** `carry/kraken.py` (spot + futures, onderpand-overboeking, `reduceOnly`),
+  standaard dry-run; spot-handtekening getoetst tegen de gepubliceerde vector van Kraken.
+- **Onderzoeksdata via Actions:** `data/external_series.py` + `research-run.yml` (T-bill DTB3, €STR,
+  dagfunding Kraken en Binance voor BTC/ETH, tot en met 2026-09-30).
+
 ## Productie-audit (2026-10-24) — eerlijke Sharpe, live-OMS, carry-uitvoeringspad, infra
 Rapport: `docs/research/2026-10-24-production-readiness-audit.md`. Geen bevroren poort,
 oordeel of ledger-entry veranderd; de backtest van v6–v8 is bit-identiek.

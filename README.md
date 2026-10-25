@@ -36,6 +36,13 @@ python -I -m tradebot.carry step --state state/carry.json   # elke nieuwe gesett
 python -I -m tradebot.systematic.restate                    # de bevroren cijfers, eerlijk uitgedrukt
 ```
 
+Beurs (2026-10-25): Binance is niet beschikbaar in Nederland, Bybit EU heeft geen perps
+voor EER-klanten; Kraken EU is de enige beurs die beide benen kan hosten, met beperkingen
+(2:1 retail, geen unified margin, alleen BTC/ETH als onderpand). Zie
+`docs/research/2026-10-25-venue-kraken-vs-bybit.md`, `conf/execution/venues.yaml` en
+`python -I -m tradebot.carry.venues`. De adapter `tradebot.carry.kraken` draait standaard in
+dry-run.
+
 ## Veelgebruikte commando's
 
 ```bash
@@ -60,7 +67,9 @@ Elke pull request draait:
 | `docs.yml` | markdownlint (alleen bij gewijzigde `.md`-bestanden) |
 
 Op `main` en op een schema draaien daarnaast `nightly-regression.yml` en
-`paper-trade-ci.yml`.
+`paper-trade-ci.yml`. `research-run.yml` start alleen met de hand (Actions -> Run workflow):
+hij haalt onderzoeksdata op waar de ontwikkelomgeving niet bij kan (T-bill, €STR, funding van
+Kraken en Binance) en commit het resultaat terug op de branch.
 
 Labels als `DI-24` of `AD-26` in commentaar en commits verwijzen naar het
 register van uitgestelde issues en architectuurbesluiten

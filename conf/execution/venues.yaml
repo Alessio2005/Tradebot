@@ -1,0 +1,84 @@
+# conf/execution/venues.yaml — beurzen voor het carryboek (spot long + perp short).
+#
+# Gecontroleerd op 2026-10-25 via openbare bronnen (zie `sources`), vanuit de positie van
+# een NEDERLANDSE retailklant: het eigenaarsbesluit "Binance -> Kraken of Bybit". Alles wat
+# hier staat, is een stand van zaken met een datum, geen garantie: controleer de feetabel en
+# de producttoegang op de site van de beurs vóór er kapitaal heen gaat.
+#
+# Fees in basispunten per transactie (1 bp = 0,01 %). `spot_tiers` gaat op 30-daags volume
+# OF aangehouden vermogen (Kraken, schema van 9 juli 2026).
+#
+# Gevalideerd door `tradebot.carry.venues.load_venues`.
+venues:
+  binance:
+    label: "Binance (referentie: de bevroren backtest)"
+    available_nl: false            # Binance trok zich in 2023 terug uit Nederland
+    perps_available_nl: false
+    spot_tiers:
+      - {min_usd: 0, maker_bps: 10.0, taker_bps: 10.0}
+    perp_maker_bps: 5.5            # de bevroren config rekent taker 5,5 bp (VIP0 = 5,0)
+    perp_taker_bps: 5.5
+    funding_interval_hours: 8
+    retail_max_perp_leverage: null
+    # Portfolio margin: spot, lening en perps in één account; elke munt telt als onderpand.
+    unified_margin: true
+    collateral_assets: all
+    sources:
+      - conf/model/robust_book_v8.yaml (costs.taker_fee_bps, basis.spot_taker_fee_bps)
+
+  bybit_eu:
+    label: "Bybit EU (Bybit EU GmbH, MiCA-vergunning Oostenrijk)"
+    available_nl: true
+    # Perps zijn voor EER-klanten NIET beschikbaar: daarvoor is een MiFID II-vergunning
+    # nodig (aangevraagd door Bybit X GmbH, sept. 2025; goedkeuring verwacht ~nov. 2026,
+    # niet bevestigd). Bybit global bedient EER-klanten sinds 1 juli 2026 niet meer.
+    perps_available_nl: false
+    spot_tiers:
+      - {min_usd: 0, maker_bps: 10.0, taker_bps: 10.0}   # niet geverifieerd voor Bybit EU
+    perp_maker_bps: null
+    perp_taker_bps: null
+    funding_interval_hours: null
+    retail_max_perp_leverage: null
+    unified_margin: false           # geen perps, dus niets om te verenigen
+    collateral_assets: []
+    sources:
+      - https://casptracker.eu/exchange/bybit/
+      - https://www.financemagnates.com/cryptocurrency/bybit-pursues-mifid-license-for-eu-derivatives-phases-out-mt5-for-in-house-trafi/
+      - https://leodex.io/learn/country-restrictions/bybit-eu-mica-migration
+
+  kraken_eu:
+    label: "Kraken EU (spot: MiCA, Ierland; perps: MiFID II, Cyprus)"
+    available_nl: true
+    perps_available_nl: true
+    # Kraken Pro-schema van 9 juli 2026 (derde bronnen; Kraken's eigen pagina niet
+    # bereikbaar vanuit de ontwikkelomgeving). Tier op 30d-volume OF aangehouden vermogen;
+    # hier gecodeerd op aangehouden vermogen, de drempel die een boek van $1 mln haalt.
+    spot_tiers:
+      - {min_usd: 0,      maker_bps: 40.0, taker_bps: 80.0}
+      - {min_usd: 2500,   maker_bps: 30.0, taker_bps: 60.0}
+      - {min_usd: 20000,  maker_bps: 22.0, taker_bps: 38.0}
+      - {min_usd: 50000,  maker_bps: 20.0, taker_bps: 35.0}
+      - {min_usd: 100000, maker_bps: 15.0, taker_bps: 30.0}
+      - {min_usd: 200000, maker_bps: 12.0, taker_bps: 25.0}
+      - {min_usd: 400000, maker_bps: 10.0, taker_bps: 22.0}
+    perp_maker_bps: 2.0
+    perp_taker_bps: 5.0
+    funding_interval_hours: 1       # EU-klanten: elk uur afgerekend, gemeten over 4 uur
+    # ESMA (24 feb. 2026): perps zijn waarschijnlijk CFD's -> retail max 2:1 op crypto,
+    # margin close-out op 50 %, negatief-saldobescherming. Professionele klanten niet.
+    retail_max_perp_leverage: 2.0
+    # Spot en margin (MiCA-entiteit, Ierland) en perps (MiFID-entiteit, Cyprus) zijn twee
+    # juridische entiteiten: GEEN unified margin. Een USD-lening die spot financiert die
+    # tegelijk de short dekt (v6-v8) bestaat hier niet. Wel: crypto in de futureswallet
+    # als onderpand, voor een beperkte lijst activa, met haircuts (percentages niet
+    # gepubliceerd gevonden).
+    unified_margin: false
+    collateral_assets: [BTC, ETH, USDC, USDT, EUR, GBP]
+    sources:
+      - https://www.kraken.com/features/fee-schedule
+      - https://kubenote.com/kraken-cryptocurrency-fees-a-complete-guide-to-cost-efficient-trading/
+      - https://www.dollarscout.net/crypto/reviews/kraken/
+      - https://blog.kraken.com/product/kraken-derivatives/crypto-collateral-eu-futures
+      - https://www.coindesk.com/business/2025/05/20/kraken-rolls-out-regulated-crypto-derivatives-in-europe
+      - https://www.financemagnates.com/forex/regulation/esma-tells-firms-perpetual-futures-fall-under-eu-cfd-rules/
+      - https://www.kraken.com/au/pro/perps/crypto-perpetuals/funding-rates
