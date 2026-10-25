@@ -242,3 +242,27 @@ def test_main_dispatches_and_refuses(tmp_path: Path, monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(sys, "argv", ["programme_v9"])
     with pytest.raises(DataContractError, match="Gebruik"):
         runpy.run_module("tradebot.systematic.programme_v9", run_name="__main__")
+
+
+def test_the_committed_v9_run_follows_from_the_committed_inputs(cfg):
+    """De dagreeksen en jaarcijfers in `artefacts/research/robust_book_v9` zijn wat `build`
+    geeft op de bevroren H3-reeks en de gecommitte T-bill: niets met de hand."""
+    art = ROOT / v9.ARTEFACT_DIR
+    out = json.loads((art / f"{v9.CANDIDATE}.json").read_text(encoding="utf-8"))
+    base = vn.cycle(ROOT, cfg.base.programme, cfg.base.candidate)
+    u1 = v9.build(base, ex.load_dtb3(ROOT), cfg, v9.pair_fee_bps(ROOT, cfg))
+    w = cfg.windows
+    for label, (a, b) in {"backcast": (w.backcast_start, w.backcast_end),
+                          "w_dev": (w.train_start, w.w_dev_end),
+                          "holdout": (w.holdout_start, w.holdout_end)}.items():
+        saved = pd.read_csv(art / f"{v9.CANDIDATE}_daily_{label}.csv", index_col=0,
+                            parse_dates=True)
+        fresh = v9._slice(u1, a, b)
+        assert saved.index.equals(fresh.index) and list(saved.columns) == list(fresh.columns)
+        pd.testing.assert_frame_equal(saved, fresh, check_dtype=False, rtol=1e-9, atol=1e-15)
+    fresh_years = v9.years(u1)
+    for y, rec in out["full_cycle"]["years"].items():
+        assert rec == pytest.approx(fresh_years[y], rel=1e-12)
+    assert out["preregistration_id"] == v9._prereg(ROOT, cfg)[0].preregistration_id
+    assert out["full_cycle"]["years_negative"] == [] and out["verdict"] == \
+        "falsified_out_of_sample"

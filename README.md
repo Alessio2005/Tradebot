@@ -36,6 +36,10 @@ python -I -m tradebot.carry step --state state/carry.json   # elke nieuwe gesett
 python -I -m tradebot.systematic.restate                    # de bevroren cijfers, eerlijk uitgedrukt
 ```
 
+v9 (2026-10-25): H3 op Kraken EU met de kasrente is elk kalenderjaar positief (CAGR 8 %),
+maar haalt de 15 % niet en is op de holdout gefalsificeerd; zie
+`docs/research/2026-10-25-robust-book-v9-kraken-cash.md`.
+
 Beurs (2026-10-25): Binance is niet beschikbaar in Nederland, Bybit EU heeft geen perps
 voor EER-klanten; Kraken EU is de enige beurs die beide benen kan hosten, met beperkingen
 (2:1 retail, geen unified margin, alleen BTC/ETH als onderpand). Zie

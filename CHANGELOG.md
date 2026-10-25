@@ -4,6 +4,22 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Robuust boek v9: H3 op Kraken EU met de kasrente (2026-10-25)
+Rapport: `docs/research/2026-10-25-robust-book-v9-kraken-cash.md`. Eén trial (M = 32), in de
+ledger en bevroren vóór de run; geen drempel versoepeld.
+- **U1** = de bevroren dagreeks van v5-H3 (BTC/ETH-carry, de enige regelset die op Kraken
+  EU kan), met de fees van Kraken en DTB3 − 50 bp op het kapitaal dat het boek niet
+  gebruikt. De Sharpe-poorten meten het rendement BOVEN de T-bill.
+- **Elk kalenderjaar positief:** +8,7 / +25,6 / +1,3 / +4,5 / +7,9 / +3,3 / +2,3 % (2020-04
+  .. 2026-09), CAGR 8,0 %, max drawdown 0,33 %. Boven de T-bill +4,9 %/jaar, maar licht
+  negatief in 2022, 2023, 2025 en 2026.
+- **Gefalsificeerd** volgens de vooraf vastgelegde regels: g2 (CAGR W_DEV 8,75 % < 15 %) en
+  de holdout (geen carry; het fonds verloor zijn 50 bp aan de T-bill). Voor een belegger in
+  euro's met een dollarafdekking is 2022 −0,7 %.
+- Nieuw: `systematic/programme_v9.py`, `conf/model/robust_book_v9.yaml`,
+  `conf/research/preregistration_robust_book_v9.yaml`, `data/external/*.csv` (via
+  `research-run`), `artefacts/research/robust_book_v9/`.
+
 ## Beurswissel Binance -> Kraken EU (2026-10-25)
 Rapport: `docs/research/2026-10-25-venue-kraken-vs-bybit.md`. Geen bevroren poort, oordeel of
 ledger-entry veranderd.

@@ -144,8 +144,13 @@ time-out en daarna een marktorder.
 
 ## 6. Wat open blijft
 
-- **De funding van Kraken tegen die van Binance.** Gemeten door de workflow van §5. De uitkomst
-  staat in het v9-rapport.
+- **De funding van Kraken tegen die van Binance.** Gemeten door de workflow van §5, over de
+  351 dagen die Kraken publiceert (vanaf 2025-10-15):
+  - BTC: 3,0 %/jaar tegen 3,3 %;
+  - ETH: 3,3 %/jaar tegen 2,5 %;
+  - correlatie per dag ~0,6.
+
+  Zie `2026-10-25-robust-book-v9-kraken-cash.md` §4.
 - **Spread en impact op Kraken** zijn niet gemeten. Daarvoor is orderboekdata van Kraken
   nodig.
 - **De adapter heeft nog geen echte order gezien** (§4.4).
