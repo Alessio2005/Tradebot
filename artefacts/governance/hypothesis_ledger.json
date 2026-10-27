@@ -346,6 +346,44 @@
       "metrics": {},
       "notes": "Vier geplande trials, geboekt vóór de eerste fit: referentie, logreg, forest, ensemble.",
       "amends": ""
+    },
+    {
+      "wave": 9,
+      "unit": "robust_book_v9_programme",
+      "market": "crypto",
+      "config_hash": "aa952884b440290b",
+      "n_trials": 1,
+      "result": "interim",
+      "git_sha": "16790e4",
+      "data_hash": "c4d714d680a6e15f",
+      "preregistration_id": "b366dbfe7cb1cc03d08be352e4b9c9cd",
+      "ts_utc": "2026-10-25T17:00:58.449612+00:00",
+      "metrics": {},
+      "notes": "Eén geplande trial: U1 = v5-H3 op Kraken EU (spot als onderpand, Kraken-fees) met kasrente op het ongebruikte kapitaal. Post-hoc: ontworpen met de jaarcijfers van H3 in de hand; alle vensters zijn verbruikt. Het schone bewijs is het vooruit-sample.",
+      "amends": ""
+    },
+    {
+      "wave": 9,
+      "unit": "robust_book_v9_verdict",
+      "market": "crypto",
+      "config_hash": "aa952884b440290b",
+      "n_trials": 0,
+      "result": "falsified",
+      "git_sha": "eab66eb",
+      "data_hash": "c4d714d680a6e15f",
+      "preregistration_id": "b366dbfe7cb1cc03d08be352e4b9c9cd",
+      "ts_utc": "2026-10-25T17:01:14.751931+00:00",
+      "metrics": {
+        "candidate": "U1_KRAKEN_MAJORS_CASH",
+        "verdict": "falsified_out_of_sample",
+        "excess_sharpe_w_dev": 5.1425551797160685,
+        "net_cagr_w_dev": 0.0875026404749415,
+        "full_cagr": 0.07986873581987686,
+        "min_year": 0.013297844818253468,
+        "years_negative": []
+      },
+      "notes": "Oordeel v9 over W_DEV, de backcast, de holdout en de hele cyclus (alle verbruikt). Het vooruit-sample volgt.",
+      "amends": "aa952884b440290b"
     }
   ]
 }
