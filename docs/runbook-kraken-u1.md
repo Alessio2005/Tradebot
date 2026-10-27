@@ -30,6 +30,12 @@ Wat het boek is, wat het nu doet, en hoe het van shadow naar echt geld gaat. Ach
   trial.
 - **Vooruit-sample:** loopt sinds 2026-10-01 en wordt eenmaal gelezen vanaf 2027-04-01,
   met `research-run`, taak `v9-forward`.
+- **Eerste shadow op de echte Kraken-data** (2026-10-27, bar van 26 oktober):
+  - de carry over 30 dagen is 10,4 % voor BTC en 8,2 % voor ETH, onder de instap van 15 %;
+  - het boek staat dus in kas;
+  - vooruit (27 dagen): +0,25 %, alleen kasrente, en −0,05 % boven de T-bill;
+  - op de Kraken-data sinds oktober 2025 is het boek niet ingestapt. 2026 tot nu: +2,5 %,
+    −0,5 % boven de T-bill.
 - **Shadow:** elke dag op de echte Kraken-data, via `.github/workflows/kraken-shadow.yml`.
   Het resultaat staat in de samenvatting van de run en in een artefact. De shadow verandert
   niets aan het boek. Wie op grond van de shadow het ontwerp wil veranderen, boekt een
