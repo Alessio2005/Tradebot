@@ -1,8 +1,7 @@
 """Het contract met een beurs, en de paper-venue.
 
-Wat een echte adapter (Binance spot + USDⓈ-M + portfolio margin) moet leveren, staat in
-`Venue`. Hij staat hier niet: zonder toegang tot de beurs en een testnet is een adapter
-ongetoetste code die er af uitziet. Dit zijn de eisen die hij moet halen:
+Wat een echte adapter moet leveren, staat in `Venue`; de adapter voor Kraken EU staat in
+`carry.kraken` (standaard dry-run). Dit zijn de eisen die hij moet halen:
 
 * `book()` geeft de WERKELIJKE stand: spot per munt, de perp-short per munt (positief)
   en de equity van het account in USD (inclusief lening, ongerealiseerde P&L, funding).

@@ -3,6 +3,7 @@
     python -I -m tradebot.data.external_series             # op Actions: T-bill, €STR, funding
     python -I -m tradebot.systematic.programme_v9 freeze   # ledger + prereg (M = ledger)
     python -I -m tradebot.systematic.programme_v9 run      # de hele cyclus, poorten, jaren
+    python -I -m tradebot.systematic.programme_v9 forward  # vanaf 2027-04-01, eenmaal (Kraken)
 
 WAAROM v9 BESTAAT. Eigenaarsbesluit 2026-10-25: weg van Binance (niet in Nederland), en elk
 jaar winst. Op Kraken EU kan van de bevroren boeken alleen de regelset van v5-H3 (BTC en
@@ -22,10 +23,12 @@ DE BEREKENING, per dag t (alles uit bevroren of gehashte invoer):
 1. `net_K` = de dagreeks van H3 met de fees van Kraken (`carry.venues.fee_overlay`, exact).
 2. `committed_t` = spot / 0,70, hoogstens 1: het deel van het kapitaal dat H3 vastlegt
    (spot plus zijn USD-buffer).
-3. Geld gaat pas `release_after_days` na het laatste gebruik naar het fonds, en komt
-   `lead_days` vóór het volgende gebruik terug: `need_t = max(committed[t-R .. t+L])`. Het
-   besluit van t+1 valt op t (lag 1); de tweede dag is de overboeking. Deze regel kan
-   alleen rente wegnemen.
+3. Geld gaat pas `release_after_days` na het laatste gebruik naar het fonds, en verdient
+   `lead_days` vóór het volgende gebruik al geen rente: `need_t = max(committed[t-R .. t+L])`.
+   De backtest besluit en handelt op dezelfde close; deze regel kijkt dus naar posities die
+   live nog niet bekend zijn, en kan alleen rente wegnemen. Live wacht een instap op de
+   overboeking (`carry.u1`): een dag of twee later, wat de batterij van v5 meet (Sharpe
+   bij lag 2 / basis 0,99).
 4. `cash_t = max(0, 1 − buffer − need_t) · max(0, DTB3_{t-1} − 50 bp) / 365`.
 5. `net_t = net_K + cash_t`; `excess_t = net_t − DTB3_{t-1} / 365`.
 """
@@ -46,6 +49,7 @@ import yaml
 from ..backtest.vectorized import EVIDENCE_KEY, NOT_ADMISSIBLE
 from ..carry import venues as vn
 from ..data import external_series as ex
+from ..data import kraken_feed as kf
 from ..features.registry import current_git_sha
 from ..registry.hypothesis_ledger import HypothesisLedger, LedgerEntry
 from ..registry.preregistration import (
@@ -53,14 +57,18 @@ from ..registry.preregistration import (
     load_preregistration_spec,
     require_preregistration,
 )
+from ..schemas.robust_book_v2 import robust_book_v5_config
 from ..utils.failfast import ConfigContractError, DataContractError, require
 from ..utils.hashing import hash_config
+from ..validation.holdout import gate_slice
 from . import programme_v2 as v2
+from . import programme_v5 as v5
 from .book import BookResult
 from .evaluate import dsr_record, gate_z, summarize
+from .programme_v6 import forward_window_ready
 
-__all__ = ["CANDIDATE", "V9Config", "build", "cash_fraction", "freeze", "load_config", "main",
-           "run_programme"]
+__all__ = ["CANDIDATE", "V9Config", "build", "cash_fraction", "cash_overlay", "freeze",
+           "load_config", "main", "run_programme"]
 
 ROOT = v2.ROOT
 CONFIG = Path("conf/model/robust_book_v9.yaml")
@@ -259,20 +267,29 @@ def _on_index(series: pd.Series, index: pd.DatetimeIndex) -> pd.Series:
     return pd.Series(out.to_numpy(), index=index, name=series.name)
 
 
-def build(frame: pd.DataFrame, dtb3: pd.Series, cfg: V9Config, pair_fee: float) -> pd.DataFrame:
-    """De dagreeks van U1 uit de bevroren H3-reeks: zie de moduledocstring."""
+def cash_overlay(frame: pd.DataFrame, dtb3: pd.Series, cfg: V9Config) -> pd.DataFrame:
+    """Stap 2-5 van de moduledocstring op een dagreeks die zijn fees al draagt.
+
+    Gedeeld door v9 (op de bevroren H3-reeks) en het Kraken-boek (`carry.u1`, op een run
+    met de fees en de koersen van Kraken): één kasregel."""
     out = frame.copy()
-    k = float(pair_fee) / vn.FROZEN_PAIR_FEE_BPS
-    out["fees"] = frame["fees"] * k
     rf = _on_index(dtb3, frame.index)
     rate = (rf - cfg.cash.haircut_apr).clip(lower=0.0) / cfg.cash.day_count
     out["committed"] = committed(frame, cfg)
     out["cash_fraction"] = cash_fraction(out["committed"], cfg)
     out["cash"] = out["cash_fraction"] * rate
     out["rf"] = rf / cfg.cash.day_count
-    out["net"] = vn.fee_overlay(frame, pair_fee) + out["cash"]
+    out["net"] = frame["net"] + out["cash"]
     out["excess"] = out["net"] - out["rf"]
     return out
+
+
+def build(frame: pd.DataFrame, dtb3: pd.Series, cfg: V9Config, pair_fee: float) -> pd.DataFrame:
+    """De dagreeks van U1 uit de bevroren H3-reeks: zie de moduledocstring."""
+    kraken = frame.copy()
+    kraken["fees"] = frame["fees"] * (float(pair_fee) / vn.FROZEN_PAIR_FEE_BPS)
+    kraken["net"] = vn.fee_overlay(frame, pair_fee)
+    return cash_overlay(kraken, dtb3, cfg)
 
 
 # --------------------------------------------------------------------------- #
@@ -491,14 +508,90 @@ def run_programme(root: Path = ROOT, *, log: Callable[[str], None] = print) -> d
     return out
 
 
+# --------------------------------------------------------------------------- #
+# De vooruit-lezing: eenmaal, na zes volle maanden, op de data van Kraken
+# --------------------------------------------------------------------------- #
+FORWARD_START = "2026-10-01"
+FORWARD_MONTHS = 6
+FORWARD_DIR = ARTEFACT_DIR / "forward"
+
+
+def read_forward(root: Path = ROOT, *, get: Callable[..., Any] | None = None,
+                 now: pd.Timestamp | None = None,
+                 log: Callable[[str], None] = print) -> dict[str, Any]:
+    """De vooraf vastgelegde vooruit-criteria van v9, eenmaal (het slot telt de lezing).
+
+    Wat hier anders is dan in de run: het boek rekent op de PRIJZEN EN FUNDING VAN KRAKEN
+    (`data.kraken_feed`, `carry.u1`), niet op de bevroren H3-reeks; dat is het boek dat
+    live kan. Wat gelijk is: de regels, de kasregel, de bevroren preregistratie en de
+    W_DEV-Sharpe waartegen de z gemeten wordt. De gelezen data gaat met haar manifest mee
+    in de commit (`FORWARD_DIR`)."""
+    from ..carry import u1  # hier, niet bovenaan: u1 bouwt op deze module
+
+    done = json.loads((root / ARTEFACT_DIR / f"{CANDIDATE}.json").read_text(encoding="utf-8"))
+    prereg_id = done["preregistration_id"]
+    frozen = require_preregistration(prereg_id, directory=root / v2.PREREG_DIR)
+    dev_sr = float(done["w_dev"]["excess"]["sharpe"])
+    fetch = kf._get if get is None else get
+    panels = kf.fetch_panels(fetch, now=now)
+    # Alleen het RASTER, geen enkele waarde: dit mag vóór de registratie.
+    ok, need = forward_window_ready(panels.perp["close"].index, FORWARD_START, FORWARD_MONTHS)
+    require(ok, "Nog geen zes volle maanden vooruit-data; de lezing wordt NIET geregistreerd.",
+            DataContractError, last_bar=str(panels.last), needed=str(need))
+    hid = f"robust_book_v9/{prereg_id}/{CANDIDATE}"
+    v2.require_lock_split(root / FORWARD_LOCK, FORWARD_START)
+    manifest = kf.write_panels(panels, root / FORWARD_DIR)
+    market = kf.kraken_market(panels, robust_book_v5_config(root / v5.CONFIG))
+    window = gate_slice(market.perp.book.close, lock_path=root / FORWARD_LOCK,
+                        hypothesis_id=hid)
+    fa, fb = pd.Timestamp(window.index[0]), pd.Timestamp(window.index[-1])
+    dtb3 = ex.fetch_dtb3(fb.tz_convert(None), fetch)
+    dtb3.to_frame("dtb3").to_csv(root / FORWARD_DIR / "dtb3.csv", float_format="%.6g",
+                                 lineterminator="\n")
+    ctx = u1.build_context(root, market)
+    res = u1.simulate(ctx)
+    u = cash_overlay(res.frame, dtb3, load_config(root / CONFIG)).loc[fa:fb]
+    read = _window_read(u, dev_sr)
+    metrics = {"forward_sharpe_z_vs_dev": read["z_vs_dev"],
+               "forward_max_drawdown": read["net"]["max_drawdown"],
+               "forward_n_liquidations": float(read["n_liquidations"]),
+               "forward_return": float((1.0 + u["net"]).prod() - 1.0)}
+    gates = v2._gates(metrics, frozen)
+    falsify = {c.name for c in frozen.stop_criteria if c.action == "falsify"}
+    binding = sorted(k for k, g in gates.items() if g["binds"])
+    verdict = "forward_clear" if not binding else (
+        "falsified_forward" if set(binding) & falsify else "archived_forward")
+    out = {"hypothesis_id": hid, "candidate": CANDIDATE, "window": [str(fa), str(fb)],
+           "w_dev_excess_sharpe": dev_sr, "gate_metrics": metrics, "gates": gates,
+           "binding": binding, "verdict": verdict, "prior_verdict": done["verdict"],
+           "panels": manifest, "excess": read["excess"], "net": read["net"],
+           "note": "De vooruit-criteria alleen. v9 was al gefalsificeerd op de holdout; "
+                   "kapitaal vraagt een nieuw, vooraf vastgelegd mandaat.",
+           EVIDENCE_KEY: NOT_ADMISSIBLE}
+    v2._dump(root / ARTEFACT_DIR / "forward_read.json", out)
+    HypothesisLedger(root / v2.LEDGER_PATH).append(LedgerEntry.from_config(
+        wave=WAVE, unit="robust_book_v9_forward", market="crypto",
+        config=_params(load_config(root / CONFIG)), git_sha=current_git_sha(),
+        data_hash=hash_config(manifest["files"]), preregistration_id=prereg_id, n_trials=0,
+        result="falsified" if verdict == "falsified_forward" else "archived",
+        amends=hash_config(_params(load_config(root / CONFIG))),
+        metrics={"candidate": CANDIDATE, "verdict": verdict, **{
+            k: _finite(v) for k, v in metrics.items()}},
+        notes="De vooruit-lezing van v9-U1 op de data van Kraken."))
+    log(f"vooruit {CANDIDATE}: {json.dumps(metrics, default=float)} -> {verdict}")
+    return out
+
+
 def main(argv: Sequence[str]) -> None:
-    require(len(argv) == 1 and argv[0] in ("freeze", "run"),
-            "Gebruik: python -I -m tradebot.systematic.programme_v9 {freeze|run}",
+    require(len(argv) == 1 and argv[0] in ("freeze", "run", "forward"),
+            "Gebruik: python -I -m tradebot.systematic.programme_v9 {freeze|run|forward}",
             DataContractError)
     if argv[0] == "freeze":
         print(freeze(ROOT))
-    else:
+    elif argv[0] == "run":
         run_programme(ROOT)
+    else:
+        read_forward(ROOT)
 
 
 if __name__ == "__main__":

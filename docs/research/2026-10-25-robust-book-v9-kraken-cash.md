@@ -63,10 +63,16 @@ die van v5–v8:
   - het rendement is DTB3 van de vorige dag, min 50 bp, nooit onder nul, op 365 dagen;
   - een vaste werkvoorraad van 5 % blijft op de beurs;
   - geld dat H3 vrijgeeft, gaat pas na 7 dagen naar het fonds;
-  - geld dat H3 nodig heeft, staat 2 dagen vóór de transactie op de beurs. Het besluit
-    valt een dag vooraf (lag 1).
+  - geld dat H3 nodig heeft, verdient 2 dagen vóór de transactie al geen rente.
 
   Deze regels kunnen alleen rente wegnemen, nooit een transactie beter maken.
+
+  > **Correctie 2026-10-27.** Hier stond dat het besluit "een dag vooraf (lag 1)" valt.
+  > Dat klopt niet: de backtest besluit en handelt op dezelfde close. De kasregel kijkt
+  > dus naar posities die live nog niet bekend zijn. Dat raakt de cijfers hierboven niet,
+  > want de regel kan alleen rente wegnemen. Live wacht een instap wel op de overboeking
+  > naar Kraken (`carry.u1`). Die dag of twee vertraging is niet in U1 gerekend; de
+  > batterij van v5 begrenst haar (Sharpe bij lag 2 / basis 0,99).
 - **De Sharpe-poorten meten het rendement boven de T-bill.** Zonder die aftrek is elke
   kasstrategie een Sharpe-wonder. Daarbij komen drie criteria die strenger zijn dan v5–v8:
   - de Sharpe op maandrendementen ≥ 1,0;

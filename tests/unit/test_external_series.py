@@ -199,3 +199,11 @@ def test_the_real_transport_raises_on_http_errors(monkeypatch: pytest.MonkeyPatc
     with pytest.raises(requests.HTTPError):
         ex._get(ex.FRED_URL, {"id": "DTB3", "status": 500})  # type: ignore[dict-item]
     assert seen == {"url": ex.FRED_URL, "params": {"id": "DTB3"}, "timeout": 60}
+
+
+def test_fetch_dtb3_reads_past_the_cycle_and_fills_to_the_last_day():
+    text = "observation_date,DTB3\n2026-09-30,3.80\n2026-10-23,3.70\n2026-10-26,.\n"
+    s = ex.fetch_dtb3(pd.Timestamp("2026-10-27 06:00"), get=lambda url, params: _Resp(text=text))
+    assert s.index.max() == pd.Timestamp("2026-10-27")
+    assert s.loc["2026-10-27"] == pytest.approx(0.037) and s.loc["2026-10-22"] == pytest.approx(0.038)
+    assert ex.parse_dtb3(text).index.max() == ex.LAST_DAY   # het onderzoek leest niet verder

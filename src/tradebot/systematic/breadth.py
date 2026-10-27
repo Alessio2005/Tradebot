@@ -126,7 +126,8 @@ def bridge_data_holes(frame: pd.DataFrame, close: pd.DataFrame, *,
 
 def breadth_from_frames(close: pd.DataFrame, high: pd.DataFrame, low: pd.DataFrame,
                         quote_volume: pd.DataFrame, funding: pd.DataFrame,
-                        cfg: RobustBookV2Config, *, source: str) -> BreadthMarket:
+                        cfg: RobustBookV2Config, *, source: str,
+                        min_members: int = 4) -> BreadthMarket:
     """Vorm U_t en beperk de kolommen tot munten die ooit in U_t zaten.
 
     De beperking is survivorship-vrij: lidmaatschap van U_t is point-in-time, en een
@@ -138,13 +139,16 @@ def breadth_from_frames(close: pd.DataFrame, high: pd.DataFrame, low: pd.DataFra
     beweging valt op de eerste bar erna. Een langer gat geldt als delisting plus
     herintrede. Het overbruggen kijkt alleen terug (ffill), maar weet wel dat de munt na
     het gat terugkomt; dat is een eigenschap van de bron, geen handelsinformatie.
+
+    `min_members`: een breed universum (v2-v8) vraagt er minstens vier; het majorsboek op
+    Kraken (`data.kraken_feed`) heeft er per constructie twee.
     """
     close, high, low, quote_volume = (bridge_data_holes(x, close) for x in (
         close, high, low, quote_volume))
     universe = universe_mask(close, quote_volume, cfg)
     members = [s for s in close.columns if bool(universe[s].any())]
-    require(len(members) >= 4, "Te weinig munten ooit in het universum.",
-            DataContractError, n=len(members))
+    require(len(members) >= int(min_members), "Te weinig munten ooit in het universum.",
+            DataContractError, n=len(members), min_members=int(min_members))
     close = close[members]
     ret = close.pct_change(fill_method=None)
     listed = close.notna()

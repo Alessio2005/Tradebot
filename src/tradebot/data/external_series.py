@@ -36,8 +36,8 @@ from ..utils.failfast import DataContractError, require
 from . import binance_vision as bv
 
 __all__ = ["BINANCE_PERPS", "KRAKEN_PERPS", "LAST_DAY", "binance_daily_funding", "fetch_all",
-           "kraken_daily_funding", "load_dtb3", "load_estr", "load_funding", "main",
-           "parse_dtb3", "parse_estr", "parse_kraken_funding"]
+           "fetch_dtb3", "kraken_daily_funding", "load_dtb3", "load_estr", "load_funding",
+           "main", "parse_dtb3", "parse_estr", "parse_kraken_funding"]
 
 ROOT = Path(__file__).resolve().parents[3]
 FRED_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
@@ -60,22 +60,25 @@ def _get(url: str, params: Mapping[str, str]) -> requests.Response:
     return r
 
 
-def _window(s: pd.Series) -> pd.Series:
-    s = s[(s.index >= FIRST_DAY) & (s.index <= LAST_DAY)].sort_index()
+def _window(s: pd.Series, last_day: pd.Timestamp = LAST_DAY) -> pd.Series:
+    s = s[(s.index >= FIRST_DAY) & (s.index <= last_day)].sort_index()
     require(not s.empty, "Een reeks zonder waarnemingen in de onderzoekscyclus.",
             DataContractError, name=s.name)
     return s
 
 
-def parse_dtb3(text: str) -> pd.Series:
-    """FRED-CSV (`observation_date,DTB3` of `DATE,DTB3`, `.` = geen notering) -> fractie."""
+def parse_dtb3(text: str, *, last_day: pd.Timestamp = LAST_DAY) -> pd.Series:
+    """FRED-CSV (`observation_date,DTB3` of `DATE,DTB3`, `.` = geen notering) -> fractie.
+
+    `last_day` is voor het onderzoek het einde van de cyclus; alleen het Kraken-boek
+    (`carry.u1`, shadow en live) leest verder."""
     df = pd.read_csv(io.StringIO(text), na_values=["."])
     require(df.shape[1] == 2 and df.columns[1] == "DTB3", "Geen DTB3-CSV van FRED.",
             DataContractError, columns=list(df.columns))
     s = pd.Series(df.iloc[:, 1].to_numpy() / 100.0, index=pd.to_datetime(df.iloc[:, 0]),
                   name="dtb3").dropna()
     s.index.name = "date"
-    s = _window(s)
+    s = _window(s, pd.Timestamp(last_day))
     require(bool(((s > -0.01) & (s < 0.25)).all()), "Een T-bill-rente buiten -1 .. 25 %.",
             DataContractError)
     return s
@@ -191,9 +194,18 @@ def load_dtb3(root: Path = ROOT) -> pd.Series:
     return _daily(pd.read_csv(_verified(root, DTB3_CSV), index_col=0, parse_dates=True)["dtb3"])
 
 
-def _daily(s: pd.Series) -> pd.Series:
-    days = pd.date_range(s.index.min(), LAST_DAY, freq="D", name="date")
+def _daily(s: pd.Series, last_day: pd.Timestamp = LAST_DAY) -> pd.Series:
+    days = pd.date_range(s.index.min(), last_day, freq="D", name="date")
     return s.reindex(days).ffill()
+
+
+def fetch_dtb3(last_day: pd.Timestamp, get: Callable[..., Any] = _get) -> pd.Series:
+    """De T-bill per kalenderdag tot en met `last_day`, live van FRED (niet gecommit).
+
+    Voor het Kraken-boek, dat elke dag tot gisteren rekent; de laatste notering geldt tot
+    er een nieuwe is."""
+    last = pd.Timestamp(last_day).normalize()
+    return _daily(parse_dtb3(get(FRED_URL, {"id": "DTB3"}).text, last_day=last), last)
 
 
 def load_estr(root: Path = ROOT) -> pd.Series:
