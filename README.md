@@ -21,13 +21,34 @@ pre-commit install
 De dvc-CLI voor het manifest `data/pit_store.dvc` is optioneel:
 `pip install -e ".[data]"`. De PIT-store zelf staat in git.
 
-## Stand (2026-10-24)
+## Stand (2026-10-27)
 
-Er is geen strategie die kapitaal verdient. De enige kandidaat is de spot-perp-carry
-v8-T2; zijn echte Sharpe is ~1,5 (niet de 5 uit `sqrt(365)`), en de schone toets is de
-vooruit-lezing vanaf april 2027. Zie `docs/research/2026-10-24-production-readiness-audit.md`.
+Er is geen strategie die volgens de vooraf vastgelegde regels kapitaal verdient. Zie
+`docs/research/2026-10-24-production-readiness-audit.md` voor de audit.
 
-Het carryboek draait als shadowboek met dezelfde code als de backtest:
+**Beurs.** Binance is niet beschikbaar in Nederland en Bybit EU heeft geen perps voor
+EER-klanten. Kraken EU is de enige beurs die beide benen kan hosten, met beperkingen: 2:1
+retail, geen unified margin, alleen BTC/ETH als onderpand. Zie
+`docs/research/2026-10-25-venue-kraken-vs-bybit.md` en `conf/execution/venues.yaml`.
+
+**Het boek dat op Kraken kan: v9-U1.** Dat zijn de regels van v5-H3 op BTC en ETH, met de
+fees van Kraken en de kasrente.
+- Over de backtest 2020-04 .. 2026-09 was elk kalenderjaar positief, met 8,0 % CAGR.
+- Het boek haalt de 15 % van het mandaat niet, en is op de holdout gefalsificeerd. Zie
+  `docs/research/2026-10-25-robust-book-v9-kraken-cash.md`.
+- Het draait elke dag als shadow op de echte Kraken-data (`kraken-shadow.yml`).
+- Een live-stap is er ook, standaard in dry-run.
+- Van dry-run naar echt geld: `docs/runbook-kraken-u1.md`.
+
+```bash
+python -I -m tradebot.carry.u1 shadow --out shadow                              # Kraken-data, geen order
+python -I -m tradebot.carry.u1 step --state state/u1-dry.json --capital-usd N   # dry-run
+python -I -m tradebot.carry.u1 status --state state/u1-dry.json
+python -I -m tradebot.systematic.programme_v9 forward                           # eenmaal, vanaf 2027-04-01
+```
+
+Het v8-T2-boek (Binance, unified margin) draait als shadow op Binance-panelen voor zijn
+eigen vooruit-lezing. Op Kraken kan het niet.
 
 ```bash
 python -I -m tradebot.data.binance_vision forward YYYY-MM   # vooruit-panelen
@@ -35,17 +56,6 @@ python -I -m tradebot.carry init --state state/carry.json   # beginstand = backt
 python -I -m tradebot.carry step --state state/carry.json   # elke nieuwe gesettelde bar
 python -I -m tradebot.systematic.restate                    # de bevroren cijfers, eerlijk uitgedrukt
 ```
-
-v9 (2026-10-25): H3 op Kraken EU met de kasrente is elk kalenderjaar positief (CAGR 8 %),
-maar haalt de 15 % niet en is op de holdout gefalsificeerd; zie
-`docs/research/2026-10-25-robust-book-v9-kraken-cash.md`.
-
-Beurs (2026-10-25): Binance is niet beschikbaar in Nederland, Bybit EU heeft geen perps
-voor EER-klanten; Kraken EU is de enige beurs die beide benen kan hosten, met beperkingen
-(2:1 retail, geen unified margin, alleen BTC/ETH als onderpand). Zie
-`docs/research/2026-10-25-venue-kraken-vs-bybit.md`, `conf/execution/venues.yaml` en
-`python -I -m tradebot.carry.venues`. De adapter `tradebot.carry.kraken` draait standaard in
-dry-run.
 
 ## Veelgebruikte commando's
 
@@ -70,10 +80,17 @@ Elke pull request draait:
 | `security-scan.yml` | bandit en pip-audit tegen de lockfiles |
 | `docs.yml` | markdownlint (alleen bij gewijzigde `.md`-bestanden) |
 
-Op `main` en op een schema draaien daarnaast `nightly-regression.yml` en
-`paper-trade-ci.yml`. `research-run.yml` start alleen met de hand (Actions -> Run workflow):
-hij haalt onderzoeksdata op waar de ontwikkelomgeving niet bij kan (T-bill, €STR, funding van
-Kraken en Binance) en commit het resultaat terug op de branch.
+Op `main` en op een schema draaien daarnaast `nightly-regression.yml`,
+`paper-trade-ci.yml` en `kraken-shadow.yml`. Die laatste draait het Kraken-boek elke dag
+op de echte data: alleen lezen, geen sleutel, geen order.
+
+`research-run.yml` start alleen met de hand (Actions -> Run workflow). Hij doet het werk
+waar de ontwikkelomgeving geen netwerk voor heeft:
+- onderzoeksdata ophalen (T-bill, €STR, funding van Kraken en Binance);
+- de vooruit-lezing van v9;
+- een shadowrun op een willekeurige branch.
+
+Wat de run schrijft, commit hij terug op de branch.
 
 Labels als `DI-24` of `AD-26` in commentaar en commits verwijzen naar het
 register van uitgestelde issues en architectuurbesluiten

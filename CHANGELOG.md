@@ -4,6 +4,42 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Het Kraken-boek draait: feed, live-stap, dagelijkse shadow, vooruit-lezing (2026-10-27)
+Draaiboek: `docs/runbook-kraken-u1.md`. Geen bevroren poort, oordeel, ledger-entry of
+backtest veranderd.
+- **`systematic.harvest.basis_decide`**: het besluit van één bar van H3 (band, hedge,
+  margevloer, gedwongen exit, stof) staat nu op één plek, voor de backtest en het live-boek.
+  Getoetst met een vingerafdruk van `run_basis` over 324 synthetische runs, met
+  liquidaties en gedwongen exits: bit-identiek.
+- **`data.kraken_feed`**: de spot-OHLC, de perp-candles en de funding van Kraken, in
+  dezelfde panelen en `BasisMarket` als die van Binance.
+  - Alleen afgesloten bars.
+  - De index is de sluittijd van de bar.
+  - De dagomzet moet plausibel zijn; dat vangt een verkeerde eenheid.
+  - `breadth_from_frames` kreeg daarvoor `min_members`, standaard 4.
+- **`carry.u1`**: het boek dat op Kraken kan.
+  - `shadow` rekent het boek op de Kraken-data, met de kasregel van v9.
+  - `step` reconcilieert eerst de beurs en past dan `basis_decide` toe op wat de beurs
+    houdt. Het besluit wordt orders in de margeveilige volgorde. De stap meldt ook wat er
+    van of naar het geldmarktfonds moet.
+  - `unwind` sluit alles, eerst de shorts.
+  - Standaard draait het boek dry-run. Live alleen met `--live` en sleutels in de omgeving.
+- **`kraken-shadow.yml`**: de shadow elke dag op Actions, alleen lezend.
+- **`programme_v9 forward`**: de vooraf vastgelegde vooruit-lezing op Kraken-data.
+  - Vóór 2027-04-01 weigert hij, zonder te registreren.
+  - De lezing staat in het slot vóór de berekening.
+  - `research-run` (taak `v9-forward`) commit slot en ledger ook na een fout.
+- **Correctie (v9):** de config, de module en het rapport zeiden dat het besluit "een dag
+  vooraf (lag 1)" valt. De backtest besluit en handelt echter op dezelfde close.
+  - De kasregel kan alleen rente wegnemen; de cijfers veranderen niet.
+  - Live wacht een instap op de overboeking. Die vertraging is niet in U1 gerekend; de
+    batterij van v5 begrenst haar op een Sharpe-verhouding van 0,99 bij lag 2.
+- **Kleinere punten:**
+  - `carry.orders.Deltas` (Protocol) en `runner.after_fills` zijn nu openbaar; het
+    Kraken-boek gebruikt ze ook.
+  - De docstrings van het carry-pakket noemen de Kraken-adapter.
+  - Een test controleert dat elke `tradebot`-module die een workflow aanroept, bestaat.
+
 ## Robuust boek v9: H3 op Kraken EU met de kasrente (2026-10-25)
 Rapport: `docs/research/2026-10-25-robust-book-v9-kraken-cash.md`. Eén trial (M = 32), in de
 ledger en bevroren vóór de run; geen drempel versoepeld.

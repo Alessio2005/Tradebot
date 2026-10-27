@@ -10,7 +10,9 @@
 zet de beginstand (de backtest tot de start), `step` verwerkt elke nieuwe gesettelde bar
 en schrijft per bar één beslisregel naar het log (JSONL, standaard naast de staat).
 
-Live handelen gaat NIET via deze CLI: daarvoor is een `venue.Venue`-adapter nodig.
+Dit is het shadowboek van v8-T2 op Binance-panelen (de vooruit-lezing van v8). Het boek dat
+op Kraken EU kan draaien, live of dry-run, heeft een eigen CLI: `python -I -m
+tradebot.carry.u1` (zie `carry/u1.py`).
 """
 from __future__ import annotations
 

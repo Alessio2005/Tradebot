@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCKERFILES = sorted(p for p in (ROOT / "infra/docker").glob("Dockerfile*")
                      if not p.name.endswith(".dockerignore"))
 MANIFESTS = sorted((ROOT / "infra/k8s").glob("*.yaml"))
+WORKFLOWS = sorted((ROOT / ".github/workflows").glob("*.yml"))
 
 
 def _docs(path: Path) -> list[dict]:
@@ -44,7 +45,16 @@ def _modules(text: str) -> list[str]:
 
 
 def test_there_is_something_to_check():
-    assert DOCKERFILES and MANIFESTS
+    assert DOCKERFILES and MANIFESTS and WORKFLOWS
+
+
+@pytest.mark.parametrize("workflow", WORKFLOWS, ids=lambda p: p.name)
+def test_every_workflow_runs_modules_that_exist(workflow: Path):
+    """Een workflow die een niet-bestaande `tradebot`-module aanroept, faalt pas als hij
+    draait: voor een geplande of handmatige workflow kan dat weken na de merge zijn."""
+    for mod in _modules(workflow.read_text(encoding="utf-8")):
+        if mod.startswith("tradebot"):
+            assert importlib.util.find_spec(mod) is not None, f"{workflow.name}: {mod}"
 
 
 @pytest.mark.parametrize("dockerfile", DOCKERFILES, ids=lambda p: p.name)

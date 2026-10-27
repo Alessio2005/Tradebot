@@ -20,6 +20,7 @@ from tradebot.data import external_series as ex
 from tradebot.systematic import programme_v2 as v2
 from tradebot.systematic import programme_v9 as v9
 from tradebot.utils.failfast import ConfigContractError, DataContractError
+from tradebot.validation.holdout import HoldoutAlreadyUsed
 
 ROOT = Path(__file__).resolve().parents[2]
 DAYS = pd.date_range("2019-09-01", "2026-09-30", freq="D")
@@ -266,3 +267,62 @@ def test_the_committed_v9_run_follows_from_the_committed_inputs(cfg):
     assert out["preregistration_id"] == v9._prereg(ROOT, cfg)[0].preregistration_id
     assert out["full_cycle"]["years_negative"] == [] and out["verdict"] == \
         "falsified_out_of_sample"
+
+
+# --------------------------------------------------------------------------- #
+# De vooruit-lezing (op een kopie van de governance: het slot telt de lezing)
+# --------------------------------------------------------------------------- #
+def _forward_root(tmp_path: Path) -> Path:
+    for rel in (v9.CONFIG, v9.SPEC_PATH, vn.VENUES_PATH, v9.FORWARD_LOCK, v2.LEDGER_PATH,
+                Path("conf/model/robust_book_v5.yaml"), Path("conf/execution/impact.yaml"),
+                v9.ARTEFACT_DIR / f"{v9.CANDIDATE}.json"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(ROOT / rel, tmp_path / rel)
+    prereg = json.loads((ROOT / v9.ARTEFACT_DIR / f"{v9.CANDIDATE}.json").read_text(
+        encoding="utf-8"))["preregistration_id"]
+    name = f"preregistration_{prereg}.json"
+    shutil.copy(ROOT / v2.PREREG_DIR / name, tmp_path / v2.PREREG_DIR / name)
+    return tmp_path
+
+
+def _reads(root: Path) -> list[str]:
+    lock = json.loads((root / v9.FORWARD_LOCK).read_text(encoding="utf-8"))
+    return [r["hypothesis_id"] for r in lock["reads"]]
+
+
+def test_the_forward_read_refuses_before_six_months_and_registers_nothing(tmp_path: Path):
+    from tests.unit.test_carry_u1 import kraken_get
+    root = _forward_root(tmp_path)
+    before = _reads(root)
+    now = pd.Timestamp("2026-10-27 06:00", tz="UTC")
+    with pytest.raises(DataContractError, match="zes volle maanden"):
+        v9.read_forward(root, get=kraken_get(now), now=now, log=lambda s: None)
+    assert _reads(root) == before and not (root / v9.FORWARD_DIR).exists()
+
+
+def test_the_forward_read_runs_once_on_kraken_data(tmp_path: Path):
+    from tests.unit.test_carry_u1 import kraken_get
+    root = _forward_root(tmp_path)
+    now = pd.Timestamp("2027-04-03 06:00", tz="UTC")
+    logs: list[str] = []
+    out = v9.read_forward(root, get=kraken_get(now), now=now, log=logs.append)
+    assert out["hypothesis_id"] in _reads(root)
+    assert out["window"][0].startswith("2026-10-01")
+    assert set(out["gate_metrics"]) == {"forward_sharpe_z_vs_dev", "forward_max_drawdown",
+                                        "forward_n_liquidations", "forward_return"}
+    assert out["verdict"] in {"forward_clear", "falsified_forward", "archived_forward"}
+    assert out["prior_verdict"] == "falsified_out_of_sample"
+    assert (root / v9.FORWARD_DIR / "manifest.json").is_file()
+    assert (root / v9.FORWARD_DIR / "dtb3.csv").is_file()
+    entries = json.loads((root / v2.LEDGER_PATH).read_text(encoding="utf-8"))["entries"]
+    assert entries[-1]["unit"] == "robust_book_v9_forward"
+    assert logs and logs[-1].endswith(out["verdict"])
+    with pytest.raises(HoldoutAlreadyUsed):
+        v9.read_forward(root, get=kraken_get(now), now=now, log=lambda s: None)
+
+
+def test_main_dispatches_the_forward_read(monkeypatch: pytest.MonkeyPatch):
+    seen = []
+    monkeypatch.setattr(v9, "read_forward", seen.append)
+    v9.main(["forward"])
+    assert seen == [v9.ROOT]

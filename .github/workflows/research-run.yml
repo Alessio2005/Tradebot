@@ -12,6 +12,14 @@ name: research-run
 #   external-series  `python -I -m tradebot.data.external_series` -> data/external/*.csv
 #                    en artefacts/data/external_manifest.json (T-bill DTB3, €STR, funding van
 #                    Kraken en Binance voor BTC en ETH, tot en met 2026-09-30).
+#   v9-forward       `python -I -m tradebot.systematic.programme_v9 forward`: de vooruit-
+#                    lezing van v9 op de data van Kraken, EENMAAL, vanaf 2027-04-01. Ze
+#                    registreert zich in het vooruit-slot vóór de berekening; daarom gaan
+#                    slot, ledger en artefacten ook na een fout mee terug (een lezing die
+#                    alleen op de runner bestond, zou een tweede lezing mogelijk maken).
+#   kraken-shadow    `python -I -m tradebot.carry.u1 shadow`: hetzelfde als de dagelijkse
+#                    `kraken-shadow.yml`, maar op elke branch te starten (een wijziging aan
+#                    de feed toetsen tegen de echte API vóór de merge). Commit niets.
 #
 # Starten: Actions -> research-run -> Run workflow (kies de branch), of via de API.
 
@@ -24,6 +32,8 @@ on:
         type: choice
         options:
           - external-series
+          - v9-forward
+          - kraken-shadow
       commit_back:
         description: "Het resultaat terugcommitten op deze branch"
         required: true
@@ -64,8 +74,16 @@ jobs:
         run: |
           case "$TASK" in
             external-series)
-              python -I -m tradebot.data.external_series
               echo "PATHS=data/external artefacts/data/external_manifest.json" >> "$GITHUB_ENV"
+              python -I -m tradebot.data.external_series
+              ;;
+            v9-forward)
+              echo "PATHS=artefacts/governance artefacts/research/robust_book_v9" >> "$GITHUB_ENV"
+              python -I -m tradebot.systematic.programme_v9 forward
+              ;;
+            kraken-shadow)
+              python -I -m tradebot.carry.u1 shadow --out shadow
+              cat shadow/summary.md >> "$GITHUB_STEP_SUMMARY"
               ;;
             *)
               echo "Onbekende taak: $TASK" >&2
@@ -74,16 +92,21 @@ jobs:
           esac
 
       - name: Upload what the task wrote
+        if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
           name: research-${{ inputs.task }}-${{ github.run_id }}
           path: |
             data/external/
             artefacts/data/external_manifest.json
+            artefacts/governance/
+            artefacts/research/robust_book_v9/
+            shadow/
           if-no-files-found: error
 
       - name: Commit the result back
-        if: ${{ inputs.commit_back }}
+        # Ook na een fout: een geregistreerde lezing moet in de repo staan.
+        if: ${{ always() && inputs.commit_back && env.PATHS != '' }}
         env:
           TASK: ${{ inputs.task }}
           BRANCH: ${{ github.ref_name }}

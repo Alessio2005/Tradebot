@@ -1,0 +1,61 @@
+name: kraken-shadow
+
+# Het Kraken-boek (v9-U1: de regels van v5-H3 op BTC en ETH) elke dag op de publieke data
+# van Kraken, met de fees van Kraken en de T-bill van FRED. Geen sleutel, geen order, geen
+# commit: alleen lezen, rekenen en rapporteren (de samenvatting van de run plus een
+# artefact met de dagreeks vanaf 2026-10-01).
+#
+# Dit is de shadow van het boek dat live kan, niet de vooruit-lezing: die is eenmalig,
+# vooraf vastgelegd en pas vanaf 2027-04-01 (`programme_v9 forward`). Wie op grond van
+# deze rapporten het ontwerp wil veranderen, boekt een nieuwe trial.
+#
+# Geplande workflows draaien alleen op de standaardbranch.
+
+on:
+  schedule:
+    # Dagelijks 06:23 UTC: na de dagclose van 00:00 en de FRED-publicatie van de vorige
+    # werkdag, buiten het hele uur (geplande runs op :00 lopen vaak vertraging op).
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kraken-shadow
+  cancel-in-progress: false
+
+env:
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install from lockfile
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+
+      - name: Run the shadow book on Kraken data
+        run: python -I -m tradebot.carry.u1 shadow --out shadow
+
+      - name: Publish the summary
+        run: cat shadow/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report
+        uses: actions/upload-artifact@v7
+        with:
+          name: kraken-shadow-${{ github.run_id }}
+          path: shadow/
+          retention-days: 90
+          if-no-files-found: error

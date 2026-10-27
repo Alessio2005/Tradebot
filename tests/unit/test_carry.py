@@ -438,6 +438,6 @@ def test_a_state_as_record_is_json(world):
 def test_a_fill_that_closes_a_leg_removes_it_from_the_expected_book():
     close = LegOrder("AUSDT", Leg.PERP, OrderSide.BUY, 2.0, 20.0, 10.0, True)
     add = LegOrder("BUSDT", Leg.SPOT, OrderSide.BUY, 1.0, 5.0, 5.0, False)
-    spot, perp = runner._after_fills({"AUSDT": 2.0}, {"AUSDT": 2.0}, [
+    spot, perp = runner.after_fills({"AUSDT": 2.0}, {"AUSDT": 2.0}, [
         LegFill(close, 2.0, 10.0, 0.0), LegFill(add, 1.0, 5.0, 0.0)])
     assert perp == {} and spot == {"AUSDT": 2.0, "BUSDT": 1.0}

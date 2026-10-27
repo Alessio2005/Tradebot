@@ -29,9 +29,12 @@ cash:
   # Geld dat het boek vrijgeeft, gaat pas na een week naar het fonds: geen heen-en-weer
   # bij een korte onderbreking.
   release_after_days: 7
-  # Geld dat het boek nodig heeft, staat twee dagen vóór de transactie op de beurs. Het
-  # besluit valt een dag vooraf (lag 1); de tweede dag dekt de overboeking. Deze regel kan
-  # het rendement alleen VERLAGEN (minder rente), nooit een transactie beter maken.
+  # Geld dat het boek nodig heeft, verdient twee dagen vóór de transactie al geen rente.
+  # De backtest besluit en handelt op dezelfde close (lag 1), dus deze regel kijkt naar
+  # posities die live nog niet bekend zijn; ze kan het rendement alleen VERLAGEN (minder
+  # rente), nooit een transactie beter maken. Live wacht een instap op de overboeking
+  # (`carry.u1`); die dag of twee vertraging meet de batterij van v5 (lag 2 / basis 0,99).
+  # (Tekst gecorrigeerd op 2026-10-27; de waarde is ongewijzigd en bevroren.)
   lead_days: 2
   # Een vaste werkvoorraad op de beurs (fees, afronding, schommeling van de marge).
   operating_buffer: 0.05

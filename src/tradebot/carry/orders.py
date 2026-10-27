@@ -1,6 +1,6 @@
 """Van een besluit van het hefboomboek naar orders per been, en terug naar plat.
 
-Een besluit (`LeverStep`) zegt per munt hoeveel van de equity er op spot (`da`) en op de
+Een besluit (`Deltas`: `LeverStep` of het besluit van `carry.u1`) zegt per munt hoeveel van de equity er op spot (`da`) en op de
 perp-short (`db`) bij of af moet. Hier wordt dat een order met een hoeveelheid:
 `|d| · equity_pre / koers`, tegen de close van de besluitbar.
 
@@ -22,14 +22,24 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
+from typing import Protocol
 
 import numpy as np
 
 from ..oms.order import OrderSide
-from ..systematic.leverage import LeverStep
 from ..utils.failfast import DataContractError, require
 
-__all__ = ["Leg", "LegOrder", "orders_for", "unwind_orders"]
+__all__ = ["Deltas", "Leg", "LegOrder", "orders_for", "unwind_orders"]
+
+
+class Deltas(Protocol):
+    """Een besluit per munt: hoeveel van de equity er op spot (`da`) en op de perp-short
+    (`db`) bij of af moet, en de equity waartegen dat rekent. `LeverStep` (v6-v8) en het
+    besluit van het Kraken-boek (`carry.u1`) zijn er allebei een."""
+
+    da: np.ndarray
+    db: np.ndarray
+    equity_pre: float
 
 
 class Leg(str, Enum):
@@ -80,7 +90,7 @@ def _order(symbol: str, leg: Leg, delta_usd: float, price: float,
                     notional_usd=notional, ref_price=float(price), reduce_only=not grows)
 
 
-def orders_for(step: LeverStep, symbols: Sequence[str], spot_price: np.ndarray,
+def orders_for(step: Deltas, symbols: Sequence[str], spot_price: np.ndarray,
                perp_price: np.ndarray) -> list[LegOrder]:
     """De orders van één besluit, in de margeveilige volgorde.
 

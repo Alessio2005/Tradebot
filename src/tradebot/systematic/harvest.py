@@ -63,6 +63,7 @@ from .market import BARS_PER_YEAR
 __all__ = [
     "BasisCosts",
     "BasisMarket",
+    "basis_decide",
     "basis_market",
     "carry_estimate",
     "combine_accounts",
@@ -225,6 +226,44 @@ def _leg_cost(traded: np.ndarray, c: CostSpec, equity: float, sigma: np.ndarray,
     return fee, spread, slip, impact
 
 
+def basis_decide(a_d: np.ndarray, b_d: np.ndarray, target: np.ndarray, both: np.ndarray, *,
+                 skip: bool, band: float, hedge_tolerance: float,
+                 margin_floor: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Het besluit van één bar: van de gedreven benen (`a_d`, `b_d`) naar de nieuwe.
+
+    Gedeeld door de backtest (`run_basis`) en het live-boek (`carry.u1`): één regel, dus
+    één uitkomst op dezelfde invoer. `target` is de gewenste notional per munt, `both` of
+    beide benen een koers hebben. Geeft `(new_a, new_b, da, db)`; trades onder `DUST`
+    vervallen."""
+    new_a, new_b = a_d.copy(), b_d.copy()
+    if not skip:
+        want = np.where(both, target, 0.0)
+        level = (a_d + b_d) / 2.0
+        off = want <= 0.0
+        enter = (want > 0.0) & (level <= 0.0)
+        drift = (want > 0.0) & (level > 0.0) & (np.abs(level - want) > band * want)
+        # Een munt waarvan de benen uiteenlopen (basisbeweging, of een geliquideerde
+        # short) gaat in zijn geheel terug naar het doel: beide benen op `want`.
+        unhedged = (want > 0.0) & (level > 0.0) & (
+            np.abs(a_d - b_d) > hedge_tolerance * level)
+        reset = enter | drift | unhedged
+        new_a = np.where(off, 0.0, np.where(reset, want, a_d))
+        new_b = np.where(off, 0.0, np.where(reset, want, b_d))
+        # Marge-aanvulling, getoetst NA de trade: een rally (of een nieuwe instap)
+        # heeft de futureswallet onder de vloer gebracht -> het hele boek naar het doel.
+        if (1.0 - float(new_a.sum())) < margin_floor * float(new_b.sum()):
+            new_a = np.where(want > 0.0, want, 0.0)
+            new_b = new_a.copy()
+    # Een munt zonder koers op een van beide benen wordt gesloten, ook op een
+    # overgeslagen bar: het verdwenen been tegen zijn laatste koers.
+    new_a = np.where(both, new_a, 0.0)
+    new_b = np.where(both, new_b, 0.0)
+    da, db = new_a - a_d, new_b - b_d
+    da[np.abs(da) < DUST] = 0.0
+    db[np.abs(db) < DUST] = 0.0
+    return a_d + da, b_d + db, da, db
+
+
 def run_basis(target: pd.DataFrame, m: BasisMarket, costs: BasisCosts, *, lag: int,
               band: float, hedge_tolerance: float, maintenance_margin: float,
               margin_floor: float, skip: pd.Series | None = None) -> BookResult:
@@ -289,35 +328,11 @@ def run_basis(target: pd.DataFrame, m: BasisMarket, costs: BasisCosts, *, lag: i
         b_d = np.zeros(n) if liquidated else b * (1.0 + r_p) / (1.0 + port)
         equity_pre = equity * (1.0 + port)
 
-        new_a, new_b = a_d.copy(), b_d.copy()
         both = p_ok[t] & s_ok[t]
         n_forced += int((~both & ((a_d > 0.0) | (b_d > 0.0))).sum())
-        if not skp[t]:
-            want = np.where(both, tgt[t], 0.0)
-            level = (a_d + b_d) / 2.0
-            off = want <= 0.0
-            enter = (want > 0.0) & (level <= 0.0)
-            drift = (want > 0.0) & (level > 0.0) & (np.abs(level - want) > band * want)
-            # Een munt waarvan de benen uiteenlopen (basisbeweging, of een geliquideerde
-            # short) gaat in zijn geheel terug naar het doel: beide benen op `want`.
-            unhedged = (want > 0.0) & (level > 0.0) & (
-                np.abs(a_d - b_d) > hedge_tolerance * level)
-            reset = enter | drift | unhedged
-            new_a = np.where(off, 0.0, np.where(reset, want, a_d))
-            new_b = np.where(off, 0.0, np.where(reset, want, b_d))
-            # Marge-aanvulling, getoetst NA de trade: een rally (of een nieuwe instap)
-            # heeft de futureswallet onder de vloer gebracht -> het hele boek naar het doel.
-            if (1.0 - float(new_a.sum())) < margin_floor * float(new_b.sum()):
-                new_a = np.where(want > 0.0, want, 0.0)
-                new_b = new_a.copy()
-        # Een munt zonder koers op een van beide benen wordt gesloten, ook op een
-        # overgeslagen bar: het verdwenen been tegen zijn laatste koers.
-        new_a = np.where(both, new_a, 0.0)
-        new_b = np.where(both, new_b, 0.0)
-        da, db = new_a - a_d, new_b - b_d
-        da[np.abs(da) < DUST] = 0.0
-        db[np.abs(db) < DUST] = 0.0
-        new_a, new_b = a_d + da, b_d + db
+        new_a, new_b, da, db = basis_decide(a_d, b_d, tgt[t], both, skip=bool(skp[t]),
+                                            band=band, hedge_tolerance=hedge_tolerance,
+                                            margin_floor=margin_floor)
         ta, tb = np.abs(da), np.abs(db)
         sf, ss, sl, si = _leg_cost(ta, costs.spot, equity_pre, s_sig[t], s_adv[t], where)
         pf, ps, pl, pi = _leg_cost(tb, costs.perp, equity_pre, p_sig[t], p_adv[t], where)

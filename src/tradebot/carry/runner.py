@@ -49,8 +49,8 @@ from .orders import Leg, LegOrder, orders_for, unwind_orders
 from .state import CarryState, restore, snapshot
 from .venue import LegFill, PaperVenue, ReconciliationBreak, Venue, VenueBook, reconcile_book
 
-__all__ = ["CarryContext", "build_context", "init", "load_context", "new_book",
-           "settled_end", "step", "unwind"]
+__all__ = ["CarryContext", "after_fills", "build_context", "init", "load_context",
+           "new_book", "settled_end", "step", "unwind"]
 
 
 @dataclass(frozen=True)
@@ -117,8 +117,9 @@ def _expected(book: LeveredBook, res: LeverStep, ctx: CarryContext,
     return spot, perp
 
 
-def _after_fills(spot: Mapping[str, float], perp: Mapping[str, float],
+def after_fills(spot: Mapping[str, float], perp: Mapping[str, float],
                  fills: Sequence[LegFill]) -> tuple[dict[str, float], dict[str, float]]:
+    """Wat de beurs na de fills houdt, gemeten aan de fills zelf (ook voor `carry.u1`)."""
     out = {Leg.SPOT: dict(spot), Leg.PERP: dict(perp)}
     for f in fills:
         book = out[f.order.leg]
@@ -227,7 +228,7 @@ def step(ctx: CarryContext, state: CarryState, venue: Venue, *,
             # Wat de beurs na de fills houdt, gemeten aan de fills zelf: een gedeeltelijke
             # fill is de nieuwe waarheid (de volgende stap herbalanceert), alles wat daar
             # nog bovenop verandert, is een breuk bij de volgende reconciliatie.
-            spot, perp = _after_fills(vb.spot, vb.perp_short, fills)
+            spot, perp = after_fills(vb.spot, vb.perp_short, fills)
         else:
             spot, perp = _expected(book, res, ctx, t)
             if isinstance(venue, PaperVenue):
