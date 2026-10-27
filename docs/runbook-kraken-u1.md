@@ -68,7 +68,9 @@ Doorloop deze stappen in deze volgorde. Elke stap moet slagen voordat de volgend
    jaar positief en de T-bill verslaan, in plaats van 15 % CAGR. Achteraf een criterium
    aanpassen is de zet die preregistratie uitsluit.
 2. **Account.** Kraken EU: KYC, Kraken Pro en toegang tot derivaten. Voor complexe
-   producten vraagt MiFID een geschiktheidstoets.
+   producten vraagt MiFID een geschiktheidstoets. Gebruik een eigen account of subaccount
+   voor het boek. De reconciliatie ziet elke BTC, ETH of perp-positie die niet van het
+   boek is als een breuk, en stopt het boek dan.
 3. **Sleutels.** Er zijn twee sets nodig. Zet ze in de omgeving van de runner, nooit in de
    repo:
    - spot (`KRAKEN_SPOT_KEY`, `KRAKEN_SPOT_SECRET`): saldo opvragen en orders plaatsen en

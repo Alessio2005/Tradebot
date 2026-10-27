@@ -23,8 +23,8 @@ gebruikt, hoort in een geldmarktfonds (v9); dat doet de eigenaar, het boek zegt 
 
 DE KAS. Het boek rekent in fracties van het BOEKKAPITAAL (`--capital-usd`: beurs plus
 fonds), niet van wat er op de beurs staat. Vraagt een besluit meer dan de beurs heeft, dan
-handelt de stap niet en meldt hij hoeveel er naar de beurs moet (`funding_request_usd`); het
-besluit valt opnieuw op de volgende bar. Heeft het boek een week niets nodig gehad, dan
+bouwt de stap geen risico op (afbouwen gaat wel door) en meldt hij hoeveel er naar de beurs
+moet (`funding_request_usd`); het besluit valt opnieuw op de volgende bar. Heeft het boek een week niets nodig gehad, dan
 meldt hij wat er naar het fonds kan (`sweep_out_usd`). Een overboeking vertraagt een
 instap dus met een dag of twee; de batterij van v5 meet dat (Sharpe bij lag 2 / basis 0,99).
 """
@@ -275,13 +275,12 @@ def step(ctx: U1Context, state: U1State, venue: Venue) -> tuple[dict[str, Any], 
     grows = any(not o.reduce_only for o in orders)
     short = max(0.0, need - float(vb.equity_usd))
     fills: list[LegFill] = []
-    if grows and short > 1e-6 * cap:
-        action = "wacht op overboeking"
-        spot, perp = dict(vb.spot), dict(vb.perp_short)
-    else:
-        fills = venue.execute(orders)
-        action = "gehandeld" if fills else "geen handel nodig"
-        spot, perp = after_fills(vb.spot, vb.perp_short, fills)
+    waiting = grows and short > 1e-6 * cap
+    # Wachten op geld geldt alleen voor wat risico OPBOUWT: afbouwen gaat altijd door.
+    fills = venue.execute([o for o in orders if o.reduce_only] if waiting else orders)
+    action = ("wacht op overboeking" if waiting else
+              "gehandeld" if fills else "geen handel nodig")
+    spot, perp = after_fills(vb.spot, vb.perp_short, fills)
     hist = (tuple(state.committed) + (committed,))[-HISTORY:]
     week = hist[-(ctx.v9.cash.release_after_days + 1):]
     idle = len(week) > ctx.v9.cash.release_after_days and max(week) == 0.0

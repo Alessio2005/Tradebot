@@ -162,6 +162,23 @@ def test_too_little_on_the_exchange_asks_for_a_transfer_and_does_not_trade(ctx):
     assert st.expected_spot == {} and st.last_bar is not None
 
 
+def test_waiting_for_cash_still_reduces_risk(ctx):
+    t = len(ctx.market.index) - 1
+    swap = ctx.target.copy()
+    swap.iloc[t] = [0.0, 0.35]                      # BTC eruit, ETH erin
+    moved = u1.U1Context(**{**ctx.__dict__, "target": swap})
+    q = 0.35e6 / ctx.spot_px[t, 0]
+    venue = PaperVenue(spot={"BTCUSDT": q}, perp_short={"BTCUSDT": q}, equity_usd=10_000.0)
+    st = _state(ctx, expected_spot={"BTCUSDT": q}, expected_perp={"BTCUSDT": q},
+                last_bar=ctx.market.index[t - 1].isoformat())
+    rec, st2 = u1.step(moved, st, venue)
+    assert rec["action"] == "wacht op overboeking"
+    assert [(f.order.symbol, f.order.reduce_only) for f in venue.fills] == [
+        ("BTCUSDT", True), ("BTCUSDT", True)]       # de BTC-carry is dicht, ETH wacht
+    assert st2.expected_spot == {} and st2.expected_perp == {}
+    assert len(rec["orders"]) == 4 and rec["funding_request_usd"] > 0.0
+
+
 def test_a_week_without_need_sends_the_cash_to_the_fund(ctx):
     flat = ctx.target.copy() * 0.0
     quiet = u1.U1Context(**{**ctx.__dict__, "target": flat})
