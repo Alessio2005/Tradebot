@@ -39,6 +39,9 @@ outputs/
 logs/
 *.log
 
+# --- Serverconfig van de beheerder (gemaakt uit conf/live/u1.example.yaml) -----
+infra/compose/u1.yaml
+
 # --- Secrets ----------------------------------------------------------------
 # .env bevat exchange-credentials. Nooit committen.
 .env

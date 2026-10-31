@@ -10,7 +10,8 @@ Wat een echte adapter moet leveren, staat in `Venue`; de adapter voor Kraken EU 
   hoeveelheid en prijs terug. Een order zonder uitvoering is een fout, geen fill.
 * Reduce-only waar de order dat zegt.
 
-De paper-venue is het model zelf: zijn stand is wat het boek na elke stap verwacht. Dat
+De paper-venue is het model zelf: hij vult elke order tegen zijn referentiekoers en houdt
+zijn stand bij; `sync` zet hem op wat het boek verwacht. Dat
 maakt het shadowboek per constructie gelijk aan de backtest; het verschil met de
 werkelijkheid meet pas een echte venue.
 """
@@ -21,6 +22,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from ..oms.order import OrderSide
 from ..utils.failfast import TradebotContractError
 from .orders import Leg, LegOrder
 
@@ -78,6 +80,15 @@ class PaperVenue:
     def execute(self, orders: Sequence[LegOrder]) -> list[LegFill]:
         out = [LegFill(order=o, qty=o.qty, price=o.ref_price, fee_usd=0.0) for o in orders]
         self.fills.extend(out)
+        for f in out:
+            # Spot: kopen = erbij. Perp-short: verkopen = erbij.
+            book = self.spot if f.order.leg is Leg.SPOT else self.perp_short
+            grows = (f.order.side is OrderSide.BUY) == (f.order.leg is Leg.SPOT)
+            q = book.get(f.order.symbol, 0.0) + (f.qty if grows else -f.qty)
+            if abs(q) > 1e-12:
+                book[f.order.symbol] = q
+            else:
+                book.pop(f.order.symbol, None)
         return out
 
     def sync(self, spot: Mapping[str, float], perp_short: Mapping[str, float],

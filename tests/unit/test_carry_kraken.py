@@ -53,6 +53,10 @@ class FakeKraken:
             {"type": "EXECUTION", "amount": "0.2", "price": "40050"},
             {"type": "PLACE"}]}
         self.positions = [{"side": "short", "symbol": "pf_xbtusd", "size": "0.5"}]
+        # Publieke koersen: spot (laatste trade per Kraken-paar), perp (markprijs), klok.
+        self.spot_last = {"XXBTZUSD": 40000.0}
+        self.perp_mark = {"PF_XBTUSD": 40010.0, "PF_ETHUSD": 2001.0}
+        self.unixtime = 1_700_000_000.0
 
     def __call__(self, method, url, headers, body, query):
         self.calls.append((method, url, dict(headers), body))
@@ -62,7 +66,17 @@ class FakeKraken:
         if path.endswith("/api/v3/instruments"):
             return {"result": "success", "instruments": INSTRUMENTS}
         if path.endswith("/0/public/Ticker"):
-            return {"error": [], "result": {"XXBTZUSD": {"c": ["40000", "1"]}}}
+            want = set((query or {}).get("pair", "").split(","))
+            by_alt = {p["altname"]: k for k, p in PAIRS.items()}
+            keys = {by_alt.get(w, w) for w in want}
+            return {"error": [], "result": {k: {"c": [str(v), "1"]}
+                                            for k, v in self.spot_last.items() if k in keys}}
+        if path.endswith("/0/public/Time"):
+            return {"error": [], "result": {"unixtime": self.unixtime}}
+        if path.endswith("/api/v3/tickers"):
+            return {"result": "success", "tickers": [
+                {"symbol": k, "markPrice": v, "last": v} for k, v in self.perp_mark.items()]
+                + [{"symbol": "PF_SOLUSD", "last": 150.0}]}
         if path.endswith("/0/private/Balance"):
             return {"error": [], "result": {"XXBT": "0.25", "ZUSD": "1000"}}
         if path.endswith("/api/v3/accounts"):
@@ -304,6 +318,20 @@ def test_the_default_transport_uses_requests(monkeypatch: pytest.MonkeyPatch):
     out = kraken._requests_http("GET", "https://x.example/y", {"H": "1"}, None, {"q": "2"})
     assert out == {"ok": 1} and seen["checked"] and seen["params"] == {"q": "2"}
     assert seen["timeout"] == 15
+
+
+def test_public_prices_and_server_time_need_no_key_and_work_in_dry_run():
+    fake = FakeKraken()
+    fake.spot_last = {"XXBTZUSD": 40000.0, "XETHZUSD": 2000.0}
+    venue = _venue(fake, dry_run=True)
+    spot, perp = venue.prices()
+    assert spot == {"BTCUSDT": 40000.0, "ETHUSDT": 2000.0}
+    # SOL heeft geen markprijs in het antwoord: dan de laatste trade.
+    assert perp == {"BTCUSDT": 40010.0, "ETHUSDT": 2001.0, "SOLUSDT": 150.0}
+    assert venue.server_time() == 1_700_000_000.0
+    assert all(not h for _, _, h, _ in fake.calls)        # geen sleutel in een header
+    lone = KrakenVenue(["DOGEUSDT"], http=fake)               # geen spotpaar, geen perp
+    assert lone.prices() == ({}, {})
 
 
 def test_the_default_nonce_is_monotone_milliseconds():

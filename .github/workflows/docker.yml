@@ -1,0 +1,85 @@
+name: docker
+
+# Het image van de 24/7-dienst bouwt, start en is goed ingepakt.
+#
+# Op elke pull request die het image raakt: bouwen, de dienst importeert in het image, de
+# healthcheck draait, en de compose-config is geldig. Zonder netwerk naar buiten (behalve de
+# pakketbronnen van de build): rood betekent dat het image kapot is, niet dat Kraken haperde.
+#
+# Op main en met de hand daarbovenop: één echte dry-run-ronde op de live Kraken-data, in de
+# container zoals docker compose hem draait (read-only, geen capabilities, eigen gebruiker),
+# en daarna moet de healthcheck groen zijn.
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "infra/**"
+      - "src/**"
+      - "conf/**"
+      - "requirements.lock"
+      - "pyproject.toml"
+      - ".github/workflows/docker.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "infra/**"
+      - "src/**"
+      - "conf/**"
+      - "requirements.lock"
+      - "pyproject.toml"
+      - ".github/workflows/docker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the runner image
+        run: docker build -f infra/docker/Dockerfile.runner -t tradebot-runner:ci .
+
+      - name: The service and its CLI import in the image
+        run: |
+          docker run --rm tradebot-runner:ci \
+            python -I -c "import tradebot.carry.service, tradebot.carry.u1; print('ok')"
+
+      - name: Without a heartbeat the healthcheck reports unhealthy
+        run: |
+          set +e
+          docker run --rm \
+            -v "$PWD/conf/live/u1.example.yaml:/etc/tradebot/u1.yaml:ro" \
+            tradebot-runner:ci \
+            python -I -m tradebot.carry.service --config /etc/tradebot/u1.yaml --healthcheck
+          test $? -eq 1
+
+      - name: The compose file is valid
+        run: |
+          cp conf/live/u1.example.yaml infra/compose/u1.yaml
+          cp infra/compose/.env.example infra/compose/.env
+          docker compose -f infra/compose/docker-compose.yml config --quiet
+
+      - name: One dry-run round on live Kraken data, as compose runs it
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          docker volume create tbstate
+          docker run --rm --read-only --tmpfs /tmp --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            -v "$PWD/conf/live/u1.example.yaml:/etc/tradebot/u1.yaml:ro" \
+            -v tbstate:/var/lib/tradebot \
+            tradebot-runner:ci \
+            python -I -m tradebot.carry.service --config /etc/tradebot/u1.yaml --once
+          docker run --rm \
+            -v "$PWD/conf/live/u1.example.yaml:/etc/tradebot/u1.yaml:ro" \
+            -v tbstate:/var/lib/tradebot \
+            tradebot-runner:ci \
+            python -I -m tradebot.carry.service --config /etc/tradebot/u1.yaml --healthcheck

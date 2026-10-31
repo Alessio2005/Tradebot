@@ -1,10 +1,15 @@
 # =============================================================================
 # Dockerfile.runner — het enige image van Tradebot.
 #
-# Draait de batchstappen die bestaan:
-#   python -I -m tradebot.data.binance_vision forward YYYY-MM   # panelen + manifesten
-#   python -I -m tradebot.carry {init|step|status|unwind}       # het carry-shadowboek
+# Draait:
+#   python -I -m tradebot.carry.service --config /etc/tradebot/u1.yaml   # het Kraken-boek 24/7
+#   python -I -m tradebot.carry.u1 {status|resume|unwind} --config ...    # beheer van dat boek
+#   python -I -m tradebot.data.binance_vision forward YYYY-MM   # panelen + manifesten (v8)
+#   python -I -m tradebot.carry {init|step|status|unwind}       # het v8-shadowboek
 #   python -I -m tradebot.systematic.restate                    # de herberekening
+#
+# De dienst schrijft alleen in /var/lib/tradebot (een volume): staat, logboek, backups,
+# heartbeat, HALT/UNWIND. Het image zelf kan read-only draaien (infra/compose).
 #
 # Audit 2026-10-24 (E-2): de vorige images bouwden op Python 3.11 terwijl
 # pyproject.toml >= 3.13 eist, installeerden uit de ondergrenzen in plaats van de
@@ -39,8 +44,8 @@ COPY src/ ./src/
 COPY conf/ ./conf/
 COPY artefacts/ ./artefacts/
 RUN pip install --no-deps -e . \
- && mkdir -p data state artefacts/data/forward \
- && chown -R tradebot:tradebot /opt/tradebot
+ && mkdir -p data state artefacts/data/forward /var/lib/tradebot \
+ && chown -R tradebot:tradebot /opt/tradebot /var/lib/tradebot
 
 USER tradebot
 ENTRYPOINT ["/usr/bin/tini", "--"]

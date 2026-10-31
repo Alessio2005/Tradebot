@@ -134,3 +134,46 @@ def test_every_workload_may_reach_the_network_it_needs():
 def test_the_namespace_enforces_restricted_pod_security():
     ns = _docs(ROOT / "infra/k8s/namespace.yaml")[0]
     assert ns["metadata"]["labels"]["pod-security.kubernetes.io/enforce"] == "restricted"
+
+
+# --------------------------------------------------------------------------- #
+# De 24/7-dienst op één server: docker compose en systemd
+# --------------------------------------------------------------------------- #
+COMPOSE = ROOT / "infra/compose/docker-compose.yml"
+UNIT = ROOT / "infra/systemd/tradebot-u1.service"
+
+
+def test_compose_runs_the_service_hardened_restarting_and_health_checked():
+    svc = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))["services"]["u1"]
+    assert (ROOT / svc["build"]["dockerfile"]).is_file()
+    for cmd in (svc["command"], svc["healthcheck"]["test"]):
+        for module in _modules(" ".join(cmd)):
+            assert importlib.util.find_spec(module) is not None, module
+    assert "--healthcheck" in svc["healthcheck"]["test"]
+    assert svc["restart"] == "unless-stopped" and svc["read_only"] is True
+    assert svc["cap_drop"] == ["ALL"] and "no-new-privileges:true" in svc["security_opt"]
+    assert any(v.endswith(":/var/lib/tradebot") for v in svc["volumes"])
+    assert svc["env_file"] == ".env" and (ROOT / "infra/compose/.env.example").is_file()
+    # Elk pad dat de dienst schrijft, ligt in het volume.
+    cfg = yaml.safe_load((ROOT / "conf/live/u1.example.yaml").read_text(encoding="utf-8"))
+    assert all(p.startswith("/var/lib/tradebot/") for p in cfg["paths"].values())
+
+
+def test_the_env_example_names_every_secret_the_code_reads():
+    names = set(re.findall(r"^([A-Z_]+)=", (ROOT / "infra/compose/.env.example").read_text(
+        encoding="utf-8"), flags=re.M))
+    src = "\n".join(p.read_text(encoding="utf-8") for p in (ROOT / "src/tradebot/carry").glob(
+        "*.py"))
+    read = set(re.findall(r'"((?:KRAKEN|ALERT|TELEGRAM|HEARTBEAT)_[A-Z_]+)"', src))
+    assert read and read <= names
+
+
+def test_the_systemd_unit_runs_the_service_and_always_restarts():
+    text = UNIT.read_text(encoding="utf-8")
+    exec_start = re.search(r"^ExecStart=(.+)$", text, flags=re.M).group(1)
+    for module in _modules(exec_start):
+        assert importlib.util.find_spec(module) is not None, module
+    for line in ("Restart=always", "User=tradebot", "ProtectSystem=strict",
+                 "ReadWritePaths=/var/lib/tradebot", "StateDirectory=tradebot",
+                 "EnvironmentFile=/etc/tradebot/u1.env", "NoNewPrivileges=true"):
+        assert re.search(rf"^{re.escape(line)}$", text, flags=re.M), line

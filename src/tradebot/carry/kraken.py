@@ -55,6 +55,8 @@ FUTURES_DEMO_URL = "https://demo-futures.kraken.com/derivatives"
 ALIASES = {"BTC": "XBT", "DOGE": "XDG"}
 #: Eindstatussen van een spotorder (QueryOrders).
 SPOT_DONE = ("closed", "canceled", "expired")
+#: Futures-endpoints zonder sleutel (ook in dry-run).
+FUTURES_PUBLIC = ("/api/v3/instruments", "/api/v3/tickers")
 
 #: Een HTTP-transport: (methode, url, headers, form-body, query) -> JSON.
 Http = Callable[[str, str, Mapping[str, str], str | None, Mapping[str, str] | None],
@@ -198,11 +200,11 @@ class KrakenVenue:
         return res["result"]
 
     def _futures(self, method: str, path: str, data: Mapping[str, Any] | None = None) -> Any:
-        """Futures v3. Publiek als er geen sleutel nodig is (instruments)."""
+        """Futures v3. Publiek als er geen sleutel nodig is (`FUTURES_PUBLIC`)."""
         url = f"{self._futures_base()}{path}"
         body = urllib.parse.urlencode(dict(data or {}))
         headers: dict[str, str] = {}
-        if path != "/api/v3/instruments":
+        if path not in FUTURES_PUBLIC:
             require(not self.dry_run, "Een privé-aanroep in dry-run.", KrakenError, path=path)
             nonce = self.nonce()
             headers = {"APIKey": self.futures_key, "Nonce": nonce,
@@ -220,6 +222,27 @@ class KrakenVenue:
             instruments = self._futures("GET", "/api/v3/instruments")["instruments"]
             self._markets = KrakenMarkets.build(self.symbols, pairs, instruments)
         return self._markets
+
+    # ------------------------------------------------------------------ publiek
+    def prices(self) -> tuple[dict[str, float], dict[str, float]]:
+        """De live koers per boeksymbool: (spot laatste trade, perp markprijs). Publiek."""
+        mk = self.markets()
+        pairs = {mk.spot_pair[s]: s for s in self.symbols if s in mk.spot_pair}
+        spot: dict[str, float] = {}
+        if pairs:
+            ticks = self._public_spot("Ticker", {"pair": ",".join(pairs)})
+            spot = {pairs[k]: float(v["c"][0]) for k, v in ticks.items() if k in pairs}
+        contracts = {mk.perp[s].upper(): s for s in self.symbols if s in mk.perp}
+        perp = {}
+        for t in self._futures("GET", "/api/v3/tickers")["tickers"]:
+            sym = contracts.get(str(t.get("symbol", "")).upper())
+            if sym is not None:
+                perp[sym] = float(t.get("markPrice") or t["last"])
+        return spot, perp
+
+    def server_time(self) -> float:
+        """De klok van Kraken (unix-seconden): de nonce leunt op de eigen klok."""
+        return float(self._public_spot("Time")["unixtime"])
 
     # ------------------------------------------------------------------ stand
     def book(self) -> VenueBook:

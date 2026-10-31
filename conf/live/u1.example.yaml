@@ -1,0 +1,71 @@
+# conf/live/u1.example.yaml — de serverconfig van het Kraken-boek (v9-U1).
+#
+# Kopieer naar /etc/tradebot/u1.yaml (docker compose: infra/compose/u1.yaml) en pas aan.
+# Gevalideerd door `tradebot.carry.service.load_service_config` (onbekende sleutels worden
+# geweigerd). Draaiboek: docs/runbook-kraken-u1.md.
+#
+# GEHEIMEN STAAN HIER NIET. Die komen uit de omgeving (een .env naast docker compose, of de
+# EnvironmentFile van systemd), zie infra/compose/.env.example:
+#   KRAKEN_SPOT_KEY, KRAKEN_SPOT_SECRET, KRAKEN_FUTURES_KEY, KRAKEN_FUTURES_SECRET (alleen live)
+#   ALERT_WEBHOOK_URL         Slack/Discord/Mattermost-webhook (JSON {"text": ...})
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+#   HEARTBEAT_URL             een dead man's switch (bv. healthchecks.io): elke ronde een GET
+
+# dry_run: de adapter stuurt niets (wel publieke Kraken-data). live: echte orders.
+# Een staat wisselt niet van modus: voor live hoort een nieuw state-bestand.
+mode: dry_run
+
+# Het BOEKKAPITAAL in USD: wat op de beurs staat plus wat in het geldmarktfonds wacht.
+# Het boek rekent in fracties hiervan (twee slots van 35 %).
+capital_usd: 10000.0
+
+paths:
+  state: /var/lib/tradebot/u1-state.json
+  journal: /var/lib/tradebot/u1-journal.jsonl
+  heartbeat: /var/lib/tradebot/heartbeat
+  # Bestaat dit bestand, dan bouwt het boek geen risico op (de watchdog blijft draaien).
+  halt_file: /var/lib/tradebot/HALT
+  # Bestaat dit bestand, dan sluit het boek alles (gehedged) en staat daarna stil.
+  unwind_file: /var/lib/tradebot/UNWIND
+
+schedule:
+  # Elke ronde: de watchdog, en de dagelijkse stap als die nog moet.
+  poll_minutes: 15
+  # De dagbar sluit om 00:00 UTC; de stap wacht tot de data er zeker is.
+  step_after_utc: "00:10"
+  # Is de stap om dit uur nog niet gelukt, dan volgt een alarm (en de dienst blijft proberen).
+  step_deadline_utc: "06:00"
+
+# Harde grenzen (carry/safety.py). Elke grens kan een besluit alleen tegenhouden of risico
+# laten afbouwen. Zet ze ruim boven wat het boek normaal doet, en strak genoeg om een fout
+# (een typo in het kapitaal, een kapotte koers) te vangen.
+limits:
+  max_capital_usd: 100000.0
+  max_order_usd: 50000.0
+  # (spot + perp) / kapitaal na een stap; H3 houdt maximaal 0,70 + 0,70 = 1,4.
+  max_gross: 1.5
+  # Live koers tegen de besluitkoers (close); daarboven wacht de stap.
+  max_price_deviation: 0.05
+  # |spot − perp| x koers per munt; daarboven is het een hedge-gat.
+  hedge_tolerance_usd: 50.0
+  # Verlies van de gehedgede posities tussen twee stappen (fractie van het kapitaal).
+  max_step_loss: 0.02
+  # Equity op de beurs / (perp-notional x initiële marge).
+  margin_warn: 1.6
+  margin_critical: 1.2
+  initial_margin: 0.5
+  max_clock_skew_s: 5.0
+
+watchdog:
+  # Een hedge-gat tussen twee stappen: het overschot reduce-only sluiten, dan stilzetten.
+  repair_hedge: true
+  # Marge onder `margin_critical`: alles gehedged sluiten, dan stilzetten.
+  unwind_on_margin_critical: true
+  # Zoveel mislukte rondes op rij (netwerk, beurs) voordat er een alarm gaat.
+  max_failures_before_alert: 3
+
+alerts:
+  # Hetzelfde alarm hoogstens eens per zoveel minuten (kritieke alarmen: een kwart daarvan).
+  min_interval_minutes: 60
+  # Na elke dagelijkse stap een korte samenvatting (carry, doel, actie, overboekingen).
+  daily_summary: true

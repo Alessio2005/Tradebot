@@ -1,0 +1,52 @@
+# infra/systemd/tradebot-u1.service — het Kraken-boek (v9-U1) zonder Docker.
+#
+# Installatie (docs/runbook-kraken-u1.md, "Op een server"):
+#   useradd --system --home /opt/tradebot --shell /usr/sbin/nologin tradebot
+#   git clone ... /opt/tradebot && cd /opt/tradebot
+#   python3.13 -m venv .venv && .venv/bin/pip install -r requirements.lock \
+#       && .venv/bin/pip install --no-deps -e .
+#   install -d -o root -g tradebot -m 750 /etc/tradebot
+#   cp conf/live/u1.example.yaml /etc/tradebot/u1.yaml          # en aanpassen
+#   cp infra/compose/.env.example /etc/tradebot/u1.env && chmod 640 /etc/tradebot/u1.env
+#   cp infra/systemd/tradebot-u1.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now tradebot-u1
+#
+# De paden in u1.yaml (/var/lib/tradebot/...) zijn de StateDirectory hieronder.
+[Unit]
+Description=Tradebot: het Kraken-boek (v9-U1) als dienst
+Wants=network-online.target time-sync.target
+After=network-online.target time-sync.target
+
+[Service]
+Type=simple
+User=tradebot
+Group=tradebot
+WorkingDirectory=/opt/tradebot
+EnvironmentFile=/etc/tradebot/u1.env
+Environment=PYTHONUNBUFFERED=1 TZ=UTC
+ExecStart=/opt/tradebot/.venv/bin/python -I -m tradebot.carry.service --config /etc/tradebot/u1.yaml
+# Een crash of een kill: na 30 s opnieuw, onbeperkt (de dienst zelf is idempotent per ronde).
+Restart=always
+RestartSec=30
+StartLimitIntervalSec=0
+# SIGTERM rondt de lopende ronde af.
+KillSignal=SIGTERM
+TimeoutStopSec=90
+StateDirectory=tradebot
+StateDirectoryMode=0750
+# Verharding: alleen /var/lib/tradebot is schrijfbaar.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/tradebot
+
+[Install]
+WantedBy=multi-user.target
