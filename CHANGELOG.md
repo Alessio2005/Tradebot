@@ -4,6 +4,50 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Het Kraken-boek 24/7 op een server: veiligheid, watchdog, alarmen (2026-10-31)
+Draaiboek: `docs/runbook-kraken-u1.md` (§3 server, §4 veiligheid). Geen bevroren poort,
+oordeel of backtest veranderd.
+- **`carry/safety.py`**: harde grenzen uit de serverconfig, los van het model.
+  - Plafonds voor kapitaal, ordergrootte en bruto.
+  - De live koers tegen de close, en verse data.
+  - Een verliesgrens op de gehedgede posities per stap.
+  - Een marge-headroom.
+  - Hedge-gaten, met een reparatie die alleen afbouwt (het overschot van het grootste been).
+  - Een lock zodat er maar één proces per staat draait.
+  - Een grens kan risico tegenhouden of laten afbouwen, nooit opbouwen.
+- **`carry.u1.step` voert order voor order uit.**
+  - Bij een fout leest hij de beurs opnieuw, dicht hij een hedge-gat reduce-only en staat
+    het boek stil.
+  - Na het handelen legt hij de beurs nog eens tegen de verwachting.
+  - Is de beurs niet te lezen, dan staat het boek stil met de stand uit de fills.
+  - Nieuw: `resume` (een mens hervat; de beurs is de nieuwe verwachting), een logboek
+    (JSONL) en de laatste 30 staten als backup.
+  - De CLI leest pad, logboek en modus uit de serverconfig (`--config`).
+- **`carry/service.py`**: de dienst. Elke ronde:
+  - heartbeat (bestand en `HEARTBEAT_URL`);
+  - lock;
+  - UNWIND/HALT;
+  - watchdog: reconciliatie, hedge, marge, klok;
+  - de dagelijkse stap, met venster en deadline.
+  - Tijdelijke fouten tellen; fatale fouten in de stap zetten het boek stil.
+  - SIGTERM rondt de lopende ronde netjes af. `--once` draait één ronde, `--healthcheck`
+    controleert de heartbeat.
+- **`carry/alerts.py`**: webhook (Slack, Mattermost, Discord) en/of Telegram.
+  - Ontdubbeld.
+  - Gooit nooit een fout.
+  - Lekt de token of webhook-URL niet in het log.
+- **`KrakenVenue.prices()` en `.server_time()`**: publiek, ook in dry-run.
+- **`PaperVenue`** houdt zijn eigen stand bij na een fill.
+- **Uitrol:**
+  - `conf/live/u1.example.yaml`;
+  - `infra/compose/` (docker compose: read-only, geen capabilities, `restart:
+    unless-stopped`, healthcheck, een volume voor de staat) met `.env.example`;
+  - `infra/systemd/tradebot-u1.service` (`Restart=always`, verhard);
+  - het image krijgt `/var/lib/tradebot`.
+- **CI:** `docker.yml` bouwt het image en controleert healthcheck en compose. Op `main` draait
+  hij één echte dry-run-ronde in de container. De infra-contracttest controleert compose,
+  `.env.example` en de systemd-unit.
+
 ## Het Kraken-boek draait: feed, live-stap, dagelijkse shadow, vooruit-lezing (2026-10-27)
 Draaiboek: `docs/runbook-kraken-u1.md`. Geen bevroren poort, oordeel, ledger-entry of
 backtest veranderd.

@@ -4,6 +4,13 @@
     python -I -m tradebot.carry.u1 step   --state S --capital-usd N [--live]
     python -I -m tradebot.carry.u1 status --state S
     python -I -m tradebot.carry.u1 unwind --state S --reason TEKST [--live]
+    python -I -m tradebot.carry.u1 resume --state S --reason TEKST [--live]
+
+Met `--config /etc/tradebot/u1.yaml` in plaats van `--state`: pad, logboek en modus komen uit
+de serverconfig van de dienst (zo kan een beheerder de modus niet verkeerd kiezen).
+
+Voor 24/7 op een server: `python -I -m tradebot.carry.service` (de dagelijkse stap, de
+watchdog, alarmen en heartbeat rond deze functies). De grenzen staan in `carry.safety`.
 
 WAT DIT IS. Het enige bevroren boek dat op Kraken EU kan draaien (`carry.venues`): long
 spot BTC/ETH als onderpand in de futureswallet, short de perp, alleen waar de carry het
@@ -62,14 +69,30 @@ from ..utils.hashing import hash_config
 from .kraken import KrakenVenue
 from .orders import LegOrder, orders_for, unwind_orders
 from .runner import after_fills
+from .safety import (
+    Deferred,
+    Limits,
+    SafetyBreach,
+    SingleInstance,
+    check_orders,
+    check_prices,
+    gross_after,
+    hedge_gaps,
+    load_limits,
+    marked_pnl,
+    repair_orders,
+)
 from .venue import LegFill, ReconciliationBreak, Venue, reconcile_book
 from .venues import basis_costs, load_venues
 
-__all__ = ["FORWARD_START", "U1Context", "U1State", "build_context", "load_u1_state", "main",
-           "render", "save_u1_state", "shadow", "simulate", "step", "unwind"]
+__all__ = ["FORWARD_START", "U1Context", "U1State", "append_journal", "build_context",
+           "execute_each", "load_u1_state", "main", "make_venue", "render", "resume",
+           "save_u1_state", "shadow", "simulate", "step", "unwind", "unwind_book"]
 
 ROOT = v9.ROOT
 FORWARD_START = "2026-10-01"
+#: De serverconfig met de grenzen als de CLI er geen meekrijgt.
+DEFAULT_CONFIG = Path("conf/live/u1.example.yaml")
 #: Hoeveel `committed`-waarden de staat bewaart: genoeg voor de vrijgaveweek van v9.
 HISTORY = 30
 
@@ -194,6 +217,11 @@ def render(rep: Mapping[str, Any]) -> str:
 # --------------------------------------------------------------------------- #
 # De staat tussen twee live-runs
 # --------------------------------------------------------------------------- #
+STATE_FIELDS_REQUIRED = frozenset({"config_hash", "mode", "capital_usd"})
+#: Hoeveel vorige staten de map `backups/` naast de staat bewaart.
+BACKUPS = 30
+
+
 @dataclass(frozen=True)
 class U1State:
     config_hash: str
@@ -204,14 +232,25 @@ class U1State:
     expected_perp: Mapping[str, float] = field(default_factory=dict)
     committed: Sequence[float] = ()
     halted: str | None = None
+    #: De koersen (spot, perp) per munt bij de vorige stap: de verliesgrens per stap.
+    marks: Mapping[str, Sequence[float]] = field(default_factory=dict)
 
     def as_record(self) -> dict[str, Any]:
         return {**asdict(self), "expected_spot": dict(self.expected_spot),
-                "expected_perp": dict(self.expected_perp), "committed": list(self.committed)}
+                "expected_perp": dict(self.expected_perp), "committed": list(self.committed),
+                "marks": {k: list(v) for k, v in self.marks.items()}}
 
 
-def save_u1_state(state: U1State, path: Path) -> None:
+def save_u1_state(state: U1State, path: Path, *, now: pd.Timestamp | None = None) -> None:
+    """Atomair (eerst een tijdelijk bestand, dan `replace`), met de vorige staat als backup."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_file():
+        stamp = (now or pd.Timestamp.now(tz="UTC")).strftime("%Y%m%dT%H%M%S%f")
+        backups = path.parent / "backups"
+        backups.mkdir(exist_ok=True)
+        (backups / f"{path.name}.{stamp}").write_bytes(path.read_bytes())
+        for old in sorted(backups.glob(f"{path.name}.*"))[:-BACKUPS]:
+            old.unlink()
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(state.as_record(), indent=1, sort_keys=True) + "\n",
                    encoding="utf-8")
@@ -220,9 +259,18 @@ def save_u1_state(state: U1State, path: Path) -> None:
 
 def load_u1_state(path: Path) -> U1State:
     raw = json.loads(path.read_text(encoding="utf-8"))
-    require(set(raw) == {f for f in U1State.__dataclass_fields__}, "Een U1-staat met andere "
-            "velden.", DataContractError, got=sorted(raw))
-    return U1State(**{**raw, "committed": tuple(raw["committed"])})
+    known = set(U1State.__dataclass_fields__)
+    require(STATE_FIELDS_REQUIRED <= set(raw) <= known, "Een U1-staat met andere velden.",
+            DataContractError, got=sorted(raw))
+    return U1State(**{**raw, "committed": tuple(raw.get("committed", ())),
+                      "marks": {k: tuple(v) for k, v in raw.get("marks", {}).items()}})
+
+
+def append_journal(path: Path, record: Mapping[str, Any]) -> None:
+    """Eén JSON-regel per gebeurtenis; het logboek groeit alleen."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, sort_keys=True, default=float) + "\n")
 
 
 # --------------------------------------------------------------------------- #
@@ -241,8 +289,66 @@ def _committed(new_a: np.ndarray, c9: v9.V9Config) -> float:
     return float(min(1.0, float(new_a.sum()) / c9.base.spot_leg))
 
 
-def step(ctx: U1Context, state: U1State, venue: Venue) -> tuple[dict[str, Any], U1State]:
-    """Eén nieuwe afgesloten bar (zie de moduledocstring). Geen nieuwe bar: niets."""
+def _fills(fills: Sequence[LegFill]) -> list[dict[str, Any]]:
+    return [{"symbol": f.order.symbol, "leg": f.order.leg.value, "side": f.order.side.value,
+             "qty": f.qty, "price": f.price, "fee_usd": f.fee_usd} for f in fills]
+
+
+def execute_each(venue: Venue, orders: Sequence[LegOrder]) -> tuple[list[LegFill], str | None]:
+    """Order voor order, in de gegeven (margeveilige) volgorde; stop bij de eerste fout.
+
+    Een fout halverwege laat de fills tot dan toe staan: die zijn echt gebeurd. De rest
+    wordt NIET geprobeerd: een volgende order bouwt mogelijk op een been dat er niet is."""
+    fills: list[LegFill] = []
+    for o in orders:
+        try:
+            fills.extend(venue.execute([o]))
+        except Exception as e:  # elke fout van een beurs telt hier gelijk
+            return fills, f"{type(e).__name__}: {e}"[:500]
+    return fills, None
+
+
+def _prices(ctx: U1Context, t: int) -> tuple[dict[str, float], dict[str, float]]:
+    return (dict(zip(ctx.symbols, map(float, ctx.spot_px[t]), strict=True)),
+            dict(zip(ctx.symbols, map(float, ctx.perp_px[t]), strict=True)))
+
+
+def _repair_and_halt(venue: Venue, state: U1State, *, reason: str, limits: Limits,
+                     spot_px: Mapping[str, float], perp_px: Mapping[str, float],
+                     fallback: tuple[Mapping[str, float], Mapping[str, float]] | None = None,
+                     ) -> tuple[dict[str, Any], U1State]:
+    """Na een fout: de beurs opnieuw lezen, een hedge-gat reduce-only dichten, stilzetten.
+
+    De verwachte stand wordt wat de beurs NA de reparatie houdt: een mens kijkt waarom, en
+    `resume` laat het boek pas weer handelen. Is de beurs niet eens te lezen, dan blijft de
+    stand die het boek uit de fills afleidt (`fallback`), en zegt de reden dat."""
+    try:
+        vb = venue.book()
+    except Exception as e:  # de beurs is weg: niets repareren, wel stilzetten
+        spot, perp = fallback or (state.expected_spot, state.expected_perp)
+        return ({"repair_error": f"stand niet te lezen: {type(e).__name__}: {e}"[:500]},
+                replace(state, expected_spot=dict(spot), expected_perp=dict(perp),
+                        halted=f"{reason}; stand op de beurs onbekend"))
+    gaps = hedge_gaps(vb, spot_px, limits.hedge_tolerance_usd)
+    repair = repair_orders(gaps, spot_px, perp_px)
+    rfills, rerr = execute_each(venue, repair)
+    final = venue.book() if repair else vb
+    left = hedge_gaps(final, spot_px, limits.hedge_tolerance_usd)
+    out = {"repair_orders": [o.as_record() for o in repair], "repair_fills": _fills(rfills),
+           "repair_error": rerr, "hedge_gaps_before": gaps, "hedge_gaps_after": left}
+    return out, replace(state, expected_spot=dict(final.spot),
+                        expected_perp=dict(final.perp_short), halted=reason)
+
+
+def step(ctx: U1Context, state: U1State, venue: Venue, *, limits: Limits,
+         live_prices: tuple[Mapping[str, float], Mapping[str, float]] | None = None,
+         ) -> tuple[dict[str, Any], U1State]:
+    """Eén nieuwe afgesloten bar, met de veiligheid van `carry.safety` eromheen.
+
+    Volgorde: reconciliëren (breuk: `ReconciliationBreak`), de verliesgrens op de gehouden
+    posities, het besluit, de harde grenzen (`SafetyBreach`), de live koers tegen de
+    besluitkoers (`Deferred`), order voor order uitvoeren (een fout: reparatie en stilstand),
+    en de beurs na afloop nog eens tegen de verwachting leggen (verschil: stilstand)."""
     require(state.halted is None, "Het boek staat stil; hervat alleen na onderzoek.",
             DataContractError, halted=state.halted)
     require(state.config_hash == ctx.config_hash, "De staat hoort bij een andere config.",
@@ -251,84 +357,151 @@ def step(ctx: U1Context, state: U1State, venue: Venue) -> tuple[dict[str, Any], 
     bar = ctx.market.index[t]
     if state.last_bar is not None and bar <= pd.Timestamp(state.last_bar):
         return {"bar": bar.isoformat(), "action": "geen nieuwe bar"}, state
+    spot_px, perp_px = _prices(ctx, t)
     vb = venue.book()
-    prices = dict(zip(ctx.symbols, ctx.spot_px[t], strict=True))
-    breaks = reconcile_book(state.expected_spot, state.expected_perp, vb, prices=prices)
+    breaks = reconcile_book(state.expected_spot, state.expected_perp, vb, prices=spot_px)
     if breaks:
         raise ReconciliationBreak("; ".join(breaks))
     cap = float(state.capital_usd)
-    a_d = np.array([vb.spot.get(s, 0.0) * ctx.spot_px[t, i] / cap
-                    for i, s in enumerate(ctx.symbols)])
-    b_d = np.array([vb.perp_short.get(s, 0.0) * ctx.perp_px[t, i] / cap
-                    for i, s in enumerate(ctx.symbols)])
+    marks = {s: (spot_px[s], perp_px[s]) for s in ctx.symbols}
+    pnl = marked_pnl(vb.spot, vb.perp_short, state.marks, marks)
+    if pnl < -limits.max_step_loss * cap:
+        raise SafetyBreach(f"De gehedgede posities verloren {pnl:,.0f} USD sinds de vorige "
+                           f"stap ({pnl / cap:+.2%}): een hedge die niet werkt.")
+    a_d = np.array([vb.spot.get(s, 0.0) * spot_px[s] / cap for s in ctx.symbols])
+    b_d = np.array([vb.perp_short.get(s, 0.0) * perp_px[s] / cap for s in ctx.symbols])
     both = (ctx.market.perp.book.close.iloc[t].notna()
             & ctx.market.spot_close.iloc[t].notna()).to_numpy()
     b = ctx.v5.basis
-    new_a, _, da, db = basis_decide(a_d, b_d, ctx.target.iloc[t].to_numpy(dtype=np.float64),
-                                    both, skip=False, band=b.band,
-                                    hedge_tolerance=b.hedge_tolerance,
-                                    margin_floor=b.margin_floor)
-    committed = _committed(new_a, ctx.v9)
-    need = cap * min(1.0, committed + ctx.v9.cash.operating_buffer)
+    new_a, new_b, da, db = basis_decide(
+        a_d, b_d, ctx.target.iloc[t].to_numpy(dtype=np.float64), both, skip=False,
+        band=b.band, hedge_tolerance=b.hedge_tolerance, margin_floor=b.margin_floor)
     orders: list[LegOrder] = orders_for(_Decision(da, db, cap), ctx.symbols, ctx.spot_px[t],
                                         ctx.perp_px[t])
-    grows = any(not o.reduce_only for o in orders)
+    violations = check_orders(orders, limits, cap)
+    gross = gross_after(new_a, new_b)
+    if gross > limits.max_gross + 1e-9:
+        violations.append(f"bruto {gross:.2f} na de stap boven het plafond {limits.max_gross}")
+    if violations:
+        raise SafetyBreach("; ".join(violations))
+    if orders and live_prices is not None:
+        traded = sorted({o.symbol for o in orders})
+        dev = (check_prices({s: spot_px[s] for s in traded}, live_prices[0], limits)
+               + check_prices({s: perp_px[s] for s in traded}, live_prices[1], limits))
+        if dev:
+            raise Deferred("Live koers wijkt af van de besluitkoers: " + "; ".join(dev))
+    committed = _committed(new_a, ctx.v9)
+    need = cap * min(1.0, committed + ctx.v9.cash.operating_buffer)
     short = max(0.0, need - float(vb.equity_usd))
-    fills: list[LegFill] = []
-    waiting = grows and short > 1e-6 * cap
+    waiting = any(not o.reduce_only for o in orders) and short > 1e-6 * cap
     # Wachten op geld geldt alleen voor wat risico OPBOUWT: afbouwen gaat altijd door.
-    fills = venue.execute([o for o in orders if o.reduce_only] if waiting else orders)
-    action = ("wacht op overboeking" if waiting else
-              "gehandeld" if fills else "geen handel nodig")
-    spot, perp = after_fills(vb.spot, vb.perp_short, fills)
+    fills, error = execute_each(venue, [o for o in orders if o.reduce_only] if waiting
+                                else orders)
     hist = (tuple(state.committed) + (committed,))[-HISTORY:]
     week = hist[-(ctx.v9.cash.release_after_days + 1):]
     idle = len(week) > ctx.v9.cash.release_after_days and max(week) == 0.0
-    sweep = max(0.0, float(vb.equity_usd) - cap * ctx.v9.cash.operating_buffer) if idle else 0.0
-    record = {
-        "bar": bar.isoformat(), "mode": state.mode, "action": action,
+    record: dict[str, Any] = {
+        "bar": bar.isoformat(), "mode": state.mode,
         "exchange_equity_usd": float(vb.equity_usd), "capital_usd": cap,
         "target": {s: float(v) for s, v in zip(ctx.symbols, ctx.target.iloc[t], strict=True)},
         "spot_before": dict(vb.spot), "perp_before": dict(vb.perp_short),
-        "orders": [o.as_record() for o in orders],
-        "fills": [{"symbol": f.order.symbol, "leg": f.order.leg.value, "qty": f.qty,
-                   "price": f.price, "fee_usd": f.fee_usd} for f in fills],
-        "committed": committed, "funding_request_usd": short if action.startswith("wacht")
-        else 0.0, "sweep_out_usd": sweep}
-    return record, replace(state, last_bar=bar.isoformat(), expected_spot=spot,
-                           expected_perp=perp, committed=hist)
+        "marked_pnl_usd": pnl, "gross_after": gross,
+        "orders": [o.as_record() for o in orders], "fills": _fills(fills),
+        "committed": committed, "funding_request_usd": short if waiting else 0.0,
+        "sweep_out_usd": max(0.0, float(vb.equity_usd) - cap * ctx.v9.cash.operating_buffer)
+        if idle else 0.0}
+    nxt = replace(state, last_bar=bar.isoformat(), committed=hist, marks=marks)
+    spot, perp = after_fills(vb.spot, vb.perp_short, fills)
+    if error is not None:
+        rep, halted = _repair_and_halt(venue, nxt, reason=f"uitvoering mislukt: {error}",
+                                       limits=limits, spot_px=spot_px, perp_px=perp_px,
+                                       fallback=(spot, perp))
+        return {**record, "action": "fout bij uitvoering", "error": error, **rep}, halted
+    try:
+        after = venue.book()
+    except Exception as e:  # gehandeld, maar de stand is niet te controleren: stilzetten
+        record["action"] = "gehandeld, controle mislukt"
+        return record, replace(nxt, expected_spot=spot, expected_perp=perp,
+                               halted=f"na de uitvoering niet te lezen: {type(e).__name__}: "
+                                      f"{e}"[:500])
+    post = reconcile_book(spot, perp, after, prices=spot_px)
+    gaps = hedge_gaps(after, spot_px, limits.hedge_tolerance_usd)
+    halted = None
+    if post or gaps:
+        halted = ("na de uitvoering wijkt de beurs af: " + "; ".join(post)
+                  + (f"; hedge-gat {gaps}" if gaps else ""))
+    record["action"] = ("wacht op overboeking" if waiting else
+                        "gehandeld" if fills else "geen handel nodig")
+    record["post_trade"] = {"breaks": post, "hedge_gaps": gaps}
+    return record, replace(nxt, expected_spot=spot, expected_perp=perp, halted=halted)
 
 
-def unwind(ctx: U1Context, state: U1State, venue: Venue, *,
-           reason: str) -> tuple[list[LegFill], U1State]:
-    """De kill switch: gehedged plat (eerst de shorts, dan de spot), en de staat op stil."""
+def unwind(ctx: U1Context, state: U1State, venue: Venue, *, reason: str,
+           limits: Limits) -> tuple[dict[str, Any], U1State]:
+    """De kill switch op de koersen van de laatste afgesloten bar (zie `unwind_book`)."""
+    spot_px, perp_px = _prices(ctx, len(ctx.market.index) - 1)
+    return unwind_book(state, venue, reason=reason, limits=limits, spot_px=spot_px,
+                       perp_px=perp_px)
+
+
+def unwind_book(state: U1State, venue: Venue, *, reason: str, limits: Limits,
+                spot_px: Mapping[str, float],
+                perp_px: Mapping[str, float]) -> tuple[dict[str, Any], U1State]:
+    """De kill switch: gehedged plat (eerst de shorts, dan de spot), en de staat op stil.
+
+    Hoeveelheden van de BEURS, niet van het model; de koersen alleen voor de notional van
+    de marketorders. Gaat het halverwege mis, dan wordt een eventueel hedge-gat reduce-only
+    gedicht; stil gaat het boek hoe dan ook."""
     require(bool(reason.strip()), "Een unwind zonder reden.", DataContractError)
     vb = venue.book()
-    t = len(ctx.market.index) - 1
-    fills = venue.execute(unwind_orders(
-        vb.spot, vb.perp_short, dict(zip(ctx.symbols, ctx.spot_px[t], strict=True)),
-        dict(zip(ctx.symbols, ctx.perp_px[t], strict=True))))
-    return fills, replace(state, expected_spot={}, expected_perp={}, halted=reason)
+    fills, error = execute_each(venue, unwind_orders(vb.spot, vb.perp_short, spot_px,
+                                                     perp_px))
+    out: dict[str, Any] = {"action": "unwind", "reason": reason, "fills": _fills(fills),
+                           "error": error}
+    rep, halted = _repair_and_halt(venue, state, reason=f"unwind: {reason}", limits=limits,
+                                   spot_px=spot_px, perp_px=perp_px)
+    return {**out, **rep}, halted
+
+
+def resume(state: U1State, venue: Venue, *, reason: str,
+           config_hash: str | None = None) -> tuple[dict[str, Any], U1State]:
+    """Na onderzoek: de verwachte stand wordt wat de beurs NU houdt, en het boek handelt weer.
+
+    `config_hash`: na een update die de config van het boek verandert (bv. nieuwe fees in
+    `conf/execution/venues.yaml`) weigert de stap de oude staat. Wie de nieuwe config
+    accepteert, geeft hier haar hash mee (CLI: `--accept-config`); dat staat in het logboek."""
+    require(bool(reason.strip()), "Hervatten zonder reden.", DataContractError)
+    require(state.halted is not None, "Het boek staat niet stil.", DataContractError)
+    vb = venue.book()
+    new = replace(state, halted=None, expected_spot=dict(vb.spot),
+                  expected_perp=dict(vb.perp_short))
+    if config_hash is not None:
+        new = replace(new, config_hash=config_hash)
+    return ({"action": "hervat", "reason": reason, "was_halted": state.halted,
+             "spot": dict(vb.spot), "perp": dict(vb.perp_short),
+             "config_hash": {"was": state.config_hash, "now": new.config_hash}}, new)
 
 
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
-def _venue(ctx: U1Context, state: U1State, *, live: bool,
-           http: Any | None) -> KrakenVenue:
+def make_venue(symbols: Sequence[str], state: U1State, *, live: bool,
+               http: Any | None = None, env: Mapping[str, str] | None = None) -> KrakenVenue:
+    """De Kraken-adapter voor deze staat: dry-run met de stand die het boek verwacht, of live
+    met de vier sleutels uit de omgeving."""
+    env = os.environ if env is None else env
     kw: dict[str, Any] = {} if http is None else {"http": http}
     if not live:
-        # Dry-run: de adapter rondt af en legt vast, met de stand die het boek verwacht.
-        return KrakenVenue(ctx.symbols, dry_run=True, dry_equity_usd=state.capital_usd,
+        return KrakenVenue(symbols, dry_run=True, dry_equity_usd=state.capital_usd,
                            dry_book={"spot": dict(state.expected_spot),
                                      "perp": dict(state.expected_perp)}, **kw)
     keys = ("KRAKEN_SPOT_KEY", "KRAKEN_SPOT_SECRET", "KRAKEN_FUTURES_KEY",
             "KRAKEN_FUTURES_SECRET")
-    missing = [k for k in keys if not os.environ.get(k)]
+    missing = [k for k in keys if not env.get(k)]
     require(not missing, "Live zonder Kraken-sleutels in de omgeving.", DataContractError,
             missing=missing)
-    return KrakenVenue(ctx.symbols, spot_key=os.environ[keys[0]], spot_secret=os.environ[keys[1]],
-                       futures_key=os.environ[keys[2]], futures_secret=os.environ[keys[3]],
+    return KrakenVenue(symbols, spot_key=env[keys[0]], spot_secret=env[keys[1]],
+                       futures_key=env[keys[2]], futures_secret=env[keys[3]],
                        dry_run=False, **kw)
 
 
@@ -336,23 +509,37 @@ def main(argv: Sequence[str] | None = None, *, root: Path = ROOT,
          get: kf.Get | None = None, http: Any | None = None,
          now: pd.Timestamp | None = None) -> dict[str, Any]:
     ap = argparse.ArgumentParser(prog="python -I -m tradebot.carry.u1")
-    ap.add_argument("command", choices=("shadow", "step", "status", "unwind"))
+    ap.add_argument("command", choices=("shadow", "step", "status", "unwind", "resume"))
     ap.add_argument("--state", type=Path, default=None)
     ap.add_argument("--capital-usd", type=float, default=None)
     ap.add_argument("--start", default=FORWARD_START)
     ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--reason", default=None)
     ap.add_argument("--live", action="store_true")
+    ap.add_argument("--config", type=Path, default=None,
+                    help="serverconfig met de grenzen (standaard conf/live/u1.example.yaml)")
+    ap.add_argument("--journal", type=Path, default=None)
+    ap.add_argument("--accept-config", action="store_true",
+                    help="resume: de huidige config van het boek accepteren")
     args = ap.parse_args(argv)
+    if args.config is not None and args.state is None:
+        # Op de server: pad, logboek en modus uit dezelfde serverconfig als de dienst.
+        import yaml  # harde dependency (requirements.lock)
+
+        raw = yaml.safe_load(args.config.read_text(encoding="utf-8")) or {}
+        args.state = Path(raw["paths"]["state"])
+        args.journal = args.journal or Path(raw["paths"]["journal"])
+        args.live = args.live or raw.get("mode") == "live"
     if args.command == "status":
         require(args.state is not None, "status vraagt --state.", DataContractError)
         out: dict[str, Any] = load_u1_state(args.state).as_record()
         print(json.dumps(out, sort_keys=True))
         return out
     fetch: Callable[..., Any] = kf._get if get is None else get
-    panels = kf.fetch_panels(fetch, now=now)
-    ctx = build_context(root, kf.kraken_market(panels, robust_book_v5_config(root / v5.CONFIG)))
     if args.command == "shadow":
+        panels = kf.fetch_panels(fetch, now=now)
+        ctx = build_context(root, kf.kraken_market(panels,
+                                                   robust_book_v5_config(root / v5.CONFIG)))
         dtb3 = ex.fetch_dtb3(panels.last.tz_convert(None), fetch)
         rep = shadow(ctx, dtb3, start=args.start)
         md = render(rep)
@@ -367,24 +554,45 @@ def main(argv: Sequence[str] | None = None, *, root: Path = ROOT,
         print(md)
         return {k: v for k, v in rep.items() if k != "daily"}
     require(args.state is not None, f"{args.command} vraagt --state.", DataContractError)
+    limits = load_limits(args.config or root / DEFAULT_CONFIG)
+    journal = args.journal or args.state.with_suffix(".jsonl")
     mode = "live" if args.live else "dry_run"
-    if args.state.is_file():
-        state = load_u1_state(args.state)
-        require(state.mode == mode, "Een staat wisselt niet van modus; begin een nieuwe staat "
-                "voor live.", DataContractError, state=state.mode, run=mode)
-    else:
-        require(args.command == "step" and args.capital_usd is not None
-                and args.capital_usd > 0.0, "Een nieuwe staat vraagt step met "
-                "--capital-usd.", DataContractError)
-        state = U1State(config_hash=ctx.config_hash, mode=mode, capital_usd=args.capital_usd)
-    venue = _venue(ctx, state, live=args.live, http=http)
-    if args.command == "step":
-        out, state = step(ctx, state, venue)
-    else:
-        require(bool(args.reason), "unwind vraagt een --reason.", DataContractError)
-        fills, state = unwind(ctx, state, venue, reason=args.reason)
-        out = {"closed_legs": len(fills), "halted": state.halted}
-    save_u1_state(state, args.state)
+    with SingleInstance(args.state.with_suffix(".lock")):
+        if args.state.is_file():
+            state = load_u1_state(args.state)
+            require(state.mode == mode, "Een staat wisselt niet van modus; begin een nieuwe "
+                    "staat voor live.", DataContractError, state=state.mode, run=mode)
+        else:
+            require(args.command == "step" and args.capital_usd is not None
+                    and args.capital_usd > 0.0, "Een nieuwe staat vraagt step met "
+                    "--capital-usd.", DataContractError)
+            state = None
+        if args.command == "resume":
+            assert state is not None
+            require(bool(args.reason), "resume vraagt een --reason.", DataContractError)
+            venue = make_venue(sorted(kf.COINS), state, live=args.live, http=http)
+            accept = None
+            if args.accept_config:
+                accept = build_context(root, kf.kraken_market(
+                    kf.fetch_panels(fetch, now=now),
+                    robust_book_v5_config(root / v5.CONFIG))).config_hash
+            out, state = resume(state, venue, reason=args.reason, config_hash=accept)
+        else:
+            panels = kf.fetch_panels(fetch, now=now)
+            ctx = build_context(root, kf.kraken_market(
+                panels, robust_book_v5_config(root / v5.CONFIG)))
+            if state is None:
+                state = U1State(config_hash=ctx.config_hash, mode=mode,
+                                capital_usd=float(args.capital_usd))
+            venue = make_venue(ctx.symbols, state, live=args.live, http=http)
+            if args.command == "step":
+                out, state = step(ctx, state, venue, limits=limits,
+                                  live_prices=venue.prices())
+            else:
+                require(bool(args.reason), "unwind vraagt een --reason.", DataContractError)
+                out, state = unwind(ctx, state, venue, reason=args.reason, limits=limits)
+        append_journal(journal, {"command": args.command, **out})
+        save_u1_state(state, args.state)
     print(json.dumps(out, sort_keys=True, default=float))
     return out
 

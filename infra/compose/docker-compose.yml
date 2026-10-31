@@ -1,0 +1,56 @@
+# infra/compose/docker-compose.yml — het Kraken-boek (v9-U1) als dienst op één server.
+#
+#   cp conf/live/u1.example.yaml infra/compose/u1.yaml      # en aanpassen (kapitaal, grenzen)
+#   cp infra/compose/.env.example infra/compose/.env         # sleutels en alarmkanalen
+#   docker compose -f infra/compose/docker-compose.yml up -d --build
+#
+# Beheer (docs/runbook-kraken-u1.md, "Op een server"):
+#   docker compose -f infra/compose/docker-compose.yml logs -f u1
+#   docker compose -f infra/compose/docker-compose.yml exec u1 touch /var/lib/tradebot/HALT
+#   docker compose -f infra/compose/docker-compose.yml exec u1 \
+#       python -I -m tradebot.carry.u1 status --config /etc/tradebot/u1.yaml
+#
+# De dienst schrijft alleen in het volume `tradebot-state` (staat, logboek, backups,
+# heartbeat). Het containerbestandssysteem is read-only, zonder capabilities.
+# `restart: unless-stopped` herstart na een crash of reboot; een container die "unhealthy"
+# wordt (geen heartbeat), herstart compose NIET vanzelf: daarvoor is `HEARTBEAT_URL` (een
+# dead man's switch die van buiten alarmeert).
+name: tradebot
+
+services:
+  u1:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.runner
+    image: tradebot-runner:local
+    command: ["python", "-I", "-m", "tradebot.carry.service",
+              "--config", "/etc/tradebot/u1.yaml"]
+    env_file: .env
+    volumes:
+      - ./u1.yaml:/etc/tradebot/u1.yaml:ro
+      - tradebot-state:/var/lib/tradebot
+    restart: unless-stopped
+    # SIGTERM rondt de lopende ronde af; geef die tijd voordat docker SIGKILL stuurt.
+    stop_grace_period: 90s
+    healthcheck:
+      test: ["CMD", "python", "-I", "-m", "tradebot.carry.service",
+             "--config", "/etc/tradebot/u1.yaml", "--healthcheck"]
+      interval: 5m
+      timeout: 60s
+      retries: 3
+      start_period: 3m
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+volumes:
+  tradebot-state:

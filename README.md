@@ -37,10 +37,14 @@ fees van Kraken en de kasrente.
 - Het boek haalt de 15 % van het mandaat niet, en is op de holdout gefalsificeerd. Zie
   `docs/research/2026-10-25-robust-book-v9-kraken-cash.md`.
 - Het draait elke dag als shadow op de echte Kraken-data (`kraken-shadow.yml`).
-- Een live-stap is er ook, standaard in dry-run.
+- Op een server draait het 24/7 als dienst (`carry/service.py`, docker compose of systemd),
+  standaard in dry-run. De dienst heeft harde grenzen, een watchdog, alarmen, een
+  heartbeat en HALT/UNWIND-noodknoppen.
 - Van dry-run naar echt geld: `docs/runbook-kraken-u1.md`.
 
 ```bash
+docker compose -f infra/compose/docker-compose.yml up -d --build                # de dienst, 24/7
+python -I -m tradebot.carry.u1 status --config /etc/tradebot/u1.yaml            # de stand
 python -I -m tradebot.carry.u1 shadow --out shadow                              # Kraken-data, geen order
 python -I -m tradebot.carry.u1 step --state state/u1-dry.json --capital-usd N   # dry-run
 python -I -m tradebot.carry.u1 status --state state/u1-dry.json
@@ -83,6 +87,12 @@ Elke pull request draait:
 Op `main` en op een schema draaien daarnaast `nightly-regression.yml`,
 `paper-trade-ci.yml` en `kraken-shadow.yml`. Die laatste draait het Kraken-boek elke dag
 op de echte data: alleen lezen, geen sleutel, geen order.
+
+`docker.yml` bouwt het image van de dienst bij elke wijziging aan infra, code of config.
+Daarbij controleert hij:
+- de healthcheck;
+- de compose-config;
+- op `main`: één echte dry-run-ronde in de container, zoals compose hem draait.
 
 `research-run.yml` start alleen met de hand (Actions -> Run workflow). Hij doet het werk
 waar de ontwikkelomgeving geen netwerk voor heeft:
