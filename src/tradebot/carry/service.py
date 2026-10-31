@@ -281,10 +281,16 @@ class Service:
             pd.Timestamp(state.last_bar) >= today
         if halt_file or done or now < after:
             return
-        if now >= deadline:
-            self.alerter.send("warning", f"late-{today.date()}", f"de stap van {today.date()} "
-                              f"is om {now:%H:%M} UTC nog niet gelukt")
-        self._daily_step(state, now, out)
+        try:
+            self._daily_step(state, now, out)
+        except TRANSIENT as e:
+            # Alleen een stap die na de deadline MISLUKT, is te laat; een stap die in deze
+            # ronde slaagt (bv. na een herstart in de middag) niet.
+            if now >= deadline:
+                self.alerter.send("warning", f"late-{today.date()}", f"de stap van "
+                                  f"{today.date()} is om {now:%H:%M} UTC nog niet gelukt: "
+                                  f"{type(e).__name__}")
+            raise
 
     def _daily_step(self, state: U1State | None, now: pd.Timestamp,
                     out: dict[str, Any]) -> None:

@@ -47,6 +47,10 @@ oordeel of backtest veranderd.
 - **CI:** `docker.yml` bouwt het image en controleert healthcheck en compose. Op `main` draait
   hij één echte dry-run-ronde in de container. De infra-contracttest controleert compose,
   `.env.example` en de systemd-unit.
+- **Het "te laat"-alarm** ging af vóór de stap draaide. De eerste echte ronde in de
+  container (`docker.yml` op `main`, 16:03 UTC) liet dat zien. Na een herstart in de middag
+  kwam er dus een vals alarm, terwijl de stap in dezelfde ronde slaagde. Nu komt het alarm
+  alleen als de stap na de deadline mislukt.
 - **pip-audit** werd rood op een nieuwe advisory, niet door deze diff: hydra-core 1.3.7
   (GHSA-wf6j-7hvr-gr93). Opgehoogd naar 1.3.8 met `pip-compile --upgrade-package
   hydra-core`; verder verandert de lock niet.

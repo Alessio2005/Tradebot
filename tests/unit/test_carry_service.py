@@ -141,6 +141,14 @@ def test_data_that_is_not_fresh_is_retried_and_alerted_after_three_rounds(tmp_pa
     assert "late-2026-10-29" in _keys(alerts)
 
 
+def test_a_step_that_succeeds_after_the_deadline_is_not_late(tmp_path: Path):
+    # Een herstart in de middag: de stap van vandaag lukt in deze ronde, dus geen alarm.
+    svc, clock, venue, alerts, _ = _service(tmp_path, at="2026-10-28 16:03")
+    out = svc.run_once()
+    assert out["events"][0].startswith("stap 2026-10-28") and not any(
+        k.startswith("late-") for k in _keys(alerts))
+
+
 def test_a_refused_step_halts_the_book_with_a_critical_alert(tmp_path: Path):
     svc, clock, venue, alerts, _ = _service(tmp_path, limits__max_order_usd=1000.0)
     out = svc.run_once()
