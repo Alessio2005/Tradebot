@@ -47,6 +47,9 @@ oordeel of backtest veranderd.
 - **CI:** `docker.yml` bouwt het image en controleert healthcheck en compose. Op `main` draait
   hij één echte dry-run-ronde in de container. De infra-contracttest controleert compose,
   `.env.example` en de systemd-unit.
+- **pip-audit** werd rood op een nieuwe advisory, niet door deze diff: hydra-core 1.3.7
+  (GHSA-wf6j-7hvr-gr93). Opgehoogd naar 1.3.8 met `pip-compile --upgrade-package
+  hydra-core`; verder verandert de lock niet.
 
 ## Het Kraken-boek draait: feed, live-stap, dagelijkse shadow, vooruit-lezing (2026-10-27)
 Draaiboek: `docs/runbook-kraken-u1.md`. Geen bevroren poort, oordeel, ledger-entry of
