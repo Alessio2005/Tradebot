@@ -220,10 +220,12 @@ def sleeve_targets(close: pd.DataFrame, tff: pd.DataFrame, committed: pd.Series,
 
 
 def book(u1: pd.DataFrame, close: pd.DataFrame, target: pd.DataFrame,
-         cfg: V10Config) -> pd.DataFrame:
+         cfg: V10Config, rebalance: np.ndarray | None = None) -> pd.DataFrame:
     """De dagreeks van U1 plus de sleeve (stap 4-5 van de docstring).
 
-    `u1` en `close` delen de dag-index (naïef, het sluitmoment)."""
+    `u1` en `close` delen de dag-index (naïef, het sluitmoment). Met `rebalance` (bool per
+    dag, v11) wordt alleen op die dagen bijgekocht of herschaald; een uitstap (doel 0) gaat
+    elke dag door."""
     ret = close.pct_change().fillna(0.0).to_numpy()
     tgt = target.to_numpy()
     rate = ((u1["rf"] * DAYS - cfg.base.haircut_apr).clip(lower=0.0) / DAYS).to_numpy()
@@ -241,6 +243,8 @@ def book(u1: pd.DataFrame, close: pd.DataFrame, target: pd.DataFrame,
         flip = (want > 0) != (held > 0)
         off = np.abs(held - want) > band * np.where(want > 0, want, np.inf)
         trade = flip | off
+        if rebalance is not None and not rebalance[t]:
+            trade &= want <= 0
         new = np.where(trade, want, held)
         cost[t] = float(np.abs(new - held).sum()) * fee
         held = new
