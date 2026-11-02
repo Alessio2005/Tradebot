@@ -399,6 +399,21 @@
       "metrics": {},
       "notes": "v10: U1 plus een long-flat BTC/ETH-spot-sleeve op het stilstaande geld, aan bij stijgende netto long van asset managers op de CME (CFTC TFF) en/of trend. Regels en criteria vastgelegd vóór de data (conf/model/robust_book_v10.yaml). De prijsfamilie heeft alle vensters al gelezen (X4/Y4/Y5): de backtest kan alleen verwerpen; het schone bewijs is het vooruit-sample.",
       "amends": ""
+    },
+    {
+      "wave": 11,
+      "unit": "robust_book_v11_programme",
+      "market": "crypto",
+      "config_hash": "1314a69b8e556f40",
+      "n_trials": 3,
+      "result": "interim",
+      "git_sha": "65ab445",
+      "data_hash": "c3ba03f89a52fa08",
+      "preregistration_id": "v11-1314a69b8e556f40",
+      "ts_utc": "2026-11-02T16:59:03.142687+00:00",
+      "metrics": {},
+      "notes": "v11: U1 plus een trend-ensemble-sleeve (TSMOM over 20-320 d), wekelijks herbalanceren, optioneel vol-filter. Post-hoc na v10 (die de prijzen en 2022 liet zien); criteria van v10 ongewijzigd. Schoon bewijs: vooruit-sample.",
+      "amends": ""
     }
   ]
 }
