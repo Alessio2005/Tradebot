@@ -414,6 +414,21 @@
       "metrics": {},
       "notes": "v11: U1 plus een trend-ensemble-sleeve (TSMOM over 20-320 d), wekelijks herbalanceren, optioneel vol-filter. Post-hoc na v10 (die de prijzen en 2022 liet zien); criteria van v10 ongewijzigd. Schoon bewijs: vooruit-sample.",
       "amends": ""
+    },
+    {
+      "wave": 12,
+      "unit": "robust_book_v12_programme",
+      "market": "crypto",
+      "config_hash": "ba4fb15c1742e8d9",
+      "n_trials": 2,
+      "result": "interim",
+      "git_sha": "d390e1d",
+      "data_hash": "c3ba03f89a52fa08",
+      "preregistration_id": "v12-ba4fb15c1742e8d9",
+      "ts_utc": "2026-11-02T17:00:23.085330+00:00",
+      "metrics": {},
+      "notes": "v12: U1 plus een long/short-trend-sleeve (long spot, short perp met funding). Post-hoc na v10 en v11 (2022 bindt elke long-only sleeve); criteria van v10 ongewijzigd. Schoon bewijs: vooruit-sample.",
+      "amends": ""
     }
   ]
 }
