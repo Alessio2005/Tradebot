@@ -384,6 +384,51 @@
       },
       "notes": "Oordeel v9 over W_DEV, de backcast, de holdout en de hele cyclus (alle verbruikt). Het vooruit-sample volgt.",
       "amends": "aa952884b440290b"
+    },
+    {
+      "wave": 10,
+      "unit": "robust_book_v10_programme",
+      "market": "crypto",
+      "config_hash": "0cad1a5b3828db59",
+      "n_trials": 4,
+      "result": "interim",
+      "git_sha": "9254b8a",
+      "data_hash": "c3ba03f89a52fa08",
+      "preregistration_id": "v10-0cad1a5b3828db59",
+      "ts_utc": "2026-11-02T15:49:39.909340+00:00",
+      "metrics": {},
+      "notes": "v10: U1 plus een long-flat BTC/ETH-spot-sleeve op het stilstaande geld, aan bij stijgende netto long van asset managers op de CME (CFTC TFF) en/of trend. Regels en criteria vastgelegd vóór de data (conf/model/robust_book_v10.yaml). De prijsfamilie heeft alle vensters al gelezen (X4/Y4/Y5): de backtest kan alleen verwerpen; het schone bewijs is het vooruit-sample.",
+      "amends": ""
+    },
+    {
+      "wave": 11,
+      "unit": "robust_book_v11_programme",
+      "market": "crypto",
+      "config_hash": "1314a69b8e556f40",
+      "n_trials": 3,
+      "result": "interim",
+      "git_sha": "65ab445",
+      "data_hash": "c3ba03f89a52fa08",
+      "preregistration_id": "v11-1314a69b8e556f40",
+      "ts_utc": "2026-11-02T16:59:03.142687+00:00",
+      "metrics": {},
+      "notes": "v11: U1 plus een trend-ensemble-sleeve (TSMOM over 20-320 d), wekelijks herbalanceren, optioneel vol-filter. Post-hoc na v10 (die de prijzen en 2022 liet zien); criteria van v10 ongewijzigd. Schoon bewijs: vooruit-sample.",
+      "amends": ""
+    },
+    {
+      "wave": 12,
+      "unit": "robust_book_v12_programme",
+      "market": "crypto",
+      "config_hash": "ba4fb15c1742e8d9",
+      "n_trials": 2,
+      "result": "interim",
+      "git_sha": "d390e1d",
+      "data_hash": "c3ba03f89a52fa08",
+      "preregistration_id": "v12-ba4fb15c1742e8d9",
+      "ts_utc": "2026-11-02T17:00:23.085330+00:00",
+      "metrics": {},
+      "notes": "v12: U1 plus een long/short-trend-sleeve (long spot, short perp met funding). Post-hoc na v10 en v11 (2022 bindt elke long-only sleeve); criteria van v10 ongewijzigd. Schoon bewijs: vooruit-sample.",
+      "amends": ""
     }
   ]
 }
