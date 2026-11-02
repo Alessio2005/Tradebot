@@ -384,6 +384,21 @@
       },
       "notes": "Oordeel v9 over W_DEV, de backcast, de holdout en de hele cyclus (alle verbruikt). Het vooruit-sample volgt.",
       "amends": "aa952884b440290b"
+    },
+    {
+      "wave": 10,
+      "unit": "robust_book_v10_programme",
+      "market": "crypto",
+      "config_hash": "0cad1a5b3828db59",
+      "n_trials": 4,
+      "result": "interim",
+      "git_sha": "9254b8a",
+      "data_hash": "c3ba03f89a52fa08",
+      "preregistration_id": "v10-0cad1a5b3828db59",
+      "ts_utc": "2026-11-02T15:49:39.909340+00:00",
+      "metrics": {},
+      "notes": "v10: U1 plus een long-flat BTC/ETH-spot-sleeve op het stilstaande geld, aan bij stijgende netto long van asset managers op de CME (CFTC TFF) en/of trend. Regels en criteria vastgelegd vóór de data (conf/model/robust_book_v10.yaml). De prijsfamilie heeft alle vensters al gelezen (X4/Y4/Y5): de backtest kan alleen verwerpen; het schone bewijs is het vooruit-sample.",
+      "amends": ""
     }
   ]
 }

@@ -4,6 +4,17 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Robuust boek v10: een flow/trend-sleeve naast de carry, verworpen (2026-11-02)
+Rapport: `docs/research/2026-11-02-robust-book-v10-flow-sleeve.md`. De live dienst is niet
+aangeraakt.
+- **Nieuwe data** (`data/positioning_series.py`, research-run-taak `positioning-series`):
+  de spot-close van BTC en ETH en het CFTC-TFF-rapport voor de CME-cryptocontracten.
+- **`systematic/programme_v10.py`**: U1 plus een long-flat BTC/ETH-spot-sleeve op het geld
+  dat de carry niet gebruikt. Vier trials (M 32 → 36), regels en criteria vastgelegd vóór
+  de data.
+- **Oordeel:** alle trials verworpen. De institutionele flow voegt niets toe boven trend.
+  Alleen trend (F3) geeft 12,7 % CAGR tegen 8,0 %, maar 2022 wordt −5,1 %.
+
 ## Het Kraken-boek 24/7 op een server: veiligheid, watchdog, alarmen (2026-10-31)
 Draaiboek: `docs/runbook-kraken-u1.md` (§3 server, §4 veiligheid). Geen bevroren poort,
 oordeel of backtest veranderd.
