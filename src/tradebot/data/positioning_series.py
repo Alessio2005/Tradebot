@@ -67,7 +67,7 @@ TFF_COLUMNS = {
     "dealer_positions_short_all": "dealer_short",
 }
 _NUMERIC = [c for c in TFF_COLUMNS.values() if c not in ("report_date", "market", "code")]
-_CRYPTO = re.compile(r"\b(BITCOIN|ETHER)\b.*CHICAGO MERCANTILE", re.I)
+_CRYPTO = re.compile(r"\b(?:BITCOIN|ETHER)\b.*CHICAGO MERCANTILE", re.I)
 TFF_WHERE = ("upper(market_and_exchange_names) like '%CHICAGO MERCANTILE%' AND "
              "(upper(market_and_exchange_names) like '%BITCOIN%' OR "
              "upper(market_and_exchange_names) like '%ETHER%')")

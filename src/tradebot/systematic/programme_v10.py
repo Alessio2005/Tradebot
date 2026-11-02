@@ -185,13 +185,13 @@ def flow_signal(tff: pd.DataFrame, index: pd.DatetimeIndex, sig: Signal) -> pd.D
         net = _am_net(tff, coin).sort_index()
         rising = (net.diff(sig.flow_lookback_reports) > 0) & net.shift(
             sig.flow_lookback_reports).notna()
-        eff = pd.Series(rising.to_numpy(), index=net.index + pd.Timedelta(
+        eff = pd.Series(rising.to_numpy(dtype=float), index=net.index + pd.Timedelta(
             days=sig.release_lag_days))
         when = pd.Series(eff.index, index=eff.index)
         val = eff.reindex(index, method="ffill")
         age = index.to_series() - when.reindex(index, method="ffill")
         fresh = age <= pd.Timedelta(days=sig.flow_stale_days)
-        out[coin] = (val.fillna(False).astype(bool) & fresh).to_numpy()
+        out[coin] = (val.fillna(0.0).gt(0.0) & fresh).to_numpy()
     return pd.DataFrame(out, index=index)
 
 
