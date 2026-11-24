@@ -66,11 +66,10 @@ services:
   # niet met DU begint (src/tradebot/options/live.py).
   ib-gateway:
     image: ghcr.io/gnzsnz/ib-gateway:stable
+    env_file: .env               # TWS_USERID en TWS_PASSWORD (de paper-login)
     environment:
-      TRADING_MODE: paper
+      TRADING_MODE: paper        # vast: wint van wat er in .env staat
       READ_ONLY_API: "no"
-      TWS_USERID: ${TWS_USERID:?zet TWS_USERID in .env}
-      TWS_PASSWORD: ${TWS_PASSWORD:?zet TWS_PASSWORD in .env}
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true

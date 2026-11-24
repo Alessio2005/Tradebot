@@ -77,7 +77,7 @@ def test_the_options_service_is_paper_hardened_and_health_checked():
     services = yaml.safe_load((ROOT / "infra/compose/docker-compose.yml").read_text(
         encoding="utf-8"))["services"]
     gw, svc = services["ib-gateway"], services["options-paper"]
-    assert gw["environment"]["TRADING_MODE"] == "paper"
+    assert gw["environment"]["TRADING_MODE"] == "paper" and gw["env_file"] == ".env"
     assert svc["command"][:4] == ["python", "-I", "-m", "tradebot.options"]
     assert svc["command"][4] == "paper" and "--healthcheck" in svc["healthcheck"]["test"]
     assert svc["read_only"] is True and svc["cap_drop"] == ["ALL"]
