@@ -27,7 +27,10 @@ from tradebot.options.rates import Carry
 from tradebot.options.units import GreeksPerShare
 from tradebot.schemas.options import load_options_config
 
-CFG = load_options_config()
+_BASE = load_options_config()
+# De testmarkt heeft TST en TSTB; geef ze een beta van 1 zodat de risicopoort ze kent.
+CFG = _BASE.model_copy(update={"universe": _BASE.universe.model_copy(update={
+    "beta_to_spy": {**_BASE.universe.beta_to_spy, "TST": 1.0, "TSTB": 1.0}})})
 SETTINGS = pricer_settings(CFG.pricing)
 CAL = TradingCalendar(CFG.universe.half_days)
 # DTE vanaf NOW (2026-11-24): 24, 37, 52 en 87 dagen.

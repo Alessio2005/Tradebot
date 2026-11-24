@@ -149,9 +149,43 @@ sizing:
   max_loss_frac_capital: 0.02    # per nieuwe positie
   ranking: credit_per_max_loss   # vast
 
-risk:                            # fase 5 voegt de overige grenzen toe (detailontwerp 8)
+risk:                            # detailontwerp 8; fracties van het kapitaal
+  max_abs_beta_delta_frac: 0.30  # |beta-gewogen dollar-delta|
+  max_vega_frac: 0.005           # |vega| in USD per volpunt
+  max_gamma_loss_5pct_frac: 0.03 # verlies uit gamma bij 5 % beweging van SPY
   max_loss_per_underlying_frac: 0.05
+  max_buying_power_frac: 0.50
+  max_open_positions: 10
+  max_new_positions_per_day: 3
+  daily_loss_stop_entries_frac: 0.02  # geen entries tot de volgende handelsdag
+  daily_loss_degross_frac: 0.04       # sluitingen voorstellen tot alles weer past
+  drawdown_halt_frac: 0.10            # HaltStore: alleen met de hand weer open
+  scenario_spot: [-0.20, -0.10, -0.05, 0.05, 0.10, 0.20]
+  scenario_vol_points: [-10, 0, 10, 20]
+  max_scenario_loss_frac: 0.08
   allow_undefined_risk: false
+  pdt_guard: true
+
+execution:                       # detailontwerp 10
+  walk_interval_seconds: 15
+  max_concession_entry: 0.60     # fractie van mid naar de natuurlijke prijs
+  max_concession_exit: 1.00
+  ticks: {default: {below_3: 0.01, above_3: 0.05}, combo: 0.01}
+  max_order_usd: 5000            # premie per order; daarboven is het een fout (HALT)
 
 schedule:                        # New York-tijd
   close_before_expiry_time: "15:00"   # op de handelsdag vóór expiratie
+  scan_times: ["10:00", "13:30"]      # entries alleen op deze tijden
+  end_of_day: "16:15"                 # ATM-IV, expiratie, equity en staat
+  no_entry_first_minutes: 15
+  no_entry_last_minutes: 30
+  manage_interval_seconds: 60
+  risk_interval_seconds: 60
+  reconcile_interval_seconds: 300
+
+account:
+  capital_usd: 25000                  # fictief: replay en IBKR-paper
+
+paper:
+  fill_at_concession: 0.40
+  commission_per_contract: 0.65

@@ -4,6 +4,52 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options fase 6: paper-broker, engine, replay en CLI (2026-11-24)
+Detailontwerp: secties 9 tot en met 12. Alles met fictief geld; er is geen live-pad.
+- `options.execution`: combo-orders met stabiele position- en client-ids, de price-walk
+  (start op mid, per tick richting natural, stop bij de maximale concessie), het
+  `BrokerAdapter`-protocol en de `PaperBroker` (deterministische fills, commissie,
+  expiratie met exercise en assignment, vroege assignment voor dividend).
+- `options.engine.service`: de engine als toestandsmachine met taken (markt, walk, risico,
+  manage, reconcile, scan, einde dag). Een `SafetyBreach` zet de `HaltStore`; drie fouten op
+  rij in dezelfde taak ook. HALT-bestand blokkeert entries, UNWIND sluit alles. Een
+  reconcile-verschil blokkeert entries voor die onderliggende tot het weg is.
+- `options.engine.state`: staat atomisch op schijf met mode en account-hash; het journal is
+  append-only JSONL zonder geheimen.
+- `options.engine.replay` en `python -I -m tradebot.options replay --market --out`: de engine
+  op een opgeslagen markt met een virtuele klok (elke 15 s in de sessie plus einde dag).
+  Exit-code 1 bij een HALT of een short optie die na expiratie nog open staat.
+- Workflow `options-paper-smoke.yml`: replay op de synthetische standaardmarkt.
+- Config: `schedule` (scantijden, entryvenster, intervallen, einde dag), `account`
+  (`capital_usd` 25.000, fictief) en `paper`.
+- Afwijkingen: ketens worden in de engine gebouwd met BAW (`Use.SCAN`), ook voor de delta's
+  waarop strikes gekozen worden; de risicopoort rekent pro forma met de beslisengine. De
+  risicotaak rekent alleen opnieuw als markt of boek veranderde. In replay krijgt elke naam
+  die de config niet kent beta 1,0. De ATM-IV-historie krijgt alleen een punt op een dag
+  met een verse keten. `SingleInstance` en de `Alerter` zijn niet verplaatst; de dienst krijgt
+  een alert-functie mee.
+
+## Options fase 5: risicopoort, limieten, scenario's en PDT (2026-11-24)
+Detailontwerp: sectie 8. Elke order gaat door één ingang, `RiskGate.review`; alleen de
+poort kan een `ApprovedOrder` maken (een sentinel plus een AST-test die dat afdwingt).
+- `options.risk.aggregate`: Greeks per onderliggende en totaal, beta-gewogen dollar-delta,
+  verlies bij 5 % SPY-beweging (gamma), vega en theta. Aandelen tellen mee.
+- `options.risk.scenarios`: herwaardering per leg op een rooster van spot- en
+  vol-schokken; legs met discreet dividend via FD op een grof rooster.
+- `options.risk.margin` (benadering van buying power), `options.risk.pdt` (de
+  PDT-bewaking onder 25k) en `options.risk.monitor` (dagverlies, drawdown, afbouwplan).
+- `options.risk.limits`: zeven benoemde controles tegen `risk.*`-fracties van het kapitaal.
+- `options.risk.gate`: harde fouten (aantal, verkeerde onderliggende, verlopen, te grote
+  order, limiet buiten het bid/ask-bereik) zijn een `SafetyBreach`; ontbrekende quotes zijn
+  een weigering. Entries worden per eenheid verkleind tot ze passen. Volledig sluiten mag
+  altijd, ook in HALT. Bijsturen mag alleen als het binnen de grenzen blijft of risico
+  verkleint.
+- Config: de rest van `risk` en een nieuwe sectie `execution` (ticks, `max_order_usd`).
+- Afwijking: de prijscontrole vergelijkt de limiet met het bereik van gunstigst
+  (kopen tegen bid, verkopen tegen ask) tot natuurlijk, plus één tick, in plaats van
+  intrinsieke waarde tot natuurlijk. De intrinsieke ondergrens klopt niet voor combo's met
+  short legs (een credit spread zou altijd buiten de grens vallen).
+
 ## Options fase 4: regelgebaseerde strategieën (2026-11-24)
 Detailontwerp: sectie 7. Pure functies van een bevroren marktbeeld en het boek: geen klok,
 geen I/O, geen broker, geen training.
