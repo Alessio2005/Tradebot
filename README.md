@@ -1,10 +1,20 @@
 # Tradebot
 
-Onderzoeksstack voor systematische crypto-strategieën: PIT-data, features,
-labeling, CPCV en walk-forward, kosten- en risicomodellen, onderzoekspoorten en
-een paper-trade-engine. Code staat in `src/tradebot/`, configuratie in `conf/`,
-bevroren onderzoeks- en governance-artefacten in `artefacts/`, en de rapporten in
-`docs/research/`. Wat er per onderzoeksronde veranderde, staat in `CHANGELOG.md`.
+Tradebot wordt omgebouwd tot een **options-setup**: regelgebaseerde strategieën op
+US-genoteerde aandelen- en ETF-opties, met prijzen, implied volatility en Greeks uit
+QuantLib, Greeks-limieten op portefeuilleniveau en een asynchrone engine. Alles draait met
+fictief geld: replay of een IBKR-paper-account. Ontwerp:
+`docs/research/2026-11-24-options-pivot-design.md` en
+`docs/research/2026-11-24-options-pivot-detailontwerp.md`. De bouw gaat in fasen; tot de
+options-dienst er is (fase 7), start er standaard geen dienst.
+
+De crypto-onderzoeksstack staat sinds 2026-11 in **standby**: alle code, configs en tests
+staan er nog en blijven groen, maar niets ervan draait standaard. Zie
+[Crypto (standby)](#crypto-standby) en `docs/crypto-standby.md`.
+
+Code staat in `src/tradebot/`, configuratie in `conf/`, bevroren onderzoeks- en
+governance-artefacten in `artefacts/`, en de rapporten in `docs/research/`. Wat er per
+ronde veranderde, staat in `CHANGELOG.md`.
 
 ## Installatie
 
@@ -21,7 +31,15 @@ pre-commit install
 De dvc-CLI voor het manifest `data/pit_store.dvc` is optioneel:
 `pip install -e ".[data]"`. De PIT-store zelf staat in git.
 
-## Stand (2026-10-27)
+## Crypto (standby)
+
+Onderzoeksstack voor systematische crypto-strategieën: PIT-data, features, labeling, CPCV en
+walk-forward, kosten- en risicomodellen, onderzoekspoorten, een paper-trade-engine en de
+Kraken-dienst (U1). In standby sinds 2026-11: de U1-dienst start alleen met het
+compose-profiel `crypto`, de dagelijkse `kraken-shadow` en de maandelijkse k8s-cron staan uit.
+Weer aanzetten: `docs/crypto-standby.md`. Hieronder de stand van vóór de standby.
+
+### Stand (2026-10-27)
 
 Er is geen strategie die volgens de vooraf vastgelegde regels kapitaal verdient. Zie
 `docs/research/2026-10-24-production-readiness-audit.md` voor de audit.
@@ -36,14 +54,15 @@ fees van Kraken en de kasrente.
 - Over de backtest 2020-04 .. 2026-09 was elk kalenderjaar positief, met 8,0 % CAGR.
 - Het boek haalt de 15 % van het mandaat niet, en is op de holdout gefalsificeerd. Zie
   `docs/research/2026-10-25-robust-book-v9-kraken-cash.md`.
-- Het draait elke dag als shadow op de echte Kraken-data (`kraken-shadow.yml`).
+- Het draaide elke dag als shadow op de echte Kraken-data (`kraken-shadow.yml`, nu alleen
+  met de hand).
 - Op een server draait het 24/7 als dienst (`carry/service.py`, docker compose of systemd),
   standaard in dry-run. De dienst heeft harde grenzen, een watchdog, alarmen, een
   heartbeat en HALT/UNWIND-noodknoppen.
 - Van dry-run naar echt geld: `docs/runbook-kraken-u1.md`.
 
 ```bash
-docker compose -f infra/compose/docker-compose.yml up -d --build                # de dienst, 24/7
+docker compose -f infra/compose/docker-compose.yml --profile crypto up -d --build  # de dienst, 24/7
 python -I -m tradebot.carry.u1 status --config /etc/tradebot/u1.yaml            # de stand
 python -I -m tradebot.carry.u1 shadow --out shadow                              # Kraken-data, geen order
 python -I -m tradebot.carry.u1 step --state state/u1-dry.json --capital-usd N   # dry-run

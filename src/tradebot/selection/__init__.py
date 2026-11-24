@@ -1,5 +1,8 @@
 """selection — Feature selectie modules (v3 T0.4).
 
+Standby sinds 2026-11 (zie docs/crypto-standby.md): niet de actieve setup, wel onderhouden
+en getest.
+
 Bevat: SFI (Single Feature Importance), Causal MDA (Mean Decrease Accuracy),
 en wrapper voor Clustered Feature Importance (CFI uit features/cfi.py).
 """

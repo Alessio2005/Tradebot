@@ -25,6 +25,8 @@ metadata:
     app.kubernetes.io/component: carry-shadow
 spec:
   schedule: "17 6 5 * *"      # de 5e van elke maand, 06:17 UTC
+  # Crypto in standby sinds 2026-11 (docs/crypto-standby.md). Weer aan: suspend: false.
+  suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 6
   failedJobsHistoryLimit: 6

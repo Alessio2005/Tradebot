@@ -1,6 +1,9 @@
 # src/tradebot/train/__init__.py
 """Training sub-package — CatBoost agents, bandit ensemble, calibration, checkpoints.
 
+Standby sinds 2026-11 (zie docs/crypto-standby.md): niet de actieve setup, wel onderhouden
+en getest.
+
 Public surface
 --------------
 catboost

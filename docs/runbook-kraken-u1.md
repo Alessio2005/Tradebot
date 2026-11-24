@@ -1,5 +1,8 @@
 # Draaiboek: het Kraken-boek (v9-U1)
 
+> **Standby sinds 2026-11.** Options zijn de actieve setup; dit boek draait niet meer standaard.
+> Weer aanzetten: `docs/crypto-standby.md`.
+
 Wat het boek is, wat het nu doet, en hoe het van shadow naar echt geld gaat. Achtergrond:
 - `docs/research/2026-10-25-venue-kraken-vs-bybit.md` (waarom Kraken);
 - `docs/research/2026-10-25-robust-book-v9-kraken-cash.md` (de cijfers).
@@ -69,7 +72,7 @@ git clone <repo> /opt/tradebot && cd /opt/tradebot
 cp conf/live/u1.example.yaml infra/compose/u1.yaml      # kapitaal, grenzen, mode: dry_run
 cp infra/compose/.env.example infra/compose/.env         # alarmkanalen, later de sleutels
 chmod 600 infra/compose/.env
-docker compose -f infra/compose/docker-compose.yml up -d --build
+docker compose -f infra/compose/docker-compose.yml --profile crypto up -d --build
 docker compose -f infra/compose/docker-compose.yml logs -f u1
 ```
 
@@ -102,7 +105,7 @@ weg of hangt de container, dan kan de dienst zelf niets melden. Dit is dan het e
 | Hervatten na stilstand | `... exec u1 python -I -m tradebot.carry.u1 resume --config /etc/tradebot/u1.yaml --reason "onderzocht: ..."` |
 | Logboek | `/var/lib/tradebot/u1-journal.jsonl` (één regel per stap of ingreep) |
 | Vorige staten | `/var/lib/tradebot/backups/` (de laatste 30) |
-| Bijwerken | `git pull && docker compose -f infra/compose/docker-compose.yml up -d --build` |
+| Bijwerken | `git pull && docker compose -f infra/compose/docker-compose.yml --profile crypto up -d --build` |
 
 **Stilstand is de veilige toestand.** Het boek gaat alleen weer handelen na `resume`, en dat
 doet een mens. Lees eerst het alarm en het logboek. `resume` neemt wat de beurs NU houdt als

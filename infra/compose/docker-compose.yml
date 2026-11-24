@@ -18,7 +18,10 @@
 name: tradebot
 
 services:
+  # Crypto in standby sinds 2026-11 (docs/crypto-standby.md): de U1-dienst start alleen met
+  # `docker compose --profile crypto up -d u1`.
   u1:
+    profiles: ["crypto"]
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.runner

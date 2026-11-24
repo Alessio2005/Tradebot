@@ -11,11 +11,13 @@ name: kraken-shadow
 #
 # Geplande workflows draaien alleen op de standaardbranch.
 
+# Crypto in standby sinds 2026-11 (docs/crypto-standby.md): alleen nog met de hand te starten.
+# Weer dagelijks: zet dit blok terug onder `on:`
+#   schedule:
+#     # Dagelijks 06:23 UTC: na de dagclose van 00:00 en de FRED-publicatie van de vorige
+#     # werkdag, buiten het hele uur (geplande runs op :00 lopen vaak vertraging op).
+#     - cron: "23 6 * * *"
 on:
-  schedule:
-    # Dagelijks 06:23 UTC: na de dagclose van 00:00 en de FRED-publicatie van de vorige
-    # werkdag, buiten het hele uur (geplande runs op :00 lopen vaak vertraging op).
-    - cron: "23 6 * * *"
   workflow_dispatch:
 
 permissions:

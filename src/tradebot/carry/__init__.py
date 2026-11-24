@@ -1,5 +1,8 @@
 """Het uitvoeringspad van het carryboek (robuust boek v8-T2): van besluit naar orders.
 
+Standby sinds 2026-11 (zie docs/crypto-standby.md): niet de actieve setup, wel onderhouden
+en getest.
+
 Audit 2026-10-24, E-1: de enige overgebleven kandidaat (spot long, perp short, een
 gefinancierde tranche) had geen uitvoeringspad. De live-engine in `tradebot.live` is een
 ML-engine op één been voor Bybit en kent geen spotbeen, geen lening en geen uniMMR.
