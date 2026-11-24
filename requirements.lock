@@ -196,7 +196,7 @@ six==1.17.0
     # via
     #   catboost
     #   python-dateutil
-soupsieve==2.9.2
+soupsieve==4.1.3
     # via beautifulsoup4
 sqlalchemy==2.0.52
     # via
