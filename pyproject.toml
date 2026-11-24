@@ -60,6 +60,8 @@ dependencies = [
     # Options (2026-11): prijzen, IV en Greeks met Amerikaanse uitoefening en dividenden.
     # Geen numpy-eis, abi3-wheel voor 3.13. Geen type-stubs: zie de mypy-override.
     "QuantLib>=1.44",
+    # IBKR (2026-11, open vraag D): TWS/IB Gateway-API voor de paper-dienst. Exact gepind.
+    "ib_async==2.0.1",
     # Utility
     "python-dateutil>=2.8",
 ]

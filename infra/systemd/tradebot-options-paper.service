@@ -1,0 +1,48 @@
+# infra/systemd/tradebot-options-paper.service — de options-paper-dienst zonder Docker.
+#
+# Vereist een IB Gateway in PAPER-modus op deze machine (API-poort 4002). Fictief geld: de
+# dienst weigert elk account dat niet met DU begint. Installatie (docs/runbook-options.md):
+#   useradd --system --home /opt/tradebot --shell /usr/sbin/nologin tradebot
+#   git clone ... /opt/tradebot && cd /opt/tradebot
+#   python3.13 -m venv .venv && .venv/bin/pip install -r requirements.lock \
+#       && .venv/bin/pip install --no-deps -e .
+#   install -d -o root -g tradebot -m 750 /etc/tradebot
+#   printf 'IB_HOST=127.0.0.1\nIB_PORT=4002\nIB_ACCOUNT=\n' > /etc/tradebot/options.env
+#   chmod 640 /etc/tradebot/options.env
+#   cp infra/systemd/tradebot-options-paper.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now tradebot-options-paper
+[Unit]
+Description=Tradebot: options-paper-dienst (IBKR paper, fictief geld)
+Wants=network-online.target time-sync.target
+After=network-online.target time-sync.target
+
+[Service]
+Type=simple
+User=tradebot
+Group=tradebot
+WorkingDirectory=/opt/tradebot
+EnvironmentFile=/etc/tradebot/options.env
+Environment=PYTHONUNBUFFERED=1 TZ=UTC
+ExecStart=/opt/tradebot/.venv/bin/python -I -m tradebot.options paper --run-dir /var/lib/tradebot/options
+Restart=always
+RestartSec=30
+StartLimitIntervalSec=0
+KillSignal=SIGTERM
+TimeoutStopSec=90
+StateDirectory=tradebot
+StateDirectoryMode=0750
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/tradebot
+
+[Install]
+WantedBy=multi-user.target
