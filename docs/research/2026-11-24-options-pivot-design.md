@@ -7,6 +7,9 @@ keuzes nog bij de eigenaar liggen. Pas na akkoord begint fase 1.
 Stand van de repo: `main` op `e237394`. Alles wat hieronder over de huidige code staat, is op die
 commit nagekeken, niet uit de leidraad overgenomen.
 
+De uitwerking tot op het niveau van typen, configsleutels, algoritmen en tests staat in
+`2026-11-24-options-pivot-detailontwerp.md`.
+
 ## Samenvatting
 
 - **Options vervangen crypto als actieve setup.** Nieuw subpackage `tradebot.options` met
@@ -58,7 +61,7 @@ U1-config staat op `mode: dry_run`, `kraken-shadow.yml` draait dagelijks om 06:2
 | `infra/systemd/tradebot-u1.service` | Blijft staan. Het runbook en `docs/crypto-standby.md` noemen `systemctl disable --now tradebot-u1`. |
 | `infra/k8s/cron-carry-shadow.yaml` | `suspend: true`. |
 | `.github/workflows/kraken-shadow.yml` | Het `schedule`-blok eruit, alleen `workflow_dispatch` blijft. |
-| `.github/workflows/research-run.yml` | Gepland draaien uit, handmatig blijft. |
+| `.github/workflows/research-run.yml` | Geen wijziging: draait al alleen handmatig. |
 | `.github/workflows/paper-trade-ci.yml` | Ongewijzigd: de crypto-code bestaat nog en moet blijven werken. |
 | `README.md`, `pyproject.toml` (`description`) | "Options-setup; crypto in standby". README krijgt een sectie *Crypto (standby)*. |
 | Module-docstrings van `carry/`, `systematic/`, `train/`, `tune/`, `labeling/`, `cv/`, `selection/`, `featurestore/` | Eén regel: *standby sinds 2026-11, zie docs/crypto-standby.md*. Geen logica verandert. |
@@ -254,7 +257,7 @@ Zoals sectie 7 en 10 van de leidraad. De belangrijkste punten:
 | `security-scan.yml` | pip-audit en bandit over de nieuwe locks en code. Geen uitzonderingen. |
 | `docs.yml` | markdownlint over de nieuwe documenten (dit document is lokaal gecontroleerd met markdownlint-cli2 0.13.0). |
 | `paper-trade-ci.yml` | Ongewijzigd. Nieuw ernaast: `options-paper-smoke` met de e2e-replay, op PR's en wekelijks. |
-| `kraken-shadow.yml`, `research-run.yml` | Cron uit, handmatig blijft. |
+| `kraken-shadow.yml` | Cron uit, handmatig blijft. |
 | `docker.yml` | Image ~21 MB groter. |
 
 De IBKR-adapter wordt getest met een fake van de `ib_async`-interface. `# pragma: no cover`
