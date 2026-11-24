@@ -4,6 +4,27 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options fase 5: risicopoort, limieten, scenario's en PDT (2026-11-24)
+Detailontwerp: sectie 8. Elke order gaat door één ingang, `RiskGate.review`; alleen de
+poort kan een `ApprovedOrder` maken (een sentinel plus een AST-test die dat afdwingt).
+- `options.risk.aggregate`: Greeks per onderliggende en totaal, beta-gewogen dollar-delta,
+  verlies bij 5 % SPY-beweging (gamma), vega en theta. Aandelen tellen mee.
+- `options.risk.scenarios`: herwaardering per leg op een rooster van spot- en
+  vol-schokken; legs met discreet dividend via FD op een grof rooster.
+- `options.risk.margin` (benadering van buying power), `options.risk.pdt` (de
+  PDT-bewaking onder 25k) en `options.risk.monitor` (dagverlies, drawdown, afbouwplan).
+- `options.risk.limits`: zeven benoemde controles tegen `risk.*`-fracties van het kapitaal.
+- `options.risk.gate`: harde fouten (aantal, verkeerde onderliggende, verlopen, te grote
+  order, limiet buiten het bid/ask-bereik) zijn een `SafetyBreach`; ontbrekende quotes zijn
+  een weigering. Entries worden per eenheid verkleind tot ze passen. Volledig sluiten mag
+  altijd, ook in HALT. Bijsturen mag alleen als het binnen de grenzen blijft of risico
+  verkleint.
+- Config: de rest van `risk` en een nieuwe sectie `execution` (ticks, `max_order_usd`).
+- Afwijking: de prijscontrole vergelijkt de limiet met het bereik van gunstigst
+  (kopen tegen bid, verkopen tegen ask) tot natuurlijk, plus één tick, in plaats van
+  intrinsieke waarde tot natuurlijk. De intrinsieke ondergrens klopt niet voor combo's met
+  short legs (een credit spread zou altijd buiten de grens vallen).
+
 ## Options fase 4: regelgebaseerde strategieën (2026-11-24)
 Detailontwerp: sectie 7. Pure functies van een bevroren marktbeeld en het boek: geen klok,
 geen I/O, geen broker, geen training.

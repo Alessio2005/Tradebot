@@ -3,8 +3,8 @@
 Elk getal dat een handelsbeslissing stuurt, staat in de config en wordt hier gevalideerd.
 Een onbekende sleutel is een fout bij het laden, geen waarschuwing (`StrictModel`,
 `extra="forbid"`). De secties groeien per fase mee (detailontwerp 3.1): fase 2 bracht
-`universe` en `pricing`, fase 3 `filters` en `iv_metrics`, fase 4 `strategies`, `sizing`,
-`schedule` en de eerste sleutels van `risk`.
+`universe` en `pricing`, fase 3 `filters` en `iv_metrics`, fase 4 `strategies`, `sizing` en
+`schedule`, fase 5 `risk` en `execution`.
 """
 from __future__ import annotations
 
@@ -19,7 +19,8 @@ from ..utils.failfast import ConfigContractError
 from .config import StrictModel
 
 __all__ = ["DEFAULT_OPTIONS_CONFIG", "CalendarSpreadConfig", "CashSecuredPutConfig",
-           "CoveredCallConfig", "CreditSpreadConfig", "DebitVerticalConfig", "FilterConfig",
+           "CoveredCallConfig", "CreditSpreadConfig", "DebitVerticalConfig", "ExecutionConfig",
+           "FilterConfig",
            "IVFallbackConfig", "IVMetricsConfig", "IronCondorConfig", "LongVolConfig",
            "OptionsConfig", "PricingConfig", "RiskConfig", "ScheduleConfig", "ShortVolConfig",
            "SizingConfig", "StrategiesConfig", "UniverseConfig", "WheelConfig",
@@ -286,10 +287,53 @@ class SizingConfig(StrictModel):
 
 
 class RiskConfig(StrictModel):
-    """Risicopoort (detailontwerp 8). Fase 4 gebruikt alleen deze twee sleutels."""
+    """Risicopoort (detailontwerp 8); fracties zijn van `capital_usd`."""
 
+    max_abs_beta_delta_frac: Fraction = 0.30
+    max_vega_frac: Fraction = 0.005
+    max_gamma_loss_5pct_frac: Fraction = 0.03
     max_loss_per_underlying_frac: Fraction = 0.05
+    max_buying_power_frac: Fraction = 0.50
+    max_open_positions: Annotated[int, Field(ge=1, le=100)] = 10
+    max_new_positions_per_day: Annotated[int, Field(ge=1, le=50)] = 3
+    daily_loss_stop_entries_frac: Fraction = 0.02
+    daily_loss_degross_frac: Fraction = 0.04
+    drawdown_halt_frac: Fraction = 0.10
+    scenario_spot: tuple[Annotated[float, Field(gt=-0.9, le=1.0)], ...] = (
+        -0.20, -0.10, -0.05, 0.05, 0.10, 0.20)
+    scenario_vol_points: tuple[Annotated[float, Field(ge=-50.0, le=100.0)], ...] = (
+        -10.0, 0.0, 10.0, 20.0)
+    max_scenario_loss_frac: Fraction = 0.08
     allow_undefined_risk: bool = False
+    pdt_guard: bool = True
+
+    @model_validator(mode="after")
+    def _ordered(self) -> RiskConfig:
+        if not self.daily_loss_stop_entries_frac <= self.daily_loss_degross_frac:
+            raise ValueError("daily_loss_stop_entries_frac moet <= daily_loss_degross_frac")
+        if not self.scenario_vol_points:
+            raise ValueError("scenario_vol_points mag niet leeg zijn")
+        return self
+
+
+class TickConfig(StrictModel):
+    below_3: Annotated[float, Field(gt=0.0, le=1.0)] = 0.01
+    above_3: Annotated[float, Field(gt=0.0, le=1.0)] = 0.05
+
+
+class TicksConfig(StrictModel):
+    default: TickConfig = TickConfig()
+    combo: Annotated[float, Field(gt=0.0, le=1.0)] = 0.01
+
+
+class ExecutionConfig(StrictModel):
+    """Orders en de price-walk (detailontwerp 10)."""
+
+    walk_interval_seconds: Annotated[float, Field(gt=0.0, le=600.0)] = 15.0
+    max_concession_entry: Fraction = 0.60      # fractie van mid naar de natuurlijke prijs
+    max_concession_exit: Fraction = 1.00
+    ticks: TicksConfig = TicksConfig()
+    max_order_usd: Annotated[float, Field(gt=0.0)] = 5000.0
 
 
 class ScheduleConfig(StrictModel):
@@ -306,6 +350,7 @@ class OptionsConfig(StrictModel):
     strategies: StrategiesConfig
     sizing: SizingConfig
     risk: RiskConfig
+    execution: ExecutionConfig
     schedule: ScheduleConfig
 
 
