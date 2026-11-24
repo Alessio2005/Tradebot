@@ -4,7 +4,7 @@ Elk getal dat een handelsbeslissing stuurt, staat in de config en wordt hier gev
 Een onbekende sleutel is een fout bij het laden, geen waarschuwing (`StrictModel`,
 `extra="forbid"`). De secties groeien per fase mee (detailontwerp 3.1): fase 2 bracht
 `universe` en `pricing`, fase 3 `filters` en `iv_metrics`, fase 4 `strategies`, `sizing` en
-`schedule`, fase 5 `risk` en `execution`.
+`schedule`, fase 5 `risk` en `execution`; daarna `vol_regime` en `theta_harvest`.
 """
 from __future__ import annotations
 
@@ -22,8 +22,9 @@ __all__ = ["DEFAULT_OPTIONS_CONFIG", "CalendarSpreadConfig", "CashSecuredPutConf
            "CoveredCallConfig", "CreditSpreadConfig", "DebitVerticalConfig", "ExecutionConfig",
            "FilterConfig",
            "IVFallbackConfig", "IVMetricsConfig", "IronCondorConfig", "LongVolConfig",
-           "OptionsConfig", "PricingConfig", "RiskConfig", "ScheduleConfig", "ShortVolConfig",
-           "SizingConfig", "StrategiesConfig", "UniverseConfig", "WheelConfig",
+           "OptionsConfig", "PricingConfig", "RegimeAllowedConfig", "RiskConfig", "ScheduleConfig",
+           "ShortVolConfig", "SizingConfig", "StrategiesConfig", "ThetaHarvestConfig",
+           "UniverseConfig", "VolRegimeConfig", "WheelConfig",
            "load_options_config"]
 
 DEFAULT_OPTIONS_CONFIG = Path(__file__).resolve().parents[3] / "conf/options/default.yaml"
@@ -281,6 +282,63 @@ class StrategiesConfig(StrictModel):
     short_straddle_strangle: ShortVolConfig = ShortVolConfig()
 
 
+StrategyName = Literal["credit_spread", "iron_condor", "debit_vertical", "calendar_spread",
+                       "long_straddle_strangle", "cash_secured_put", "covered_call", "wheel",
+                       "short_straddle_strangle"]
+_SHORT_PREMIUM: tuple[StrategyName, ...] = (
+    "credit_spread", "iron_condor", "cash_secured_put", "covered_call", "wheel",
+    "short_straddle_strangle")
+
+
+class RegimeAllowedConfig(StrictModel):
+    """Per regime de strategieën die NIEUWE posities mogen openen (sluiten mag altijd)."""
+
+    rich: tuple[StrategyName, ...] = _SHORT_PREMIUM
+    normal: tuple[StrategyName, ...] = (
+        "credit_spread", "debit_vertical", "calendar_spread", "long_straddle_strangle",
+        "cash_secured_put", "covered_call", "wheel")
+    cheap: tuple[StrategyName, ...] = (
+        "debit_vertical", "calendar_spread", "long_straddle_strangle")
+    stress: tuple[StrategyName, ...] = ()
+    unknown: tuple[StrategyName, ...] = ()
+
+
+class VolRegimeConfig(StrictModel):
+    """Verwachte RV, volatility risk premium en regime (`options.vol_regime`). Vaste regels."""
+
+    enabled: bool = True
+    rv_windows: tuple[int, int, int] = (5, 20, 60)        # handelsdagen: kort, middel, lang
+    rv_weights: tuple[Fraction, Fraction, Fraction] = (0.2, 0.5, 0.3)   # in variantie, vast
+    stress_term_slope: Annotated[float, Field(ge=-0.5, le=0.0)] = -0.02
+    stress_rv_expansion: Annotated[float, Field(gt=1.0, le=5.0)] = 1.5
+    rich_vrp_ratio: Ratio = 1.15
+    rich_min_vrp_points: Annotated[float, Field(ge=0.0, le=0.5)] = 0.02
+    rich_min_term_slope: Annotated[float, Field(ge=-0.5, le=0.5)] = -0.005
+    cheap_vrp_ratio: Ratio = 0.95
+    market_underlying: Ticker | None = "SPY"
+    allowed: RegimeAllowedConfig = RegimeAllowedConfig()
+
+    @model_validator(mode="after")
+    def _consistent(self) -> VolRegimeConfig:
+        short, mid, long = self.rv_windows
+        if not 2 <= short < mid < long <= 252:
+            raise ValueError("rv_windows moet oplopend zijn, tussen 2 en 252")
+        if not self.cheap_vrp_ratio <= self.rich_vrp_ratio:
+            raise ValueError("cheap_vrp_ratio moet <= rich_vrp_ratio")
+        if self.stress_term_slope > self.rich_min_term_slope:
+            raise ValueError("stress_term_slope moet <= rich_min_term_slope")
+        return self
+
+
+class ThetaHarvestConfig(StrictModel):
+    """De poort voor kandidaten die premie ontvangen (`options.selection`)."""
+
+    enabled: bool = True
+    # (θ/dag × 365) / (½·|Γ|·S²·σ_RV²): boven 1 betaalt de premie het verwachte gamma-verlies.
+    min_theta_gamma_cover: Annotated[float, Field(ge=0.0, le=10.0)] = 1.0
+    min_theta_per_max_loss: Annotated[float, Field(ge=0.0, le=0.1)] = 0.0   # θ/dag / max verlies
+
+
 class SizingConfig(StrictModel):
     max_loss_frac_capital: Fraction = 0.02
     ranking: Literal["credit_per_max_loss"] = "credit_per_max_loss"   # vast, detailontwerp 7.3
@@ -382,6 +440,15 @@ class OptionsConfig(StrictModel):
     schedule: ScheduleConfig
     account: AccountConfig = AccountConfig()
     paper: PaperConfig = PaperConfig()
+    vol_regime: VolRegimeConfig = VolRegimeConfig()
+    theta_harvest: ThetaHarvestConfig = ThetaHarvestConfig()
+
+    @model_validator(mode="after")
+    def _market_underlying(self) -> OptionsConfig:
+        mu = self.vol_regime.market_underlying
+        if mu is not None and mu not in self.universe.underlyings:
+            raise ValueError(f"vol_regime.market_underlying {mu} staat niet in universe")
+        return self
 
 
 def load_options_config(path: Path = DEFAULT_OPTIONS_CONFIG) -> OptionsConfig:

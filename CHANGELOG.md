@@ -4,6 +4,23 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: volatility risk premium, theta harvesting en vol-regimes (2026-11-24)
+Drie bronnen van rendement als vaste regels tussen `Strategy.scan` en de risicopoort. Alleen
+nieuwe entries; sluiten, stops, rolls en bijsturingen gaan altijd door. Geen training: elk getal
+staat in `conf/options/default.yaml`. Uitleg: `docs/research/2026-11-24-options-vol-regime.md`.
+- `options.vol_regime`: de verwachte RV als vaste menging (in variantie) van de Yang-Zhang-RV
+  over 5, 20 en 60 dagen, de VRP (ATM-IV(30) tegen die verwachting) en het regime per
+  onderliggende: STRESS (backwardation of RV5/RV20 ≥ 1,5), RICH, NORMAL, CHEAP of UNKNOWN.
+  STRESS op SPY geldt voor het hele boek.
+- `options.selection`: per regime de strategieën die mogen openen (`vol_regime.allowed`), en
+  voor kandidaten die premie ontvangen de theta-dekking `(θ/dag × 365) / (½·|Γ|·S²·σ_RV²) ≥ 1`
+  plus een optionele vloer op θ per dag als fractie van het max verlies.
+- Engine: een `vol_regime`-event bij elke wisseling, de regimes en de geblokkeerde kandidaten
+  per poort in `scan_summary`, en de spoorregels `regime:...` en `theta:cover=...` per
+  kandidaat.
+- Config: secties `vol_regime` en `theta_harvest` (met standaardwaarden, dus oude configs
+  laden ongewijzigd en met de poort aan).
+
 ## Options fase 7: IBKR-paper, deployment en de live-schakelaar (uit) (2026-11-24)
 Detailontwerp: secties 10.6, 12.1, 13 en 14. Nog steeds alleen fictief geld.
 - Dependency `ib_async==2.0.1` (open vraag D), met `aeventkit` en `nest-asyncio`, in de lock
