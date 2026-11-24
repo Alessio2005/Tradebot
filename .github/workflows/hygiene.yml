@@ -62,7 +62,7 @@ jobs:
                   "catboost", "scipy", "numba", "pandas", "numpy", "pyarrow",
                   "yaml", "requests", "aiohttp", "websockets", "prometheus_client",
                   "optuna", "joblib", "pandera", "omegaconf", "tenacity",
-                  "yfinance"]
+                  "yfinance", "QuantLib"]
           missing = [m for m in hard if u.find_spec(m) is None]
           if missing:
               sys.exit(f"Harde dependencies ontbreken na een lockfile-install: {missing}")

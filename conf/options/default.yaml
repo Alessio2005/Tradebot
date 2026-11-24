@@ -1,0 +1,30 @@
+# conf/options/default.yaml — de strategie- en risicoconfig van de options-setup.
+#
+# Gevalideerd door `tradebot.schemas.options.load_options_config`: een onbekende sleutel is
+# een fout. De secties groeien per fase mee (docs/research/2026-11-24-options-pivot-
+# detailontwerp.md, sectie 3.1). Elk getal dat een handelsbeslissing stuurt, staat hier.
+
+universe:
+  underlyings: [SPY, QQQ, IWM, AAPL, MSFT]
+  # Mag als aandeel gehouden worden (covered call, wheel). US-ETF's niet: geen EU-KID.
+  share_eligible: [AAPL, MSFT]
+  # Vaste tabel, jaarlijks herzien; geen rolling schatting in v1.
+  beta_to_spy: {SPY: 1.0, QQQ: 1.15, IWM: 1.2, AAPL: 1.2, MSFT: 1.1}
+  # NYSE-sluiting om 13:00. QuantLib kent de feestdagen, niet de halve dagen. Elk jaar
+  # bijwerken vanaf de NYSE-site.
+  half_days: [2026-11-27, 2026-12-24, 2027-11-26]
+
+pricing:
+  scan_engine: baw               # snel, voor filters over hele ketens
+  decision_engine: binomial_lr   # beslissing, sizing en risico
+  binomial_steps: 401            # oneven (Leisen-Reimer)
+  fd_time_steps: 200             # FD bij een discreet dividend in de looptijd
+  fd_grid_points: 400
+  vega_bump_vol: 0.01            # 1 volpunt
+  rho_bump_rate: 0.0001          # 1 bp
+  iv_accuracy: 1.0e-6
+  iv_max_evaluations: 200
+  iv_min: 1.0e-2                 # onder 1 % is QuantLib numeriek onbetrouwbaar
+  iv_max: 5.0
+  # Vlak, handmatig bijgewerkt (3-maands T-bill, als fractie).
+  risk_free_rate: 0.04
