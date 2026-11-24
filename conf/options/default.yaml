@@ -14,6 +14,18 @@ universe:
   # bijwerken vanaf de NYSE-site.
   half_days: [2026-11-27, 2026-12-24, 2027-11-26]
 
+filters:
+  min_open_interest: 500
+  min_volume: 100
+  # Een contract valt af als de spread zowel de absolute drempel als de fractie van mid
+  # overschrijdt.
+  max_spread_abs: 0.10
+  max_spread_frac_mid: 0.10
+  min_underlying_adv_shares: 1000000
+  max_quote_age_seconds: 10
+  earnings_blackout: true        # geen nieuwe positie die door een earningsdatum loopt
+  max_calendar_data_age_days: 1  # ouder earnings-/dividendbestand: niet handelen
+
 pricing:
   scan_engine: baw               # snel, voor filters over hele ketens
   decision_engine: binomial_lr   # beslissing, sizing en risico
@@ -26,5 +38,120 @@ pricing:
   iv_max_evaluations: 200
   iv_min: 1.0e-2                 # onder 1 % is QuantLib numeriek onbetrouwbaar
   iv_max: 5.0
+  surface_min_vega: 0.01         # USD per volpunt; daaronder is de IV afrondingsruis
   # Vlak, handmatig bijgewerkt (3-maands T-bill, als fractie).
   risk_free_rate: 0.04
+
+iv_metrics:
+  ivr_lookback_days: 252         # handelsdagen dagelijkse ATM-IV(30)
+  atm_tenor_days: 30
+  rv_window_days: 20             # Yang-Zhang
+  high_ivr: 30
+  low_ivr: 30
+  very_low_ivr: 20
+  fallback:                      # open vraag B: zolang er geen 252 dagen historie is
+    enabled: true
+    high_iv_ratio: 1.20          # vervangt IVR >= 30
+    low_iv_ratio: 1.00           # vervangt IVR <= 30
+    very_low_iv_ratio: 0.90      # vervangt IVR <= 20
+
+# De strategieën, in de vaste volgorde waarin de engine hun kandidaten neemt
+# (detailontwerp 7.3, 7.4). Dte en delta's zijn bereiken [laag, hoog].
+strategies:
+  credit_spread:                 # bull put bij trend UP, bear call bij DOWN
+    enabled: true
+    dte: [30, 45]
+    short_delta: [0.20, 0.30]
+    short_delta_target: 0.25
+    wing_width_strikes: [1, 5]   # de kleinste breedte die het credit-criterium haalt
+    # credit / breedte is ongeveer de kans op ITM, dus ongeveer |short delta|. De ⅓ uit het
+    # detailontwerp is bij delta 0,25 onhaalbaar; 0,20 laat de beste kwart van de spreads door.
+    min_credit_frac_width: 0.20
+    iv_condition: high           # IVR >= 30, of de vervangende regel
+    take_profit_frac: 0.50       # sluiten bij een waarde <= 50 % van het credit
+    stop_loss_multiple_credit: 2.0
+    itm_stop_frac: 0.01          # short leg meer dan 1 % ITM: sluiten
+    close_dte: 21
+  iron_condor:
+    enabled: true
+    dte: [30, 45]
+    short_delta: 0.16
+    wing_width_strikes: [5, 10]
+    min_credit_frac_width: 0.15  # totaal; bij delta 0,16 aan beide kanten (zie hierboven)
+    iv_condition: high
+    take_profit_frac: 0.50
+    stop_loss_multiple_credit: 2.0
+    close_dte: 21
+    adjust_short_delta: 0.30
+    max_adjustments: 1
+  debit_vertical:                # bull call bij UP, bear put bij DOWN
+    enabled: true
+    dte: [30, 60]
+    long_delta: [0.50, 0.60]
+    long_delta_target: 0.55
+    max_debit_frac_width: 0.50
+    max_width_strikes: 10
+    iv_condition: low            # IVR <= 30
+    take_profit_frac_debit: 1.0  # 100 % winst
+    stop_loss_frac_debit: 0.50
+    close_dte: 21
+  calendar_spread:
+    enabled: true
+    short_dte: [20, 35]
+    long_dte: [50, 90]
+    min_term_slope: 0.0
+    max_ivp: 50
+    max_iv_rv_ratio_fallback: 1.00
+    take_profit_multiple_debit: 1.25
+    stop_loss_frac_debit: 0.50
+  long_straddle_strangle:
+    enabled: true
+    style: straddle
+    strangle_delta: [0.25, 0.30]
+    earnings_variant: true       # earnings over 5-15 kalenderdagen
+    earnings_window_days: [5, 15]
+    earnings_min_dte: 14
+    low_iv_variant: true         # IVR <= 20
+    low_iv_condition: very_low
+    low_iv_dte: [30, 45]
+    take_profit_multiple_debit: 1.25
+    stop_loss_frac_debit: 0.50
+    close_dte: 7
+    pre_earnings_close_time: "15:00"
+  cash_secured_put:              # open vraag C: slaapt bij 25k
+    enabled: false
+    dte: [30, 45]
+    delta: [0.20, 0.30]
+    delta_target: 0.25
+    iv_condition: high
+    take_profit_frac: 0.50
+    roll_dte: 21
+  covered_call:
+    enabled: false
+    dte: [30, 45]
+    delta: [0.20, 0.30]
+    delta_target: 0.25
+    take_profit_frac: 0.50
+    roll_dte: 21
+  wheel:
+    enabled: false
+  short_straddle_strangle:       # undefined risk: laadt alleen met risk.allow_undefined_risk
+    enabled: false
+    style: strangle
+    strangle_delta: 0.16
+    dte: [30, 45]
+    iv_condition: high
+    take_profit_frac: 0.50
+    stop_loss_multiple_credit: 2.0
+    close_dte: 21
+
+sizing:
+  max_loss_frac_capital: 0.02    # per nieuwe positie
+  ranking: credit_per_max_loss   # vast
+
+risk:                            # fase 5 voegt de overige grenzen toe (detailontwerp 8)
+  max_loss_per_underlying_frac: 0.05
+  allow_undefined_risk: false
+
+schedule:                        # New York-tijd
+  close_before_expiry_time: "15:00"   # op de handelsdag vóór expiratie
