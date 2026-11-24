@@ -4,6 +4,27 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options fase 7: IBKR-paper, deployment en de live-schakelaar (uit) (2026-11-24)
+Detailontwerp: secties 10.6, 12.1, 13 en 14. Nog steeds alleen fictief geld.
+- Dependency `ib_async==2.0.1` (open vraag D), met `aeventkit` en `nest-asyncio`, in de lock
+  en in de lijst harde dependencies van `hygiene.yml`.
+- `options.execution.ibkr`: de `BrokerAdapter` voor TWS/IB Gateway. Elke order is een combo
+  (`BAG`) met de client-id als `orderRef`; `modify` wijzigt alleen de limiet. `connect`
+  weigert elk account dat niet met `DU` begint en vraagt vertraagde data (open vraag A).
+- `options.data.ibkr_feed`: ketens, koers en dagbars van IBKR in pakketten van 90 lijnen;
+  earnings en dividenden van yfinance.
+- `options.engine.paper` en `python -I -m tradebot.options paper --run-dir`: de dienst met de
+  echte klok, één proces per run-map, SIGTERM rondt af. `--healthcheck` kijkt naar de
+  heartbeat.
+- `options.live`: de live-schakelaar met vijf voorwaarden die alle vijf waar moeten zijn; een
+  killgate-test loopt alle 31 onvolledige combinaties af. Er is geen live-opdracht en geen
+  config met `mode: live`; een test bewaakt dat.
+- Deployment: `ib-gateway` (vast op `TRADING_MODE: paper`) en `options-paper` in
+  `infra/compose/docker-compose.yml`, `infra/systemd/tradebot-options-paper.service`, nieuwe
+  sleutels in `.env.example` en `docs/runbook-options.md`.
+- Afwijking: assignments bij IBKR worden niet als aparte executie gelezen. De reconcile ziet
+  de positiewijziging, blokkeert entries op die onderliggende en alarmeert.
+
 ## Options fase 6: paper-broker, engine, replay en CLI (2026-11-24)
 Detailontwerp: secties 9 tot en met 12. Alles met fictief geld; er is geen live-pad.
 - `options.execution`: combo-orders met stabiele position- en client-ids, de price-walk

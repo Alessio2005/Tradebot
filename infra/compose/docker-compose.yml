@@ -1,8 +1,14 @@
-# infra/compose/docker-compose.yml — het Kraken-boek (v9-U1) als dienst op één server.
+# infra/compose/docker-compose.yml — de diensten op één server.
+#
+# Options-paper (standaard, fictief geld; docs/runbook-options.md):
+#   cp infra/compose/.env.example infra/compose/.env         # TWS_USERID, TWS_PASSWORD
+#   docker compose -f infra/compose/docker-compose.yml up -d --build ib-gateway options-paper
+#
+# Het Kraken-boek (v9-U1), in standby:
 #
 #   cp conf/live/u1.example.yaml infra/compose/u1.yaml      # en aanpassen (kapitaal, grenzen)
 #   cp infra/compose/.env.example infra/compose/.env         # sleutels en alarmkanalen
-#   docker compose -f infra/compose/docker-compose.yml up -d --build
+#   docker compose -f infra/compose/docker-compose.yml --profile crypto up -d --build u1
 #
 # Beheer (docs/runbook-kraken-u1.md, "Op een server"):
 #   docker compose -f infra/compose/docker-compose.yml logs -f u1
@@ -42,6 +48,62 @@ services:
       timeout: 60s
       retries: 3
       start_period: 3m
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+  # Options (2026-11): de paper-dienst tegen IB Gateway in paper-modus. Fictief geld.
+  # TRADING_MODE staat hier vast op paper; de dienst weigert bovendien elk account dat
+  # niet met DU begint (src/tradebot/options/live.py).
+  ib-gateway:
+    image: ghcr.io/gnzsnz/ib-gateway:stable
+    environment:
+      TRADING_MODE: paper
+      READ_ONLY_API: "no"
+      TWS_USERID: ${TWS_USERID:?zet TWS_USERID in .env}
+      TWS_PASSWORD: ${TWS_PASSWORD:?zet TWS_PASSWORD in .env}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  options-paper:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.runner
+    image: tradebot-runner:local
+    command: ["python", "-I", "-m", "tradebot.options", "paper",
+              "--run-dir", "/var/lib/tradebot/options"]
+    env_file: .env
+    environment:
+      IB_HOST: ib-gateway
+      IB_PORT: "4004"            # de paper-poort van de gateway-container
+    depends_on:
+      - ib-gateway
+    volumes:
+      - tradebot-state:/var/lib/tradebot
+    restart: unless-stopped
+    stop_grace_period: 90s
+    healthcheck:
+      test: ["CMD", "python", "-I", "-m", "tradebot.options", "paper",
+             "--run-dir", "/var/lib/tradebot/options", "--healthcheck"]
+      interval: 5m
+      timeout: 60s
+      retries: 3
+      start_period: 5m
     read_only: true
     tmpfs:
       - /tmp

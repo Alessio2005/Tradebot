@@ -4,6 +4,8 @@
 #
 #    pip-compile --output-file=requirements.lock --strip-extras pyproject.toml
 #
+aeventkit==2.1.0
+    # via ib-async
 aiohappyeyeballs==2.7.1
     # via aiohttp
 aiohttp==3.14.4
@@ -56,6 +58,8 @@ hmmlearn==0.3.3
     # via tradebot (pyproject.toml)
 hydra-core==1.3.8
     # via tradebot (pyproject.toml)
+ib-async==2.0.1
+    # via tradebot (pyproject.toml)
 idna==3.19
     # via
     #   requests
@@ -88,6 +92,8 @@ narwhals==2.25.0
     # via
     #   plotly
     #   scikit-learn
+nest-asyncio==1.6.0
+    # via ib-async
 numba==0.67.0
     # via tradebot (pyproject.toml)
 numpy==1.26.4
