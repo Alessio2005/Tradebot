@@ -4,6 +4,31 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options fase 6: paper-broker, engine, replay en CLI (2026-11-24)
+Detailontwerp: secties 9 tot en met 12. Alles met fictief geld; er is geen live-pad.
+- `options.execution`: combo-orders met stabiele position- en client-ids, de price-walk
+  (start op mid, per tick richting natural, stop bij de maximale concessie), het
+  `BrokerAdapter`-protocol en de `PaperBroker` (deterministische fills, commissie,
+  expiratie met exercise en assignment, vroege assignment voor dividend).
+- `options.engine.service`: de engine als toestandsmachine met taken (markt, walk, risico,
+  manage, reconcile, scan, einde dag). Een `SafetyBreach` zet de `HaltStore`; drie fouten op
+  rij in dezelfde taak ook. HALT-bestand blokkeert entries, UNWIND sluit alles. Een
+  reconcile-verschil blokkeert entries voor die onderliggende tot het weg is.
+- `options.engine.state`: staat atomisch op schijf met mode en account-hash; het journal is
+  append-only JSONL zonder geheimen.
+- `options.engine.replay` en `python -I -m tradebot.options replay --market --out`: de engine
+  op een opgeslagen markt met een virtuele klok (elke 15 s in de sessie plus einde dag).
+  Exit-code 1 bij een HALT of een short optie die na expiratie nog open staat.
+- Workflow `options-paper-smoke.yml`: replay op de synthetische standaardmarkt.
+- Config: `schedule` (scantijden, entryvenster, intervallen, einde dag), `account`
+  (`capital_usd` 25.000, fictief) en `paper`.
+- Afwijkingen: ketens worden in de engine gebouwd met BAW (`Use.SCAN`), ook voor de delta's
+  waarop strikes gekozen worden; de risicopoort rekent pro forma met de beslisengine. De
+  risicotaak rekent alleen opnieuw als markt of boek veranderde. In replay krijgt elke naam
+  die de config niet kent beta 1,0. De ATM-IV-historie krijgt alleen een punt op een dag
+  met een verse keten. `SingleInstance` en de `Alerter` zijn niet verplaatst; de dienst krijgt
+  een alert-functie mee.
+
 ## Options fase 5: risicopoort, limieten, scenario's en PDT (2026-11-24)
 Detailontwerp: sectie 8. Elke order gaat door één ingang, `RiskGate.review`; alleen de
 poort kan een `ApprovedOrder` maken (een sentinel plus een AST-test die dat afdwingt).

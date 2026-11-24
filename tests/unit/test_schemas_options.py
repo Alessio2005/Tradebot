@@ -31,6 +31,8 @@ def test_the_default_config_loads():
     assert not cfg.risk.allow_undefined_risk
     assert cfg.risk.max_open_positions == 10 and cfg.risk.pdt_guard
     assert cfg.execution.ticks.combo == 0.01 and cfg.execution.max_order_usd > 0
+    assert cfg.account.capital_usd == 25_000 and cfg.schedule.scan_times == ("10:00", "13:30")
+    assert cfg.paper.fill_at_concession == 0.40
 
 
 def _mutate(path, val):
@@ -68,6 +70,12 @@ def _mutate(path, val):
     (("risk", "scenario_spot"), [-0.95], "scenario_spot"),
     (("execution", "ticks", "combo"), 0.0, "combo"),
     (("execution", "max_order_usd"), 0, "max_order_usd"),
+    (("schedule", "scan_times"), [], "scan_times mag niet leeg"),
+    (("schedule", "scan_times"), ["13:30", "10:00"], "oplopend"),
+    (("schedule", "scan_times"), ["10:00", "10:00"], "oplopend"),
+    (("schedule", "end_of_day"), "9:00", "end_of_day"),
+    (("account", "capital_usd"), 0, "capital_usd"),
+    (("paper", "fill_at_concession"), 1.5, "fill_at_concession"),
 ])
 def test_invalid_configs_are_refused(tmp_path, path, val, msg):
     with pytest.raises(ConfigContractError, match=msg):

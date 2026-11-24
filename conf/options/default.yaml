@@ -175,3 +175,17 @@ execution:                       # detailontwerp 10
 
 schedule:                        # New York-tijd
   close_before_expiry_time: "15:00"   # op de handelsdag vóór expiratie
+  scan_times: ["10:00", "13:30"]      # entries alleen op deze tijden
+  end_of_day: "16:15"                 # ATM-IV, expiratie, equity en staat
+  no_entry_first_minutes: 15
+  no_entry_last_minutes: 30
+  manage_interval_seconds: 60
+  risk_interval_seconds: 60
+  reconcile_interval_seconds: 300
+
+account:
+  capital_usd: 25000                  # fictief: replay en IBKR-paper
+
+paper:
+  fill_at_concession: 0.40
+  commission_per_contract: 0.65

@@ -340,6 +340,34 @@ class ScheduleConfig(StrictModel):
     """Tijden in New York (detailontwerp 9.2)."""
 
     close_before_expiry_time: ClockTime = "15:00"
+    scan_times: tuple[ClockTime, ...] = ("10:00", "13:30")
+    end_of_day: ClockTime = "16:15"
+    no_entry_first_minutes: Annotated[int, Field(ge=0, le=120)] = 15
+    no_entry_last_minutes: Annotated[int, Field(ge=0, le=120)] = 30
+    manage_interval_seconds: Annotated[float, Field(gt=0.0, le=3600.0)] = 60.0
+    risk_interval_seconds: Annotated[float, Field(gt=0.0, le=3600.0)] = 60.0
+    reconcile_interval_seconds: Annotated[float, Field(gt=0.0, le=86400.0)] = 300.0
+
+    @model_validator(mode="after")
+    def _scans(self) -> ScheduleConfig:
+        if not self.scan_times:
+            raise ValueError("scan_times mag niet leeg zijn")
+        if list(self.scan_times) != sorted(set(self.scan_times)):
+            raise ValueError("scan_times moet oplopend en zonder dubbelen zijn")
+        return self
+
+
+class AccountConfig(StrictModel):
+    """Het fictieve paper-kapitaal; alle risicofracties gaan hierover."""
+
+    capital_usd: Annotated[float, Field(gt=0.0, le=10_000_000.0)] = 25_000.0
+
+
+class PaperConfig(StrictModel):
+    """De gesimuleerde broker voor replay en paper (detailontwerp 10.4)."""
+
+    fill_at_concession: Fraction = 0.40     # vult zodra de limiet zo ver richting natuurlijk is
+    commission_per_contract: Annotated[float, Field(ge=0.0, le=10.0)] = 0.65
 
 
 class OptionsConfig(StrictModel):
@@ -352,6 +380,8 @@ class OptionsConfig(StrictModel):
     risk: RiskConfig
     execution: ExecutionConfig
     schedule: ScheduleConfig
+    account: AccountConfig = AccountConfig()
+    paper: PaperConfig = PaperConfig()
 
 
 def load_options_config(path: Path = DEFAULT_OPTIONS_CONFIG) -> OptionsConfig:
