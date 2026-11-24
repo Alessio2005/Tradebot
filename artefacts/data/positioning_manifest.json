@@ -1,0 +1,37 @@
+{
+ "errors": {},
+ "files": {
+  "data/external/cftc_tff.csv": {
+   "first": "2019-09-03",
+   "last": "2026-09-29",
+   "markets": {
+    "133741": "BITCOIN - CHICAGO MERCANTILE EXCHANGE",
+    "133742": "MICRO BITCOIN - CHICAGO MERCANTILE EXCHANGE",
+    "146021": "ETHER CASH SETTLED - CHICAGO MERCANTILE EXCHANGE",
+    "146022": "MICRO ETHER  - CHICAGO MERCANTILE EXCHANGE"
+   },
+   "rows": 1191,
+   "sha256": "d79875e5c7c3fd4e9c666d352d826d90213aef20e6abf0c75e6ebd574fdaf5a3"
+  },
+  "data/external/spot_close.csv": {
+   "columns": [
+    "BTC",
+    "ETH"
+   ],
+   "first": "2019-12-02",
+   "last": "2026-09-30",
+   "rows": 2495,
+   "sha256": "2b415162fc564d440f1776e646ba5d6a97a048ddcacbf17fa443a31bb839607b"
+  }
+ },
+ "last_day": "2026-09-30",
+ "sources": {
+  "cftc_tff": "https://publicreporting.cftc.gov/resource/gpe5-46if.json",
+  "cftc_where": "upper(market_and_exchange_names) like '%CHICAGO MERCANTILE%' AND (upper(market_and_exchange_names) like '%BITCOIN%' OR upper(market_and_exchange_names) like '%ETHER%')",
+  "spot": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+  "spot_pairs": {
+   "BTC": "BTCUSDT",
+   "ETH": "ETHUSDT"
+  }
+ }
+}

@@ -17,6 +17,10 @@ name: research-run
 #                    registreert zich in het vooruit-slot vóór de berekening; daarom gaan
 #                    slot, ledger en artefacten ook na een fout mee terug (een lezing die
 #                    alleen op de runner bestond, zou een tweede lezing mogelijk maken).
+#   positioning-series  `python -I -m tradebot.data.positioning_series` -> de spot-close
+#                    van BTC en ETH (Binance Vision) en het CFTC-TFF-rapport voor de
+#                    CME-cryptocontracten, tot en met 2026-09-30 (data/external/ en
+#                    artefacts/data/positioning_manifest.json). Invoer voor de flow-sleeve.
 #   kraken-shadow    `python -I -m tradebot.carry.u1 shadow`: hetzelfde als de dagelijkse
 #                    `kraken-shadow.yml`, maar op elke branch te starten (een wijziging aan
 #                    de feed toetsen tegen de echte API vóór de merge). Commit niets.
@@ -32,6 +36,7 @@ on:
         type: choice
         options:
           - external-series
+          - positioning-series
           - v9-forward
           - kraken-shadow
       commit_back:
@@ -77,6 +82,10 @@ jobs:
               echo "PATHS=data/external artefacts/data/external_manifest.json" >> "$GITHUB_ENV"
               python -I -m tradebot.data.external_series
               ;;
+            positioning-series)
+              echo "PATHS=data/external artefacts/data/positioning_manifest.json" >> "$GITHUB_ENV"
+              python -I -m tradebot.data.positioning_series
+              ;;
             v9-forward)
               echo "PATHS=artefacts/governance artefacts/research/robust_book_v9" >> "$GITHUB_ENV"
               python -I -m tradebot.systematic.programme_v9 forward
@@ -99,6 +108,7 @@ jobs:
           path: |
             data/external/
             artefacts/data/external_manifest.json
+            artefacts/data/positioning_manifest.json
             artefacts/governance/
             artefacts/research/robust_book_v9/
             shadow/

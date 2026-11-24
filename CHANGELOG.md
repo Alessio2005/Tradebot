@@ -4,6 +4,26 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Robuust boek v11 en v12: trend-ensemble en long/short-trend, verworpen (2026-11-02)
+Rapport: `docs/research/2026-11-02-robust-book-v11-v12-trend-sleeves.md`.
+- **`systematic/programme_v11.py`**: trend-ensemble (TSMOM 20-320 d), wekelijks, optioneel
+  vol-filter. Drie trials, alle verworpen.
+- **`systematic/programme_v12.py`**: long spot / short perp op de trend, met funding. Twee
+  trials, beide verworpen. H1 (SMA100 L/S) is elk jaar positief en +9,3 % boven de T-bill
+  in de holdout, maar haalt Sharpe 0,89 < 1,0 door de kosten.
+- `programme_v10.book` kan nu wekelijks herbalanceren (standaard ongewijzigd). M 36 → 41.
+
+## Robuust boek v10: een flow/trend-sleeve naast de carry, verworpen (2026-11-02)
+Rapport: `docs/research/2026-11-02-robust-book-v10-flow-sleeve.md`. De live dienst is niet
+aangeraakt.
+- **Nieuwe data** (`data/positioning_series.py`, research-run-taak `positioning-series`):
+  de spot-close van BTC en ETH en het CFTC-TFF-rapport voor de CME-cryptocontracten.
+- **`systematic/programme_v10.py`**: U1 plus een long-flat BTC/ETH-spot-sleeve op het geld
+  dat de carry niet gebruikt. Vier trials (M 32 → 36), regels en criteria vastgelegd vóór
+  de data.
+- **Oordeel:** alle trials verworpen. De institutionele flow voegt niets toe boven trend.
+  Alleen trend (F3) geeft 12,7 % CAGR tegen 8,0 %, maar 2022 wordt −5,1 %.
+
 ## Het Kraken-boek 24/7 op een server: veiligheid, watchdog, alarmen (2026-10-31)
 Draaiboek: `docs/runbook-kraken-u1.md` (§3 server, §4 veiligheid). Geen bevroren poort,
 oordeel of backtest veranderd.

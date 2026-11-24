@@ -1,0 +1,31 @@
+# conf/model/robust_book_v12.yaml — robuust boek v12: U1 plus een LONG/SHORT-trend-sleeve.
+# Gevalideerd door tradebot/systematic/programme_v12.py::load_config.
+#
+# WAAROM. v10 en v11 lieten zien dat elke long-only sleeve in 2022 5-8 % verloor: in een
+# lange bear-markt staat long-flat vlak of stapt hij vals in, en verdient niets terug. De
+# trendliteratuur haalt het crisisrendement juist uit de short-kant (time-series momentum
+# is "long volatility": Moskowitz, Ooi & Pedersen 2012, JFE; voor crypto Liu & Tsyvinski
+# 2021). Op Kraken EU kan short via de perp (PF_XBTUSD, PF_ETHUSD) met USD als marge.
+#
+# HOE. Het signaal wordt TEKEN: +1 boven de trend (long spot), -1 eronder (short perp).
+# De short ontvangt (of betaalt) de funding van de perp; de Binance-funding is de proxy
+# (Kraken publiceert pas vanaf 2025-10; correlatie ~0,6, gemiddeld gelijk). Kosten: v10's
+# 25 bp per eenheid omzet voor beide benen (de perp is goedkoper: conservatief).
+#
+# EERLIJK. Post-hoc na v10 en v11; M += 2. Criteria van v10, ongewijzigd. Het
+# long/short-trendboek X3 (v2, Binance-universum) haalde op W_DEV Sharpe 0,44 als
+# zelfstandig boek; hier is het een kleine sleeve op stilstaand geld van de carry.
+
+v10_config: conf/model/robust_book_v10.yaml
+v11_config: conf/model/robust_book_v11.yaml
+
+# Welke fundingkolommen de short gebruikt.
+funding_columns: {BTC: binance_BTC, ETH: binance_ETH}
+
+trials:
+  # De trendregel van v10-F3 (close tegen SMA100), nu met short.
+  H1_SMA_LS_10:      {signal: sma,      vol_target: 0.10, max_weight: 0.40}
+  # Het ensemble van v11 als teken: score 2·frac - 1 in [-1, 1], wekelijks.
+  H2_ENSEMBLE_LS_10: {signal: ensemble, vol_target: 0.10, max_weight: 0.40}
+
+primary: H1_SMA_LS_10

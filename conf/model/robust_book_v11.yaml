@@ -1,0 +1,37 @@
+# conf/model/robust_book_v11.yaml — robuust boek v11: U1 plus een trend-ensemble-sleeve.
+# Gevalideerd door tradebot/systematic/programme_v11.py::load_config.
+#
+# WAAROM. v10 (2026-11-02) verwierp vier sleeves. Alleen trend (F3) voegde iets toe, maar
+# één SMA100-regel draaide in 2022 veel om (valse instappen) en de kosten waren hoog voor
+# een kleine positie. De literatuur wijst op drie verbeteringen, elk een eigen trial:
+#   * een ENSEMBLE van terugkijkperiodes in plaats van één regel: de score is het deel van
+#     de periodes met een positief rendement (time-series momentum; Liu & Tsyvinski 2021,
+#     RFS; Zarattini, Pagani & Barbon 2025, "Catching Crypto Trends"). Een geleidelijk
+#     signaal draait minder om dan aan/uit rond één gemiddelde;
+#   * WEKELIJKS herbalanceren (uitstappen blijven dagelijks): minder omzet;
+#   * een VOL-FILTER: uit als de vol van 30 dagen boven het 80e percentiel van het
+#     afgelopen jaar staat (volatility-managed portfolios; Moreira & Muir 2017, JF).
+#
+# EERLIJK. Dit is post-hoc: ontworpen nadat v10 de prijzen en het verloop van 2022 liet
+# zien. Elke trial telt in de ledger (M += 3). De criteria zijn die van v10, ongewijzigd.
+# Het schone bewijs blijft het vooruit-sample.
+
+# Ongewijzigd uit v10 (dezelfde invoer, kosten en boekhouding).
+v10_config: conf/model/robust_book_v10.yaml
+
+signal:
+  # Terugkijkperiodes in dagen: verdubbelend van ~1 maand tot ~1 jaar.
+  lookbacks: [20, 40, 80, 160, 320]
+  # Vol-filter: realized vol van 30 dagen tegen zijn eigen verdeling over 365 dagen.
+  vol_filter_window: 365
+  vol_filter_quantile: 0.80
+
+# Herbalanceren op zondag (de dag waarop ook een nieuw CFTC-rapport zou ingaan).
+rebalance_weekday: 6
+
+trials:
+  G1_ENSEMBLE_10:     {vol_filter: false, vol_target: 0.10, max_weight: 0.40}
+  G2_ENSEMBLE_VF_10:  {vol_filter: true,  vol_target: 0.10, max_weight: 0.40}
+  G3_ENSEMBLE_5:      {vol_filter: false, vol_target: 0.05, max_weight: 0.20}
+
+primary: G1_ENSEMBLE_10

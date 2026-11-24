@@ -1,0 +1,73 @@
+# conf/model/robust_book_v10.yaml — robuust boek v10: U1 (carry + kasrente) plus een
+# richtings-sleeve op het geld dat de carry niet gebruikt.
+# Gevalideerd door tradebot/systematic/programme_v10.py::load_config.
+#
+# WAAROM. Eigenaarsvraag 2026-11-02: het boek mag niet alleen van funding-carry afhangen,
+# en "instituties gaan netto long". U1 stond in 2022, 2023, 2025 en 2026 80-95 % in het
+# geldmarktfonds. v10 zet een deel van dat stilstaande geld long in BTC/ETH-spot, maar
+# alleen als de institutionele positionering op de CME het ondersteunt.
+#
+# VOORAF VASTGELEGD. Deze config, de regels in programme_v10.py en de criteria hieronder
+# zijn gecommit VOORDAT de spot- en CFTC-reeksen in de repo stonden of gelezen waren
+# (git-volgorde is het bewijs). Er is niets op die data getuned. Alle historische vensters
+# zijn voor de prijsfamilie wel verbruikt (X4/Y4/Y5 lazen trend op W_DEV en de holdout):
+# de backtest kan verwerpen, niet bevestigen. Het schone bewijs is het vooruit-sample.
+
+base:
+  # De dagreeks van U1 (v9), bevroren. De carry verandert niet en heeft voorrang.
+  programme: robust_book_v9
+  candidate: U1_KRAKEN_MAJORS_CASH
+  # Een vaste werkvoorraad op de beurs, zoals in v9; de sleeve gebruikt hem niet.
+  operating_buffer: 0.05
+  # Kasrente die de sleeve misloopt: DTB3 min 50 bp, zoals v9.
+  haircut_apr: 0.005
+
+signal:
+  # Trend: close boven het voortschrijdend gemiddelde van 100 dagen (het raster van C2/X4
+  # had 5-160 d; 100 d is de middelste klassieke keuze, niet gefit).
+  trend_days: 100
+  # Institutionele flow: de netto long van asset managers (long - short) / open interest
+  # op het CME-contract, gestegen t.o.v. `flow_lookback_reports` rapporten eerder.
+  flow_lookback_reports: 4
+  # Het rapport van dinsdag verschijnt vrijdag 15:30 ET; de sluiting van de bar van zondag
+  # (dinsdag + 5) is ruim daarna. Live: rapport ouder dan `flow_stale_days` -> vlak.
+  release_lag_days: 5
+  flow_stale_days: 21
+
+sizing:
+  # EWMA-vol van dagrendementen, span in dagen.
+  vol_span: 30
+  # Een munt staat pas aan na zoveel dagen spotprijs (trend en vol moeten bestaan).
+  min_history_days: 100
+  # Herbalanceren alleen bij aan/uit of als het gewicht > 25 % van zijn doel afwijkt.
+  rebalance_band: 0.25
+
+costs:
+  # Kraken spot taker in de tier van $1 mln (conf/execution/venues.yaml: 22 bp) plus 3 bp
+  # halve spread, per eenheid omzet.
+  spot_bps: 25.0
+
+# De trials. F1 is de hoofdkandidaat; F2-F4 zijn de keuzes die de eigenaar kreeg en de
+# diagnose of de flow iets toevoegt boven trend. Elke trial telt (M += 4).
+trials:
+  F1_FLOW_TREND_10:  {use_flow: true,  use_trend: true,  vol_target: 0.10, max_weight: 0.40}
+  F2_FLOW_TREND_5:   {use_flow: true,  use_trend: true,  vol_target: 0.05, max_weight: 0.20}
+  F3_TREND_10:       {use_flow: false, use_trend: true,  vol_target: 0.10, max_weight: 0.40}
+  F4_FLOW_10:        {use_flow: true,  use_trend: false, vol_target: 0.10, max_weight: 0.40}
+
+primary: F1_FLOW_TREND_10
+
+# Criteria voor de hoofdkandidaat, hele cyclus 2020-04 .. 2026-09 tenzij anders vermeld.
+# Allemaal moeten ze gelden; anders is v10 verworpen.
+criteria:
+  # Het moet de moeite waard zijn boven U1 (8,0 % CAGR).
+  min_cagr_uplift: 0.02
+  # Rendement boven de T-bill, op maandrendementen.
+  min_monthly_excess_sharpe: 1.0
+  # Het mandaat staat 25 % toe; deze sleeve mag het boek niet verder dan 15 % laten zakken.
+  max_drawdown: 0.15
+  # In de holdout (2025-07 .. 2026-09) was er geen carry: daar moet de sleeve iets doen.
+  holdout_start: "2025-07-01"
+  holdout_min_excess_uplift: 0.0
+  # Het slechtste kalenderjaar mag hoogstens 5 pp onder dat van U1 liggen.
+  max_worst_year_giveup: 0.05
