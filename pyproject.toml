@@ -57,6 +57,9 @@ dependencies = [
     # Observability (L13). Hard: een monitoring-laag die stilzwijgend no-op
     # wordt, is erger dan geen monitoring-laag.
     "prometheus-client>=0.20",
+    # Options (2026-11): prijzen, IV en Greeks met Amerikaanse uitoefening en dividenden.
+    # Geen numpy-eis, abi3-wheel voor 3.13. Geen type-stubs: zie de mypy-override.
+    "QuantLib>=1.44",
     # Utility
     "python-dateutil>=2.8",
 ]
@@ -207,7 +210,8 @@ strict = true
 # ongebruikt, en dat klopt -- ccxt is een optionele venue-adapter die door
 # geen enkel getypeerd pad wordt geimporteerd (pyproject.toml regel 76).
 # Een override voor een module die niemand importeert, onderdrukt niets.
-module = ["catboost.*", "optuna.*", "joblib.*", "numba.*", "hydra.*", "pandera.*"]
+module = ["catboost.*", "optuna.*", "joblib.*", "numba.*", "hydra.*", "pandera.*",
+          "QuantLib.*"]
 ignore_missing_imports = true
 
 # ─────────────────────────────────────────────────────────────────────────────

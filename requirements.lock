@@ -176,6 +176,8 @@ pyyaml==6.0.3
     #   omegaconf
     #   optuna
     #   tradebot (pyproject.toml)
+quantlib==1.44
+    # via tradebot (pyproject.toml)
 requests==2.34.2
     # via
     #   tradebot (pyproject.toml)

@@ -4,6 +4,19 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options fase 2: QuantLib, contracten, kalender en pricing (2026-11-24)
+Detailontwerp: `docs/research/2026-11-24-options-pivot-detailontwerp.md`, secties 2-5.
+- **QuantLib 1.44** als harde dependency (lock, `hygiene.yml`, mypy-override).
+- `tradebot.options`: eenheden in het type (`units`), contracten en quotes, de NYSE-kalender
+  uit QuantLib met halve dagen uit de config, looptijden op seconden tot 16:00 New York.
+- `tradebot.options.pricing`: Europees analytisch, binomiaal (LR/CRR), BAW en FD met discrete
+  dividenden; `evaluationDate` alleen via een contextmanager; IV met expliciete foutcodes en
+  een terugvalengine; Greeks per aandeel (vega, rho en theta met bump-and-reprice).
+- `conf/options/default.yaml` en `schemas/options.py` (secties `universe` en `pricing`).
+- Tests: de acceptatietests uit 5.7 van de leidraad (gesloten formule en pariteit tot 1e-10,
+  Amerikaans tegen Europees, convergentie, Hull), een IV-round-trip als property-test en een
+  benchmark van 2.000 contracten in minder dan 2 s.
+
 ## Crypto in standby, options worden de actieve setup (2026-11-24)
 Ontwerp: `docs/research/2026-11-24-options-pivot-design.md`. Geen crypto-code, -config of
 -test verwijderd en geen logica veranderd; alleen de activering.
