@@ -4,6 +4,16 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Crypto in standby, options worden de actieve setup (2026-11-24)
+Ontwerp: `docs/research/2026-11-24-options-pivot-design.md`. Geen crypto-code, -config of
+-test verwijderd en geen logica veranderd; alleen de activering.
+- De U1-dienst staat in `infra/compose/docker-compose.yml` achter het profiel `crypto`.
+- `kraken-shadow.yml` draait alleen nog met de hand; de k8s-cron `carry-shadow` heeft
+  `suspend: true`.
+- README, `pyproject.toml` en de module-docstrings van de crypto-packages zeggen standby.
+- `docs/crypto-standby.md`: wat er in standby staat en hoe je het weer aanzet.
+- `soupsieve` 2.9.2 naar 4.1.3 in `requirements.lock` (vier CVE's).
+
 ## Het Kraken-boek 24/7 op een server: veiligheid, watchdog, alarmen (2026-10-31)
 Draaiboek: `docs/runbook-kraken-u1.md` (§3 server, §4 veiligheid). Geen bevroren poort,
 oordeel of backtest veranderd.

@@ -1,4 +1,8 @@
-"""Cross-validation suite (CPCV, walk-forward, sequential bootstrap)."""
+"""Cross-validation suite (CPCV, walk-forward, sequential bootstrap).
+
+Standby sinds 2026-11 (zie docs/crypto-standby.md): niet de actieve setup, wel onderhouden
+en getest.
+"""
 from .bootstrap import get_sequential_bootstrap_indices
 from .cpcv import CombinatorialPurgedCV
 from .purge import dynamic_embargo_bars

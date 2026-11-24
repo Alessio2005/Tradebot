@@ -1,4 +1,8 @@
-"""AFML labeling methods."""
+"""AFML labeling methods.
+
+Standby sinds 2026-11 (zie docs/crypto-standby.md): niet de actieve setup, wel onderhouden
+en getest.
+"""
 from .cusum import cusum_filter, dual_cusum_events, get_cusum_events_for_short
 from .fixed_horizon import fixed_horizon_labels
 from .meta import (

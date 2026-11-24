@@ -159,6 +159,33 @@ def test_compose_runs_the_service_hardened_restarting_and_health_checked():
     assert all(p.startswith("/var/lib/tradebot/") for p in cfg["paths"].values())
 
 
+def test_compose_starts_no_crypto_service_without_the_profile():
+    # Crypto in standby (docs/crypto-standby.md): zonder `--profile crypto` start U1 niet.
+    services = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))["services"]
+    assert services["u1"]["profiles"] == ["crypto"]
+    default = {name for name, svc in services.items() if not svc.get("profiles")}
+    assert "u1" not in default
+
+
+def test_the_carry_shadow_cron_is_suspended():
+    (doc,) = _docs(ROOT / "infra/k8s/cron-carry-shadow.yaml")
+    assert doc["kind"] == "CronJob" and doc["spec"]["suspend"] is True
+
+
+def test_the_kraken_shadow_runs_only_by_hand():
+    wf = yaml.safe_load((ROOT / ".github/workflows/kraken-shadow.yml").read_text(
+        encoding="utf-8"))
+    triggers = wf[True]                       # PyYAML leest de sleutel `on` als True
+    assert set(triggers) == {"workflow_dispatch"}
+
+
+def test_the_standby_document_names_every_reactivation_step():
+    text = (ROOT / "docs/crypto-standby.md").read_text(encoding="utf-8")
+    for step in ("--profile crypto", "systemctl enable --now tradebot-u1", "suspend: false",
+                 "kraken-shadow.yml"):
+        assert step in text, step
+
+
 def test_the_env_example_names_every_secret_the_code_reads():
     names = set(re.findall(r"^([A-Z_]+)=", (ROOT / "infra/compose/.env.example").read_text(
         encoding="utf-8"), flags=re.M))

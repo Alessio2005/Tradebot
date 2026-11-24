@@ -1,5 +1,9 @@
 # src/tradebot/featurestore/__init__.py
-"""FeatureStore — append-only Parquet-partitioned feature cache."""
+"""FeatureStore — append-only Parquet-partitioned feature cache.
+
+Standby sinds 2026-11 (zie docs/crypto-standby.md): niet de actieve setup, wel onderhouden
+en getest.
+"""
 from __future__ import annotations
 
 from .backfill import backfill_from_dataframe, backfill_from_directory
