@@ -4,6 +4,38 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options fase 4: regelgebaseerde strategieën (2026-11-24)
+Detailontwerp: sectie 7. Pure functies van een bevroren marktbeeld en het boek: geen klok,
+geen I/O, geen broker, geen training.
+- `options.positions`: posities, kandidaten, acties, `MarketState`, `Book`, de trend tegen
+  de SMA50 en de mark van een combo.
+- `options.strategies`: gedeelde keuzeregels (expiratie, strike bij delta, wings), poorten
+  (events, IV-voorwaarde), sizing volgens 7.3 en de expiratieregel uit 7.5.
+- Aan: credit spread, iron condor (met één bijsturing), debit vertical, calendar spread en
+  long straddle/strangle (earnings en lage IV). Uit (open vraag C): cash-secured put,
+  covered call en de wheel als toestandsmachine. Short straddle/strangle bestaat, maar de
+  registry weigert hem zonder `risk.allow_undefined_risk`.
+- Config: secties `strategies`, `sizing`, `schedule` en de eerste sleutels van `risk`.
+- Afwijking van het detailontwerp: `min_credit_frac_width` staat op 0,20 (spread) en 0,15
+  (condor) in plaats van ⅓. Credit gedeeld door breedte is ongeveer de kans op ITM, dus
+  ongeveer de short delta; ⅓ is bij delta 0,25 en 0,16 onhaalbaar en zou beide
+  strategieën stil laten staan.
+
+## Options fase 3: ketens, filters, oppervlak, IV-maten en replay-data (2026-11-24)
+Detailontwerp: secties 4 en 6. Geen strategie, geen order: alleen de marktkant.
+- `options.chain`: ruwe quotes naar een keten met IV (mid, optioneel bid en ask) en Greeks
+  per contract; filters in vaste volgorde met een telling per reden.
+- `options.pricing.surface`: forward uit put-call-pariteit, smile in totale variantie,
+  lineair over de tijd, kalender- en butterflycontrole. Smilepunten met een vega onder
+  `pricing.surface_min_vega` tellen niet mee: bij centquotes is hun IV afrondingsruis.
+- `options.iv_metrics`: IV rank en percentile over 252 dagen, met tot dan de vervangende
+  regel IV/RV(20) (open vraag B); elke beslissing daarop is gemarkeerd.
+- `options.events`: earnings en dividenden met hun ouderdom.
+- `options.data`: een deterministische synthetische markt (GBM, sprong, dividend, vaste
+  smile, centquotes) en de opslag ervan in parquet en JSON, ook voor het latere
+  ketenarchief. `python -I -m tradebot.options.data.synthetic --out <map>`.
+- Config: secties `filters` en `iv_metrics`.
+
 ## Options fase 2: QuantLib, contracten, kalender en pricing (2026-11-24)
 Detailontwerp: `docs/research/2026-11-24-options-pivot-detailontwerp.md`, secties 2-5.
 - **QuantLib 1.44** als harde dependency (lock, `hygiene.yml`, mypy-override).
