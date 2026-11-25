@@ -4,6 +4,14 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Fix: IBKR-account in een andere basisvaluta (2026-11-25)
+- `options.execution.ibkr.IBKRBroker.account` las alleen regels in USD. Een paper-account met
+  EUR als basisvaluta gaf daardoor elke ronde `geen equity of cash van IBKR`, en na drie keer
+  een HALT (`options_task_failures`). Nu worden equity, cash en buying power in één andere
+  basisvaluta omgerekend naar USD met de IDEALPRO-koers `<valuta>.USD` (actuele koers, anders
+  de slotkoers). Zonder bruikbare koers, of met regels in meer dan één valuta, blijft het een
+  `DataContractError`.
+
 ## Options fase 7: IBKR-paper, deployment en de live-schakelaar (uit) (2026-11-24)
 Detailontwerp: secties 10.6, 12.1, 13 en 14. Nog steeds alleen fictief geld.
 - Dependency `ib_async==2.0.1` (open vraag D), met `aeventkit` en `nest-asyncio`, in de lock

@@ -75,6 +75,40 @@ def test_the_account_needs_equity_and_cash():
     assert run(b.account()).buying_power == 0.0
 
 
+def test_an_account_in_another_base_currency_is_converted_to_usd():
+    ib = FakeIB()
+    b = broker(ib)
+    ib.summary = [NS(tag="NetLiquidation", value="1000", currency="EUR"),
+                  NS(tag="TotalCashValue", value="900", currency="EUR"),
+                  NS(tag="BuyingPower", value="4000", currency="EUR"),
+                  NS(tag="Cushion", value="0.9", currency="")]
+    acct = run(b.account())
+    assert ib.fx_asked == ["EURUSD"]
+    assert (acct.equity, acct.cash, acct.buying_power) == pytest.approx((1100, 990, 4400))
+    ib.fx = (float("nan"), 1.05)                        # geen actuele koers: de slotkoers
+    assert run(b.account()).equity == pytest.approx(1050)
+
+
+@pytest.mark.parametrize("case", ["two_currencies", "no_rows", "no_rate", "no_pair"])
+def test_a_foreign_account_without_a_usable_rate_is_refused(case):
+    ib = FakeIB()
+    b = broker(ib)
+    ib.summary = [NS(tag="NetLiquidation", value="1000", currency="EUR"),
+                  NS(tag="TotalCashValue", value="900", currency="EUR")]
+    match = "wisselkoers"
+    if case == "two_currencies":
+        ib.summary.append(NS(tag="TotalCashValue", value="5", currency="GBP"))
+        match = "equity"
+    elif case == "no_rows":
+        ib.summary, match = [], "equity"
+    elif case == "no_rate":
+        ib.fx = (float("nan"), 0.0)
+    else:
+        ib.unknown.add(0.0)
+    with pytest.raises(DataContractError, match=match):
+        run(b.account())
+
+
 def test_positions_are_mapped():
     ib = FakeIB()
     b = broker(ib)
