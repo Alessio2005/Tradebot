@@ -24,6 +24,7 @@ class FakeIB:
                         NS(tag="TotalCashValue", value="24000", currency="USD"),
                         NS(tag="BuyingPower", value="50000", currency="USD"),
                         NS(tag="NetLiquidation", value="1", currency="EUR")]
+        self.values: list[Any] = []
         self.held: list[Any] = []
         self.lines = 0
         self.max_lines = 0
@@ -48,6 +49,9 @@ class FakeIB:
     # account
     async def accountSummaryAsync(self, account=""):
         return self.summary
+
+    def accountValues(self, account=""):
+        return self.values
 
     def positions(self, account=""):
         return self.held

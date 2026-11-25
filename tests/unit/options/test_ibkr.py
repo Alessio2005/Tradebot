@@ -75,6 +75,40 @@ def test_the_account_needs_equity_and_cash():
     assert run(b.account()).buying_power == 0.0
 
 
+def test_an_account_in_another_base_currency_is_converted_to_usd():
+    ib = FakeIB()
+    b = broker(ib)
+    ib.summary = [NS(tag="NetLiquidation", value="21500", currency="EUR"),
+                  NS(tag="TotalCashValue", value="20640", currency="EUR"),
+                  NS(tag="BuyingPower", value="43000", currency="EUR")]
+    ib.values = [NS(tag="ExchangeRate", value="0.86", currency="USD"),
+                 NS(tag="ExchangeRate", value="1.0", currency="EUR")]
+    acct = run(b.account())
+    assert (acct.equity, acct.cash, acct.buying_power) == pytest.approx((25000, 24000, 50000))
+    ib.summary = ib.summary[:2]                         # zonder BuyingPower: 0
+    assert run(b.account()).buying_power == 0.0
+
+
+@pytest.mark.parametrize("values", [[], [NS(tag="ExchangeRate", value="0", currency="USD")]])
+def test_a_foreign_base_currency_needs_a_usd_rate(values):
+    ib = FakeIB()
+    b = broker(ib)
+    ib.summary = [NS(tag="NetLiquidation", value="21500", currency="EUR"),
+                  NS(tag="TotalCashValue", value="20640", currency="EUR")]
+    ib.values = values
+    with pytest.raises(DataContractError, match="wisselkoers"):
+        run(b.account())
+
+
+def test_mixed_currencies_without_usd_balances_are_refused():
+    ib = FakeIB()
+    b = broker(ib)
+    ib.summary = [NS(tag="NetLiquidation", value="1", currency="EUR"),
+                  NS(tag="NetLiquidation", value="1", currency="GBP")]
+    with pytest.raises(DataContractError, match="equity"):
+        run(b.account())
+
+
 def test_positions_are_mapped():
     ib = FakeIB()
     b = broker(ib)
