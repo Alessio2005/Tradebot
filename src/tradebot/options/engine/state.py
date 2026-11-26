@@ -85,7 +85,7 @@ def _pos(p: StrategyPosition) -> dict[str, Any]:
             "units": p.units, "entry_net": p.entry_net,
             "max_loss": None if p.max_loss == float("inf") else p.max_loss,
             "adjustments": p.adjustments, "phase": p.phase, "variant": p.variant,
-            "status": p.status.value}
+            "status": p.status.value, "hedge_realized_usd": p.hedge_realized_usd}
 
 
 def _unpos(r: Mapping[str, Any]) -> StrategyPosition:
@@ -95,7 +95,8 @@ def _unpos(r: Mapping[str, Any]) -> StrategyPosition:
                             float(r["entry_net"]),
                             float("inf") if r["max_loss"] is None else float(r["max_loss"]),
                             int(r["adjustments"]), r["phase"], r["variant"],
-                            PositionStatus(r["status"]))
+                            PositionStatus(r["status"]),
+                            float(r.get("hedge_realized_usd", 0.0)))   # ouder bestand: 0
 
 
 def to_record(s: EngineState) -> dict[str, Any]:

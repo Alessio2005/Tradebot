@@ -33,7 +33,7 @@ def _state():
                            (Leg(C, "TST", -2, 1.25), Leg(None, "TST", 100, 98.0)), NOW, 2, 50.0,
                            math.inf, phase="csp", variant="bull_put")
     closed = StrategyPosition("p0", "debit_vertical", "TST", (), NOW, 1, -30.0, 30.0,
-                              status=PositionStatus.CLOSED)
+                              status=PositionStatus.CLOSED, hedge_realized_usd=12.5)
     s = EngineState("replay", "paper", NOW.isoformat(), [pos, closed])
     s.orders["c1"] = {"client_id": "c1", "legs": intents_record((LegIntent(C, -1),))}
     s.attempts["k"] = 2
@@ -58,6 +58,17 @@ def test_the_state_round_trips_atomically(tmp_path):
     assert back.day_trade_dates() == (date(2026, 11, 23),)
     assert intents_from(back.orders["c1"]["legs"]) == (LegIntent(C, -1),)
     assert contract_from(contract_record(C)) == C
+
+
+def test_an_older_state_without_hedge_pnl_loads_as_zero(tmp_path):
+    path = tmp_path / "state.json"
+    save_state(_state(), path)
+    raw = json.loads(path.read_text())
+    for p in raw["positions"]:
+        del p["hedge_realized_usd"]
+    path.write_text(json.dumps(raw))
+    back = load_state(path, "replay", "paper")
+    assert [p.hedge_realized_usd for p in back.positions] == [0.0, 0.0]
 
 
 def test_a_foreign_state_is_refused(tmp_path):

@@ -20,8 +20,9 @@ Beheer, de eerste regel die geldt:
 4. IV ≥ σ(h) voor de resterende DTE: de goedkope vol is weg (`iv_normalized`);
 5. DTE ≤ `close_dte`.
 
-"Waarde" is per eenheid en per aandeel, inclusief de gerealiseerde hedge-P&L van de
-aandelen-legs: `mark + Σ_aandelen-legs qty × (spot − entry_price) / (units × 100)`.
+"Waarde" is per eenheid en per aandeel, inclusief de P&L van de hedge: wat het bijsturen al
+vastlegde (`hedge_realized_usd`, na commissie) plus het open deel van de aandelen-legs:
+`mark + (hedge_realized_usd + Σ_aandelen-legs qty × (spot − entry_price)) / (units × 100)`.
 """
 from __future__ import annotations
 
@@ -70,9 +71,11 @@ def _iv(chain: Chain, legs: Sequence[LegIntent]) -> float | None:
 
 
 def _hedge_pnl(pos: StrategyPosition, spot: float) -> float:
-    """Gerealiseerde P&L van de aandelen-legs, per eenheid en per aandeel."""
-    total = sum(leg.qty * (spot - leg.entry_price) for leg in pos.legs if leg.contract is None)
-    return total / (pos.units * MULTIPLIER)
+    """P&L van de hedge, per eenheid en per aandeel: het gerealiseerde deel
+    (`hedge_realized_usd`) plus het open deel van de aandelen-legs tegen spot."""
+    open_pnl = sum(leg.qty * (spot - leg.entry_price) for leg in pos.legs
+                   if leg.contract is None)
+    return (pos.hedge_realized_usd + open_pnl) / (pos.units * MULTIPLIER)
 
 
 class GammaScalp:

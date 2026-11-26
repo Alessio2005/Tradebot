@@ -176,6 +176,26 @@ def test_the_value_includes_the_realised_hedge_pnl(straddle, pnl_frac, want):
     assert reasons(gs(), hedged(straddle, pnl_frac), later()) == want
 
 
+@pytest.mark.parametrize(("realized_frac", "want"), [
+    (0.35, [(*CLOSE_NORMAL, "take_profit")]),       # alleen vastgelegde hedge-winst
+    (0.25, []),
+    (-0.45, [(*CLOSE_STOP, "stop_loss")]),
+])
+def test_the_value_includes_the_hedge_pnl_already_locked_in(straddle, realized_frac, want):
+    debit = -straddle.entry_credit
+    pos = dataclasses.replace(
+        straddle, hedge_realized_usd=realized_frac * debit * straddle.units * 100)
+    assert pos.shares == 0
+    assert reasons(gs(), pos, later()) == want
+
+
+def test_realised_and_open_hedge_pnl_add_up(straddle):
+    debit = -straddle.entry_credit
+    half = 0.175 * debit * straddle.units * 100
+    pos = dataclasses.replace(hedged(straddle, 0.175), hedge_realized_usd=half)
+    assert reasons(gs(), pos, later()) == [(*CLOSE_NORMAL, "take_profit")]
+
+
 def test_iv_normalized_uses_sigma_at_the_remaining_dte(straddle):
     # Bij σ(h) gelijk aan de IV van de straddle gaat hij dicht (IV ≥ σ(h)).
     iv = straddle_iv()
@@ -197,6 +217,10 @@ def test_gamma_scalp_needs_hedging():
                                                                build_strategies(CFG)]
     with pytest.raises(ConfigContractError, match="delta-hedge"):
         build_strategies(_with_gamma(False))
+    unlisted = _with_gamma(True).model_copy(update={"hedging": CFG.hedging.model_copy(
+        update={"enabled": True, "strategies": ()})})
+    with pytest.raises(ConfigContractError, match=r"hedging\.strategies"):
+        build_strategies(unlisted)
     names = [s.name for s in build_strategies(_with_gamma(True))]
     assert names[names.index("long_straddle_strangle") + 1] == "gamma_scalp"
 

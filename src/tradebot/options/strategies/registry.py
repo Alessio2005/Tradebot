@@ -3,8 +3,8 @@
 De volgorde is de veldvolgorde van `StrategiesConfig` en ligt vast. Een uitgezette strategie
 wordt niet gebouwd. De short straddle/strangle (undefined risk) laadt alleen als ook
 `risk.allow_undefined_risk` aan staat; anders is het een configfout, geen stille weglating.
-Hetzelfde voor gamma scalping zonder `hedging.enabled`: een ongehedgede straddle is geen gamma
-scalp.
+Hetzelfde voor gamma scalping zonder `hedging.enabled` of zonder `gamma_scalp` in
+`hedging.strategies`: een ongehedgede straddle is geen gamma scalp.
 """
 from __future__ import annotations
 
@@ -26,9 +26,11 @@ def build_strategies(cfg: OptionsConfig) -> tuple[Strategy, ...]:
     if s.short_straddle_strangle.enabled and not cfg.risk.allow_undefined_risk:
         raise ConfigContractError("short_straddle_strangle staat aan, maar "
                                   "risk.allow_undefined_risk is false: undefined risk geweigerd")
-    if s.gamma_scalp.enabled and not cfg.hedging.enabled:
-        raise ConfigContractError("gamma_scalp staat aan, maar hedging.enabled is false: "
-                                  "zonder delta-hedge geen gamma scalping")
+    if s.gamma_scalp.enabled and not (cfg.hedging.enabled
+                                      and "gamma_scalp" in cfg.hedging.strategies):
+        raise ConfigContractError("gamma_scalp staat aan, maar hedging.enabled is false of "
+                                  "gamma_scalp staat niet in hedging.strategies: zonder "
+                                  "delta-hedge geen gamma scalping")
     csp = CashSecuredPut(s.cash_secured_put, rules, eligible)
     cc = CoveredCall(s.covered_call, rules, eligible)
     built: list[tuple[bool, Strategy]] = [

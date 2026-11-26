@@ -554,8 +554,10 @@ class Engine:
                 self.state.wheel[pos.underlying] = "idle"
             elif pos.strategy == "wheel":
                 self.state.wheel[pos.underlying] = "shares"
+            hedge = ({"hedge_realized_usd": round(pos.hedge_realized_usd, 2)}
+                     if pos.hedge_realized_usd or pos.shares else {})
             self._event(now, "position_closed", position_id=pos.position_id,
-                        reason=o["reason"], exit_net=-limit * MULTIPLIER * q)
+                        reason=o["reason"], exit_net=-limit * MULTIPLIER * q, **hedge)
             return
         self.state.positions[i] = dataclasses.replace(
             pos, legs=rest + stock, max_loss=o["max_loss"] if o["max_loss"] is not None else math.inf,
@@ -611,11 +613,13 @@ class Engine:
                 continue
             o["execs"].append(rec)
             o["filled"] += e.qty
-            pos = self.state.positions[i] = _with_shares(self.state.positions[i], e.qty, e.price)
+            pos = self.state.positions[i] = _with_shares(self.state.positions[i], e.qty, e.price,
+                                                         e.commission)
             self._book_version += 1
             self._event(now, "hedge_fill", client_id=cid, position_id=o["position_id"],
                         underlying=o["underlying"], purpose=o["purpose"], qty=e.qty,
-                        price=e.price, commission=e.commission, shares=pos.shares)
+                        price=e.price, commission=e.commission, shares=pos.shares,
+                        hedge_realized_usd=round(pos.hedge_realized_usd, 2))
         if o["filled"] == o["qty"]:
             o["status"] = OrderStatus.FILLED.value
 
@@ -915,12 +919,19 @@ class Engine:
         self.mode = EngineMode.STOPPED
 
 
-def _with_shares(pos: StrategyPosition, qty: int, price: float) -> StrategyPosition:
-    """`pos` met `qty` aandelen erbij in haar ene aandelen-leg (gemiddelde prijs bij bijkopen,
-    de oude prijs bij afbouwen, de fillprijs bij een nieuwe of omgedraaide leg)."""
+def _with_shares(pos: StrategyPosition, qty: int, price: float,
+                 commission: float = 0.0) -> StrategyPosition:
+    """`pos` met `qty` aandelen erbij in haar ene aandelen-leg, volgens gemiddelde kostprijs.
+
+    Bijkopen in dezelfde richting middelt de prijs; afbouwen houdt de oude prijs en realiseert
+    `gesloten × (prijs − gemiddelde)` (short: omgekeerd teken); omdraaien realiseert de hele
+    oude leg en de rest krijgt de fillprijs. De commissie van elke fill gaat van de gerealiseerde
+    P&L af (`hedge_realized_usd`)."""
     old = pos.shares
     new = old + qty
     prev = next((leg.entry_price for leg in pos.legs if leg.contract is None), price)
+    closed = 0 if old == 0 or (old > 0) == (qty > 0) else min(abs(qty), abs(old))
+    realized = closed * (price - prev) * (1 if old > 0 else -1) - commission
     if old == 0 or (old > 0) != (new > 0):
         avg = price
     elif abs(new) > abs(old):
@@ -928,4 +939,5 @@ def _with_shares(pos: StrategyPosition, qty: int, price: float) -> StrategyPosit
     else:
         avg = prev
     stock = (Leg(None, pos.underlying, new, avg),) if new else ()
-    return dataclasses.replace(pos, legs=pos.option_legs + stock)
+    return dataclasses.replace(pos, legs=pos.option_legs + stock,
+                               hedge_realized_usd=pos.hedge_realized_usd + realized)

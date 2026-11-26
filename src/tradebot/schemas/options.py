@@ -304,8 +304,8 @@ class StrategiesConfig(StrictModel):
 
 
 StrategyName = Literal["credit_spread", "iron_condor", "debit_vertical", "calendar_spread",
-                       "long_straddle_strangle", "gamma_scalp", "cash_secured_put", "covered_call", "wheel",
-                       "short_straddle_strangle"]
+                       "long_straddle_strangle", "gamma_scalp", "cash_secured_put",
+                       "covered_call", "wheel", "short_straddle_strangle"]
 _SHORT_PREMIUM: tuple[StrategyName, ...] = (
     "credit_spread", "iron_condor", "cash_secured_put", "covered_call", "wheel",
     "short_straddle_strangle")

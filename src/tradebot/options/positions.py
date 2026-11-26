@@ -97,6 +97,9 @@ class StrategyPosition:
     phase: str = ""                    # wheel: "csp" / "cc"
     variant: str = ""                  # long vol: "earnings" / "low_iv"
     status: PositionStatus = PositionStatus.OPEN
+    # Gerealiseerde P&L van de aandelen-legs (USD totaal): wat afbouwen of omdraaien van de
+    # hedge vastlegde, min de commissie van elke aandelenfill. Het open deel zit in de leg.
+    hedge_realized_usd: float = 0.0
 
     def __post_init__(self) -> None:
         require(self.units > 0, "units moet positief zijn", DataContractError, units=self.units)

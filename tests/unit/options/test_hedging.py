@@ -439,8 +439,15 @@ def test_closing_a_position_unwinds_its_shares_in_the_same_round(tmp_path):
     exit_o = [o for o in r.events("hedge_order") if o["purpose"] == "exit"]
     assert len(exit_o) == 1 and exit_o[0]["qty"] == -shares and exit_o[0]["reason"] == "close"
     assert exit_o[0]["ts"] == t.isoformat()
-    assert r.events("position_closed")[0]["ts"] == t.isoformat()
+    (closed,) = r.events("position_closed")
+    assert closed["ts"] == t.isoformat()
     assert r.e.book().shares == {} and r.e.book().hedge_shares == {}
+    # Vlak: de gerealiseerde hedge-P&L is precies de kasstroom van de aandelenfills.
+    fills = r.events("hedge_fill")
+    cash = sum(-f["qty"] * f["price"] - f["commission"] for f in fills)
+    assert r.pos().hedge_realized_usd == pytest.approx(cash)
+    assert fills[-1]["hedge_realized_usd"] == round(r.pos().hedge_realized_usd, 2)
+    assert "hedge_realized_usd" in closed
     r.tick(at(D0, 10, 2))                             # niets meer te doen
     assert len(r.events("hedge_order")) == 2
 
@@ -514,6 +521,24 @@ def test_the_share_leg_keeps_its_price_when_reduced_and_resets_when_flipped():
     p = service._with_shares(p, -10, 53.0)
     assert p.shares == -4 and p.legs[-1].entry_price == 53.0
     assert service._with_shares(p, 4, 51.0).legs == ()
+
+
+def test_trims_and_flips_realise_the_hedge_pnl_after_commission():
+    p = StrategyPosition("x", HEDGED, "TSTB", (), NOW, 1, 0.0, 0.0)
+    steps = [                       # (qty, prijs, commissie) → (aandelen, gem. prijs, gerealiseerd)
+        ((10, 50.0, 1.0), (10, 50.0, -1.0)),             # openen: alleen commissie
+        ((10, 52.0, 1.0), (20, 51.0, -2.0)),             # bijkopen: middelen
+        ((-5, 53.0, 1.0), (15, 51.0, 7.0)),              # afbouwen: 5 × (53 − 51) − 1
+        ((-20, 54.0, 1.0), (-5, 54.0, 51.0)),            # omdraaien: 15 × 3 − 1, rest op 54
+        ((-5, 56.0, 1.0), (-10, 55.0, 50.0)),            # short bijkopen: middelen
+        ((4, 52.0, 1.0), (-6, 55.0, 61.0)),              # short afbouwen: 4 × (55 − 52) − 1
+        ((6, 57.0, 1.0), (0, None, 48.0)),               # sluiten: 6 × (55 − 57) − 1
+    ]
+    for (qty, px, fee), (shares, avg, realized) in steps:
+        p = service._with_shares(p, qty, px, fee)
+        assert p.shares == shares and p.hedge_realized_usd == pytest.approx(realized)
+        assert [leg.entry_price for leg in p.legs if leg.contract is None] == (
+            [] if avg is None else [pytest.approx(avg)])
 
 
 def test_booking_options_keeps_the_share_leg(tmp_path):
