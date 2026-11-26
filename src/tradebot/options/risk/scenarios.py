@@ -83,7 +83,7 @@ def position_values(positions: Sequence[StrategyPosition], shares: Mapping[str, 
             v = max(vol + scenario.vol_points / 100.0, MIN_VOL)
             if inp.expired:
                 px = inp.intrinsic
-            elif chain.carry.dividends_in(now.date(), c.expiry):  # type: ignore[union-attr]
+            elif inp.discrete_dividends:
                 px = price(inp, v, Method.FD, coarse)
             else:
                 px = price(inp, v, method, engines)

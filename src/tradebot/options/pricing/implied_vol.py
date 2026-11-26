@@ -136,7 +136,7 @@ def implied_vol(inp: OptionInputs, price: float | None, method: Method,
     sigma = _solve(inp, price, method, engines, cfg)
     if isinstance(sigma, float):
         return IVResult(IVStatus.OK, sigma, method)
-    if sigma is None and not inp.carry.dividends_in(inp.now.date(), inp.expiry):
+    if sigma is None and not inp.discrete_dividends:
         fallback = Method.BINOMIAL_LR if method is Method.BAW else Method.BAW
         sigma = _solve(inp, price, fallback, engines, cfg)
         if isinstance(sigma, float):

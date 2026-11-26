@@ -31,14 +31,21 @@ class FakeIB:
         self.what_if = NS(initMarginChange="500.0", maintMarginChange="400.0")
         self.unknown: set[float] = set()
         self.fx = (1.1, 1.05)                           # marketPrice en close van base.USD
+        self.fail_connects, self.disconnects = 0, 0
 
     # verbinding
     def isConnected(self):
         return self.connected
 
     async def connectAsync(self, host, port, clientId, account=""):
+        if self.fail_connects:
+            self.fail_connects -= 1
+            raise TimeoutError()
         self.connected = True
         self.args = (host, port, clientId, account)
+
+    def disconnect(self):
+        self.disconnects += 1
 
     def managedAccounts(self):
         return self.accounts
