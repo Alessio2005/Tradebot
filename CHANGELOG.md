@@ -4,6 +4,21 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: snellere replay (vectorisatie, startwaarde voor FD, procespool) (2026-11-26)
+- `pricing.vectorized` (standaard aan): BAW-contracten in één numpy-kernel die tegen QuantLib
+  is vastgepind, en de FD-solve begint met een startwaarde uit die kernel.
+- `pricing.workers` (standaard `auto`, hooguit 4) en `pricing.pool_min_contracts`: het
+  QuantLib-deel van de keten in een procespool.
+- De heartbeat wordt overschreven en ingekort in plaats van bij het openen afgekapt (dat kostte
+  in de replay ongeveer 5 s), en een smile bouwt zijn spline één keer in plaats van bij elke
+  opvraging. De uitkomst verandert daar niet door.
+- Standaard synthetische replay op 4 cores: 137 s vóór deze reeks, nu 31 s (4,4×; het doel was
+  5×). Met `vectorized: false` en `workers: 1` 131 s; met `vectorized: true` en `workers: 1` 90 s.
+  Alle runs: 3 posities, eind-equity 25.303,60 USD. Met `vectorized: false` is het journal
+  byte-gelijk aan dat van vóór deze reeks. Met de standaard verschillen vier
+  `risk_decision`-regels in de vierde decimaal van de gemeten Greeks, door de IV van de
+  FD-solve met startwaarde (binnen `iv_accuracy`).
+
 ## Options: legs van open posities blijven altijd in de keten (2026-11-26)
 Een leg van een open positie die door het liquiditeitsfilter valt (te weinig volume of open
 interest, brede spread), viel ook uit de keten waarmee de engine waardeert, sluit en (paper)

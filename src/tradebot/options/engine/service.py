@@ -24,6 +24,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
+import os
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime, time, timedelta
 from enum import StrEnum
@@ -132,6 +133,22 @@ class Paths:
         return self.root / "heartbeat"
 
 
+def _write_heartbeat(path: Path, text: str) -> None:
+    """Schrijf `text` als de volledige inhoud van `path` (de map moet bestaan).
+
+    Overschrijven en daarna inkorten, in plaats van openen met afkappen (`write_text`): op
+    sommige bestandssystemen kost afkappen bij het openen een paar honderd µs, en een replay
+    schrijft de heartbeat elke ronde (tienduizenden keren). De inhoud is daarna dezelfde.
+    """
+    data = text.encode("utf-8")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT, 0o644)
+    try:
+        os.write(fd, data)
+        os.ftruncate(fd, len(data))
+    finally:
+        os.close(fd)
+
+
 def _no_alert(level: str, key: str, text: str) -> None:
     log.warning("[%s] %s: %s", level, key, text)
 
@@ -224,7 +241,7 @@ class Engine:
                 await self._once("scan:" + t.isoformat(), now, t, self._scan)
         await self._once("eod", now, self.eod_time, self._end_of_day)
         self.paths.heartbeat.parent.mkdir(parents=True, exist_ok=True)
-        self.paths.heartbeat.write_text(now.isoformat(), encoding="utf-8")
+        _write_heartbeat(self.paths.heartbeat, now.isoformat())
 
     async def _every(self, name: str, now: datetime, seconds: float, fn: Task) -> None:
         last = self._last.get(name)

@@ -21,6 +21,26 @@ python -I -m tradebot.options replay --market /tmp/markt --out /tmp/run
 De exit-code is 1 als de engine haltte of als er na de laatste dag nog een short optie open
 staat die al expireerde. De workflow `options-paper-smoke.yml` doet precies dit.
 
+### Snelheid
+
+Gemeten op de standaard synthetische markt in een container met **4 cores** (wandkloktijd,
+`replay` alleen, op dezelfde markt). Elke run: 3 posities, eind-equity 25.303,60 USD.
+
+| Code en instelling | Tijd | Factor |
+|---|---|---|
+| vóór de vectorisatie (commit `b639b1a`) | 137 s | 1× |
+| `pricing.vectorized: false`, `workers: 1` | 131 s | 1,05× |
+| `pricing.vectorized: true`, `workers: 1` | 90 s | 1,5× |
+| standaard (`vectorized: true`, `workers: auto` = 4) | 31 s | 4,4× |
+
+Het doel was 5×; dat is niet gehaald. Bij 4 workers gaat ongeveer 23 s naar het QuantLib-deel
+(FD met een discreet dividend: IV-solve en Greeks, ±84 s rekenwerk in één proces), de rest is
+het serieel werk van de engine. Met `vectorized: false` is het journal byte-gelijk aan dat van
+vóór de vectorisatie. Met `vectorized: true` zijn de beslissingen en de equity gelijk, maar
+verschillen vier `risk_decision`-regels in de vierde decimaal van de gemeten Greeks: de
+FD-solve met startwaarde (smal Brent-interval) vindt de IV binnen `iv_accuracy` (1e-6) op een
+iets ander punt dan het volle interval.
+
 ## Historische simulatie (echte koers en IV, ketens uit het model)
 
 ```bash

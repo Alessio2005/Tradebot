@@ -416,3 +416,13 @@ def test_too_little_theta_blocks_the_entry(tmp_path):
     r.run(at(D0, 10, 1))
     assert r.state.open_positions() == []
     assert r.events("scan_summary")[0]["blocked"] == {"credit_spread:theta": 1}
+
+
+def test_the_heartbeat_holds_exactly_the_last_tick(tmp_path):
+    beat = tmp_path / "heartbeat"
+    service._write_heartbeat(beat, "2026-12-14T10:00:00.123456-05:00")
+    service._write_heartbeat(beat, "2026-12-14T10:00:15-05:00")    # korter: rest weg
+    assert beat.read_text(encoding="utf-8") == "2026-12-14T10:00:15-05:00"
+    rig = Rig(tmp_path / "run")
+    rig.run(at(D0, 9, 31), start=at(D0, 9, 30))
+    assert rig.e.paths.heartbeat.read_text(encoding="utf-8") == at(D0, 9, 31).isoformat()
