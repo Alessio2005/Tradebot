@@ -44,6 +44,11 @@ pricing:
   # Keten in batches: BAW-contracten in één numpy-kernel (pariteit met QuantLib vastgepind),
   # FD-contracten met een startwaarde uit die kernel. Uit = elk contract apart door QuantLib.
   vectorized: true
+  # Het QuantLib-deel van de keten (FD, binomiaal, terugval) over een procespool:
+  # auto = min(4, aantal cores), 1 = in het eigen proces. Pas boven pool_min_contracts
+  # contracten per keten; daaronder kost het verdelen meer dan het oplevert.
+  workers: auto
+  pool_min_contracts: 16
 
 iv_metrics:
   ivr_lookback_days: 252         # handelsdagen dagelijkse ATM-IV(30)

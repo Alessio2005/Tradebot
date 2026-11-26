@@ -713,5 +713,6 @@ class Engine:
                 await self.broker.cancel(cid)
                 o["status"] = OrderStatus.CANCELLED.value
         save_state(self.state, self.paths.state)
+        self.builder.close()
         self._event(now, "stopped")
         self.mode = EngineMode.STOPPED

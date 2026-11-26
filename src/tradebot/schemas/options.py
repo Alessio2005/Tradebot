@@ -75,6 +75,11 @@ class PricingConfig(StrictModel):
     # De keten in batches: BAW met de numpy-kernel (vastgepind tegen QuantLib), FD met een
     # startwaarde. Uit = elk contract apart door QuantLib.
     vectorized: bool = True
+    # Het QuantLib-deel van de keten (FD, binomiaal, terugval) over zoveel processen; "auto" =
+    # min(4, aantal cores), 1 = in het eigen proces. De pool pas boven `pool_min_contracts`
+    # contracten: daaronder kost het verdelen meer dan het oplevert.
+    workers: Annotated[int, Field(ge=1, le=64)] | Literal["auto"] = "auto"
+    pool_min_contracts: Annotated[int, Field(ge=0)] = 16
 
     @model_validator(mode="after")
     def _consistent(self) -> PricingConfig:

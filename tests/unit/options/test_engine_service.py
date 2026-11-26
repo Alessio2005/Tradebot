@@ -170,9 +170,11 @@ def test_open_orders_expire_at_the_end_of_the_day(tmp_path):
 def test_stop_cancels_and_a_stopped_engine_does_nothing(tmp_path):
     r = Rig(tmp_path, fill=1.0)
     r.run(at(D0, 10, 0))
+    closed = []
+    r.e.builder.close = lambda: closed.append(True)        # de procespool van de keten
     asyncio.run(r.e.stop(at(D0, 10, 0, 5)))
     (o,) = r.state.orders.values()
-    assert o["status"] == "cancelled" and r.e.mode is EngineMode.STOPPED
+    assert o["status"] == "cancelled" and r.e.mode is EngineMode.STOPPED and closed
     n = len(r.e.journal.read())
     asyncio.run(r.e.tick(at(D0, 10, 1)))
     assert len(r.e.journal.read()) == n

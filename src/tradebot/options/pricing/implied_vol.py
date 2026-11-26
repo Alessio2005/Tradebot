@@ -24,8 +24,10 @@ Met een `bracket` (een smaller interval rond een startwaarde, bv. voor de dure F
 gaat stap 3 eerst over dat interval. Omsluit het geen wortel, weigert QuantLib een punt of
 convergeert Brent niet, dan volgt het volle pad hierboven, met dezelfde terugvallogica. Omdat
 de waarde stijgt in σ, ligt een wortel in het smalle interval ook in `[min_vol, max_vol]`;
-het smalle interval verandert dus alleen het aantal waarderingen, niet de uitkomst (binnen
-`accuracy`).
+het smalle interval geeft dus dezelfde wortel binnen `accuracy`, met minder waarderingen. Eén
+uitzondering: weigert QuantLib op het volle pad de ondergrens (`min_vol` en elke hogere
+kandidaat), dan vond dat pad geen wortel, terwijl het smalle interval (dat die punten niet
+waardeert) er wel een kan vinden; dan geeft het nieuwe pad `OK`.
 
 Brent op de eigen engine (en niet `VanillaOption.impliedVolatility`, die intern een andere
 engine kiest) houdt de round-trip prijs → IV → prijs exact voor de engine die beslist.

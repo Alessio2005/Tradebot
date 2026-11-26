@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import date, datetime
 from functools import lru_cache
 
@@ -31,7 +32,8 @@ _BASE = load_options_config()
 # De testmarkt heeft TST en TSTB; geef ze een beta van 1 zodat de risicopoort ze kent.
 CFG = _BASE.model_copy(update={"universe": _BASE.universe.model_copy(update={
     "beta_to_spy": {**_BASE.universe.beta_to_spy, "TST": 1.0, "TSTB": 1.0}})})
-SETTINGS = pricer_settings(CFG.pricing)
+# In-proces: elke hulpketen krijgt een eigen builder, een procespool per keten loont niet.
+SETTINGS = replace(pricer_settings(CFG.pricing), workers=1)
 CAL = TradingCalendar(CFG.universe.half_days)
 # DTE vanaf NOW (2026-11-24): 24, 37, 52 en 87 dagen.
 EXPIRIES = (date(2026, 12, 18), date(2026, 12, 31), date(2027, 1, 15), date(2027, 2, 19))

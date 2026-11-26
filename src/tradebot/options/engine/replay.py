@@ -86,12 +86,15 @@ async def run_replay(cfg: OptionsConfig, market: Market, out: Path) -> ReplayRes
     state.iv_history = {k: list(v) for k, v in market.iv_history.items()}
     engine = Engine(cfg, feed, broker, Paths(out), state)
     eod_t = parse_time(cfg.schedule.end_of_day)
-    for day in market.days:
-        eod = datetime.combine(day, eod_t, tzinfo=NY)
-        for now in session_clock(engine.cal, day, cfg.execution.walk_interval_seconds, eod):
-            await engine.tick(now)
-    last = datetime.combine(market.days[-1], eod_t, tzinfo=NY)
-    await engine.stop(last)
+    try:
+        for day in market.days:
+            eod = datetime.combine(day, eod_t, tzinfo=NY)
+            for now in session_clock(engine.cal, day, cfg.execution.walk_interval_seconds, eod):
+                await engine.tick(now)
+        last = datetime.combine(market.days[-1], eod_t, tzinfo=NY)
+        await engine.stop(last)
+    finally:                              # ook bij een fout: de procespool van de keten dicht
+        engine.builder.close()
     past = sum(1 for pos in state.open_positions() for leg in pos.option_legs
                if leg.qty < 0 and leg.contract is not None and leg.contract.expiry <= market.days[-1])
     rows = engine.journal.read()
