@@ -7,7 +7,7 @@ geen IV: die rekent de engine bij het afspelen opnieuw uit, met de pricer van da
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
@@ -41,6 +41,9 @@ class Market:
     bars: dict[str, pd.DataFrame]
     snapshots: tuple[Snapshot, ...]
     events: dict[str, Events]
+    # Dagelijkse ATM-IV van vóór de eerste dag, per onderliggende: (ISO-datum, IV). Leeg voor
+    # een synthetische markt; de historische markt zet hier de IV-historie van IBKR in.
+    iv_history: dict[str, tuple[tuple[str, float], ...]] = field(default_factory=dict)
 
     def bars_until(self, underlying: str, day: date) -> pd.DataFrame:
         """Dagbars tot en met `day` (causaal: niets van na `day`)."""
@@ -62,7 +65,8 @@ def write_market(m: Market, out: Path) -> None:
             "events": {k: {"fetched": e.fetched.isoformat() if e.fetched else None,
                            "earnings": [d.isoformat() for d in e.earnings],
                            "dividends": [[d.ex_date.isoformat(), d.amount] for d in e.dividends]}
-                       for k, e in sorted(m.events.items())}}
+                       for k, e in sorted(m.events.items())},
+            "iv_history": {k: [list(x) for x in v] for k, v in sorted(m.iv_history.items())}}
     (out / _META).write_text(json.dumps(meta, indent=2, sort_keys=True), encoding="utf-8")
 
 
@@ -91,5 +95,7 @@ def read_market(src: Path) -> Market:
                         tuple(CashDividend(date.fromisoformat(d), float(a))
                               for d, a in v["dividends"]))
               for k, v in meta["events"].items()}
+    ivh = {str(k): tuple((str(d), float(v)) for d, v in rows)
+           for k, rows in meta.get("iv_history", {}).items()}   # oudere markten: zonder
     return Market(float(meta["rate"]), tuple(date.fromisoformat(d) for d in meta["days"]),
-                  bars, tuple(snapshots), events)
+                  bars, tuple(snapshots), events, ivh)

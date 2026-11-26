@@ -34,7 +34,7 @@ from ...risk.kill_switches import HaltRecord, HaltStore
 from ...schemas.options import OptionsConfig
 from ..calendar import NY, TradingCalendar, expiry_moment
 from ..chain.builder import Chain, ChainBuilder
-from ..chain.filters import filter_settings, filtered
+from ..chain.filters import build_filtered, filter_settings
 from ..data.feed import MarketFeed
 from ..execution.broker import BrokerAdapter, Execution, ExecutionKind
 from ..execution.orders import (
@@ -71,8 +71,17 @@ from ..pricing.surface import SurfaceStatus, build_surface, skew_25d
 from ..rates import Carry
 from ..risk.gate import GateState, OrderKind, OrderProposal, RiskGate, SafetyBreach
 from ..risk.monitor import assess, degross_plan
+from ..selection import admit, selection_rules
 from ..strategies.common import Strategy, parse_time
 from ..strategies.registry import build_strategies
+from ..vol_regime import (
+    VolRegime,
+    VolState,
+    classify,
+    effective_regimes,
+    forecast_rv,
+    regime_settings,
+)
 from .state import EngineState, Journal, intents_from, intents_record, save_state
 
 __all__ = ["Engine", "EngineMode", "Paths"]
@@ -144,6 +153,8 @@ class Engine:
         self.halts = HaltStore(paths.halt_store)
         self.journal = Journal(paths.journal)
         self.iv_rules = iv_rule_settings(cfg.iv_metrics)
+        self.regime_rules = regime_settings(cfg.vol_regime)
+        self.selection = selection_rules(cfg)
         sch = cfg.schedule
         self.scan_times = tuple(parse_time(t) for t in sch.scan_times)
         self.close_time = parse_time(sch.close_before_expiry_time)
@@ -152,6 +163,7 @@ class Engine:
         self.chains: dict[str, Chain] = {}
         self._snap_keys: dict[str, datetime] = {}
         self._iv: dict[str, IVMetrics] = {}
+        self._vol: dict[str, VolState] = {}
         self._trend: dict[str, Trend] = {}
         self._last: dict[str, datetime] = {}
         self._failures: dict[str, int] = {}
@@ -265,8 +277,19 @@ class Engine:
         slope = surf.term_slope() if surf.status is SurfaceStatus.OK else None
         return IVMetrics.compute(atm, IVHistory(rows), today, rv, self.iv_rules, slope, skew)
 
+    def _vol_state(self, und: str, now: datetime) -> None:
+        """Regime bijwerken; een wisseling komt in het journal."""
+        m = self._iv[und]
+        rv = forecast_rv(self.feed.bars_before(und, now.date()), self.regime_rules)
+        st = classify(m.atm_iv, rv, m.term_slope, self.regime_rules)
+        prev = self._vol.get(und)
+        self._vol[und] = st
+        if prev is None or prev.regime is not st.regime:
+            self._event(now, "vol_regime", underlying=und, **st.as_event())
+
     async def _market(self, now: datetime) -> None:
         changed = False
+        jobs = []
         for und in self.feed.underlyings():
             snap = self.feed.snapshot(und, now)
             if snap is None:
@@ -274,11 +297,17 @@ class Engine:
                 continue
             if self._snap_keys.get(und) == snap.asof:
                 continue
-            raw = self.builder.build(und, snap.spot, snap.options, snap.asof, self._carry(und))
-            chain, res = filtered(raw, self.filters)
+            jobs.append((und, snap))
+        held = frozenset(leg.contract for pos in self.state.open_positions()
+                         for leg in pos.option_legs if leg.contract is not None)
+        args = [(self.builder, self.filters, und, snap.spot, snap.options, snap.asof,
+                 self._carry(und), held) for und, snap in jobs]
+        built = [build_filtered(*a) for a in args]
+        for (und, snap), (chain, res) in zip(jobs, built, strict=True):
             self.chains[und] = chain
             self._snap_keys[und] = snap.asof
             self._iv[und] = self._metrics(und, chain, now.date())
+            self._vol_state(und, now)
             t = trend_of(self.feed.bars_before(und, now.date()))
             if t is not None:
                 self._trend[und] = t
@@ -511,10 +540,12 @@ class Engine:
             self._event(now, "scan_summary", skipped="entry_window")
             return
         market, book = self.market_state(now), self.book()
+        regimes = effective_regimes(self._vol, self.cfg.vol_regime.market_underlying)
         opened_today: set[str] = set()
         summary: dict[str, int] = {}
+        blocked: dict[str, int] = {}
         for s in self.strategies:
-            cands = s.scan(market, book)
+            cands = self._admitted(s.scan(market, book), regimes, blocked)
             summary[s.name] = len(cands)
             best = next((c for c in cands if c.underlying not in opened_today
                          and not self._opened_today(c.underlying, now.date())), None)
@@ -529,7 +560,22 @@ class Engine:
                 continue
             await self._send(self._entry(best, pid), now, Purpose.ENTRY)
             opened_today.add(best.underlying)
-        self._event(now, "scan_summary", candidates=summary)
+        self._event(now, "scan_summary", candidates=summary, blocked=blocked,
+                    regimes={u: r.value for u, r in sorted(regimes.items())})
+
+    def _admitted(self, cands: list[Candidate], regimes: dict[str, VolRegime],
+                  blocked: dict[str, int]) -> list[Candidate]:
+        """Kandidaten die het regime en de theta-harvest-poort halen, in dezelfde volgorde."""
+        out = []
+        for c in cands:
+            a = admit(c, self.chains[c.underlying], self._vol.get(c.underlying),
+                      regimes.get(c.underlying, VolRegime.UNKNOWN), self.selection)
+            if a.admitted:
+                out.append(a.candidate)
+            else:
+                key = f"{c.strategy}:{a.blocker}"
+                blocked[key] = blocked.get(key, 0) + 1
+        return out
 
     def _entry(self, c: Candidate, pid: str) -> OrderProposal:
         chain = self.chains[c.underlying]

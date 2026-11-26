@@ -6,17 +6,22 @@
   limiet heeft het teken van de broker: + betalen, − ontvangen. Actie is altijd `BUY`.
 * `modify` verandert alleen `lmtPrice`; legs en aantal liggen vast.
 * Executies komen per leg; de `BAG`-regel zelf wordt overgeslagen.
+* Equity, cash en buying power zijn altijd in USD. Een account met een andere basisvaluta
+  (bv. EUR) wordt omgerekend met de IDEALPRO-koers van die valuta tegen USD.
 
 De `ib`-parameter is een `ib_async.IB` of een nep-object met dezelfde methoden (tests).
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 import math
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
-from ib_async import ComboLeg, Contract, ExecutionFilter, LimitOrder, Option
+from ib_async import ComboLeg, Contract, ExecutionFilter, Forex, LimitOrder, Option
 
 from ...utils.failfast import DataContractError, require
 from ..contracts import OptionContract, Right
@@ -39,6 +44,15 @@ _STATUS = {"PendingSubmit": OrderStatus.SUBMITTED, "PreSubmitted": OrderStatus.S
            "Filled": OrderStatus.FILLED, "Cancelled": OrderStatus.CANCELLED,
            "ApiCancelled": OrderStatus.CANCELLED, "PendingCancel": OrderStatus.SUBMITTED,
            "Inactive": OrderStatus.REJECTED}
+_ACCOUNT_TAGS = ("NetLiquidation", "TotalCashValue", "BuyingPower")
+_USD = ("USD", "BASE", "")
+_FIRST_YEAR = 2000                  # een `since` daarvoor betekent: geen tijdfilter
+# Na een herstart van de pc start de gateway trager dan de dienst: zolang inloggen duurt,
+# geeft de verbinding een time-out. Opnieuw proberen in plaats van crashen.
+CONNECT_ATTEMPTS = 12
+CONNECT_WAIT_SECONDS = 10.0
+
+log = logging.getLogger(__name__)
 
 
 def option_of(c: OptionContract) -> Option:
@@ -62,9 +76,14 @@ def _num(v: Any) -> float:
 
 class IBKRBroker:
     def __init__(self, ib: Any, host: str = "127.0.0.1", port: int = 4002,
-                 client_id: int = 17, account: str = "") -> None:
+                 client_id: int = 17, account: str = "",
+                 connect_attempts: int = CONNECT_ATTEMPTS,
+                 connect_wait: float = CONNECT_WAIT_SECONDS,
+                 sleep: Callable[[float], Awaitable[None]] = asyncio.sleep) -> None:
         self.ib, self.host, self.port, self.client_id = ib, host, port, client_id
         self.account_id = account
+        self.connect_attempts, self.connect_wait = connect_attempts, connect_wait
+        self._sleep = sleep
         self._trades: dict[str, Any] = {}
         self._orders: dict[str, BrokerOrder] = {}
 
@@ -73,9 +92,20 @@ class IBKRBroker:
         return account_hash(self.account_id)
 
     async def connect(self) -> None:
-        if not self.ib.isConnected():
-            await self.ib.connectAsync(self.host, self.port, self.client_id,
-                                       account=self.account_id)
+        for attempt in range(1, self.connect_attempts + 1):
+            if self.ib.isConnected():
+                break
+            try:
+                await self.ib.connectAsync(self.host, self.port, self.client_id,
+                                           account=self.account_id)
+                break
+            except (TimeoutError, OSError) as e:        # ConnectionRefusedError is een OSError
+                if attempt == self.connect_attempts:
+                    raise
+                log.warning("IB Gateway nog niet klaar (poging %d van %d): %r",
+                            attempt, self.connect_attempts, e)
+                self.ib.disconnect()
+                await self._sleep(self.connect_wait)
         accounts = list(self.ib.managedAccounts())
         require(bool(accounts), "IBKR gaf geen account", DataContractError)
         if not self.account_id:
@@ -88,14 +118,34 @@ class IBKRBroker:
         self.ib.reqMarketDataType(3)                # vertraagde data (open vraag A)
 
     async def account(self) -> AccountSnapshot:
-        vals = {v.tag: _num(v.value) for v in await self.ib.accountSummaryAsync(self.account_id)
-                if v.currency in ("USD", "BASE", "")}
+        rows = [v for v in await self.ib.accountSummaryAsync(self.account_id)
+                if v.tag in _ACCOUNT_TAGS]
+        usd = [v for v in rows if v.currency in _USD]
+        fx = 1.0
+        if not usd:                                 # account met een andere basisvaluta (EUR)
+            ccys = sorted({v.currency for v in rows})
+            require(len(ccys) == 1, "geen equity of cash van IBKR", DataContractError,
+                    valuta=ccys)
+            fx, usd = await self._usd_per(ccys[0]), rows
+        vals = {v.tag: _num(v.value) * fx for v in usd}
         eq, cash = vals.get("NetLiquidation", math.nan), vals.get("TotalCashValue", math.nan)
         bp = vals.get("BuyingPower", math.nan)
         require(math.isfinite(eq) and math.isfinite(cash), "geen equity of cash van IBKR",
                 DataContractError)
         return AccountSnapshot(eq, cash, bp if math.isfinite(bp) else 0.0, True,
                                self.account_hash)
+
+    async def _usd_per(self, base: str) -> float:
+        """USD per eenheid `base`, uit de IDEALPRO-koers `base`.USD (EUR, GBP, AUD, NZD)."""
+        pair = (await self.ib.qualifyContractsAsync(Forex(base + "USD")))[0]
+        require(pair is not None, "geen wisselkoers voor de basisvaluta", DataContractError,
+                valuta=base)
+        ticker = (await self.ib.reqTickersAsync(pair))[0]
+        rates = [r for r in (_num(ticker.marketPrice()), _num(ticker.close))
+                 if math.isfinite(r) and r > 0]
+        require(bool(rates), "geen wisselkoers voor de basisvaluta", DataContractError,
+                valuta=base)
+        return rates[0]
 
     async def positions(self) -> list[BrokerPosition]:
         out = []
@@ -176,8 +226,11 @@ class IBKRBroker:
         return MarginImpact(init, maint)
 
     async def executions(self, since: datetime) -> list[Execution]:
-        flt = ExecutionFilter(acctCode=self.account_id,
-                              time=since.astimezone(UTC).strftime("%Y%m%d-%H:%M:%S"))
+        # De eerste ronde vraagt "alles" (`datetime.min`). Jaar 1 is geen geldige IBKR-tijd
+        # (fout 10314, en dan géén executies); zonder tijd geeft IBKR alles wat hij heeft.
+        stamp = (since.astimezone(UTC).strftime("%Y%m%d-%H:%M:%S")
+                 if since.year >= _FIRST_YEAR else "")
+        flt = ExecutionFilter(acctCode=self.account_id, time=stamp)
         out = []
         for f in await self.ib.reqExecutionsAsync(flt):
             c, ex = f.contract, f.execution

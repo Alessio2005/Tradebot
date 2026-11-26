@@ -387,3 +387,30 @@ def test_an_assignment_skips_positions_without_the_contract(rig):
                             _pos("s", "credit_spread", [(C1, -1)])]
     _assign(rig, C1)
     assert [p.position_id for p in rig.state.open_positions()] == ["other"]
+
+
+def test_the_regime_and_theta_cover_are_journaled(rig):
+    opened(rig)
+    (ev,) = rig.events("vol_regime")          # één wisseling: van niets naar het regime
+    assert ev["underlying"] == "TSTB" and ev["regime"] in {"rich", "normal"}
+    (cand,) = rig.events("candidate")
+    assert any(t.startswith("regime:") for t in cand["trace"])
+    assert any(t.startswith("theta:cover=") for t in cand["trace"])
+    summary = rig.events("scan_summary")[0]
+    assert summary["regimes"] == {"TSTB": ev["regime"]} and summary["blocked"] == {}
+
+
+def test_a_regime_without_the_strategy_blocks_the_entry(tmp_path):
+    from tradebot.schemas.options import RegimeAllowedConfig
+    none = RegimeAllowedConfig(rich=(), normal=(), cheap=())
+    r = Rig(tmp_path, cfg_with("vol_regime", allowed=none))
+    r.run(at(D0, 10, 1))
+    assert r.state.open_positions() == []
+    assert r.events("scan_summary")[0]["blocked"] == {"credit_spread:regime": 1}
+
+
+def test_too_little_theta_blocks_the_entry(tmp_path):
+    r = Rig(tmp_path, cfg_with("theta_harvest", min_theta_gamma_cover=5.0))
+    r.run(at(D0, 10, 1))
+    assert r.state.open_positions() == []
+    assert r.events("scan_summary")[0]["blocked"] == {"credit_spread:theta": 1}

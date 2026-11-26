@@ -75,6 +75,40 @@ def test_the_account_needs_equity_and_cash():
     assert run(b.account()).buying_power == 0.0
 
 
+def test_an_account_in_another_base_currency_is_converted_to_usd():
+    ib = FakeIB()
+    b = broker(ib)
+    ib.summary = [NS(tag="NetLiquidation", value="1000", currency="EUR"),
+                  NS(tag="TotalCashValue", value="900", currency="EUR"),
+                  NS(tag="BuyingPower", value="4000", currency="EUR"),
+                  NS(tag="Cushion", value="0.9", currency="")]
+    acct = run(b.account())
+    assert ib.fx_asked == ["EURUSD"]
+    assert (acct.equity, acct.cash, acct.buying_power) == pytest.approx((1100, 990, 4400))
+    ib.fx = (float("nan"), 1.05)                        # geen actuele koers: de slotkoers
+    assert run(b.account()).equity == pytest.approx(1050)
+
+
+@pytest.mark.parametrize("case", ["two_currencies", "no_rows", "no_rate", "no_pair"])
+def test_a_foreign_account_without_a_usable_rate_is_refused(case):
+    ib = FakeIB()
+    b = broker(ib)
+    ib.summary = [NS(tag="NetLiquidation", value="1000", currency="EUR"),
+                  NS(tag="TotalCashValue", value="900", currency="EUR")]
+    match = "wisselkoers"
+    if case == "two_currencies":
+        ib.summary.append(NS(tag="TotalCashValue", value="5", currency="GBP"))
+        match = "equity"
+    elif case == "no_rows":
+        ib.summary, match = [], "equity"
+    elif case == "no_rate":
+        ib.fx = (float("nan"), 0.0)
+    else:
+        ib.unknown.add(0.0)
+    with pytest.raises(DataContractError, match=match):
+        run(b.account())
+
+
 def test_positions_are_mapped():
     ib = FakeIB()
     b = broker(ib)
@@ -157,6 +191,8 @@ def test_what_if_and_executions(ap):
     ex = run(b.executions(t - timedelta(hours=1)))
     assert [(e.client_id, e.qty, e.commission) for e in ex] == [("", 1, 0.0), ("c1", -2, 1.3)]
     assert ib.filter.time == "20261124-19:00:00" and ib.filter.acctCode == "DU1234567"
+    run(b.executions(datetime.min.replace(tzinfo=NY)))       # eerste ronde: geen tijdfilter
+    assert ib.filter.time == ""
 
 
 # --- feed ----------------------------------------------------------------------------------
@@ -282,3 +318,29 @@ def test_the_cli_paper_command_and_healthcheck(tmp_path, monkeypatch):
     assert cli.main(["paper", "--run-dir", str(tmp_path)]) == 0
     assert seen == {"account": "DU1", "host": "127.0.0.1", "port": 4004, "client_id": 17,
                     "run_dir": tmp_path}
+
+
+# --- verbinden met een gateway die nog opstart -------------------------------------------
+
+def test_connect_waits_for_a_gateway_that_is_still_starting():
+    ib, slept = FakeIB(), []
+    ib.fail_connects = 2
+
+    async def sleep(s):
+        slept.append(s)
+
+    b = IBKRBroker(ib, connect_attempts=3, connect_wait=7.0, sleep=sleep)
+    run(b.connect())
+    assert ib.connected and slept == [7.0, 7.0] and ib.disconnects == 2
+
+
+def test_connect_gives_up_after_the_last_attempt():
+    ib = FakeIB()
+    ib.fail_connects = 5
+
+    async def sleep(s):
+        return None
+
+    with pytest.raises(TimeoutError):
+        run(IBKRBroker(ib, connect_attempts=2, sleep=sleep).connect())
+    assert ib.disconnects == 1

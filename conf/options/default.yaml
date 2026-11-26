@@ -145,6 +145,37 @@ strategies:
     stop_loss_multiple_credit: 2.0
     close_dte: 21
 
+# Volatiliteitsregime en volatility risk premium (src/tradebot/options/vol_regime.py). Vaste
+# regels, geen fit: de verwachte RV is een vaste menging van de Yang-Zhang-RV over drie
+# vensters (de vorm van HAR-RV zonder regressie). Het regime raakt alleen NIEUWE entries.
+vol_regime:
+  enabled: true
+  rv_windows: [5, 20, 60]        # handelsdagen: kort, middel, lang
+  rv_weights: [0.2, 0.5, 0.3]    # in variantie; ontbreekt het lange venster, dan herschaald
+  stress_term_slope: -0.02       # IV60 − IV30 ≤ −2 volpunten: backwardation → STRESS
+  stress_rv_expansion: 1.5       # RV5 / RV20 ≥ 1,5: vol-schok → STRESS
+  rich_vrp_ratio: 1.15           # IV30 / verwachte RV ≥ 1,15 ...
+  rich_min_vrp_points: 0.02      # ... en minstens 2 volpunten erboven → RICH
+  rich_min_term_slope: -0.005    # RICH alleen bij een vlakke of stijgende termijnstructuur
+  cheap_vrp_ratio: 0.95          # IV30 / verwachte RV < 0,95 → CHEAP
+  market_underlying: SPY         # STRESS op SPY geldt voor het hele boek
+  allowed:                       # wie in welk regime mag OPENEN; sluiten mag altijd
+    rich: [credit_spread, iron_condor, cash_secured_put, covered_call, wheel,
+           short_straddle_strangle]
+    normal: [credit_spread, debit_vertical, calendar_spread, long_straddle_strangle,
+             cash_secured_put, covered_call, wheel]
+    cheap: [debit_vertical, calendar_spread, long_straddle_strangle]
+    stress: []
+    unknown: []
+
+# Theta harvesting (src/tradebot/options/selection.py): alleen voor kandidaten die premie
+# ONTVANGEN. Dekking = (θ/dag × 365) / (½·|Γ|·S²·σ_RV²), met σ_RV de verwachte RV hierboven:
+# boven 1 betaalt het tijdswaardeverval het verwachte bewegingsverlies (de VRP per positie).
+theta_harvest:
+  enabled: true
+  min_theta_gamma_cover: 1.0
+  min_theta_per_max_loss: 0.0    # θ/dag als fractie van het max verlies; 0 = alleen dekking
+
 sizing:
   max_loss_frac_capital: 0.02    # per nieuwe positie
   ranking: credit_per_max_loss   # vast

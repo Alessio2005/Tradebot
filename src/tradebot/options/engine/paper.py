@@ -19,6 +19,7 @@ from ...carry.safety import SingleInstance
 from ...schemas.options import OptionsConfig
 from ..calendar import NY
 from ..data.ibkr_feed import IBKRFeed
+from ..execution.ib_noise import quiet_ib
 from ..execution.ibkr import IBKRBroker
 from .service import Alert, Engine, Paths, _no_alert
 from .state import EngineState, load_state
@@ -38,6 +39,7 @@ async def run_paper(cfg: OptionsConfig, ib: Any, run_dir: Path, stop: asyncio.Ev
                     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
                     tick_seconds: float = 15.0, refresh_seconds: float = 300.0,
                     alert: Alert = _no_alert) -> Engine:
+    quiet_ib()
     paths = Paths(run_dir)
     with SingleInstance(run_dir / "lock"):
         broker = IBKRBroker(ib, host, port, client_id, account)

@@ -35,6 +35,7 @@ from ..chain.builder import RawOption
 from ..contracts import OptionContract, Quote, Right
 from ..events import Events
 from ..pricing.engines import Method
+from ..pricing.ql_env import scaled_time
 from ..pricing.vanilla import OptionInputs, price
 from ..rates import Carry, CashDividend
 from .store import Market, Snapshot, write_market
@@ -184,7 +185,8 @@ def _chain(spec: SyntheticSpec, cal: TradingCalendar, u: SyntheticUnderlying, sp
     strikes = np.arange(lo, hi + 1e-9, step)
     out = []
     for expiry in _expiries(cal, ts.date(), spec):
-        method = Method.FD if carry.dividends_in(ts.date(), expiry) else Method.BAW
+        start = scaled_time(ts, expiry).eval_date      # hetzelfde venster als de pricer
+        method = Method.FD if carry.dividends_in(start, expiry) else Method.BAW
         for k in strikes:
             vol = _smile_vol(spec, spot, float(k))
             thin = abs(math.log(k / spot)) > spec.thin_wing_k

@@ -4,6 +4,70 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: legs van open posities blijven altijd in de keten (2026-11-26)
+Een leg van een open positie die door het liquiditeitsfilter valt (te weinig volume of open
+interest, brede spread), viel ook uit de keten waarmee de engine waardeert, sluit en (paper)
+vult. Na een grote beweging kon de bot zo zijn eigen positie niet meer sluiten. Nu worden die
+legs altijd geprijsd en in de keten gehouden; de filtertelling in het journal blijft gelijk.
+Verwant aan het strikebereik van de feed (open legs buiten ±15 % van spot), dat apart is opgelost.
+
+## Options: illiquide contracten niet meer prijzen (2026-11-26)
+De ketenbouwer slaat de IV-solve en Greeks over voor contracten die op hun quote al door het
+filter vallen (open interest, volume, geen bid, spread) of `stale` zijn. Dat was het meeste
+rekenwerk. De gefilterde keten en dus elke beslissing blijven gelijk; de standaardreplay geeft
+dezelfde 3 trades en eindstand (25.303,60 USD) in 163 s in plaats van 221 s. Eén verschil in
+het journal: een contract zonder IV dat ook op zijn quote afvalt, telt nu onder die quote-reden
+in plaats van onder `no_iv`.
+
+## Options: historische simulatie op echte koers en IV (2026-11-26)
+- `options.data.historical` en `python -I -m tradebot.options historical`: een replay-markt uit
+  IBKR-dagbars en IBKR's dagelijkse 30-daagse IV (alleen lezen), dividenden en earnings uit
+  yfinance. Ketens met QuantLib uit het echte IV-niveau en de vaste smile; spot en IV per
+  snapshot lineair tussen opening en slot naar het verstreken deel van de dag.
+- `Market.iv_history` (in `market.json`, optioneel voor oudere markten) en `run_replay` zet die
+  als begin-IV-historie: IVR is in de simulatie vanaf dag één bruikbaar.
+- Runbook en detailontwerp (sectie 15) bijgewerkt. De uitkomst meet de regels, niet echte fills.
+
+## Fix: IBKR-account in een andere basisvaluta (2026-11-25)
+- `options.execution.ibkr.IBKRBroker.account` las alleen regels in USD. Een paper-account met
+  EUR als basisvaluta gaf daardoor elke ronde `geen equity of cash van IBKR`, en na drie keer
+  een HALT (`options_task_failures`). Nu worden equity, cash en buying power in één andere
+  basisvaluta omgerekend naar USD met de IDEALPRO-koers `<valuta>.USD` (actuele koers, anders
+  de slotkoers). Zonder bruikbare koers, of met regels in meer dan één valuta, blijft het een
+  `DataContractError`.
+- Engine-keuze bij een dividend op de expiratiedag: de keten koos BAW of FD op het venster
+  `(vandaag, expiratie]`, de pricer neemt op de expiratiedag `(gisteren, expiratie]`. Valt de
+  expiratie door een feestdag op de ex-dividenddag (SPY, donderdag 18 juni 2026: vrijdag
+  Juneteenth), dan koos de keten BAW, weigerde de pricer, en haltte de engine na drie rondes.
+  Nu is er één venster: `OptionInputs.discrete_dividends`, gebruikt door de ketenbouw, de
+  IV-terugval, de scenario's en de marktgeneratoren. Gevonden met de historische simulatie.
+- `IBKRBroker.executions`: de eerste ronde na een start vroeg executies "sinds" `datetime.min`,
+  een tijd in jaar 1. IBKR weigert die (fout 10314) en gaf dan niets terug, zodat fills van
+  vóór de herstart niet gelezen werden. Zonder geldige tijd gaat het filter nu zonder tijd.
+- `IBKRBroker.connect` probeert tot 12 keer (elke 10 s) opnieuw zolang de gateway nog inlogt,
+  in plaats van te crashen met een traceback (na een herstart van de pc).
+- `options.execution.ib_noise`: IBKR-meldingen 200 (strike bestaat niet bij die expiratie),
+  10090 en 10167 (vertraagde data) en "API connection failed" gaan niet meer naar de log;
+  tick 90 (vertraagd "halted") krijgt de betekenis van tick 49, zodat `ib_async` 2.0.1 er geen
+  `AssertionError` meer voor logt. Alle andere meldingen blijven.
+
+## Options: volatility risk premium, theta harvesting en vol-regimes (2026-11-24)
+Drie bronnen van rendement als vaste regels tussen `Strategy.scan` en de risicopoort. Alleen
+nieuwe entries; sluiten, stops, rolls en bijsturingen gaan altijd door. Geen training: elk getal
+staat in `conf/options/default.yaml`. Uitleg: `docs/research/2026-11-24-options-vol-regime.md`.
+- `options.vol_regime`: de verwachte RV als vaste menging (in variantie) van de Yang-Zhang-RV
+  over 5, 20 en 60 dagen, de VRP (ATM-IV(30) tegen die verwachting) en het regime per
+  onderliggende: STRESS (backwardation of RV5/RV20 ≥ 1,5), RICH, NORMAL, CHEAP of UNKNOWN.
+  STRESS op SPY geldt voor het hele boek.
+- `options.selection`: per regime de strategieën die mogen openen (`vol_regime.allowed`), en
+  voor kandidaten die premie ontvangen de theta-dekking `(θ/dag × 365) / (½·|Γ|·S²·σ_RV²) ≥ 1`
+  plus een optionele vloer op θ per dag als fractie van het max verlies.
+- Engine: een `vol_regime`-event bij elke wisseling, de regimes en de geblokkeerde kandidaten
+  per poort in `scan_summary`, en de spoorregels `regime:...` en `theta:cover=...` per
+  kandidaat.
+- Config: secties `vol_regime` en `theta_harvest` (met standaardwaarden, dus oude configs
+  laden ongewijzigd en met de poort aan).
+
 ## Options fase 7: IBKR-paper, deployment en de live-schakelaar (uit) (2026-11-24)
 Detailontwerp: secties 10.6, 12.1, 13 en 14. Nog steeds alleen fictief geld.
 - Dependency `ib_async==2.0.1` (open vraag D), met `aeventkit` en `nest-asyncio`, in de lock

@@ -11,9 +11,11 @@ from tradebot.options.chain.builder import ChainBuilder, RawOption
 from tradebot.options.chain.filters import (
     FilterSettings,
     Reject,
+    build_filtered,
     filter_chain,
     filter_settings,
     filtered,
+    quote_reason,
     reject_reason,
 )
 from tradebot.options.contracts import OptionContract, Quote, Right
@@ -103,12 +105,43 @@ def test_each_filter_has_its_own_reason(row, reason):
 
 
 def test_no_iv_and_no_bid_are_rejected():
-    no_iv = RawOption(OptionContract("TST", EXPIRY, 100.0, Right.PUT), Quote(0.0, 0.01, NOW))
+    no_iv = RawOption(OptionContract("TST", EXPIRY, 100.0, Right.PUT),
+                      Quote(150.0, 150.05, NOW, volume=1000, open_interest=5000))  # boven de bovengrens
     no_bid = RawOption(OptionContract("TST", EXPIRY, 120.0, Right.CALL),
                        Quote(0.0, 0.10, NOW, volume=1000, open_interest=5000))
     a, b = build([no_iv, no_bid]).options
     assert reject_reason(a, FilterSettings()) is Reject.NO_IV
     assert b.iv is not None and reject_reason(b, FilterSettings()) is Reject.NO_BID
+
+
+def test_without_iv_a_quote_reason_counts_before_no_iv():
+    thin = RawOption(OptionContract("TST", EXPIRY, 100.0, Right.PUT), Quote(0.0, 0.01, NOW))
+    (o,) = build([thin]).options
+    assert o.iv is None and reject_reason(o, FilterSettings()) is Reject.OPEN_INTEREST
+
+
+def test_skip_leaves_illiquid_contracts_unpriced():
+    chain = build([raw(), raw(95.0, oi=1)])
+    cfg = FilterSettings()
+    skipped = ChainBuilder(SETTINGS, 10.0).build("TST", 100.0, [raw(), raw(95.0, oi=1)], NOW, CARRY,
+                            skip=lambda r: quote_reason(r.quote, cfg) is not None)
+    full, cheap = filter_chain(chain, cfg), filter_chain(skipped, cfg)
+    assert cheap.kept == full.kept and cheap.rejected == full.rejected
+    thin = skipped.options[1]
+    assert thin.iv is None and thin.greeks is None and thin.iv_mid.status is IVStatus.NO_QUOTE
+
+
+def test_held_contracts_stay_priced_and_in_the_chain():
+    rows = [raw(), raw(95.0, oi=1), raw(90.0, oi=1)]
+    held = frozenset({rows[1].contract})
+    chain, res = build_filtered(ChainBuilder(SETTINGS, 10.0), FilterSettings(), "TST", 100.0,
+                                rows, NOW, CARRY, held)
+    assert [o.contract.strike for o in chain.options] == [100.0, 95.0]
+    assert chain.options[1].iv is not None                      # geprijsd, ondanks lage OI
+    assert res.rejected == Counter({Reject.OPEN_INTEREST: 2})   # de telling blijft die van het filter
+    plain, _ = build_filtered(ChainBuilder(SETTINGS, 10.0), FilterSettings(), "TST", 100.0,
+                              rows, NOW, CARRY)
+    assert [o.contract.strike for o in plain.options] == [100.0]
 
 
 def test_a_wide_spread_passes_when_it_is_small_relative_to_mid():
@@ -138,3 +171,22 @@ def test_events_are_only_usable_when_fresh():
     assert not ev.earnings_between(date(2026, 12, 3), date(2027, 1, 27))
     assert ev.next_earnings(date(2026, 12, 3)) == date(2027, 1, 28)
     assert ev.next_earnings(date(2027, 2, 1)) is None
+
+
+def test_on_the_expiry_day_a_dividend_of_today_is_priced_with_fd():
+    # Vrijdag 19 juni 2026 is dicht: SPY expireert donderdag 18 juni, de ex-dividenddag. De
+    # pricer neemt dat dividend mee (eval_date is dan gisteren); de engine moet dus FD zijn.
+    from datetime import datetime
+
+    from tradebot.options.calendar import NY
+    from tradebot.options.pricing.vanilla import OptionInputs
+
+    now, day = datetime(2026, 6, 18, 10, 0, tzinfo=NY), date(2026, 6, 18)
+    carry = Carry(0.04, dividends=(CashDividend(day, 1.9),))
+    inp = OptionInputs(700.0, 700.0, Right.CALL, day, now, carry)
+    assert inp.discrete_dividends == carry.dividends
+    theo = price(inp, 0.2, Method.FD)
+    q = Quote(round(theo - 0.05, 2), round(theo + 0.05, 2), now, volume=1000, open_interest=5000)
+    po = ChainBuilder(SETTINGS, 10.0).price_one(
+        RawOption(OptionContract("SPY", day, 700.0, Right.CALL), q), 700.0, now, carry)
+    assert po.method is Method.FD and po.iv is not None
