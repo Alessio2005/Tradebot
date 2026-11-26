@@ -39,7 +39,7 @@ from ..pricing.vanilla import OptionInputs, price
 from ..rates import Carry, CashDividend
 from .store import Market, Snapshot, write_market
 
-__all__ = ["SyntheticUnderlying", "SyntheticSpec", "chain_at", "default_spec", "generate", "main"]
+__all__ = ["SyntheticUnderlying", "SyntheticSpec", "default_spec", "generate", "main"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,9 +193,6 @@ def _chain(spec: SyntheticSpec, cal: TradingCalendar, u: SyntheticUnderlying, sp
                 c = OptionContract(u.name, expiry, float(round(k, 2)), right)
                 out.append(RawOption(c, _quote(theo, spec, ts, thin)))
     return out
-
-
-chain_at = _chain          # voor andere markt-bouwers (`historical`): één modelketen
 
 
 def main(argv: Sequence[str] | None = None) -> int:
