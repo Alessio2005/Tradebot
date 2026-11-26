@@ -83,6 +83,7 @@ async def run_replay(cfg: OptionsConfig, market: Market, out: Path) -> ReplayRes
     state = EngineState(REPLAY_MODE, PAPER_HASH,
                         datetime.combine(first, parse_time("00:00"), tzinfo=NY)
                         .astimezone(UTC).isoformat())
+    state.iv_history = {k: list(v) for k, v in market.iv_history.items()}
     engine = Engine(cfg, feed, broker, Paths(out), state)
     eod_t = parse_time(cfg.schedule.end_of_day)
     for day in market.days:

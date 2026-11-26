@@ -1020,6 +1020,12 @@ Alarmen via `monitoring/channels.Alerter` met vaste sleutels: `halt`, `unwind`, 
 Er is geen historische ketendata, dus de fixtures zijn **synthetisch** en alleen bedoeld om de
 engine en de regels te testen, niet om rendement te meten.
 
+Aanvulling 2026-11-26 (akkoord Alessio): een **historische simulatie** in `options.data.historical`.
+Echte dagbars en IBKR's dagelijkse 30-daagse IV (`OPTION_IMPLIED_VOLATILITY`) per onderliggende,
+ketens met QuantLib uit dat IV-niveau met de vaste smile van hierboven, en de IV van vóór de
+start als IV-historie (IVR meteen bruikbaar, alleen in de simulatie). Dit meet de regels op echte
+koers- en IV-paden, niet op echte quotes; het vervangt forward paper-trading (Q6) niet.
+
 - Generator: `scripts/make_options_fixtures.py`, vast seed 20261124, in de repo, en een test die
   bewijst dat de generator twee keer hetzelfde bestand maakt (hash).
 - Onderliggende: twee namen (`TST1` met dividend, `TST2` zonder), dagkoersen uit een GBM met

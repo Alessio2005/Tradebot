@@ -21,6 +21,24 @@ python -I -m tradebot.options replay --market /tmp/markt --out /tmp/run
 De exit-code is 1 als de engine haltte of als er na de laatste dag nog een short optie open
 staat die al expireerde. De workflow `options-paper-smoke.yml` doet precies dit.
 
+## Historische simulatie (echte koers en IV, ketens uit het model)
+
+```bash
+docker compose -f infra/compose/docker-compose.yml run --rm --no-deps -e IB_CLIENT_ID=18 \
+  options-paper python -I -m tradebot.options historical \
+  --out /var/lib/tradebot/historical/markt --start 2026-06-01 --end 2026-11-25
+docker compose -f infra/compose/docker-compose.yml run --rm --no-deps options-paper \
+  python -I -m tradebot.options replay \
+  --market /var/lib/tradebot/historical/markt --out /var/lib/tradebot/historical/run
+```
+
+`historical` vraagt bij IB Gateway (alleen lezen, client-id 18) twee jaar dagbars en IBKR's
+dagelijkse 30-daagse IV per onderliggende, en dividenden en earnings bij yfinance. De ketens
+worden met QuantLib gereconstrueerd: het IV-niveau is echt, de smile, de spreads en het open
+interest komen uit het model (`options.data.historical`). De IV van vóór de startdatum gaat mee
+als IV-historie, zodat IVR vanaf dag één werkt. De uitkomst meet de regels op echte koers- en
+IV-paden, **niet** echte fills. Een maand duurt ongeveer een kwartier.
+
 ## De paper-dienst tegen IBKR
 
 Vereisten: een IBKR-paper-login (account-id begint met `DU`) en IB Gateway in paper-modus.

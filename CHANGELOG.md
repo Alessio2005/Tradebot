@@ -4,6 +4,15 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: historische simulatie op echte koers en IV (2026-11-26)
+- `options.data.historical` en `python -I -m tradebot.options historical`: een replay-markt uit
+  IBKR-dagbars en IBKR's dagelijkse 30-daagse IV (alleen lezen), dividenden en earnings uit
+  yfinance. Ketens met QuantLib uit het echte IV-niveau en de vaste smile; spot en IV per
+  snapshot lineair tussen opening en slot naar het verstreken deel van de dag.
+- `Market.iv_history` (in `market.json`, optioneel voor oudere markten) en `run_replay` zet die
+  als begin-IV-historie: IVR is in de simulatie vanaf dag één bruikbaar.
+- Runbook en detailontwerp (sectie 15) bijgewerkt. De uitkomst meet de regels, niet echte fills.
+
 ## Fix: IBKR-account in een andere basisvaluta (2026-11-25)
 - `options.execution.ibkr.IBKRBroker.account` las alleen regels in USD. Een paper-account met
   EUR als basisvaluta gaf daardoor elke ronde `geen equity of cash van IBKR`, en na drie keer

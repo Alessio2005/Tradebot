@@ -2,6 +2,8 @@
 
 * `replay --market DIR --out DIR [--config PAD]`: speel een opgeslagen markt af met de
   paper-broker en schrijf journal, staat en `summary.json` naar `--out`.
+* `historical --out DIR --start D --end D [--config PAD]`: bouw een historische markt uit de
+  koersen en de IV van IBKR (alleen lezen; dezelfde `IB_*`-omgeving, client-id 18).
 * `paper --run-dir DIR [--config PAD] [--healthcheck]`: de paper-dienst tegen IB Gateway.
   Verbinding uit de omgeving: `IB_HOST`, `IB_PORT`, `IB_CLIENT_ID`, `IB_ACCOUNT`. Alleen
   een paper-account (id begint met `DU`). `--healthcheck` controleert alleen de heartbeat.
@@ -16,14 +18,15 @@ import json
 import os
 import signal
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from ib_async import IB
 
 from ..schemas.options import DEFAULT_OPTIONS_CONFIG, OptionsConfig, load_options_config
 from .calendar import NY
-from .data.store import read_market
+from .data.historical import HistoricalSeries, HistoricalSpec, build_market, fetch_history
+from .data.store import read_market, write_market
 from .engine.paper import run_paper
 from .engine.replay import run_replay
 
@@ -50,6 +53,17 @@ async def _paper(cfg: OptionsConfig, run_dir: Path, env: Mapping[str, str]) -> N
                     int(env.get("IB_CLIENT_ID", "17")))
 
 
+async def _history(cfg: OptionsConfig, spec: HistoricalSpec,
+                   env: Mapping[str, str]) -> list[HistoricalSeries]:
+    ib = IB()
+    await ib.connectAsync(env.get("IB_HOST", "127.0.0.1"), int(env.get("IB_PORT", "4002")),
+                          int(env.get("IB_CLIENT_ID", "18")), readonly=True)
+    try:
+        return await fetch_history(ib, cfg.universe.underlyings, spec.start, spec.end)
+    finally:
+        ib.disconnect()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="tradebot.options",
                                  description="Options-engine (alleen fictief geld).")
@@ -58,6 +72,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     rp.add_argument("--market", type=Path, required=True)
     rp.add_argument("--out", type=Path, required=True)
     rp.add_argument("--config", type=Path, default=DEFAULT_OPTIONS_CONFIG)
+    hp = sub.add_parser("historical",
+                        help="bouw een historische markt uit IBKR-koersen en -IV (alleen lezen)")
+    hp.add_argument("--out", type=Path, required=True)
+    hp.add_argument("--start", type=date.fromisoformat, required=True)
+    hp.add_argument("--end", type=date.fromisoformat, required=True)
+    hp.add_argument("--config", type=Path, default=DEFAULT_OPTIONS_CONFIG)
     pp = sub.add_parser("paper", help="de paper-dienst tegen IB Gateway (alleen paper)")
     pp.add_argument("--run-dir", type=Path, required=True)
     pp.add_argument("--config", type=Path, default=DEFAULT_OPTIONS_CONFIG)
@@ -68,6 +88,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     cfg = load_options_config(args.config)
     if args.command == "paper":
         asyncio.run(_paper(cfg, args.run_dir, os.environ))
+        return 0
+    if args.command == "historical":
+        spec = HistoricalSpec(args.start, args.end, half_days=tuple(cfg.universe.half_days))
+        series = asyncio.run(_history(cfg, spec, os.environ))
+        write_market(build_market(series, spec), args.out)
+        print(f"historische markt {spec.start} t/m {spec.end} geschreven naar {args.out}")
         return 0
     res = asyncio.run(run_replay(cfg, read_market(args.market), args.out))
     print(json.dumps(res.as_record(), indent=1, sort_keys=True))
