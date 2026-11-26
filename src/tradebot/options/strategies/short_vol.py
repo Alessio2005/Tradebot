@@ -12,7 +12,8 @@ Harde grenzen:
 - boekbreed: de risicopoort weigert (of verkleint) een entry als de som van het stressverlies van
   alle open undefined-risk posities plus de nieuwe boven `risk.max_undefined_stress_loss_frac`
   van het kapitaal komt;
-- STRESS als effectief regime van de onderliggende: de engine sluit de positie (`regime_stress`).
+- STRESS als effectief regime van de onderliggende: geen entry (`selection.admit`), en de
+  engine sluit een open positie (`regime_stress`).
 
 Beheer, in deze volgorde: de stops van `manage_credit` (expiratie, kosten ≥
 `stop_loss_multiple_credit` × credit), dan een short leg met `|delta| > short_delta_exit` →
@@ -63,11 +64,20 @@ def stress_loss(put_k: float, call_k: float, spot: float, credit: float) -> floa
 
 
 def position_stress_loss_usd(pos: StrategyPosition, spot: float) -> float:
-    """`stress_loss` van een short straddle/strangle in USD: eigen legs, eigen credit, `spot`."""
-    put_k = next(leg.contract.strike for leg in pos.intents() if leg.contract.right is Right.PUT)
-    call_k = next(leg.contract.strike for leg in pos.intents()
-                  if leg.contract.right is Right.CALL)
-    return pos.units * MULTIPLIER * stress_loss(put_k, call_k, spot, pos.entry_credit)
+    """Het stressverlies van een undefined-risk positie in USD, bij `spot`.
+
+    Optiedeel, per aandeel: het maximum over de aanwezige short legs (put: K − S·(1 − m), call:
+    S·(1 + m) − K), min het credit van de entry, niet onder 0; × eenheden × 100. Aandelen-legs
+    (bijvoorbeeld na een vroege assignment) tellen elk met |aantal| × S × m (de beweging tegen
+    ze in). Zonder legs: 0.
+    """
+    moves = [c.strike - spot * (1 - STRESS_MOVE) if c.right is Right.PUT
+             else spot * (1 + STRESS_MOVE) - c.strike
+             for c in (leg.contract for leg in pos.intents() if leg.ratio < 0)]
+    options = (max(max(moves) - pos.entry_credit, 0.0) * pos.units * MULTIPLIER
+               if moves else 0.0)
+    shares = sum(abs(leg.qty) for leg in pos.legs if leg.contract is None)
+    return options + shares * spot * STRESS_MOVE
 
 
 class ShortVol:

@@ -136,3 +136,19 @@ def test_the_cover_uses_the_rv_for_the_nearest_expiry_of_the_candidate():
               fake_chain(near, far), state, VolRegime.RICH, RULES)
     sigma_near = state.rv.at_horizon((EXPIRIES[0] - TODAY).days)
     assert sigma_near > sigma and c.candidate.rule_trace[-1].startswith("theta:")
+
+
+@pytest.mark.parametrize("rules", [
+    RULES,
+    SelectionRules(regime_enabled=False, theta_enabled=False),
+    dataclasses.replace(RULES, allowed={**RULES.allowed, VolRegime.STRESS: frozenset(
+        {"short_straddle_strangle"})}),
+])
+def test_undefined_risk_never_opens_in_stress(rules):
+    undefined = cand("short_straddle_strangle", max_loss=math.inf)
+    a = admit(undefined, CHAIN, vol(), VolRegime.STRESS, rules)
+    assert not a.admitted and a.blocker == "regime"
+    assert a.candidate.rule_trace == ("t", "regime:stress:undefined_risk")
+    # Buiten STRESS beslissen de gewone regels; beperkt risico in STRESS ook.
+    assert admit(cand(), CHAIN, vol(), VolRegime.STRESS,
+                 SelectionRules(regime_enabled=False, theta_enabled=False)).admitted

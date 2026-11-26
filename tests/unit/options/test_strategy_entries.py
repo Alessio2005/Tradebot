@@ -403,6 +403,26 @@ def test_short_vol_stress_loss_is_the_move_minus_the_credit():
         (max(put_k - 88.0, 132.0 - call_k) - c.net_credit) * 100 * c.quantity)
 
 
+def test_position_stress_loss_uses_the_legs_that_are_present():
+    (c,) = sv().scan(market(capital=RICH), Book())
+    pos = open_position(c)
+    put, call = pos.legs
+    credit, n = c.net_credit, c.quantity
+    # Na een vroege assignment van de put: alleen de call en de aandelen (+100 per contract).
+    assigned = dataclasses.replace(pos, legs=(call, Leg(None, "TST", 100 * n, put.contract.strike)))
+    want = (max(120.0 - call.contract.strike - credit, 0.0) * 100 * n + 100 * n * 100.0 * 0.20)
+    assert position_stress_loss_usd(assigned, 100.0) == pytest.approx(want)
+    only_put = dataclasses.replace(pos, legs=(put,))
+    assert position_stress_loss_usd(only_put, 100.0) == pytest.approx(
+        max(put.contract.strike - 80.0 - credit, 0.0) * 100 * n)
+    short_shares = dataclasses.replace(pos, legs=(Leg(None, "TST", -50, 100.0),))
+    assert position_stress_loss_usd(short_shares, 100.0) == pytest.approx(50 * 100.0 * 0.20)
+    # Geen legs: 0; een credit groter dan de beweging: niet onder 0.
+    assert position_stress_loss_usd(dataclasses.replace(pos, legs=()), 100.0) == 0.0
+    rich = dataclasses.replace(pos, entry_net=1e9)
+    assert position_stress_loss_usd(rich, 100.0) == 0.0
+
+
 def test_short_vol_only_opens_on_the_allow_list():
     assert S.short_straddle_strangle.underlyings == ("SPY", "QQQ", "IWM")
     assert ShortVol(S.short_straddle_strangle, RULES).scan(market(capital=RICH), Book()) == []

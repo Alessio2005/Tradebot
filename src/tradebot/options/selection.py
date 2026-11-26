@@ -4,6 +4,10 @@ Twee vaste regels tussen `Strategy.scan` en de risicopoort, alleen voor NIEUWE p
 
 1. **Regime.** Een strategie mag alleen openen in de regimes waarvoor ze in
    `vol_regime.allowed` staat (`vol_regime`-module). UNKNOWN en STRESS staan standaard leeg.
+   Een kandidaat met undefined risk (`max_loss` oneindig) komt in STRESS nooit binnen, ook niet
+   met `vol_regime.enabled: false` of met de strategie in `allowed.stress`
+   (`regime:stress:undefined_risk`): de engine zou hem anders meteen weer sluiten
+   (`regime_stress`). Beide regels lezen hetzelfde effectieve regime.
 2. **Theta harvesting.** Een kandidaat die premie ontvangt (`net_credit > 0`) moet aan twee
    voorwaarden voldoen:
 
@@ -78,6 +82,8 @@ def admit(c: Candidate, chain: Chain, vol: VolState | None, regime: VolRegime,
           rules: SelectionRules, today: date) -> Admission:
     """Laat `c` toe of niet, met de spoorregels erbij."""
     trace: list[str] = []
+    if math.isinf(c.max_loss) and regime is VolRegime.STRESS:
+        return Admission(_traced(c, ["regime:stress:undefined_risk"]), False, "regime")
     if rules.regime_enabled:
         ok = c.strategy in rules.allowed.get(regime, frozenset())
         trace.append(f"regime:{regime.value}:{'ok' if ok else 'no'}")

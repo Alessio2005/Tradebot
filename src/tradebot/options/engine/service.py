@@ -782,7 +782,9 @@ class Engine:
         """Beheer per open positie; loopt ook in HALT (sluiten verkleint risico).
 
         Vóór de regels van de strategie: een undefined-risk positie (`max_loss` oneindig) op een
-        onderliggende met effectief regime STRESS gaat dicht (STOP, `regime_stress`)."""
+        onderliggende met effectief regime STRESS gaat dicht (STOP, `regime_stress`). Dezelfde
+        bron als de toelating in `_scan` (`effective_regimes` over `_vol`, dat `_market` altijd
+        bijwerkt, ook met `vol_regime.enabled: false`), dus wat hier sluit, opent daar niet."""
         market = self.market_state(now)
         regimes = effective_regimes(self._vol, self.cfg.vol_regime.market_underlying)
         for pos in list(self.state.open_positions()):

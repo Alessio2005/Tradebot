@@ -31,7 +31,9 @@ hele boek (`effective_regimes`).
 Eén uitzondering, het enige effect op bestaande posities: is het effectieve regime van de
 onderliggende STRESS, dan sluit de engine elke undefined-risk positie (de short
 straddle/strangle, `max_loss` oneindig) op die onderliggende met `Urgency.STOP`, reden
-`regime_stress` (`Engine._manage`, vóór de regels van de strategie en ook in HALT).
+`regime_stress` (`Engine._manage`, vóór de regels van de strategie en ook in HALT). Daarom
+laat `selection.admit` in STRESS ook nooit een undefined-risk entry toe, wat
+`vol_regime.enabled` of `allowed.stress` ook zeggen; beide lezen hetzelfde effectieve regime.
 """
 from __future__ import annotations
 

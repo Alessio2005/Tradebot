@@ -529,3 +529,22 @@ def test_stress_closes_also_while_halted_and_only_undefined_risk(strangle_rig):
     assert a["position_id"] == pos.position_id
     assert [x["verdict"] for x in r.events("risk_decision") if x["kind"] == "close"] == [
         "approve"]
+
+
+def test_stress_blocks_undefined_entries_even_with_the_regime_layer_off(tmp_path):
+    cfg = undefined_cfg()
+    cfg = cfg.model_copy(update={
+        "vol_regime": cfg.vol_regime.model_copy(update={"enabled": False}),
+        "schedule": cfg.schedule.model_copy(update={"scan_times": ("14:00",)})})
+    r = Rig(tmp_path, cfg, market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    # Het regime wordt ook zonder de regimelaag berekend: toelating en sluiting lezen het.
+    assert set(r.e._vol) == {"TSTA", "TSTB"}
+    cands = r.e.strategies[0].scan(r.e.market_state(at(D0, 10, 1)), r.e.book())
+    assert cands
+    blocked: dict[str, int] = {}
+    stress = dict.fromkeys(r.e._vol, VolRegime.STRESS)
+    assert r.e._admitted(cands, stress, blocked, D0) == []
+    assert blocked == {"short_straddle_strangle:regime": len(cands)}
+    normal = dict.fromkeys(r.e._vol, VolRegime.NORMAL)
+    assert len(r.e._admitted(cands, normal, {}, D0)) == len(cands)

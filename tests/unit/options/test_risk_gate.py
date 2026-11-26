@@ -24,6 +24,7 @@ from tradebot.options.positions import (
     Action,
     ActionKind,
     Book,
+    Leg,
     LegIntent,
     PositionStatus,
     Trend,
@@ -183,6 +184,14 @@ def test_the_book_stress_cap_resizes_or_blocks_a_second_entry(strangle):
     d = undefined_gate(0.02).review(proposal(strangle), Book((held,)), m, OK)
     assert d.verdict is Verdict.REJECT and d.reason == "limits:undefined_stress_loss"
     assert stress_check(d).measured == pytest.approx(base + unit)
+    # Na een vroege assignment (één leg plus aandelen, max_loss nog inf): geen crash, de
+    # aandelen tellen mee.
+    put, call = held.legs
+    assigned = dataclasses.replace(held, legs=(call, Leg(None, "TST", 100 * held.units,
+                                                         put.contract.strike)))
+    d = undefined_gate().review(proposal(strangle), Book((assigned,)), m, OK)
+    assert stress_check(d).measured >= position_stress_loss_usd(assigned, 100.0) + unit
+    assert position_stress_loss_usd(assigned, 100.0) >= 100 * held.units * 100.0 * 0.20
     # Zonder keten voor een open undefined-risk positie is het stressverlies onbekend: weigeren.
     elsewhere = dataclasses.replace(held, underlying="TSTB")
     d = undefined_gate().review(proposal(strangle), Book((elsewhere,)), m, OK)
