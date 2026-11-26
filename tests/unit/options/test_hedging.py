@@ -567,7 +567,8 @@ def test_an_exit_waits_for_a_chain_and_an_open_exit(tmp_path):
     assert not r.events("hedge_order")                # geen keten: wachten
     r.e.chains["TSTB"] = chain
     r.state.orders["x"] = {"client_id": "x", "stock": True, "position_id": "h1",
-                           "purpose": "exit", "underlying": "TSTB", "status": "submitted"}
+                           "purpose": "exit", "underlying": "TSTB", "status": "submitted",
+                           "submitted_at": at(D0, 10, 1).isoformat()}
     run(r.e._unwind_shares(at(D0, 10, 1)))
     assert not r.events("hedge_order") and r.state.orders["x"]["status"] == "submitted"
     r.state.orders["x"]["status"] = "cancelled"
@@ -581,3 +582,90 @@ def test_no_hedging_outside_the_session(tmp_path):
     r.add()
     run(r.e.tick(datetime.combine(D0, time(9, 0), tzinfo=NY)))
     assert not r.events("hedge_order")
+
+
+# --- exec-id: deelfills in dezelfde seconde, correcties, en een EXIT die niet vult -----------
+
+def test_paper_fills_carry_a_unique_exec_id():
+    b = PaperBroker(25_000.0)
+    b.update_market(NOW, {"TST": CHAIN})
+    run(b.submit_stock(approved_stock(10), StockOrder("s1", "p1", "TST", 10, 100.01,
+                                                      Purpose.HEDGE)))
+    run(b.submit_stock(approved_stock(5), StockOrder("s2", "p1", "TST", 5, 100.01,
+                                                     Purpose.HEDGE)))
+    assert [e.exec_id for e in run(b.executions(NOW))] == ["s1#1", "s2#2"]
+
+
+def test_ibkr_passes_the_exec_id():
+    ib = FakeIB()
+    b = ib_broker(ib)
+    t = datetime(2026, 11, 24, 15, 0, tzinfo=NY)
+    ib.fills = [NS(contract=NS(secType="STK", symbol="TST"),
+                   execution=NS(shares=10, side="BOT", price=100.0, orderRef="s1",
+                                execId="0001.abc.01.01"),
+                   commissionReport=NS(commission=1.0), time=t)]
+    (e,) = run(b.executions(t - timedelta(hours=1)))
+    assert e.exec_id == "0001.abc.01.01"
+
+
+def _stock_order(r, cid="s", qty=-60, purpose="hedge", status="submitted"):
+    r.state.orders[cid] = {"client_id": cid, "stock": True, "position_id": "h1",
+                           "purpose": purpose, "strategy": HEDGED, "underlying": "TSTB",
+                           "qty": qty, "limit": 50.0, "filled": 0, "execs": [],
+                           "status": status, "submitted_at": at(D0, 10, 1).isoformat()}
+    return r.state.orders[cid]
+
+
+def test_two_same_second_partial_fills_are_both_booked(tmp_path):
+    r = HedgeRig(tmp_path, HCFG.model_copy(update={"hedging": BASE.hedging}))
+    r.add()
+    o = _stock_order(r)
+    t = at(D0, 10, 1)
+    same = [Execution(t, ExecutionKind.FILL, "s", None, "TSTB", -30, 50.0, 0.5, f"00a.{i}.01")
+            for i in (1, 2)]
+    r.broker._executions.extend(same)
+    run(r.e._executions(t))
+    run(r.e._executions(t))                                  # opnieuw gelezen: niets erbij
+    assert r.pos().shares == -60 and o["status"] == "filled"
+    assert len(r.events("hedge_fill")) == 2
+    r.e._book_stock_fill("s", o, same, t)                   # herstart: zelfde exec-ids
+    assert r.pos().shares == -60
+
+
+def test_an_ibkr_correction_is_not_booked_twice(tmp_path):
+    r = HedgeRig(tmp_path, HCFG.model_copy(update={"hedging": BASE.hedging}))
+    r.add()
+    o = _stock_order(r)
+    t = at(D0, 10, 1)
+    first = Execution(t, ExecutionKind.FILL, "s", None, "TSTB", -60, 50.0, 1.0, "00a.1.01")
+    fix = dataclasses.replace(first, ts=t + timedelta(seconds=5), price=50.02,
+                              exec_id="00a.1.02")
+    r.e._book_stock_fill("s", o, [first], t)
+    r.e._book_stock_fill("s", o, [fix], t)
+    assert r.pos().shares == -60 and len(r.events("hedge_fill")) == 1
+    (c,) = r.events("hedge_fill_correction")
+    assert c["exec_id"] == "00a.1.02" and r.alerts[-1][1] == "options_hedge_fill_correction"
+    r.e._book_stock_fill("s", o, [fix], t)                  # en ook niet een derde keer
+    assert len(r.events("hedge_fill_correction")) == 1
+
+
+def test_an_unfilled_exit_is_replaced_until_flat(tmp_path):
+    r = HedgeRig(tmp_path)
+    r.broker.stock_half_spread = 0.01                   # 1 %: de limiet raakt hem niet
+    p, _ = r.add()
+    r.state.positions[-1] = dataclasses.replace(
+        p, legs=p.legs + (Leg(None, "TSTB", -30, 50.0),), status=PositionStatus.CLOSED)
+    r.broker._book_shares("TSTB", -30, 50.0)
+    t = at(D0, 10, 0, 15)
+    r.tick(t)
+    (first,) = [x for x in r.state.orders.values() if x.get("purpose") == "exit"]
+    assert first["status"] == "submitted"
+    r.tick(at(D0, 10, 4, 0))                            # nog geen interval: wachten
+    assert first["status"] == "submitted"
+    r.tick(at(D0, 10, 5, 15))                           # interval voorbij: annuleren
+    assert first["status"] == "cancelled"
+    assert r.events("order_cancelled")[-1]["reason"] == "replaced"
+    r.broker.stock_half_spread = 0.0                    # nu vult hij wel
+    r.tick(at(D0, 10, 5, 30))                           # de ronde erna opnieuw
+    exits = [x for x in r.events("hedge_order") if x["purpose"] == "exit"]
+    assert len(exits) == 2 and r.pos().shares == 0

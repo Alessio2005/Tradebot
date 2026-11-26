@@ -57,6 +57,7 @@ class PaperBroker:
         self._options: dict[str, tuple[OptionContract, int, float]] = {}
         self._shares: dict[str, tuple[int, float]] = {}
         self._executions: list[Execution] = []
+        self._fills = 0                                 # teller voor `exec_id`
 
     # --- markt ----------------------------------------------------------------------------
 
@@ -97,7 +98,8 @@ class PaperBroker:
             self._book_option(c, qty, o_px)
             self._executions.append(Execution(now, ExecutionKind.FILL, o.client_id, c,
                                               c.underlying, qty, o_px,
-                                              fee if i == 0 else 0.0))
+                                              fee if i == 0 else 0.0,
+                                              self._exec_id(o.client_id)))
         self._orders[o.client_id] = dataclasses.replace(bo, status=OrderStatus.FILLED,
                                                         filled=o.quantity, avg_fill=o.limit)
 
@@ -114,9 +116,14 @@ class PaperBroker:
         self._book_shares(o.symbol, o.qty, o.limit)
         self.cash -= fee
         self._executions.append(Execution(self.now, ExecutionKind.FILL, o.client_id, None,
-                                          o.symbol, o.qty, o.limit, fee))
+                                          o.symbol, o.qty, o.limit, fee,
+                                          self._exec_id(o.client_id)))
         self._orders[o.client_id] = dataclasses.replace(bo, status=OrderStatus.FILLED,
                                                         filled=abs(o.qty), avg_fill=o.limit)
+
+    def _exec_id(self, cid: str) -> str:
+        self._fills += 1
+        return f"{cid}#{self._fills}"
 
     def _leg_price(self, c: OptionContract) -> float:
         chain = self.chains.get(c.underlying)

@@ -3,7 +3,8 @@
 `submit` neemt alleen een `ApprovedOrder` (uit de risicopoort), `submit_stock` alleen een
 `ApprovedStockOrder` (de delta-hedger, ook langs de poort). `modify` en `cancel` werken op de
 client-id van beide. `modify` verandert alleen de limiet, nooit het aantal of de legs.
-Een aandelenfill is een `Execution` zonder `contract`.
+Een aandelenfill is een `Execution` zonder `contract`. `exec_id` is uniek per fill (IBKR:
+`execId`; een correctie heeft hetzelfde id met een ander laatste deel na de punt).
 """
 from __future__ import annotations
 
@@ -62,6 +63,7 @@ class Execution:
     qty: int                             # + gekocht/ontvangen, − verkocht/geleverd
     price: float
     commission: float = 0.0
+    exec_id: str = ""                    # uniek per fill (IBKR execId); leeg als onbekend
 
 
 @dataclass(frozen=True, slots=True)

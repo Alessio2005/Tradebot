@@ -265,6 +265,7 @@ class IBKRBroker:
             out.append(Execution(f.time, ExecutionKind.FILL, ex.orderRef or "",
                                  contract_of(c) if c.secType == "OPT" else None,
                                  c.symbol, qty, float(ex.price),
-                                 fee if math.isfinite(fee) else 0.0))
+                                 fee if math.isfinite(fee) else 0.0,
+                                 str(getattr(ex, "execId", "") or "")))
         return sorted(out, key=lambda e: (e.ts, e.client_id,
                                           e.contract.key() if e.contract else e.symbol))

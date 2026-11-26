@@ -25,7 +25,10 @@ positie (één leg met `contract=None`, gemiddelde prijs); de geboekte executies
 order (`execs`), zodat een herstart ze niet nog eens boekt. Een open hedge-order van een vorige
 hedge-ronde wordt geannuleerd en pas de ronde daarna vervangen. Een gesloten positie met
 aandelen krijgt in dezelfde ronde een aandelenorder naar nul (purpose EXIT); een lopende
-hedge-order van die positie wordt eerst geannuleerd. De reconciliatie vergelijkt per symbool
+hedge-order van die positie wordt eerst geannuleerd. Een EXIT die na `hedging.interval_seconds`
+nog open staat, wordt geannuleerd en de ronde daarna tegen een verse limiet opnieuw gestuurd,
+tot de positie vlak is. Aandelenfills worden ontdubbeld op `exec_id` (IBKR `execId`); een
+correctie (zelfde id vóór de laatste punt) wordt nooit geboekt, wel gejournald en gealarmeerd. De reconciliatie vergelijkt per symbool
 waarop gehedged is de aandelen bij de broker met de aandelen-legs: het verschil mag alleen uit
 hele lots van 100 bestaan (assignment of uitoefening, zoals bij de wheel).
 
@@ -218,7 +221,7 @@ class Engine:
         self._exec_since: datetime | None = None
         self._entries_blocked_day: date | None = None
         self._blocked: frozenset[str] = frozenset()
-        self._seen: set[tuple[datetime, ExecutionKind, str, str, int]] = set()
+        self._seen: set[tuple[datetime, ExecutionKind, str, str, int, str]] = set()
 
     # --- toestand -------------------------------------------------------------------------
 
@@ -485,8 +488,9 @@ class Engine:
         self._exec_since = now          # inclusief: een fill later in deze ronde telt nog mee
         fills: dict[str, list[Execution]] = {}
         for e in execs:
+            # Aandelenfills ook op `exec_id`: twee deelfills in dezelfde seconde zijn twee fills.
             key = (e.ts, e.kind, e.client_id, e.contract.key() if e.contract else e.symbol,
-                   e.qty)
+                   e.qty, "" if e.contract else e.exec_id)
             if key in self._seen:
                 continue
             self._seen.add(key)
@@ -593,8 +597,17 @@ class Engine:
         i = next(i for i, p in enumerate(self.state.positions)
                  if p.position_id == o["position_id"])
         for e in execs:
-            rec = [e.ts.isoformat(), e.qty, e.price]
+            rec: Any = e.exec_id or [e.ts.isoformat(), e.qty, e.price]
             if rec in o["execs"]:
+                continue
+            base = e.exec_id.rsplit(".", 1)[0] if "." in e.exec_id else ""
+            if base and any(isinstance(x, str) and "." in x and x.rsplit(".", 1)[0] == base
+                            for x in o["execs"]):
+                o["execs"].append(rec)                  # een correctie: nooit twee keer boeken
+                self._event(now, "hedge_fill_correction", client_id=cid, exec_id=e.exec_id,
+                            position_id=o["position_id"], qty=e.qty, price=e.price)
+                self.alert("error", "options_hedge_fill_correction",
+                           f"{cid} {e.exec_id}: correctie niet geboekt")
                 continue
             o["execs"].append(rec)
             o["filled"] += e.qty
@@ -654,10 +667,14 @@ class Engine:
         if not closed and not self.cfg.hedging.enabled:
             return
         open_stock = self._open_stock()
+        retry = self.cfg.hedging.interval_seconds
         for o in open_stock.values():
             pos = next(p for p in self.state.positions if p.position_id == o["position_id"])
             if pos.status is PositionStatus.CLOSED and o["purpose"] == Purpose.HEDGE.value:
                 await self._cancel_stock(o, now, "position_closed")
+            elif o["purpose"] == Purpose.EXIT.value and (
+                    now - datetime.fromisoformat(o["submitted_at"])).total_seconds() >= retry:
+                await self._cancel_stock(o, now, "replaced")   # de ronde erna opnieuw
         for pos in closed:
             if pos.position_id in open_stock or pos.underlying not in self.chains:
                 continue
