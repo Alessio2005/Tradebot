@@ -190,6 +190,11 @@ theta_harvest:
   min_theta_gamma_cover: 1.0
   min_theta_per_max_loss: 0.0    # θ/dag als fractie van het max verlies; 0 = alleen dekking
 
+# Relative value: de z-score van de VRP-ratio (ATM-IV30 / σ(30 d)) over het universum herweegt de
+# rangscore met 1 ± w·z (credit +, debit −), begrensd op [0,5, 1,5]. Geen poort, alleen rangorde.
+relative_value:
+  weight: 0.0                    # 0 = uit
+
 sizing:
   max_loss_frac_capital: 0.02    # per nieuwe positie
   ranking: credit_per_max_loss   # vast

@@ -25,7 +25,7 @@ import dataclasses
 import logging
 import math
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import date, datetime, time, timedelta
 from enum import StrEnum
 from pathlib import Path
@@ -70,6 +70,7 @@ from ..pricing.engines import Method, Use
 from ..pricing.settings import pricer_settings
 from ..pricing.surface import SurfaceStatus, build_surface, skew_25d
 from ..rates import Carry
+from ..relative_value import rv_adjust, vrp_zscores
 from ..risk.gate import GateState, OrderKind, OrderProposal, RiskGate, SafetyBreach
 from ..risk.monitor import assess, degross_plan
 from ..selection import admit, selection_rules
@@ -558,11 +559,12 @@ class Engine:
             return
         market, book = self.market_state(now), self.book()
         regimes = effective_regimes(self._vol, self.cfg.vol_regime.market_underlying)
+        rv_z = vrp_zscores(self._vol) if self.cfg.relative_value.weight > 0 else None
         opened_today: set[str] = set()
         summary: dict[str, int] = {}
         blocked: dict[str, int] = {}
         for s in self.strategies:
-            cands = self._admitted(s.scan(market, book), regimes, blocked, market.today)
+            cands = self._admitted(s.scan(market, book), regimes, blocked, market.today, rv_z)
             summary[s.name] = len(cands)
             best = next((c for c in cands if c.underlying not in opened_today
                          and not self._opened_today(c.underlying, now.date())), None)
@@ -581,8 +583,11 @@ class Engine:
                     regimes={u: r.value for u, r in sorted(regimes.items())})
 
     def _admitted(self, cands: list[Candidate], regimes: dict[str, VolRegime],
-                  blocked: dict[str, int], today: date) -> list[Candidate]:
-        """Kandidaten die het regime en de theta-harvest-poort halen, in dezelfde volgorde."""
+                  blocked: dict[str, int], today: date,
+                  rv_z: Mapping[str, float] | None = None) -> list[Candidate]:
+        """Kandidaten die het regime en de theta-harvest-poort halen, in dezelfde volgorde.
+
+        Met `rv_z` (relative value aan) wordt de rangscore herwogen en opnieuw gesorteerd."""
         out = []
         for c in cands:
             a = admit(c, self.chains[c.underlying], self._vol.get(c.underlying),
@@ -592,6 +597,10 @@ class Engine:
             else:
                 key = f"{c.strategy}:{a.blocker}"
                 blocked[key] = blocked.get(key, 0) + 1
+        if rv_z is not None:
+            w = self.cfg.relative_value.weight
+            out = sorted((rv_adjust(c, rv_z.get(c.underlying, 0.0), w) for c in out),
+                         key=lambda c: (-c.rank_score, c.underlying))
         return out
 
     def _entry(self, c: Candidate, pid: str) -> OrderProposal:

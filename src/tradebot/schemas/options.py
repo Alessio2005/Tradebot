@@ -350,6 +350,12 @@ class ThetaHarvestConfig(StrictModel):
     min_theta_per_max_loss: Annotated[float, Field(ge=0.0, le=0.1)] = 0.0   # θ/dag / max verlies
 
 
+class RelativeValueConfig(StrictModel):
+    """Rangorde op de VRP ten opzichte van het universum (`options.relative_value`)."""
+
+    weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.0    # 0 = uit; alleen rangorde, geen poort
+
+
 class SizingConfig(StrictModel):
     max_loss_frac_capital: Fraction = 0.02
     ranking: Literal["credit_per_max_loss"] = "credit_per_max_loss"   # vast, detailontwerp 7.3
@@ -453,6 +459,7 @@ class OptionsConfig(StrictModel):
     paper: PaperConfig = PaperConfig()
     vol_regime: VolRegimeConfig = VolRegimeConfig()
     theta_harvest: ThetaHarvestConfig = ThetaHarvestConfig()
+    relative_value: RelativeValueConfig = RelativeValueConfig()
 
     @model_validator(mode="after")
     def _market_underlying(self) -> OptionsConfig:
