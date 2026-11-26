@@ -36,16 +36,20 @@ meer dan `pool_min_contracts` jobs gaan ze in vaste, aaneengesloten chunks naar 
 `evaluationDate` is globaal per proces: daarom processen en geen threads. De workers starten
 met `forkserver` waar dat bestaat (Linux, macOS; `fork` uit een proces met threads kan
 vastlopen), anders met de standaardmethode. De pool komt er pas bij de eerste keer dat hij
-nodig is, wordt hergebruikt en sluit met `close()`.
+nodig is, wordt hergebruikt en sluit met `close()`. Sterft een worker (`BrokenProcessPool`),
+dan gaat de pool dicht (met een waarschuwing in de log), rekent deze batch in-proces en maakt
+de volgende build een nieuwe pool.
 
 De volgorde van `Chain.options` blijft die van `raw`.
 """
 from __future__ import annotations
 
+import logging
 import math
 import multiprocessing
 from collections.abc import Callable, Sequence
 from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, replace
 from datetime import date, datetime, time
 from typing import cast
@@ -66,6 +70,8 @@ from ..rates import Carry
 from ..units import GreeksPerShare
 
 __all__ = ["Chain", "ChainBuilder", "PricedOption", "RawOption", "solve_quantlib"]
+
+log = logging.getLogger(__name__)
 
 #: De halve breedte van het Brent-interval rond de FD-startwaarde (in vol).
 _FD_SEED_HALF_WIDTH = 0.03
@@ -191,7 +197,13 @@ class ChainBuilder:
             self._pool = ProcessPoolExecutor(max_workers=workers, mp_context=_mp_context())
         size = math.ceil(len(jobs) / (workers * _CHUNKS_PER_WORKER))
         chunks = [jobs[i:i + size] for i in range(0, len(jobs), size)]
-        parts = self._pool.map(solve_quantlib, [self.settings] * len(chunks), chunks)
+        try:
+            parts = list(self._pool.map(solve_quantlib, [self.settings] * len(chunks), chunks))
+        except BrokenProcessPool:
+            # Een gestorven worker: deze batch in-proces, de volgende build een verse pool.
+            log.warning("procespool van de keten kapot; %d contracten in-proces", len(jobs))
+            self.close()
+            return solve_quantlib(self.settings, jobs)
         return [res for part in parts for res in part]
 
     def _unpriced(self, raw: RawOption, method: Method, stale: bool) -> PricedOption:
@@ -257,7 +269,7 @@ class ChainBuilder:
                 todo = (None,) * len(prices)
                 ql.append(i)
                 jobs.append(_QuantLibJob(inp, method, prices, todo, todo, True))
-        fd = [j for j, i in enumerate(ql) if jobs[j].method is Method.FD]
+        fd = [j for j, job in enumerate(jobs) if job.method is Method.FD]
         for j, brackets in zip(fd, self._fd_brackets([jobs[j] for j in fd]), strict=True):
             jobs[j] = replace(jobs[j], brackets=brackets)
         baw_items = [live[i] for i in baw]

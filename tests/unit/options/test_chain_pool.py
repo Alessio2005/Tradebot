@@ -5,7 +5,9 @@ de pool lui gemaakt, hergebruikt en door `close()` gesloten; `auto` resolveert.
 """
 from __future__ import annotations
 
+import logging
 import multiprocessing
+from concurrent.futures.process import BrokenProcessPool
 from dataclasses import replace
 
 import pytest
@@ -91,3 +93,32 @@ def test_the_start_method_is_fork_free_where_possible(monkeypatch):
     assert builder_mod._mp_context().get_start_method() == "forkserver"
     monkeypatch.setattr(builder_mod.multiprocessing, "get_all_start_methods", lambda: ["spawn"])
     assert builder_mod._mp_context() is multiprocessing.get_context()
+
+
+class _BrokenPool:
+    """Een pool waarvan een worker gestorven is: `map` geeft `BrokenProcessPool`."""
+
+    def __init__(self) -> None:
+        self.shut = False
+
+    def map(self, *args):
+        raise BrokenProcessPool("een worker is gestorven")
+
+    def shutdown(self) -> None:
+        self.shut = True
+
+
+def test_a_broken_pool_is_closed_and_the_batch_runs_in_process(caplog):
+    rows = _div_chain()
+    want = _build(ChainBuilder(ONE, 10.0, spread_iv=True), rows, DIV_CARRY)
+    b = ChainBuilder(TWO, 10.0, spread_iv=True)
+    broken = _BrokenPool()
+    b._pool = broken                                 # type: ignore[assignment]
+    with caplog.at_level(logging.WARNING, logger=builder_mod.__name__):
+        assert _build(b, rows, DIV_CARRY) == want
+    assert broken.shut and b._pool is None
+    assert "procespool van de keten kapot" in caplog.text
+    try:                                             # de volgende build: een verse pool
+        assert _build(b, rows, DIV_CARRY) == want and b._pool is not None
+    finally:
+        b.close()
