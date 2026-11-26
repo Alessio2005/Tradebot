@@ -24,13 +24,13 @@ class FakeIB:
                         NS(tag="TotalCashValue", value="24000", currency="USD"),
                         NS(tag="BuyingPower", value="50000", currency="USD"),
                         NS(tag="NetLiquidation", value="1", currency="EUR")]
-        self.values: list[Any] = []
         self.held: list[Any] = []
         self.lines = 0
         self.max_lines = 0
         self._ids = itertools.count(1000)
         self.what_if = NS(initMarginChange="500.0", maintMarginChange="400.0")
         self.unknown: set[float] = set()
+        self.fx = (1.1, 1.05)                           # marketPrice en close van base.USD
 
     # verbinding
     def isConnected(self):
@@ -49,9 +49,6 @@ class FakeIB:
     # account
     async def accountSummaryAsync(self, account=""):
         return self.summary
-
-    def accountValues(self, account=""):
-        return self.values
 
     def positions(self, account=""):
         return self.held
@@ -95,6 +92,10 @@ class FakeIB:
         q = o.quote if o is not None else NS(bid=None, ask=None)
         return NS(contract=c, bid=q.bid, ask=q.ask, last=float("nan"), bidSize=10, askSize=10,
                   volume=500, callOpenInterest=5000, putOpenInterest=6000)
+
+    async def reqTickersAsync(self, *cs):
+        self.fx_asked = [c.symbol + c.currency for c in cs]
+        return [NS(marketPrice=lambda: self.fx[0], close=self.fx[1]) for _ in cs]
 
     def cancelMktData(self, c):
         self.lines -= 1

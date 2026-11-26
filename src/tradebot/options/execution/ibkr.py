@@ -6,6 +6,8 @@
   limiet heeft het teken van de broker: + betalen, − ontvangen. Actie is altijd `BUY`.
 * `modify` verandert alleen `lmtPrice`; legs en aantal liggen vast.
 * Executies komen per leg; de `BAG`-regel zelf wordt overgeslagen.
+* Equity, cash en buying power zijn altijd in USD. Een account met een andere basisvaluta
+  (bv. EUR) wordt omgerekend met de IDEALPRO-koers van die valuta tegen USD.
 
 De `ib`-parameter is een `ib_async.IB` of een nep-object met dezelfde methoden (tests).
 """
@@ -16,7 +18,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
-from ib_async import ComboLeg, Contract, ExecutionFilter, LimitOrder, Option
+from ib_async import ComboLeg, Contract, ExecutionFilter, Forex, LimitOrder, Option
 
 from ...utils.failfast import DataContractError, require
 from ..contracts import OptionContract, Right
@@ -39,6 +41,8 @@ _STATUS = {"PendingSubmit": OrderStatus.SUBMITTED, "PreSubmitted": OrderStatus.S
            "Filled": OrderStatus.FILLED, "Cancelled": OrderStatus.CANCELLED,
            "ApiCancelled": OrderStatus.CANCELLED, "PendingCancel": OrderStatus.SUBMITTED,
            "Inactive": OrderStatus.REJECTED}
+_ACCOUNT_TAGS = ("NetLiquidation", "TotalCashValue", "BuyingPower")
+_USD = ("USD", "BASE", "")
 
 
 def option_of(c: OptionContract) -> Option:
@@ -58,15 +62,6 @@ def _num(v: Any) -> float:
     except (TypeError, ValueError):
         return math.nan
     return x if math.isfinite(x) and abs(x) < 1e300 else math.nan
-
-
-def _tags(rows: Any, currencies: tuple[str, ...]) -> dict[str, float]:
-    return {v.tag: _num(v.value) for v in rows if v.currency in currencies}
-
-
-def _has_balance(vals: dict[str, float]) -> bool:
-    return (math.isfinite(vals.get("NetLiquidation", math.nan))
-            and math.isfinite(vals.get("TotalCashValue", math.nan)))
 
 
 class IBKRBroker:
@@ -97,29 +92,33 @@ class IBKRBroker:
         self.ib.reqMarketDataType(3)                # vertraagde data (open vraag A)
 
     async def account(self) -> AccountSnapshot:
-        rows = list(await self.ib.accountSummaryAsync(self.account_id))
-        vals = _tags(rows, ("USD", "BASE", ""))
-        factor = 1.0
-        if not _has_balance(vals):
-            # Basisvaluta is niet USD (bijvoorbeeld EUR bij IBKR Ierland): lees de saldi in die
-            # valuta en reken ze om met IBKR's eigen ExchangeRate (eenheden basisvaluta per USD).
-            base = {r.currency for r in rows if r.tag == "NetLiquidation" and r.currency not in ("USD", "BASE", "")}
-            if len(base) == 1:
-                vals = _tags(rows, tuple(base))
-                factor = 1.0 / self._usd_rate()
+        rows = [v for v in await self.ib.accountSummaryAsync(self.account_id)
+                if v.tag in _ACCOUNT_TAGS]
+        usd = [v for v in rows if v.currency in _USD]
+        fx = 1.0
+        if not usd:                                 # account met een andere basisvaluta (EUR)
+            ccys = sorted({v.currency for v in rows})
+            require(len(ccys) == 1, "geen equity of cash van IBKR", DataContractError,
+                    valuta=ccys)
+            fx, usd = await self._usd_per(ccys[0]), rows
+        vals = {v.tag: _num(v.value) * fx for v in usd}
         eq, cash = vals.get("NetLiquidation", math.nan), vals.get("TotalCashValue", math.nan)
         bp = vals.get("BuyingPower", math.nan)
-        require(_has_balance(vals), "geen equity of cash van IBKR", DataContractError)
-        return AccountSnapshot(eq * factor, cash * factor,
-                               bp * factor if math.isfinite(bp) else 0.0, True,
+        require(math.isfinite(eq) and math.isfinite(cash), "geen equity of cash van IBKR",
+                DataContractError)
+        return AccountSnapshot(eq, cash, bp if math.isfinite(bp) else 0.0, True,
                                self.account_hash)
 
-    def _usd_rate(self) -> float:
-        rates = [_num(v.value) for v in self.ib.accountValues(self.account_id)
-                 if v.tag == "ExchangeRate" and v.currency == "USD"]
-        require(len(rates) == 1 and math.isfinite(rates[0]) and rates[0] > 0,
-                "geen USD-wisselkoers van IBKR voor een account in een andere basisvaluta",
-                DataContractError)
+    async def _usd_per(self, base: str) -> float:
+        """USD per eenheid `base`, uit de IDEALPRO-koers `base`.USD (EUR, GBP, AUD, NZD)."""
+        pair = (await self.ib.qualifyContractsAsync(Forex(base + "USD")))[0]
+        require(pair is not None, "geen wisselkoers voor de basisvaluta", DataContractError,
+                valuta=base)
+        ticker = (await self.ib.reqTickersAsync(pair))[0]
+        rates = [r for r in (_num(ticker.marketPrice()), _num(ticker.close))
+                 if math.isfinite(r) and r > 0]
+        require(bool(rates), "geen wisselkoers voor de basisvaluta", DataContractError,
+                valuta=base)
         return rates[0]
 
     async def positions(self) -> list[BrokerPosition]:

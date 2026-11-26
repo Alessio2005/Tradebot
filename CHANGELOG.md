@@ -4,13 +4,13 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
-## IBKR-saldo in een andere basisvaluta (2026-11-25)
-Een paper-account bij IBKR Ierland heeft een andere basisvaluta dan USD (bijvoorbeeld EUR), en
-`IBKRBroker.account()` las alleen USD-regels: "geen equity of cash van IBKR", dus geen entries.
-Nu worden de saldi in de basisvaluta gelezen en met IBKR's `ExchangeRate` (basisvaluta per USD)
-naar USD omgerekend. Zonder bruikbare koers, of met meerdere valuta's zonder USD-saldo, blijft
-het een harde fout. Nog niet gecontroleerd tegen het echte account: de koers-tag volgt IBKR's
-documentatie, niet een meting.
+## Fix: IBKR-account in een andere basisvaluta (2026-11-25)
+- `options.execution.ibkr.IBKRBroker.account` las alleen regels in USD. Een paper-account met
+  EUR als basisvaluta gaf daardoor elke ronde `geen equity of cash van IBKR`, en na drie keer
+  een HALT (`options_task_failures`). Nu worden equity, cash en buying power in één andere
+  basisvaluta omgerekend naar USD met de IDEALPRO-koers `<valuta>.USD` (actuele koers, anders
+  de slotkoers). Zonder bruikbare koers, of met regels in meer dan één valuta, blijft het een
+  `DataContractError`.
 
 ## Options: volatility risk premium, theta harvesting en vol-regimes (2026-11-24)
 Drie bronnen van rendement als vaste regels tussen `Strategy.scan` en de risicopoort. Alleen
