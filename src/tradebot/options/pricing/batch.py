@@ -121,6 +121,11 @@ class BatchInputs:
     `theta_factor` en `theta_days` uit `scaled_time(now + step, expiry)` met
     `step = min(1 dag, resterend/2)` (`theta_days` is `step` in dagen). Voor een verlopen
     contract zijn alle tijden NaN.
+
+    `has_dividends` markeert een contract met een discreet dividend in de looptijd
+    (`OptionInputs.discrete_dividends`). Dat kent de kernel niet en QuantLib weigert er BAW
+    voor (alleen FD): zo'n contract krijgt geen prijs (NaN), geen Greeks en de IV-status
+    `TO_QUANTLIB`.
     """
 
     spot: FloatArray
@@ -131,22 +136,22 @@ class BatchInputs:
     rate: FloatArray
     div_yield: FloatArray
     expired: BoolArray
+    has_dividends: BoolArray
     theta_t_model: FloatArray
     theta_factor: FloatArray
     theta_days: FloatArray
 
     @classmethod
     def from_options(cls, options: Sequence[OptionInputs]) -> BatchInputs:
-        """De arrays voor `options`, met de tijden zoals `ql_env.scaled_time` ze rekent.
-
-        Een discreet dividend kent de kernel niet; dat blijft bij QuantLib (FD).
-        """
+        """De arrays voor `options`, met de tijden zoals `ql_env.scaled_time` ze rekent."""
         n = len(options)
+        dividends = np.zeros(n, dtype=np.bool_)
         t_model, factor = np.full(n, np.nan), np.full(n, np.nan)
         th_t, th_f, th_days = np.full(n, np.nan), np.full(n, np.nan), np.full(n, np.nan)
         for i, o in enumerate(options):
             if o.expired:
                 continue
+            dividends[i] = bool(o.discrete_dividends)
             st = scaled_time(o.now, o.expiry)
             t_model[i], factor[i] = st.t_model, st.factor
             step = min(timedelta(days=1), (expiry_moment(o.expiry) - o.now) / 2)
@@ -161,6 +166,7 @@ class BatchInputs:
             rate=np.array([o.carry.rate for o in options], dtype=np.float64),
             div_yield=np.array([o.carry.div_yield for o in options], dtype=np.float64),
             expired=np.array([o.expired for o in options], dtype=np.bool_),
+            has_dividends=dividends,
             theta_t_model=th_t, theta_factor=th_f, theta_days=th_days,
         )
 
@@ -261,6 +267,8 @@ def _critical_price(m: _Model, q: FloatArray) -> tuple[FloatArray, BoolArray]:
     """
     call, strike, rd, dd, var = m.is_call, m.strike, m.r_disc, m.d_disc, m.variance
     sv = np.sqrt(var)
+    # De seed gebruikt `m = −2·ln(rD)/var`, niet de K-term van `_q_exponent`: zo staat het in
+    # QuantLib. Niet samenvoegen.
     n = 2.0 * np.log(dd / rd) / var
     mm = -2.0 * np.log(rd) / var
     bt = np.log(dd / rd)
@@ -306,7 +314,8 @@ def european_price(inp: BatchInputs, vol: FloatArray) -> FloatArray:
     """De Europese prijs zoals `AnalyticEuropeanEngine` (NaN voor een verlopen contract)."""
     with np.errstate(all="ignore"):
         m = _model(inp, vol)
-        return _black_calculator(m.is_call, m.forward, m.strike, m.std_dev, m.r_disc)
+        value = _black_calculator(m.is_call, m.forward, m.strike, m.std_dev, m.r_disc)
+        return np.where(inp.has_dividends, np.nan, value)
 
 
 def baw_price(inp: BatchInputs, vol: FloatArray) -> FloatArray:
@@ -328,8 +337,9 @@ def baw_price(inp: BatchInputs, vol: FloatArray) -> FloatArray:
         american = np.where(ok, np.where(m.is_call, call, put), np.nan)
         never_early = np.where(m.is_call, m.d_disc >= 1.0, m.r_disc >= 1.0)
         value = np.where(never_early, black, american)
-        # QuantLib weigert een call bij een negatieve rente (rD > 1).
-        return np.where(m.is_call & (m.r_disc > 1.0), np.nan, value)
+        # QuantLib weigert een call bij een negatieve rente (rD > 1), ook met dD >= 1, en BAW
+        # met een discreet dividend.
+        return np.where((m.is_call & (m.r_disc > 1.0)) | inp.has_dividends, np.nan, value)
 
 
 class KernelIVStatus(StrEnum):
@@ -421,6 +431,7 @@ def implied_vols(inp: BatchInputs, prices: FloatArray, cfg: IVSettings = IVSetti
     lower = np.maximum(np.where(inp.is_call, inp.spot - inp.strike, inp.strike - inp.spot), 0.0)
     with np.errstate(invalid="ignore"):
         mark(inp.expired, KernelIVStatus.EXPIRED)
+        mark(inp.has_dividends, KernelIVStatus.TO_QUANTLIB)       # alleen FD kan dat
         mark(np.isnan(prices), KernelIVStatus.NO_QUOTE)
         mark(prices <= 0, KernelIVStatus.NO_BID)
         mark(prices < lower - cfg.tick, KernelIVStatus.BELOW_INTRINSIC)
@@ -460,7 +471,8 @@ def baw_greeks(inp: BatchInputs, vol: FloatArray, bumps: Bumps = Bumps()) -> Bat
     gamma = (up - 2 * base + down) / (h * h)
 
     b = np.minimum(bumps.vol, 0.5 * vol)
-    vega = (baw_price(inp, vol + b) - baw_price(inp, vol - b)) / (2 * b) * 0.01
+    with np.errstate(divide="ignore", invalid="ignore"):     # vol 0: b = 0, vega NaN
+        vega = (baw_price(inp, vol + b) - baw_price(inp, vol - b)) / (2 * b) * 0.01
 
     r = inp.rate
     rho = (baw_price(replace(inp, rate=r + bumps.rate), vol)

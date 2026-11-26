@@ -27,7 +27,8 @@ from tradebot.options.pricing.engines import Method
 from tradebot.options.pricing.greeks import greeks
 from tradebot.options.pricing.implied_vol import IVSettings, IVStatus, implied_vol
 from tradebot.options.pricing.vanilla import OptionInputs, price
-from tradebot.options.rates import Carry
+from tradebot.options.rates import Carry, CashDividend
+from tradebot.utils.failfast import DataContractError
 
 NOW = datetime(2026, 3, 2, 10, 30, tzinfo=NY)       # maandag, vóór de sluiting
 SPOT = 100.0
@@ -273,3 +274,30 @@ def test_expired_contracts_have_no_times():
                            Carry(0.04))
     inp = BatchInputs.from_options([expired])
     assert inp.expired.all() and np.isnan(inp.t_model).all() and np.isnan(inp.theta_days).all()
+
+
+def test_a_discrete_dividend_in_the_term_goes_to_quantlib():
+    """QuantLib weigert BAW met een discreet dividend (alleen FD); de kernel rekent niet."""
+    expiry = NOW.date() + timedelta(days=60)
+    carry = Carry(0.04, dividends=(CashDividend(NOW.date() + timedelta(days=20), 0.8),))
+    with_div = OptionInputs(SPOT, 100.0, Right.PUT, expiry, NOW, carry)
+    after = OptionInputs(SPOT, 100.0, Right.PUT, NOW.date() + timedelta(days=10), NOW, carry)
+    plain = OptionInputs(SPOT, 100.0, Right.PUT, expiry, NOW, Carry(0.04))
+    inp = BatchInputs.from_options([with_div, after, plain])
+    assert inp.has_dividends.tolist() == [True, False, False]
+    vols = np.full(3, 0.3)
+    for kernel in (baw_price, european_price):
+        assert np.isnan(kernel(inp, vols)).tolist() == [True, False, False]
+    assert np.isnan(baw_greeks(inp, vols).delta).tolist() == [True, False, False]
+    res = implied_vols(inp, np.array([5.0, 2.0, 5.0]))
+    assert res.status[0] is KernelIVStatus.TO_QUANTLIB and np.isnan(res.value[0])
+    assert res.status[1:] == (KernelIVStatus.OK,) * 2
+    with pytest.raises(DataContractError):
+        price(with_div, 0.3, Method.BAW)
+
+
+def test_greeks_at_zero_vol_are_nan_without_warnings():
+    put = OptionInputs(SPOT, 100.0, Right.PUT, NOW.date() + timedelta(days=30), NOW,
+                       Carry(0.04))
+    g = baw_greeks(BatchInputs.from_options([put]), np.array([0.0]))
+    assert np.isnan(g.vega).all()
