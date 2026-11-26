@@ -41,6 +41,9 @@ pricing:
   surface_min_vega: 0.01         # USD per volpunt; daaronder is de IV afrondingsruis
   # Vlak, handmatig bijgewerkt (3-maands T-bill, als fractie).
   risk_free_rate: 0.04
+  # Keten in batches: BAW-contracten in één numpy-kernel (pariteit met QuantLib vastgepind),
+  # FD-contracten met een startwaarde uit die kernel. Uit = elk contract apart door QuantLib.
+  vectorized: true
 
 iv_metrics:
   ivr_lookback_days: 252         # handelsdagen dagelijkse ATM-IV(30)

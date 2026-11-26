@@ -17,6 +17,8 @@ class PricerSettings:
     iv: IVSettings
     bumps: Bumps
     risk_free_rate: float
+    #: De keten in batches prijzen (`chain.builder`); uit = per contract met QuantLib.
+    vectorized: bool = True
 
 
 def pricer_settings(cfg: PricingConfig) -> PricerSettings:
@@ -28,4 +30,5 @@ def pricer_settings(cfg: PricingConfig) -> PricerSettings:
                       min_vol=cfg.iv_min, max_vol=cfg.iv_max),
         bumps=Bumps(vol=cfg.vega_bump_vol, rate=cfg.rho_bump_rate),
         risk_free_rate=cfg.risk_free_rate,
+        vectorized=cfg.vectorized,
     )

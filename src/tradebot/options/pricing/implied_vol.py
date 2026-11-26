@@ -20,6 +20,13 @@ Algoritme per prijs (mid, bid of ask):
 De ondergrens is de intrinsieke waarde (Amerikaans) of de verdisconteerde intrinsieke
 waarde op de forward (Europees). De bovengrens is de spot (call) of de strike (put).
 
+Met een `bracket` (een smaller interval rond een startwaarde, bv. voor de dure FD-engine)
+gaat stap 3 eerst over dat interval. Omsluit het geen wortel, weigert QuantLib een punt of
+convergeert Brent niet, dan volgt het volle pad hierboven, met dezelfde terugvallogica. Omdat
+de waarde stijgt in σ, ligt een wortel in het smalle interval ook in `[min_vol, max_vol]`;
+het smalle interval verandert dus alleen het aantal waarderingen, niet de uitkomst (binnen
+`accuracy`).
+
 Brent op de eigen engine (en niet `VanillaOption.impliedVolatility`, die intern een andere
 engine kiest) houdt de round-trip prijs → IV → prijs exact voor de engine die beslist.
 """
@@ -115,10 +122,37 @@ def _solve(inp: OptionInputs, target: float, method: Method, engines: EngineSett
         return float(sigma) if info.converged else None
 
 
+def _solve_in(inp: OptionInputs, target: float, method: Method, engines: EngineSettings,
+              cfg: IVSettings, bracket: tuple[float, float]) -> float | None:
+    """Brent op `bracket`; `None` als dat geen wortel omsluit of QuantLib een punt weigert."""
+    lo_vol, hi_vol = bracket
+    with vol_pricer(inp, method, engines) as npv:
+        known: dict[float, float] = {}
+
+        def f(sigma: float) -> float:          # de randen niet twee keer waarderen
+            if sigma in known:
+                return known[sigma]
+            return npv(sigma) - target
+
+        try:
+            known[lo_vol], known[hi_vol] = f(lo_vol), f(hi_vol)
+            if known[lo_vol] > 0 or known[hi_vol] < 0:
+                return None
+            sigma, info = brentq(f, lo_vol, hi_vol, xtol=cfg.accuracy,
+                                 maxiter=cfg.max_evaluations, full_output=True, disp=False)
+        except RuntimeError:              # QuantLib weigert een punt: het volle pad beslist
+            return None
+        return float(sigma) if info.converged else None
+
+
 def implied_vol(inp: OptionInputs, price: float | None, method: Method,
                 engines: EngineSettings = EngineSettings(),
-                cfg: IVSettings = IVSettings()) -> IVResult:
-    """De IV bij `price` met engine `method`, of een foutcode."""
+                cfg: IVSettings = IVSettings(), *,
+                bracket: tuple[float, float] | None = None) -> IVResult:
+    """De IV bij `price` met engine `method`, of een foutcode.
+
+    `bracket` (binnen `[min_vol, max_vol]`) wordt eerst geprobeerd; zie de moduledocstring.
+    """
     if inp.expired:
         return IVResult(IVStatus.EXPIRED)
     if price is None:
@@ -133,6 +167,10 @@ def implied_vol(inp: OptionInputs, price: float | None, method: Method,
         return IVResult(IVStatus.ABOVE_UPPER_BOUND)
     if price <= lower:
         price = lower + 0.5 * cfg.tick
+    if bracket is not None:
+        narrow = _solve_in(inp, price, method, engines, cfg, bracket)
+        if narrow is not None:
+            return IVResult(IVStatus.OK, narrow, method)
     sigma = _solve(inp, price, method, engines, cfg)
     if isinstance(sigma, float):
         return IVResult(IVStatus.OK, sigma, method)

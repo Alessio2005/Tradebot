@@ -72,6 +72,9 @@ class PricingConfig(StrictModel):
     # `pricing.surface`: bij een kleinere vega is de IV van een op centen afgeronde quote ruis.
     surface_min_vega: Annotated[float, Field(ge=0.0, le=1.0)] = 0.01
     risk_free_rate: Annotated[float, Field(ge=-0.05, le=0.25)]
+    # De keten in batches: BAW met de numpy-kernel (vastgepind tegen QuantLib), FD met een
+    # startwaarde. Uit = elk contract apart door QuantLib.
+    vectorized: bool = True
 
     @model_validator(mode="after")
     def _consistent(self) -> PricingConfig:
