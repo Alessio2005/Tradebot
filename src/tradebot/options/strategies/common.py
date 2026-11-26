@@ -7,7 +7,7 @@ aanroepen met dezelfde invoer dezelfde uitvoer geven.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from typing import Protocol
@@ -29,7 +29,7 @@ from ..positions import (
 
 __all__ = ["Rules", "Strategy", "close", "dte", "entry_blockers", "expiry_close_due",
            "iv_ok", "otm_step", "parse_time", "pick_expiry", "rules_from_config", "size",
-           "strike_at_delta", "strike_nearest"]
+           "strike_at_delta", "strike_nearest", "vrp_gate"]
 
 
 class Strategy(Protocol):
@@ -117,6 +117,31 @@ def iv_ok(market: MarketState, underlying: str, cond: IVCondition,
         return False, "iv:none"
     ok, fallback = check_iv_condition(m, cond, rules.iv)
     return ok, f"iv:{cond.value}:{'fallback' if fallback else 'ivr'}:{'ok' if ok else 'no'}"
+
+
+def vrp_gate(market: MarketState, underlying: str, expiry: date,
+             legs: Iterable[LegIntent], min_ratio: float | None) -> tuple[bool, tuple[str, ...]]:
+    """VRP-poort per looptijd voor premie verkopen: (toegelaten, spoorregels).
+
+    Uit (`min_ratio` None): altijd toegelaten, geen spoor. Aan: de gemiddelde IV van de short
+    legs (mid-IV, alleen status OK) gedeeld door σ(h) van de volstate, h = de kalenderdagen van
+    `market.today` tot `expiry`, moet ≥ `min_ratio` zijn (spoorregel `vrp_h:<ratio>`). Een
+    ontbrekende IV, volstate of RV-verwachting weigert de kandidaat.
+    """
+    if min_ratio is None:
+        return True, ()
+    chain, vol = market.chains.get(underlying), market.vol.get(underlying)
+    ivs = []
+    for leg in legs:
+        c = leg.contract
+        o = chain.find(c.expiry, c.strike, c.right) if chain is not None and leg.ratio < 0 else None
+        if o is not None and o.iv is not None:
+            ivs.append(o.iv)
+    vrp = (vol.vrp_at(sum(ivs) / len(ivs), dte(expiry, market.today))
+           if vol is not None and ivs else None)
+    if vrp is None or vrp[0] < min_ratio:
+        return False, ()
+    return True, (f"vrp_h:{vrp[0]:.3f}",)
 
 
 def entry_blockers(market: MarketState, underlying: str, until: date, rules: Rules) -> list[str]:

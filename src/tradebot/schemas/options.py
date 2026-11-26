@@ -181,6 +181,8 @@ class CreditSpreadConfig(_Strategy):
     stop_loss_multiple_credit: Multiple = 2.0
     itm_stop_frac: Fraction = 0.01
     close_dte: Days = 21
+    min_vrp_ratio: Ratio | None = None       # None = uit; aanbevolen 1,10
+    short_delta_exit: Delta | None = None    # None = uit; aanbevolen 0,40
 
 
 class IronCondorConfig(_Strategy):
@@ -194,6 +196,7 @@ class IronCondorConfig(_Strategy):
     close_dte: Days = 21
     adjust_short_delta: Delta = 0.30
     max_adjustments: Annotated[int, Field(ge=0, le=3)] = 1
+    min_vrp_ratio: Ratio | None = None       # None = uit; aanbevolen 1,10
 
 
 class DebitVerticalConfig(_Strategy):
@@ -294,6 +297,7 @@ class ShortVolConfig(_Strategy):
     underlyings: tuple[Ticker, ...] = ("SPY", "QQQ", "IWM")   # allow-list
     max_per_underlying: Annotated[int, Field(ge=1, le=10)] = 1
     short_delta_exit: Delta = 0.30
+    min_vrp_ratio: Ratio | None = None       # None = uit; aanbevolen 1,10
 
 
 class StrategiesConfig(StrictModel):

@@ -325,3 +325,29 @@ def test_manage_is_pure(bull_put):
     s = CreditSpread(S.credit_spread, RULES)
     m = later(93.5)
     assert repr(s.manage(bull_put, m)) == repr(s.manage(bull_put, m))
+
+
+# --- credit spread: delta-breach-exit --------------------------------------------------------
+
+def test_credit_spread_delta_breach_goes_before_the_itm_stop(bull_put):
+    # De short put (95) heeft op spot 100 delta ≈ −0,23; op 93,5 is hij ITM en dieper in delta.
+    off = CreditSpread(S.credit_spread.model_copy(update={"stop_loss_multiple_credit": 20.0}),
+                       RULES)
+    on = CreditSpread(S.credit_spread.model_copy(
+        update={"stop_loss_multiple_credit": 20.0, "short_delta_exit": 0.40}), RULES)
+    assert reasons(off, bull_put, later(93.5)) == [(*CLOSE_STOP, "short_itm")]
+    assert reasons(on, bull_put, later(93.5)) == [(*CLOSE_STOP, "delta_breach")]
+
+
+def test_credit_spread_delta_breach_needs_a_delta_above_the_limit(bull_put):
+    below = CreditSpread(S.credit_spread.model_copy(update={"short_delta_exit": 0.40}), RULES)
+    above = CreditSpread(S.credit_spread.model_copy(update={"short_delta_exit": 0.20}), RULES)
+    assert reasons(below, bull_put, later()) == []
+    assert reasons(above, bull_put, later()) == [(*CLOSE_STOP, "delta_breach")]
+
+
+def test_credit_spread_delta_breach_comes_after_expiry_and_stop_loss(bull_put):
+    s = CreditSpread(S.credit_spread.model_copy(update={"short_delta_exit": 0.20}), RULES)
+    assert reasons(s, bull_put, later(now=at(2026, 12, 30, 15))) == [(*CLOSE_STOP, "expiry")]
+    assert reasons(s, bull_put, later(90.0)) == [(*CLOSE_STOP, "stop_loss")]
+    assert reasons(s, bull_put, dataclasses.replace(later(), chains={})) == []

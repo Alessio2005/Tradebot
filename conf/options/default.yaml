@@ -80,6 +80,10 @@ strategies:
     stop_loss_multiple_credit: 2.0
     itm_stop_frac: 0.01          # short leg meer dan 1 % ITM: sluiten
     close_dte: 21
+    # VRP-poort per looptijd: gem. IV van de short legs >= min_vrp_ratio × σ(h), h = de DTE.
+    min_vrp_ratio: null          # null = uit (aanbevolen 1.10)
+    # Short leg met |delta| boven deze waarde: CLOSE, STOP (delta_breach), vóór de ITM-stop.
+    short_delta_exit: null       # null = uit (aanbevolen 0.40)
   iron_condor:
     enabled: true
     dte: [30, 45]
@@ -92,6 +96,7 @@ strategies:
     close_dte: 21
     adjust_short_delta: 0.30
     max_adjustments: 1
+    min_vrp_ratio: null          # null = uit (aanbevolen 1.10); zie credit_spread
   debit_vertical:                # bull call bij UP, bear put bij DOWN
     enabled: true
     dte: [30, 60]
@@ -170,6 +175,7 @@ strategies:
     underlyings: [SPY, QQQ, IWM]   # allow-list: alleen deze onderliggenden
     max_per_underlying: 1          # open posities van deze strategie per onderliggende
     short_delta_exit: 0.30         # een short leg met |delta| > 0,30 → CLOSE, STOP
+    min_vrp_ratio: null            # null = uit (aanbevolen 1.10); zie credit_spread
 
 # Volatiliteitsregime en volatility risk premium (src/tradebot/options/vol_regime.py). Vaste
 # regels, geen fit: de verwachte RV is een vaste menging van de Yang-Zhang-RV over drie

@@ -18,6 +18,9 @@ Harde grenzen:
 Beheer, in deze volgorde: de stops van `manage_credit` (expiratie, kosten ≥
 `stop_loss_multiple_credit` × credit), dan een short leg met `|delta| > short_delta_exit` →
 CLOSE, STOP (`short_delta`), dan winst nemen en `close_dte` van `manage_credit`.
+
+Optionele entrypoort `min_vrp_ratio` (`null` = uit): gemiddelde short-IV ≥ ratio × σ(h)
+(`common.vrp_gate`, spoorregel `vrp_h:<ratio>`).
 """
 from __future__ import annotations
 
@@ -50,6 +53,7 @@ from .common import (
     size,
     strike_at_delta,
     strike_nearest,
+    vrp_gate,
 )
 from .credit import manage_credit
 
@@ -116,6 +120,9 @@ class ShortVol:
             m = mark(chain, legs) if legs is not None else None
             if legs is None or m is None:
                 continue
+            vrp_ok, vrp_trace = vrp_gate(market, und, expiry, legs, cfg.min_vrp_ratio)
+            if not vrp_ok:
+                continue
             credit = -m
             put_k, call_k = (leg.contract.strike for leg in legs)
             stress = stress_loss(put_k, call_k, chain.spot, credit)
@@ -125,7 +132,7 @@ class ShortVol:
             out.append(Candidate(self.name, und, legs, units, credit, math.inf,
                                  credit / stress,
                                  (trace, self.cfg.style, f"dte:{dte(expiry, market.today)}",
-                                  f"stress_loss_unit:{stress * MULTIPLIER:.2f}")))
+                                  f"stress_loss_unit:{stress * MULTIPLIER:.2f}", *vrp_trace)))
         return sorted(out, key=lambda c: (-c.rank_score, c.underlying))
 
     def manage(self, pos: StrategyPosition, market: MarketState) -> list[Action]:

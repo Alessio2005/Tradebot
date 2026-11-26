@@ -480,3 +480,51 @@ def test_market_today():
     m = market()
     assert isinstance(m, MarketState) and m.today == NOW.date()
     assert (m.today - timedelta(days=1)) < m.today
+
+
+# --- VRP-poort per looptijd voor premie verkopen -----------------------------------------------
+
+def _vrp_market(rv: float | None, **kw):
+    f = RVForecast(rv, rv, rv, rv) if rv is not None else None
+    state = {"TST": VolState(VolRegime.RICH, 0.25, f, 0.01, "test")}
+    return dataclasses.replace(market(**kw), vol=state)
+
+
+VRP_CASES = [(cs, dict(trend=Trend.UP)), (ic, {}), (sv, dict(capital=RICH))]
+
+
+@pytest.mark.parametrize(("make", "kw"), VRP_CASES)
+def test_vrp_gate_is_off_by_default(make, kw):
+    (c,) = make().scan(market(**kw), Book())
+    assert not any(t.startswith("vrp_h:") for t in c.rule_trace)
+
+
+@pytest.mark.parametrize(("make", "kw"), VRP_CASES)
+def test_vrp_gate_admits_a_rich_term_and_traces_the_ratio(make, kw):
+    # short-IV 0,25 tegenover σ(h) 0,20: ratio 1,25
+    (c,) = make(min_vrp_ratio=1.10).scan(_vrp_market(0.20, **kw), Book())
+    assert "vrp_h:1.250" in c.rule_trace
+
+
+@pytest.mark.parametrize(("make", "kw"), VRP_CASES)
+def test_vrp_gate_refuses_a_cheap_term(make, kw):
+    assert make(min_vrp_ratio=1.10).scan(_vrp_market(0.25, **kw), Book()) == []   # ratio 1,00
+
+
+@pytest.mark.parametrize(("make", "kw"), VRP_CASES)
+def test_vrp_gate_refuses_without_vol_state_or_rv(make, kw):
+    strat = make(min_vrp_ratio=1.10)
+    assert strat.scan(market(**kw), Book()) == []                  # geen VolState
+    assert strat.scan(_vrp_market(None, **kw), Book()) == []       # geen RV-verwachting
+
+
+def test_vrp_gate_refuses_a_short_leg_without_iv():
+    m = _vrp_market(0.20, trend=Trend.UP)
+    (c,) = cs().scan(m, Book())
+    short = c.legs[0].contract
+    chain = m.chains["TST"]
+    blind = dataclasses.replace(chain, options=tuple(
+        dataclasses.replace(o, iv_mid=dataclasses.replace(o.iv_mid, status=IVStatus.NO_QUOTE))
+        if o.contract == short else o for o in chain.options))
+    blind_m = dataclasses.replace(m, chains={"TST": blind})
+    assert cs(min_vrp_ratio=1.10).scan(blind_m, Book()) == []

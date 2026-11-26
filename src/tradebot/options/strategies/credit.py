@@ -4,9 +4,14 @@ Beheer, in deze volgorde (de eerste die geldt, wint):
 
 1. handelsdag vóór een expiratie, na `close_before_expiry_time` → CLOSE, STOP;
 2. kosten om te sluiten ≥ `stop_loss_multiple_credit` × credit → CLOSE, STOP;
-3. (alleen credit spread) short leg meer dan `itm_stop_frac` ITM → CLOSE, STOP;
-4. kosten ≤ (1 − `take_profit_frac`) × credit → CLOSE, NORMAL (winst genomen);
-5. DTE ≤ `close_dte` → CLOSE, NORMAL.
+3. (alleen credit spread, als `short_delta_exit` gezet is) short leg met |delta| >
+   `short_delta_exit` → CLOSE, STOP (`delta_breach`);
+4. (alleen credit spread) short leg meer dan `itm_stop_frac` ITM → CLOSE, STOP;
+5. kosten ≤ (1 − `take_profit_frac`) × credit → CLOSE, NORMAL (winst genomen);
+6. DTE ≤ `close_dte` → CLOSE, NORMAL.
+
+Entry: met `min_vrp_ratio` gezet moet de gemiddelde IV van de short legs ≥ die ratio × σ(h)
+zijn (h = DTE van de gekozen expiratie; `common.vrp_gate`, spoorregel `vrp_h:<ratio>`).
 
 De iron condor stuurt daarna één keer bij: heeft een short leg `|delta| > adjust_short_delta`,
 dan sluit hij de ongeteste kant en opent daar een nieuwe spread op de doel-delta, met dezelfde
@@ -42,6 +47,7 @@ from .common import (
     pick_expiry,
     size,
     strike_at_delta,
+    vrp_gate,
 )
 
 __all__ = ["CreditSpread", "IronCondor", "manage_credit"]
@@ -49,7 +55,8 @@ __all__ = ["CreditSpread", "IronCondor", "manage_credit"]
 
 def manage_credit(pos: StrategyPosition, market: MarketState, rules: Rules, take_profit: float,
                   stop_multiple: float, close_dte: int,
-                  itm_frac: float | None = None) -> list[Action]:
+                  itm_frac: float | None = None,
+                  delta_exit: float | None = None) -> list[Action]:
     expiries = pos.expiries()
     if any(expiry_close_due(e, market.now, market, rules) for e in expiries):
         return [close(pos, Urgency.STOP, "expiry")]
@@ -60,6 +67,12 @@ def manage_credit(pos: StrategyPosition, market: MarketState, rules: Rules, take
         cost = -m
         if cost >= stop_multiple * credit:
             return [close(pos, Urgency.STOP, "stop_loss")]
+    if delta_exit is not None and chain is not None:
+        for leg in pos.intents():
+            c = leg.contract
+            o = chain.find(c.expiry, c.strike, c.right) if leg.ratio < 0 else None
+            if o is not None and o.delta is not None and abs(o.delta) > delta_exit:
+                return [close(pos, Urgency.STOP, "delta_breach")]
     if itm_frac is not None and chain is not None:
         for leg in pos.intents():
             c = leg.contract
@@ -116,6 +129,9 @@ class CreditSpread:
             if found is None:
                 continue
             legs, credit, width = found
+            vrp_ok, vrp_trace = vrp_gate(market, und, expiry, legs, cfg.min_vrp_ratio)
+            if not vrp_ok:
+                continue
             loss_unit = (width - credit) * MULTIPLIER
             units = size(loss_unit, market, book, und, self.rules)
             if units == 0:
@@ -124,13 +140,15 @@ class CreditSpread:
             out.append(Candidate(self.name, und, legs, units, credit, loss_unit * units,
                                  credit / (width - credit),
                                  (f"trend:{trend.value}", kind, iv_trace,
-                                  f"dte:{dte(expiry, market.today)}", f"width:{width:g}")))
+                                  f"dte:{dte(expiry, market.today)}", f"width:{width:g}",
+                                  *vrp_trace)))
         return sorted(out, key=lambda c: (-c.rank_score, c.underlying))
 
     def manage(self, pos: StrategyPosition, market: MarketState) -> list[Action]:
         c = self.cfg
         return manage_credit(pos, market, self.rules, c.take_profit_frac,
-                             c.stop_loss_multiple_credit, c.close_dte, c.itm_stop_frac)
+                             c.stop_loss_multiple_credit, c.close_dte, c.itm_stop_frac,
+                             c.short_delta_exit)
 
 
 class IronCondor:
@@ -171,6 +189,9 @@ class IronCondor:
             if found is None:
                 continue
             legs, credit, width, n = found
+            vrp_ok, vrp_trace = vrp_gate(market, und, expiry, legs, cfg.min_vrp_ratio)
+            if not vrp_ok:
+                continue
             loss_unit = (width - credit) * MULTIPLIER
             units = size(loss_unit, market, book, und, self.rules)
             if units == 0:
@@ -178,7 +199,7 @@ class IronCondor:
             out.append(Candidate(self.name, und, legs, units, credit, loss_unit * units,
                                  credit / (width - credit),
                                  (iv_trace, f"dte:{dte(expiry, market.today)}",
-                                  f"wing_strikes:{n}", f"width:{width:g}")))
+                                  f"wing_strikes:{n}", f"width:{width:g}", *vrp_trace)))
         return sorted(out, key=lambda c: (-c.rank_score, c.underlying))
 
     def manage(self, pos: StrategyPosition, market: MarketState) -> list[Action]:
