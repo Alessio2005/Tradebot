@@ -7,11 +7,14 @@ Per contract (detailontwerp 6.1):
    (`engine_for`: scan = BAW, beslissing = binomiaal, FD bij een discreet dividend);
 3. Greeks alleen als de IV op de mid `OK` is. Er bestaat geen pad dat een IV invult.
 
-De builder filtert niet: dat doet `chain.filters`, met een reden per afgewezen contract.
+De builder filtert niet: dat doet `chain.filters`, met een reden per afgewezen contract. Wel
+kan `build` een `skip`-regel krijgen: een contract dat op zijn quote al afvalt (of `stale` is),
+krijgt geen IV-solve en geen Greeks. Dat scheelt het meeste rekenwerk; de filter geeft zo'n
+contract daarna dezelfde quote-reden.
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -89,12 +92,16 @@ class ChainBuilder:
         #: heeft hem niet nodig, rapportage wel.
         self.spread_iv = spread_iv
 
-    def price_one(self, raw: RawOption, spot: float, asof: datetime,
-                  carry: Carry) -> PricedOption:
+    def price_one(self, raw: RawOption, spot: float, asof: datetime, carry: Carry, *,
+                  skip: Callable[[Quote], bool] | None = None) -> PricedOption:
         c, q = raw.contract, raw.quote
         inp = OptionInputs(spot, c.strike, c.right, c.expiry, asof, carry)
         has_div = bool(inp.discrete_dividends)
         method = engine_for(self.use, has_div, self.settings.engines)
+        stale = (asof - q.ts).total_seconds() > self.max_quote_age_seconds
+        if stale or (skip is not None and skip(q)):
+            none = IVResult(IVStatus.NO_QUOTE)
+            return PricedOption(c, q, none, none, none, None, method, stale)
         def solve(p: float | None) -> IVResult:
             return implied_vol(inp, p, method, self.settings.engines, self.settings.iv)
 
@@ -105,14 +112,13 @@ class ChainBuilder:
         if mid.status is IVStatus.OK and mid.value is not None:
             g = greeks(inp, mid.value, mid.method or method, self.settings.engines,
                        self.settings.bumps)
-        stale = (asof - q.ts).total_seconds() > self.max_quote_age_seconds
         return PricedOption(c, q, mid, bid, ask, g, method, stale)
 
     def build(self, underlying: str, spot: float, raw: Sequence[RawOption], asof: datetime,
-              carry: Carry) -> Chain:
+              carry: Carry, *, skip: Callable[[Quote], bool] | None = None) -> Chain:
         require(all(r.contract.underlying == underlying for r in raw),
                 "een keten bevat één onderliggende", DataContractError, underlying=underlying)
-        priced = tuple(self.price_one(r, spot, asof, carry) for r in raw
+        priced = tuple(self.price_one(r, spot, asof, carry, skip=skip) for r in raw
                        if not OptionInputs(spot, r.contract.strike, r.contract.right,
                                            r.contract.expiry, asof, carry).expired)
         return Chain(underlying, spot, asof, carry, priced)

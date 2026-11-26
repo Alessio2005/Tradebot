@@ -1,7 +1,7 @@
 """Liquiditeitsfilters op contracten, in vaste volgorde, met een reden per afwijzing.
 
 Volgorde (detailontwerp 6.1): `stale_quote`, `no_iv`, `open_interest`, `volume`, `no_bid`,
-`spread`. De eerste reden die geldt, telt. De spreadregel is "spread ≤ max(absolute
+`spread`; zonder IV gaat een quote-reden vóór `no_iv` (zie `reject_reason`). De eerste reden die geldt, telt. De spreadregel is "spread ≤ max(absolute
 drempel; fractie van mid)": een contract valt pas af als het beide overschrijdt.
 
 De telling per reden gaat naar het journal en de metrics, zodat te zien is of een strategie
@@ -10,14 +10,18 @@ niets doet omdat de markt niets biedt of omdat een filter te streng is.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from datetime import datetime
 from enum import StrEnum
 
 from ...schemas.options import FilterConfig
-from .builder import Chain, PricedOption
+from ..contracts import Quote
+from ..rates import Carry
+from .builder import Chain, ChainBuilder, PricedOption, RawOption
 
 __all__ = ["FilterResult", "FilterSettings", "Reject", "filter_chain", "filter_settings",
-           "filtered", "reject_reason"]
+           "build_filtered", "filtered", "quote_reason", "reject_reason"]
 
 
 class Reject(StrEnum):
@@ -48,12 +52,8 @@ class FilterResult:
     rejected: Counter[Reject]
 
 
-def reject_reason(o: PricedOption, cfg: FilterSettings) -> Reject | None:
-    q = o.quote
-    if o.stale:
-        return Reject.STALE_QUOTE
-    if o.iv is None:
-        return Reject.NO_IV
+def quote_reason(q: Quote, cfg: FilterSettings) -> Reject | None:
+    """De filters die alleen de quote nodig hebben (geen IV): vóór het prijzen te toetsen."""
     if q.open_interest < cfg.min_open_interest:
         return Reject.OPEN_INTEREST
     if q.volume < cfg.min_volume:
@@ -64,6 +64,17 @@ def reject_reason(o: PricedOption, cfg: FilterSettings) -> Reject | None:
     if spread > max(cfg.max_spread_abs, cfg.max_spread_frac_mid * mid):
         return Reject.SPREAD
     return None
+
+
+def reject_reason(o: PricedOption, cfg: FilterSettings) -> Reject | None:
+    """De eerste reden die geldt. Zonder IV telt een quote-reden vóór `no_iv`: zo'n contract is
+    met `skip` niet geprijsd, en zou anders ten onrechte als `no_iv` meetellen."""
+    if o.stale:
+        return Reject.STALE_QUOTE
+    reason = quote_reason(o.quote, cfg)
+    if o.iv is None:
+        return reason or Reject.NO_IV
+    return reason
 
 
 def filter_chain(chain: Chain, cfg: FilterSettings) -> FilterResult:
@@ -83,3 +94,13 @@ def filtered(chain: Chain, cfg: FilterSettings) -> tuple[Chain, FilterResult]:
     """De keten met alleen de doorgelaten contracten (voor het oppervlak en de strategieën)."""
     res = filter_chain(chain, cfg)
     return replace(chain, options=res.kept), res
+
+
+def build_filtered(builder: ChainBuilder, cfg: FilterSettings, underlying: str, spot: float,
+                   raw: Sequence[RawOption], asof: datetime,
+                   carry: Carry) -> tuple[Chain, FilterResult]:
+    """Prijs en filter één keten; contracten die op hun quote al afvallen, krijgen geen IV-solve.
+    """
+    def skip(q: Quote) -> bool:
+        return quote_reason(q, cfg) is not None
+    return filtered(builder.build(underlying, spot, raw, asof, carry, skip=skip), cfg)

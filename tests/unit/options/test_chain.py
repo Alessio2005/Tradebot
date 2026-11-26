@@ -14,6 +14,7 @@ from tradebot.options.chain.filters import (
     filter_chain,
     filter_settings,
     filtered,
+    quote_reason,
     reject_reason,
 )
 from tradebot.options.contracts import OptionContract, Quote, Right
@@ -103,12 +104,30 @@ def test_each_filter_has_its_own_reason(row, reason):
 
 
 def test_no_iv_and_no_bid_are_rejected():
-    no_iv = RawOption(OptionContract("TST", EXPIRY, 100.0, Right.PUT), Quote(0.0, 0.01, NOW))
+    no_iv = RawOption(OptionContract("TST", EXPIRY, 100.0, Right.PUT),
+                      Quote(150.0, 150.05, NOW, volume=1000, open_interest=5000))  # boven de bovengrens
     no_bid = RawOption(OptionContract("TST", EXPIRY, 120.0, Right.CALL),
                        Quote(0.0, 0.10, NOW, volume=1000, open_interest=5000))
     a, b = build([no_iv, no_bid]).options
     assert reject_reason(a, FilterSettings()) is Reject.NO_IV
     assert b.iv is not None and reject_reason(b, FilterSettings()) is Reject.NO_BID
+
+
+def test_without_iv_a_quote_reason_counts_before_no_iv():
+    thin = RawOption(OptionContract("TST", EXPIRY, 100.0, Right.PUT), Quote(0.0, 0.01, NOW))
+    (o,) = build([thin]).options
+    assert o.iv is None and reject_reason(o, FilterSettings()) is Reject.OPEN_INTEREST
+
+
+def test_skip_leaves_illiquid_contracts_unpriced():
+    chain = build([raw(), raw(95.0, oi=1)])
+    cfg = FilterSettings()
+    skipped = ChainBuilder(SETTINGS, 10.0).build("TST", 100.0, [raw(), raw(95.0, oi=1)], NOW, CARRY,
+                            skip=lambda q: quote_reason(q, cfg) is not None)
+    full, cheap = filter_chain(chain, cfg), filter_chain(skipped, cfg)
+    assert cheap.kept == full.kept and cheap.rejected == full.rejected
+    thin = skipped.options[1]
+    assert thin.iv is None and thin.greeks is None and thin.iv_mid.status is IVStatus.NO_QUOTE
 
 
 def test_a_wide_spread_passes_when_it_is_small_relative_to_mid():

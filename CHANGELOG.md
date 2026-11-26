@@ -4,6 +4,14 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: illiquide contracten niet meer prijzen (2026-11-26)
+De ketenbouwer slaat de IV-solve en Greeks over voor contracten die op hun quote al door het
+filter vallen (open interest, volume, geen bid, spread) of `stale` zijn. Dat was het meeste
+rekenwerk. De gefilterde keten en dus elke beslissing blijven gelijk; de standaardreplay geeft
+dezelfde 3 trades en eindstand (25.303,60 USD) in 163 s in plaats van 221 s. Eén verschil in
+het journal: een contract zonder IV dat ook op zijn quote afvalt, telt nu onder die quote-reden
+in plaats van onder `no_iv`.
+
 ## Options: historische simulatie op echte koers en IV (2026-11-26)
 - `options.data.historical` en `python -I -m tradebot.options historical`: een replay-markt uit
   IBKR-dagbars en IBKR's dagelijkse 30-daagse IV (alleen lezen), dividenden en earnings uit

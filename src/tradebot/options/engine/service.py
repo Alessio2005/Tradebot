@@ -34,7 +34,7 @@ from ...risk.kill_switches import HaltRecord, HaltStore
 from ...schemas.options import OptionsConfig
 from ..calendar import NY, TradingCalendar, expiry_moment
 from ..chain.builder import Chain, ChainBuilder
-from ..chain.filters import filter_settings, filtered
+from ..chain.filters import build_filtered, filter_settings
 from ..data.feed import MarketFeed
 from ..execution.broker import BrokerAdapter, Execution, ExecutionKind
 from ..execution.orders import (
@@ -289,6 +289,7 @@ class Engine:
 
     async def _market(self, now: datetime) -> None:
         changed = False
+        jobs = []
         for und in self.feed.underlyings():
             snap = self.feed.snapshot(und, now)
             if snap is None:
@@ -296,8 +297,11 @@ class Engine:
                 continue
             if self._snap_keys.get(und) == snap.asof:
                 continue
-            raw = self.builder.build(und, snap.spot, snap.options, snap.asof, self._carry(und))
-            chain, res = filtered(raw, self.filters)
+            jobs.append((und, snap))
+        args = [(self.builder, self.filters, und, snap.spot, snap.options, snap.asof,
+                 self._carry(und)) for und, snap in jobs]
+        built = [build_filtered(*a) for a in args]
+        for (und, snap), (chain, res) in zip(jobs, built, strict=True):
             self.chains[und] = chain
             self._snap_keys[und] = snap.asof
             self._iv[und] = self._metrics(und, chain, now.date())
