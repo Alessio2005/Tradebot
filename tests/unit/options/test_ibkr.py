@@ -191,6 +191,8 @@ def test_what_if_and_executions(ap):
     ex = run(b.executions(t - timedelta(hours=1)))
     assert [(e.client_id, e.qty, e.commission) for e in ex] == [("", 1, 0.0), ("c1", -2, 1.3)]
     assert ib.filter.time == "20261124-19:00:00" and ib.filter.acctCode == "DU1234567"
+    run(b.executions(datetime.min.replace(tzinfo=NY)))       # eerste ronde: geen tijdfilter
+    assert ib.filter.time == ""
 
 
 # --- feed ----------------------------------------------------------------------------------
@@ -316,3 +318,29 @@ def test_the_cli_paper_command_and_healthcheck(tmp_path, monkeypatch):
     assert cli.main(["paper", "--run-dir", str(tmp_path)]) == 0
     assert seen == {"account": "DU1", "host": "127.0.0.1", "port": 4004, "client_id": 17,
                     "run_dir": tmp_path}
+
+
+# --- verbinden met een gateway die nog opstart -------------------------------------------
+
+def test_connect_waits_for_a_gateway_that_is_still_starting():
+    ib, slept = FakeIB(), []
+    ib.fail_connects = 2
+
+    async def sleep(s):
+        slept.append(s)
+
+    b = IBKRBroker(ib, connect_attempts=3, connect_wait=7.0, sleep=sleep)
+    run(b.connect())
+    assert ib.connected and slept == [7.0, 7.0] and ib.disconnects == 2
+
+
+def test_connect_gives_up_after_the_last_attempt():
+    ib = FakeIB()
+    ib.fail_connects = 5
+
+    async def sleep(s):
+        return None
+
+    with pytest.raises(TimeoutError):
+        run(IBKRBroker(ib, connect_attempts=2, sleep=sleep).connect())
+    assert ib.disconnects == 1

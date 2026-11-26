@@ -138,3 +138,22 @@ def test_events_are_only_usable_when_fresh():
     assert not ev.earnings_between(date(2026, 12, 3), date(2027, 1, 27))
     assert ev.next_earnings(date(2026, 12, 3)) == date(2027, 1, 28)
     assert ev.next_earnings(date(2027, 2, 1)) is None
+
+
+def test_on_the_expiry_day_a_dividend_of_today_is_priced_with_fd():
+    # Vrijdag 19 juni 2026 is dicht: SPY expireert donderdag 18 juni, de ex-dividenddag. De
+    # pricer neemt dat dividend mee (eval_date is dan gisteren); de engine moet dus FD zijn.
+    from datetime import datetime
+
+    from tradebot.options.calendar import NY
+    from tradebot.options.pricing.vanilla import OptionInputs
+
+    now, day = datetime(2026, 6, 18, 10, 0, tzinfo=NY), date(2026, 6, 18)
+    carry = Carry(0.04, dividends=(CashDividend(day, 1.9),))
+    inp = OptionInputs(700.0, 700.0, Right.CALL, day, now, carry)
+    assert inp.discrete_dividends == carry.dividends
+    theo = price(inp, 0.2, Method.FD)
+    q = Quote(round(theo - 0.05, 2), round(theo + 0.05, 2), now, volume=1000, open_interest=5000)
+    po = ChainBuilder(SETTINGS, 10.0).price_one(
+        RawOption(OptionContract("SPY", day, 700.0, Right.CALL), q), 700.0, now, carry)
+    assert po.method is Method.FD and po.iv is not None

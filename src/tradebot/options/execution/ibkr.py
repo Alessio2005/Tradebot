@@ -13,7 +13,10 @@ De `ib`-parameter is een `ib_async.IB` of een nep-object met dezelfde methoden (
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 import math
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
@@ -43,6 +46,13 @@ _STATUS = {"PendingSubmit": OrderStatus.SUBMITTED, "PreSubmitted": OrderStatus.S
            "Inactive": OrderStatus.REJECTED}
 _ACCOUNT_TAGS = ("NetLiquidation", "TotalCashValue", "BuyingPower")
 _USD = ("USD", "BASE", "")
+_FIRST_YEAR = 2000                  # een `since` daarvoor betekent: geen tijdfilter
+# Na een herstart van de pc start de gateway trager dan de dienst: zolang inloggen duurt,
+# geeft de verbinding een time-out. Opnieuw proberen in plaats van crashen.
+CONNECT_ATTEMPTS = 12
+CONNECT_WAIT_SECONDS = 10.0
+
+log = logging.getLogger(__name__)
 
 
 def option_of(c: OptionContract) -> Option:
@@ -66,9 +76,14 @@ def _num(v: Any) -> float:
 
 class IBKRBroker:
     def __init__(self, ib: Any, host: str = "127.0.0.1", port: int = 4002,
-                 client_id: int = 17, account: str = "") -> None:
+                 client_id: int = 17, account: str = "",
+                 connect_attempts: int = CONNECT_ATTEMPTS,
+                 connect_wait: float = CONNECT_WAIT_SECONDS,
+                 sleep: Callable[[float], Awaitable[None]] = asyncio.sleep) -> None:
         self.ib, self.host, self.port, self.client_id = ib, host, port, client_id
         self.account_id = account
+        self.connect_attempts, self.connect_wait = connect_attempts, connect_wait
+        self._sleep = sleep
         self._trades: dict[str, Any] = {}
         self._orders: dict[str, BrokerOrder] = {}
 
@@ -77,9 +92,20 @@ class IBKRBroker:
         return account_hash(self.account_id)
 
     async def connect(self) -> None:
-        if not self.ib.isConnected():
-            await self.ib.connectAsync(self.host, self.port, self.client_id,
-                                       account=self.account_id)
+        for attempt in range(1, self.connect_attempts + 1):
+            if self.ib.isConnected():
+                break
+            try:
+                await self.ib.connectAsync(self.host, self.port, self.client_id,
+                                           account=self.account_id)
+                break
+            except (TimeoutError, OSError) as e:        # ConnectionRefusedError is een OSError
+                if attempt == self.connect_attempts:
+                    raise
+                log.warning("IB Gateway nog niet klaar (poging %d van %d): %r",
+                            attempt, self.connect_attempts, e)
+                self.ib.disconnect()
+                await self._sleep(self.connect_wait)
         accounts = list(self.ib.managedAccounts())
         require(bool(accounts), "IBKR gaf geen account", DataContractError)
         if not self.account_id:
@@ -200,8 +226,11 @@ class IBKRBroker:
         return MarginImpact(init, maint)
 
     async def executions(self, since: datetime) -> list[Execution]:
-        flt = ExecutionFilter(acctCode=self.account_id,
-                              time=since.astimezone(UTC).strftime("%Y%m%d-%H:%M:%S"))
+        # De eerste ronde vraagt "alles" (`datetime.min`). Jaar 1 is geen geldige IBKR-tijd
+        # (fout 10314, en dan géén executies); zonder tijd geeft IBKR alles wat hij heeft.
+        stamp = (since.astimezone(UTC).strftime("%Y%m%d-%H:%M:%S")
+                 if since.year >= _FIRST_YEAR else "")
+        flt = ExecutionFilter(acctCode=self.account_id, time=stamp)
         out = []
         for f in await self.ib.reqExecutionsAsync(flt):
             c, ex = f.contract, f.execution
