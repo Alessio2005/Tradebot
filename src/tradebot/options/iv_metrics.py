@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
 
+import numpy as np
 import pandas as pd
 
 from ..schemas.options import IVMetricsConfig
@@ -27,7 +28,7 @@ from ..utils.failfast import DataContractError, require
 from ..volatility.yang_zhang import get_yang_zhang_volatility
 
 __all__ = ["IVCondition", "IVHistory", "IVMetrics", "IVRStatus", "IVRuleSettings",
-           "check_iv_condition", "iv_rank", "iv_rule_settings", "realized_vol"]
+           "check_iv_condition", "ewma_vol", "iv_rank", "iv_rule_settings", "realized_vol"]
 
 
 class IVRStatus(StrEnum):
@@ -100,6 +101,22 @@ def realized_vol(daily_bars: pd.DataFrame, window: int = 20) -> float | None:
         return None
     daily = float(get_yang_zhang_volatility(daily_bars, window=window).iloc[-1])
     return daily * math.sqrt(252.0) if daily > 0 else None
+
+
+def ewma_vol(daily_bars: pd.DataFrame, lam: float) -> float | None:
+    """Geannualiseerde EWMA-vol van de dagelijkse close-to-close log-rendementen.
+
+    De variantie start op het eerste rendement en volgt `v = λ·v + (1−λ)·r²`. None bij minder
+    dan twee slotkoersen of een variantie van nul.
+    """
+    closes = daily_bars["close"].to_numpy(dtype=float)
+    if len(closes) < 2:
+        return None
+    returns = np.diff(np.log(closes))
+    var = float(returns[0] ** 2)
+    for r in returns[1:]:
+        var = lam * var + (1.0 - lam) * float(r) ** 2
+    return math.sqrt(var * 252.0) if var > 0 else None
 
 
 @dataclass(frozen=True, slots=True)

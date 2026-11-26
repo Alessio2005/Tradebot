@@ -1,15 +1,17 @@
 """Verwachte RV, volatility risk premium en het regime: vaste regels, elke tak apart."""
 from __future__ import annotations
 
+import dataclasses
 import math
 from typing import get_args
 
 import numpy as np
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 from tests.unit.options.market_helpers import CFG
-from tradebot.options.iv_metrics import realized_vol
+from tradebot.options.iv_metrics import ewma_vol, realized_vol
 from tradebot.options.vol_regime import (
     RegimeSettings,
     RVForecast,
@@ -152,3 +154,86 @@ def test_the_market_underlying_must_be_in_the_universe():
         OptionsConfig.model_validate(raw)
     raw["vol_regime"]["market_underlying"] = None
     assert OptionsConfig.model_validate(raw).vol_regime.market_underlying is None
+
+
+# --- σ(h), EWMA en VRP per looptijd -----------------------------------------------------------
+
+def test_at_horizon_runs_from_the_blend_to_the_long_run_rv():
+    f = RVForecast(0.40, 0.30, 0.20, 0.40, kappa=4.0)
+    assert f.at_horizon(0) == f.forecast and f.at_horizon(-5) == f.forecast
+    assert f.at_horizon(1e-6) == pytest.approx(0.40, abs=1e-6)          # h → 0: σ_0
+    assert f.at_horizon(365 * 1000) == pytest.approx(0.20, abs=1e-3)    # h → ∞: σ_L
+    h = 30 / 365
+    w = (1 - math.exp(-4.0 * h)) / (4.0 * h)
+    assert f.at_horizon(30) == pytest.approx(math.sqrt(0.04 + (0.16 - 0.04) * w))
+    assert f.at_horizon(30) > f.at_horizon(90) > 0.20                   # monotoon naar σ_L
+
+
+def test_at_horizon_uses_the_mid_window_without_a_long_window():
+    f = RVForecast(0.40, 0.30, None, 0.40)
+    assert f.at_horizon(365 * 1000) == pytest.approx(0.30, abs=1e-3)
+
+
+def test_at_horizon_is_flat_for_a_flat_forecast_and_follows_kappa():
+    assert fc().at_horizon(45) == pytest.approx(0.20)
+    slow = RVForecast(0.40, 0.30, 0.20, 0.40, kappa=0.5)
+    fast = RVForecast(0.40, 0.30, 0.20, 0.40, kappa=20.0)
+    assert fast.at_horizon(60) < slow.at_horizon(60)
+
+
+def test_vrp_at_measures_iv_against_sigma_of_the_term():
+    st = classify(0.30, RVForecast(0.40, 0.30, 0.20, 0.40), 0.0, S)
+    sigma = st.rv.at_horizon(45)
+    ratio, points = st.vrp_at(0.30, 45)
+    assert ratio == pytest.approx(0.30 / sigma) and points == pytest.approx(0.30 - sigma)
+    assert st.vrp_at(0.30, 0) == (st.vrp_ratio, st.vrp_points)
+    assert classify(0.30, None, None, S).vrp_at(0.30, 45) is None
+
+
+def test_ewma_vol_follows_the_recursion_and_needs_two_closes():
+    closes = [100.0, 101.0, 99.0, 102.0]
+    df = pd.DataFrame({"close": closes})
+    r = np.diff(np.log(closes))
+    v = r[0] ** 2
+    for x in r[1:]:
+        v = 0.9 * v + 0.1 * x * x
+    assert ewma_vol(df, 0.9) == pytest.approx(math.sqrt(v * 252.0))
+    assert ewma_vol(df.iloc[:1], 0.9) is None
+    assert ewma_vol(pd.DataFrame({"close": [100.0, 100.0, 100.0]}), 0.9) is None
+
+
+def test_the_ewma_is_off_by_default_and_blends_with_rescaled_weights():
+    b = bars(120)
+    base = forecast_rv(b, S)
+    assert base is not None and base.kappa == 4.0
+    assert forecast_rv(b, dataclasses.replace(S, ewma_weight=0.0)) == base
+    s = dataclasses.replace(S, ewma_weight=0.25)
+    f = forecast_rv(b, s)
+    rs, rm, rl = (realized_vol(b, w) for w in S.rv_windows)
+    re_ = ewma_vol(b, s.ewma_lambda)
+    har = 0.2 * rs**2 + 0.5 * rm**2 + 0.3 * rl**2
+    assert f is not None and f.forecast == pytest.approx(math.sqrt(0.75 * har + 0.25 * re_**2))
+    assert f.rv_short == base.rv_short and f.rv_long == base.rv_long
+    # Zonder lang venster: de twee andere gewichten (0,2 en 0,5) worden naar 0,75 herschaald.
+    short = forecast_rv(bars(30), s)
+    rs, rm = realized_vol(bars(30), 5), realized_vol(bars(30), 20)
+    re_ = ewma_vol(bars(30), s.ewma_lambda)
+    har = (0.2 * rs**2 + 0.5 * rm**2) / 0.7
+    assert short is not None and short.forecast == pytest.approx(
+        math.sqrt(0.75 * har + 0.25 * re_**2))
+
+
+def test_an_ewma_of_zero_variance_drops_out_of_the_blend():
+    flat = bars(120).assign(close=100.0)    # geen rendement: de EWMA ontbreekt
+    s = dataclasses.replace(S, ewma_weight=0.25)
+    assert forecast_rv(flat, s) == forecast_rv(flat, S)
+
+
+def test_the_new_config_keys_reach_the_settings():
+    cfg = VolRegimeConfig(ewma_lambda=0.9, ewma_weight=0.3, mean_reversion_kappa=2.0)
+    s = regime_settings(cfg)
+    assert (s.ewma_lambda, s.ewma_weight, s.mean_reversion_kappa) == (0.9, 0.3, 2.0)
+    assert VolRegimeConfig().ewma_weight == 0.0
+    for bad in ({"ewma_lambda": 1.0}, {"ewma_weight": 1.5}, {"mean_reversion_kappa": 0.0}):
+        with pytest.raises(ValidationError):
+            VolRegimeConfig(**bad)

@@ -4,6 +4,21 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: horizon-RV, EWMA en VRP per looptijd (2026-11-26)
+- `RVForecast.at_horizon(days)`: σ²(h) = σ_L² + (σ_0² − σ_L²)·(1 − e^{−κh})/(κh), h = kalenderdagen/365,
+  σ_0 de bestaande blend, σ_L de lange RV (de middel-RV zonder lang venster), κ =
+  `vol_regime.mean_reversion_kappa` (4,0 per jaar). `VolState.vrp_at(iv, dte_days)` geeft (ratio,
+  punten) tegen σ(h).
+- `vol_regime.ewma_lambda` (0,94) en `vol_regime.ewma_weight` (standaard 0: regime ongewijzigd). Bij
+  gewicht > 0 telt de EWMA-variantie van de dagrendementen mee, met de andere gewichten herschaald.
+- Gedragswijziging: `theta_cover` (theta-harvest-poort) rekent met σ(h) voor de DTE van de vroegste
+  expiratie van de kandidaat in plaats van met de blend `rv.forecast`. `admit` kreeg daarvoor een
+  `today`-parameter.
+- Standaard synthetische replay na deze wijziging: nog steeds 3 posities en eind-equity 25.303,60 USD
+  (±31 s). De poort laat dezelfde drie kandidaten toe; alleen hun dekking verschoof (1,05 → 1,02 en
+  twee keer 1,12 → 1,14), omdat σ(h) bij de DTE van die kandidaten een paar procent van de blend
+  afwijkt en de dekkingsgrens (1,0) niet wordt overschreden.
+
 ## Options: snellere replay (vectorisatie, startwaarde voor FD, procespool) (2026-11-26)
 - `pricing.vectorized` (standaard aan): BAW-contracten in één numpy-kernel die tegen QuantLib
   is vastgepind, en de FD-solve begint met een startwaarde uit die kernel.

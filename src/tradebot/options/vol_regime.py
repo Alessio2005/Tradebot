@@ -38,7 +38,7 @@ from enum import StrEnum
 import pandas as pd
 
 from ..schemas.options import VolRegimeConfig
-from .iv_metrics import realized_vol
+from .iv_metrics import ewma_vol, realized_vol
 
 __all__ = ["RVForecast", "RegimeSettings", "VolRegime", "VolState", "classify",
            "effective_regimes", "forecast_rv", "regime_settings"]
@@ -62,12 +62,16 @@ class RegimeSettings:
     rich_min_vrp_points: float = 0.02
     rich_min_term_slope: float = -0.005
     cheap_vrp_ratio: float = 0.95
+    ewma_lambda: float = 0.94
+    ewma_weight: float = 0.0
+    mean_reversion_kappa: float = 4.0
 
 
 def regime_settings(cfg: VolRegimeConfig) -> RegimeSettings:
     return RegimeSettings(cfg.rv_windows, cfg.rv_weights, cfg.stress_term_slope,
                           cfg.stress_rv_expansion, cfg.rich_vrp_ratio, cfg.rich_min_vrp_points,
-                          cfg.rich_min_term_slope, cfg.cheap_vrp_ratio)
+                          cfg.rich_min_term_slope, cfg.cheap_vrp_ratio, cfg.ewma_lambda,
+                          cfg.ewma_weight, cfg.mean_reversion_kappa)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,11 +82,22 @@ class RVForecast:
     rv_mid: float
     rv_long: float | None
     forecast: float
+    kappa: float = 4.0                 # per jaar: snelheid van de mean reversion in `at_horizon`
 
     @property
     def expansion(self) -> float:
         """RV kort / RV middel: boven 1 loopt de vol op."""
         return self.rv_short / self.rv_mid
+
+    def at_horizon(self, days: float) -> float:
+        """σ(h) voor `days` kalenderdagen (h = days/365 jaar); bij `days` ≤ 0 de blend zelf."""
+        if days <= 0:
+            return self.forecast
+        h = days / 365.0
+        long_run = self.rv_long if self.rv_long is not None else self.rv_mid
+        weight = -math.expm1(-self.kappa * h) / (self.kappa * h)
+        var = long_run ** 2 + (self.forecast ** 2 - long_run ** 2) * weight
+        return math.sqrt(var)
 
 
 def forecast_rv(daily_bars: pd.DataFrame, s: RegimeSettings) -> RVForecast | None:
@@ -95,8 +110,12 @@ def forecast_rv(daily_bars: pd.DataFrame, s: RegimeSettings) -> RVForecast | Non
     parts = [(s.rv_weights[0], rv_s), (s.rv_weights[1], rv_m)]
     if rv_l is not None:
         parts.append((s.rv_weights[2], rv_l))
+    rv_e = ewma_vol(daily_bars, s.ewma_lambda) if s.ewma_weight > 0 else None
+    if rv_e is not None:
+        scale = (1.0 - s.ewma_weight) / sum(w for w, _ in parts)
+        parts = [(w * scale, v) for w, v in parts] + [(s.ewma_weight, rv_e)]
     var = sum(w * v * v for w, v in parts) / sum(w for w, _ in parts)
-    return RVForecast(rv_s, rv_m, rv_l, math.sqrt(var))
+    return RVForecast(rv_s, rv_m, rv_l, math.sqrt(var), s.mean_reversion_kappa)
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +134,13 @@ class VolState:
     def vrp_points(self) -> float | None:
         """IV − verwachte RV, als fractie (0,03 = 3 volpunten)."""
         return None if self.atm_iv is None or self.rv is None else self.atm_iv - self.rv.forecast
+
+    def vrp_at(self, iv: float, dte_days: float) -> tuple[float, float] | None:
+        """(IV / σ(h), IV − σ(h)) voor een looptijd van `dte_days` kalenderdagen; None zonder RV."""
+        if self.rv is None:
+            return None
+        sigma = self.rv.at_horizon(dte_days)
+        return iv / sigma, iv - sigma
 
     def as_event(self) -> dict[str, object]:
         def r(x: float | None) -> float | None:

@@ -317,6 +317,9 @@ class VolRegimeConfig(StrictModel):
     enabled: bool = True
     rv_windows: tuple[int, int, int] = (5, 20, 60)        # handelsdagen: kort, middel, lang
     rv_weights: tuple[Fraction, Fraction, Fraction] = (0.2, 0.5, 0.3)   # in variantie, vast
+    ewma_lambda: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.94     # RiskMetrics-verval per dag
+    ewma_weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.0   # aandeel EWMA in de blend; 0 = uit
+    mean_reversion_kappa: Annotated[float, Field(gt=0.0, le=50.0)] = 4.0   # per jaar
     stress_term_slope: Annotated[float, Field(ge=-0.5, le=0.0)] = -0.02
     stress_rv_expansion: Annotated[float, Field(gt=1.0, le=5.0)] = 1.5
     rich_vrp_ratio: Ratio = 1.15

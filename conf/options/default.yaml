@@ -160,6 +160,11 @@ vol_regime:
   enabled: true
   rv_windows: [5, 20, 60]        # handelsdagen: kort, middel, lang
   rv_weights: [0.2, 0.5, 0.3]    # in variantie; ontbreekt het lange venster, dan herschaald
+  ewma_lambda: 0.94              # EWMA van de dagrendementen (RiskMetrics): verval per dag
+  ewma_weight: 0.0               # aandeel van de EWMA-variantie in de blend (0 = uit, regime
+                                 # ongewijzigd); bij > 0 worden de andere gewichten herschaald
+  mean_reversion_kappa: 4.0      # per jaar: snelheid waarmee σ(h) van de blend naar de lange RV
+                                 # trekt (RVForecast.at_horizon, VolState.vrp_at, theta_cover)
   stress_term_slope: -0.02       # IV60 − IV30 ≤ −2 volpunten: backwardation → STRESS
   stress_rv_expansion: 1.5       # RV5 / RV20 ≥ 1,5: vol-schok → STRESS
   rich_vrp_ratio: 1.15           # IV30 / verwachte RV ≥ 1,15 ...
@@ -179,6 +184,7 @@ vol_regime:
 # Theta harvesting (src/tradebot/options/selection.py): alleen voor kandidaten die premie
 # ONTVANGEN. Dekking = (θ/dag × 365) / (½·|Γ|·S²·σ_RV²), met σ_RV de verwachte RV hierboven:
 # boven 1 betaalt het tijdswaardeverval het verwachte bewegingsverlies (de VRP per positie).
+# σ_RV is σ(h) voor de DTE van de vroegste expiratie van de kandidaat (mean reversion).
 theta_harvest:
   enabled: true
   min_theta_gamma_cover: 1.0
