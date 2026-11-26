@@ -53,7 +53,7 @@ from tradebot.options.strategies.income import CoveredCall
 from tradebot.schemas.options import HedgingConfig
 from tradebot.utils.failfast import DataContractError
 
-HEDGED = "long_straddle_strangle"        # een bestaande naam; gamma_scalp komt met taak B4
+HEDGED = "long_straddle_strangle"        # staat standaard aan; gamma_scalp staat standaard uit
 CHAIN = cached_chain()                   # TST, spot 100
 EXP = date(2026, 12, 31)
 
@@ -143,7 +143,7 @@ def test_the_limit_is_rounded_away_from_us():
 def test_the_config():
     h = CFG.hedging
     assert (h.enabled, h.strategies, h.band_shares, h.max_notional_frac,
-            h.interval_seconds) == (False, (), 20.0, 0.5, 300.0)
+            h.interval_seconds) == (False, ("gamma_scalp",), 20.0, 0.5, 300.0)
     assert (CFG.paper.stock_spread_bps, CFG.paper.commission_per_share,
             CFG.paper.min_commission_per_order) == (2.0, 0.005, 1.0)
     with pytest.raises(ValidationError):

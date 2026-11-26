@@ -402,6 +402,12 @@ def test_the_regime_and_theta_cover_are_journaled(rig):
     assert summary["regimes"] == {"TSTB": ev["regime"]} and summary["blocked"] == {}
 
 
+def test_the_market_state_carries_the_vol_state(rig):
+    opened(rig)
+    m = rig.e.market_state(at(D0, 10, 2))
+    assert m.vol == rig.e._vol and m.vol["TSTB"].rv is not None
+
+
 def test_a_regime_without_the_strategy_blocks_the_entry(tmp_path):
     from tradebot.schemas.options import RegimeAllowedConfig
     none = RegimeAllowedConfig(rich=(), normal=(), cheap=())

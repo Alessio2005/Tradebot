@@ -238,6 +238,18 @@ class LongVolConfig(_Strategy):
     pre_earnings_close_time: ClockTime = "15:00"
 
 
+class GammaScalpConfig(_Strategy):
+    """Long ATM-straddle bij goedkope IV tegenover σ(h), gedelta-hedged met aandelen (vraagt
+    `hedging.enabled`)."""
+
+    enabled: bool = False
+    dte: tuple[Days, Days] = (30, 60)
+    max_iv_rv_ratio: Ratio = 0.90               # entry: IV van de expiratie ≤ dit × σ(h)
+    take_profit_multiple_debit: Multiple = 1.30   # waarde incl. gerealiseerde hedge-P&L
+    stop_loss_frac_debit: Fraction = 0.60
+    close_dte: Days = 14
+
+
 class CashSecuredPutConfig(_Strategy):
     enabled: bool = False                       # open vraag C
     dte: tuple[Days, Days] = (30, 45)
@@ -284,6 +296,7 @@ class StrategiesConfig(StrictModel):
     debit_vertical: DebitVerticalConfig = DebitVerticalConfig()
     calendar_spread: CalendarSpreadConfig = CalendarSpreadConfig()
     long_straddle_strangle: LongVolConfig = LongVolConfig()
+    gamma_scalp: GammaScalpConfig = GammaScalpConfig()
     cash_secured_put: CashSecuredPutConfig = CashSecuredPutConfig()
     covered_call: CoveredCallConfig = CoveredCallConfig()
     wheel: WheelConfig = WheelConfig()
@@ -291,7 +304,7 @@ class StrategiesConfig(StrictModel):
 
 
 StrategyName = Literal["credit_spread", "iron_condor", "debit_vertical", "calendar_spread",
-                       "long_straddle_strangle", "cash_secured_put", "covered_call", "wheel",
+                       "long_straddle_strangle", "gamma_scalp", "cash_secured_put", "covered_call", "wheel",
                        "short_straddle_strangle"]
 _SHORT_PREMIUM: tuple[StrategyName, ...] = (
     "credit_spread", "iron_condor", "cash_secured_put", "covered_call", "wheel",
@@ -304,9 +317,9 @@ class RegimeAllowedConfig(StrictModel):
     rich: tuple[StrategyName, ...] = _SHORT_PREMIUM
     normal: tuple[StrategyName, ...] = (
         "credit_spread", "debit_vertical", "calendar_spread", "long_straddle_strangle",
-        "cash_secured_put", "covered_call", "wheel")
+        "gamma_scalp", "cash_secured_put", "covered_call", "wheel")
     cheap: tuple[StrategyName, ...] = (
-        "debit_vertical", "calendar_spread", "long_straddle_strangle")
+        "debit_vertical", "calendar_spread", "long_straddle_strangle", "gamma_scalp")
     stress: tuple[StrategyName, ...] = ()
     unknown: tuple[StrategyName, ...] = ()
 
@@ -452,7 +465,7 @@ class HedgingConfig(StrictModel):
     """De delta-hedger met aandelen (`options.hedging`); alleen op `universe.share_eligible`."""
 
     enabled: bool = False
-    strategies: tuple[StrategyName, ...] = ()
+    strategies: tuple[StrategyName, ...] = ("gamma_scalp",)
     band_shares: Annotated[float, Field(ge=0.0, le=10_000.0)] = 20.0
     max_notional_frac: Fraction = 0.5          # |aandelen| × spot ≤ dit × kapitaal
     interval_seconds: Annotated[float, Field(gt=0.0, le=86400.0)] = 300.0

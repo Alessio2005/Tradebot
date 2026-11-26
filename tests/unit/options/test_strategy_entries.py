@@ -327,9 +327,10 @@ def test_registry_order_and_the_undefined_risk_refusal():
         k: getattr(S, k).model_copy(update=v) for k, v in on.items()})})
     with pytest.raises(ConfigContractError, match="undefined risk"):
         build_strategies(everything)
-    allowed = everything.model_copy(update={"risk": CFG.risk.model_copy(
-        update={"allow_undefined_risk": True})})
-    assert len(build_strategies(allowed)) == 9
+    allowed = everything.model_copy(update={
+        "risk": CFG.risk.model_copy(update={"allow_undefined_risk": True}),
+        "hedging": CFG.hedging.model_copy(update={"enabled": True})})
+    assert len(build_strategies(allowed)) == 10
 
 
 def test_scans_are_pure():

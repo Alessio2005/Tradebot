@@ -24,6 +24,7 @@ from .chain.builder import Chain
 from .contracts import OptionContract
 from .events import Events
 from .iv_metrics import IVMetrics
+from .vol_regime import VolState
 
 __all__ = ["MULTIPLIER", "Action", "ActionKind", "Book", "Candidate", "Leg", "LegIntent",
            "MarketState", "PositionStatus", "StrategyPosition", "Trend", "Urgency", "mark",
@@ -160,6 +161,7 @@ class MarketState:
     trend: Mapping[str, Trend]
     events: Mapping[str, Events]
     capital_usd: float
+    vol: Mapping[str, VolState] = field(default_factory=dict)   # regime en RV-verwachting
 
     @property
     def today(self) -> date:
