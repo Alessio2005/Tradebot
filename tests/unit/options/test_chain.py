@@ -11,6 +11,7 @@ from tradebot.options.chain.builder import ChainBuilder, RawOption
 from tradebot.options.chain.filters import (
     FilterSettings,
     Reject,
+    build_filtered,
     filter_chain,
     filter_settings,
     filtered,
@@ -123,11 +124,24 @@ def test_skip_leaves_illiquid_contracts_unpriced():
     chain = build([raw(), raw(95.0, oi=1)])
     cfg = FilterSettings()
     skipped = ChainBuilder(SETTINGS, 10.0).build("TST", 100.0, [raw(), raw(95.0, oi=1)], NOW, CARRY,
-                            skip=lambda q: quote_reason(q, cfg) is not None)
+                            skip=lambda r: quote_reason(r.quote, cfg) is not None)
     full, cheap = filter_chain(chain, cfg), filter_chain(skipped, cfg)
     assert cheap.kept == full.kept and cheap.rejected == full.rejected
     thin = skipped.options[1]
     assert thin.iv is None and thin.greeks is None and thin.iv_mid.status is IVStatus.NO_QUOTE
+
+
+def test_held_contracts_stay_priced_and_in_the_chain():
+    rows = [raw(), raw(95.0, oi=1), raw(90.0, oi=1)]
+    held = frozenset({rows[1].contract})
+    chain, res = build_filtered(ChainBuilder(SETTINGS, 10.0), FilterSettings(), "TST", 100.0,
+                                rows, NOW, CARRY, held)
+    assert [o.contract.strike for o in chain.options] == [100.0, 95.0]
+    assert chain.options[1].iv is not None                      # geprijsd, ondanks lage OI
+    assert res.rejected == Counter({Reject.OPEN_INTEREST: 2})   # de telling blijft die van het filter
+    plain, _ = build_filtered(ChainBuilder(SETTINGS, 10.0), FilterSettings(), "TST", 100.0,
+                              rows, NOW, CARRY)
+    assert [o.contract.strike for o in plain.options] == [100.0]
 
 
 def test_a_wide_spread_passes_when_it_is_small_relative_to_mid():

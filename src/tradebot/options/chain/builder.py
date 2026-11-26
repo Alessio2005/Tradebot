@@ -93,13 +93,13 @@ class ChainBuilder:
         self.spread_iv = spread_iv
 
     def price_one(self, raw: RawOption, spot: float, asof: datetime, carry: Carry, *,
-                  skip: Callable[[Quote], bool] | None = None) -> PricedOption:
+                  skip: Callable[[RawOption], bool] | None = None) -> PricedOption:
         c, q = raw.contract, raw.quote
         inp = OptionInputs(spot, c.strike, c.right, c.expiry, asof, carry)
         has_div = bool(inp.discrete_dividends)
         method = engine_for(self.use, has_div, self.settings.engines)
         stale = (asof - q.ts).total_seconds() > self.max_quote_age_seconds
-        if stale or (skip is not None and skip(q)):
+        if stale or (skip is not None and skip(raw)):
             none = IVResult(IVStatus.NO_QUOTE)
             return PricedOption(c, q, none, none, none, None, method, stale)
         def solve(p: float | None) -> IVResult:
@@ -115,7 +115,7 @@ class ChainBuilder:
         return PricedOption(c, q, mid, bid, ask, g, method, stale)
 
     def build(self, underlying: str, spot: float, raw: Sequence[RawOption], asof: datetime,
-              carry: Carry, *, skip: Callable[[Quote], bool] | None = None) -> Chain:
+              carry: Carry, *, skip: Callable[[RawOption], bool] | None = None) -> Chain:
         require(all(r.contract.underlying == underlying for r in raw),
                 "een keten bevat één onderliggende", DataContractError, underlying=underlying)
         priced = tuple(self.price_one(r, spot, asof, carry, skip=skip) for r in raw

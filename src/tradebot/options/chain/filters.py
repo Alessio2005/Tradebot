@@ -16,7 +16,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from ...schemas.options import FilterConfig
-from ..contracts import Quote
+from ..contracts import OptionContract, Quote
 from ..rates import Carry
 from .builder import Chain, ChainBuilder, PricedOption, RawOption
 
@@ -97,10 +97,18 @@ def filtered(chain: Chain, cfg: FilterSettings) -> tuple[Chain, FilterResult]:
 
 
 def build_filtered(builder: ChainBuilder, cfg: FilterSettings, underlying: str, spot: float,
-                   raw: Sequence[RawOption], asof: datetime,
-                   carry: Carry) -> tuple[Chain, FilterResult]:
+                   raw: Sequence[RawOption], asof: datetime, carry: Carry,
+                   held: frozenset[OptionContract] = frozenset()) -> tuple[Chain, FilterResult]:
     """Prijs en filter één keten; contracten die op hun quote al afvallen, krijgen geen IV-solve.
+
+    Contracten uit `held` (legs van open posities) worden altijd geprijsd en blijven in de keten,
+    ook als het filter ze afwijst: de bot moet zijn eigen posities kunnen waarderen en sluiten.
+    De telling in `FilterResult` blijft die van het filter.
     """
-    def skip(q: Quote) -> bool:
-        return quote_reason(q, cfg) is not None
-    return filtered(builder.build(underlying, spot, raw, asof, carry, skip=skip), cfg)
+    def skip(r: RawOption) -> bool:
+        return r.contract not in held and quote_reason(r.quote, cfg) is not None
+    chain = builder.build(underlying, spot, raw, asof, carry, skip=skip)
+    kept, res = filtered(chain, cfg)
+    kept_c = {o.contract for o in res.kept}
+    extra = tuple(o for o in chain.options if o.contract in held and o.contract not in kept_c)
+    return (replace(kept, options=kept.options + extra) if extra else kept), res

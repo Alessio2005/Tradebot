@@ -298,8 +298,10 @@ class Engine:
             if self._snap_keys.get(und) == snap.asof:
                 continue
             jobs.append((und, snap))
+        held = frozenset(leg.contract for pos in self.state.open_positions()
+                         for leg in pos.option_legs if leg.contract is not None)
         args = [(self.builder, self.filters, und, snap.spot, snap.options, snap.asof,
-                 self._carry(und)) for und, snap in jobs]
+                 self._carry(und), held) for und, snap in jobs]
         built = [build_filtered(*a) for a in args]
         for (und, snap), (chain, res) in zip(jobs, built, strict=True):
             self.chains[und] = chain

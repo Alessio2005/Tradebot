@@ -4,6 +4,13 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: legs van open posities blijven altijd in de keten (2026-11-26)
+Een leg van een open positie die door het liquiditeitsfilter valt (te weinig volume of open
+interest, brede spread), viel ook uit de keten waarmee de engine waardeert, sluit en (paper)
+vult. Na een grote beweging kon de bot zo zijn eigen positie niet meer sluiten. Nu worden die
+legs altijd geprijsd en in de keten gehouden; de filtertelling in het journal blijft gelijk.
+Verwant aan het strikebereik van de feed (open legs buiten ±15 % van spot), dat apart is opgelost.
+
 ## Options: illiquide contracten niet meer prijzen (2026-11-26)
 De ketenbouwer slaat de IV-solve en Greeks over voor contracten die op hun quote al door het
 filter vallen (open interest, volume, geen bid, spread) of `stale` zijn. Dat was het meeste
