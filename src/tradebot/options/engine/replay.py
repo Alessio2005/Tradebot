@@ -78,7 +78,8 @@ async def run_replay(cfg: OptionsConfig, market: Market, out: Path) -> ReplayRes
     feed = ReplayFeed(market)
     p = cfg.paper
     broker = PaperBroker(cfg.account.capital_usd, p.fill_at_concession,
-                         p.commission_per_contract, PAPER_HASH)
+                         p.commission_per_contract, PAPER_HASH, p.stock_spread_bps,
+                         p.commission_per_share, p.min_commission_per_order)
     first = market.days[0]
     state = EngineState(REPLAY_MODE, PAPER_HASH,
                         datetime.combine(first, parse_time("00:00"), tzinfo=NY)

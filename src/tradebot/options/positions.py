@@ -105,6 +105,11 @@ class StrategyPosition:
     def option_legs(self) -> tuple[Leg, ...]:
         return tuple(leg for leg in self.legs if leg.contract is not None)
 
+    @property
+    def shares(self) -> int:
+        """Het aantal aandelen in de aandelen-legs (de hedge), + long, − short."""
+        return sum(leg.qty for leg in self.legs if leg.contract is None)
+
     def intents(self) -> tuple[LegIntent, ...]:
         """De optie-legs als verhoudingen per eenheid."""
         return tuple(LegIntent(leg.contract, leg.qty // self.units)  # type: ignore[arg-type]
@@ -168,6 +173,10 @@ class Book:
     cost_basis: Mapping[str, float] = field(default_factory=dict)   # per aandeel
     cash_usd: float = 0.0
     wheel_phase: Mapping[str, str] = field(default_factory=dict)    # "idle"/"csp"/"shares"/"cc"
+    # Het deel van `shares` dat als aandelen-leg bij een positie hoort (de delta-hedge), ook bij
+    # een gesloten positie waarvan de aandelen nog terug naar nul gaan. De rest van `shares`
+    # komt uit assignment of uitoefening (de wheel).
+    hedge_shares: Mapping[str, int] = field(default_factory=dict)
 
     def open_max_loss(self, underlying: str) -> float:
         return sum(p.max_loss for p in self.positions

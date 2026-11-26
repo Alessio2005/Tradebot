@@ -20,7 +20,7 @@ from .config import StrictModel
 
 __all__ = ["DEFAULT_OPTIONS_CONFIG", "CalendarSpreadConfig", "CashSecuredPutConfig",
            "CoveredCallConfig", "CreditSpreadConfig", "DebitVerticalConfig", "ExecutionConfig",
-           "FilterConfig",
+           "FilterConfig", "HedgingConfig",
            "IVFallbackConfig", "IVMetricsConfig", "IronCondorConfig", "LongVolConfig",
            "OptionsConfig", "PricingConfig", "RegimeAllowedConfig", "RiskConfig", "ScheduleConfig",
            "ShortVolConfig", "SizingConfig", "StrategiesConfig", "ThetaHarvestConfig",
@@ -443,6 +443,19 @@ class PaperConfig(StrictModel):
 
     fill_at_concession: Fraction = 0.40     # vult zodra de limiet zo ver richting natuurlijk is
     commission_per_contract: Annotated[float, Field(ge=0.0, le=10.0)] = 0.65
+    stock_spread_bps: Annotated[float, Field(ge=0.0, le=100.0)] = 2.0   # bid-ask van een aandeel
+    commission_per_share: Annotated[float, Field(ge=0.0, le=0.1)] = 0.005
+    min_commission_per_order: Annotated[float, Field(ge=0.0, le=10.0)] = 1.0
+
+
+class HedgingConfig(StrictModel):
+    """De delta-hedger met aandelen (`options.hedging`); alleen op `universe.share_eligible`."""
+
+    enabled: bool = False
+    strategies: tuple[StrategyName, ...] = ()
+    band_shares: Annotated[float, Field(ge=0.0, le=10_000.0)] = 20.0
+    max_notional_frac: Fraction = 0.5          # |aandelen| × spot ≤ dit × kapitaal
+    interval_seconds: Annotated[float, Field(gt=0.0, le=86400.0)] = 300.0
 
 
 class OptionsConfig(StrictModel):
@@ -460,6 +473,7 @@ class OptionsConfig(StrictModel):
     vol_regime: VolRegimeConfig = VolRegimeConfig()
     theta_harvest: ThetaHarvestConfig = ThetaHarvestConfig()
     relative_value: RelativeValueConfig = RelativeValueConfig()
+    hedging: HedgingConfig = HedgingConfig()
 
     @model_validator(mode="after")
     def _market_underlying(self) -> OptionsConfig:

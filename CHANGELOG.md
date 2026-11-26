@@ -4,6 +4,23 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: aandelenorders en de delta-hedger (2026-11-26)
+- `StockOrder` (purpose `HEDGE`, of `EXIT` bij het sluiten) in de `BrokerAdapter`
+  (`submit_stock`): de paper-broker vult op de limiet als die spot ± de halve
+  `paper.stock_spread_bps` (2) raakt, commissie `paper.commission_per_share` (0,005) met minimaal
+  `paper.min_commission_per_order` (1,00); IBKR stuurt `Stock(sym, "SMART", "USD")` als LMT/DAY.
+- `options/hedging.py`: per onderliggende op `universe.share_eligible` de netto delta van de open
+  posities van `hedging.strategies`; boven `hedging.band_shares` (20) een order van −round(delta),
+  begrensd op |aandelen| × spot ≤ `hedging.max_notional_frac` (0,5) × kapitaal, elke
+  `hedging.interval_seconds` (300). De order gaat door `RiskGate.review_stock` (beta-delta; in HALT
+  alleen als de absolute delta daalt). Fills worden de aandelen-leg van de positie; een gesloten
+  positie gaat in dezelfde ronde terug naar nul aandelen. Journal: `hedge_order`, `hedge_fill`.
+- Reconciliatie: op symbolen waarop gehedged is moet het verschil tussen broker en aandelen-legs
+  hele lots van 100 zijn. Een covered call telt de hedge-aandelen niet als dekking.
+- `hedging.enabled` staat standaard uit (en `hedging.strategies` is leeg tot gamma_scalp er met taak
+  B4 bij komt): de standaard synthetische replay is ongewijzigd, het journal byte-gelijk (3 posities,
+  eind-equity 25.303,60 USD).
+
 ## Options: horizon-RV, EWMA en VRP per looptijd (2026-11-26)
 - `RVForecast.at_horizon(days)`: σ²(h) = σ_L² + (σ_0² − σ_L²)·(1 − e^{−κh})/(κh), h = kalenderdagen/365,
   σ_0 de bestaande blend, σ_L de lange RV (de middel-RV zonder lang venster), κ =

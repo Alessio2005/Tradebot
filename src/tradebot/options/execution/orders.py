@@ -1,5 +1,8 @@
 """Combo-orders, client-ids en de price-walk (detailontwerp 10.1-10.3).
 
+Een aandelenorder (`StockOrder`, van de delta-hedger) is geen combo: één symbool, een aantal
+met teken en een limiet per aandeel; hij loopt niet mee in de price-walk.
+
 Prijzen per eenheid en per aandeel, met het teken van de broker: `limit` > 0 is betalen
 (debit), < 0 is ontvangen (credit). Er is geen market-order: een enkele optie is een combo
 met één leg.
@@ -26,8 +29,8 @@ from enum import StrEnum
 from ..chain.builder import Chain
 from ..positions import LegIntent, Urgency
 
-__all__ = ["ComboOrder", "OrderStatus", "Purpose", "WalkStep", "client_id", "combo_prices",
-           "position_id", "walk_limit"]
+__all__ = ["ComboOrder", "OrderStatus", "Purpose", "StockOrder", "WalkStep", "client_id",
+           "combo_prices", "position_id", "walk_limit"]
 
 
 class Purpose(StrEnum):
@@ -36,6 +39,7 @@ class Purpose(StrEnum):
     ROLL = "roll"
     ADJUST = "adjust"
     UNWIND = "unwind"
+    HEDGE = "hedge"
 
 
 class OrderStatus(StrEnum):
@@ -61,6 +65,19 @@ class ComboOrder:
     limit: float              # + betalen, − ontvangen, per eenheid per aandeel
     purpose: Purpose
     urgency: Urgency
+    tif: str = "DAY"
+
+
+@dataclass(frozen=True, slots=True)
+class StockOrder:
+    """Een aandelenorder van de delta-hedger: `qty` + kopen, − verkopen; `limit` per aandeel."""
+
+    client_id: str
+    position_id: str
+    symbol: str
+    qty: int
+    limit: float
+    purpose: Purpose          # HEDGE, of EXIT als een gesloten positie naar nul gaat
     tif: str = "DAY"
 
 

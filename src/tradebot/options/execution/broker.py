@@ -1,7 +1,9 @@
 """Het BrokerAdapter-protocol en zijn datatypen (detailontwerp 10.6).
 
-`submit` neemt alleen een `ApprovedOrder` (uit de risicopoort). `modify` verandert alleen de
-limiet, nooit het aantal of de legs.
+`submit` neemt alleen een `ApprovedOrder` (uit de risicopoort), `submit_stock` alleen een
+`ApprovedStockOrder` (de delta-hedger, ook langs de poort). `modify` en `cancel` werken op de
+client-id van beide. `modify` verandert alleen de limiet, nooit het aantal of de legs.
+Een aandelenfill is een `Execution` zonder `contract`.
 """
 from __future__ import annotations
 
@@ -11,8 +13,8 @@ from enum import StrEnum
 from typing import Protocol
 
 from ..contracts import OptionContract
-from ..risk.gate import ApprovedOrder
-from .orders import ComboOrder, OrderStatus
+from ..risk.gate import ApprovedOrder, ApprovedStockOrder
+from .orders import ComboOrder, OrderStatus, StockOrder
 
 __all__ = ["AccountSnapshot", "BrokerAdapter", "BrokerOrder", "BrokerPosition", "Execution",
            "ExecutionKind", "MarginImpact"]
@@ -37,7 +39,7 @@ class BrokerPosition:
 
 @dataclass(frozen=True, slots=True)
 class BrokerOrder:
-    order: ComboOrder
+    order: ComboOrder | StockOrder
     status: OrderStatus
     filled: int = 0
     avg_fill: float | None = None
@@ -78,6 +80,9 @@ class BrokerAdapter(Protocol):
     async def open_orders(self) -> list[BrokerOrder]: ...
 
     async def submit(self, approved: ApprovedOrder, order: ComboOrder) -> BrokerOrder: ...
+
+    async def submit_stock(self, approved: ApprovedStockOrder,
+                           order: StockOrder) -> BrokerOrder: ...
 
     async def modify(self, client_id: str, new_limit: float) -> BrokerOrder: ...
 

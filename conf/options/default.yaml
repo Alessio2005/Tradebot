@@ -239,3 +239,22 @@ account:
 paper:
   fill_at_concession: 0.40
   commission_per_contract: 0.65
+  # Aandelen (de delta-hedger): een order vult op zijn limiet zodra die spot ± de halve spread
+  # raakt. De engine zet de limiet van een aandelenorder daar ook neer (ook tegen IBKR).
+  stock_spread_bps: 2              # volledige bid-ask in basispunten
+  commission_per_share: 0.005      # USD per aandeel
+  min_commission_per_order: 1.0    # USD, minimum per aandelenorder
+
+# Delta-hedger (src/tradebot/options/hedging.py): per onderliggende de netto delta in aandelen
+# van de open posities van de strategieën hieronder (optie-delta × 100 × aantal + hun
+# aandelen-legs). Boven de band een aandelenorder van −round(delta), begrensd op
+# |aandelen| × spot ≤ max_notional_frac × kapitaal. Alleen op universe.share_eligible (US-ETF's
+# kunnen vanuit de EU niet als aandeel: geen KID). Een order gaat door de risicopoort; in HALT
+# alleen als hij de absolute beta-delta verkleint. Een gesloten positie gaat in dezelfde ronde
+# terug naar nul aandelen.
+hedging:
+  enabled: false
+  strategies: []                   # gamma_scalp komt erbij met die strategie (taak B4)
+  band_shares: 20
+  max_notional_frac: 0.5
+  interval_seconds: 300

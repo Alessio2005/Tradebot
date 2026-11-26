@@ -134,7 +134,8 @@ class CoveredCall:
     def scan(self, market: MarketState, book: Book) -> list[Candidate]:
         cfg, out = self.cfg, []
         for und in sorted(set(market.chains) & self.eligible):
-            free = book.shares.get(und, 0) // MULTIPLIER - self._covered(book, und)
+            held = book.shares.get(und, 0) - book.hedge_shares.get(und, 0)   # zonder de hedge
+            free = held // MULTIPLIER - self._covered(book, und)
             if free <= 0:
                 continue
             chain = market.chains[und]

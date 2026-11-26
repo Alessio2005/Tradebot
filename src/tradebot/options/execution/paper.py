@@ -3,6 +3,10 @@
 * Deterministisch: geen toeval.
 * Fill: een order vult volledig zodra `|limit − mid| ≥ fill_at_concession × |natural − mid|`,
   tegen de limiet. Geen gedeeltelijke fills. Commissie per contract per leg.
+* Aandelen (`submit_stock`, de delta-hedger): een order vult volledig op zijn limiet zodra die
+  de spot ± de halve `stock_spread_bps` raakt (kopen: limiet ≥ spot × (1 + h), verkopen:
+  limiet ≤ spot × (1 − h)). Commissie `commission_per_share` per aandeel, minimaal
+  `min_commission` per order.
 * Expiratie (`settle`, na de sluiting van de expiratiedag): een optie die ≥ 0,01 ITM sluit,
   wordt uitgeoefend (long) of assigned (short), en wordt aandelen; de rest vervalt.
 * Vroege assignment (`early_assign`, bij de opening van een ex-dividenddag): een short call die
@@ -20,7 +24,7 @@ from ..chain.builder import Chain
 from ..contracts import OptionContract, Right
 from ..positions import MULTIPLIER
 from ..rates import CashDividend
-from ..risk.gate import ApprovedOrder
+from ..risk.gate import ApprovedOrder, ApprovedStockOrder
 from .broker import (
     AccountSnapshot,
     BrokerOrder,
@@ -29,7 +33,7 @@ from .broker import (
     ExecutionKind,
     MarginImpact,
 )
-from .orders import TERMINAL, ComboOrder, OrderStatus, combo_prices
+from .orders import TERMINAL, ComboOrder, OrderStatus, StockOrder, combo_prices
 
 __all__ = ["PaperBroker"]
 
@@ -38,10 +42,14 @@ ITM_MIN = 0.01
 
 class PaperBroker:
     def __init__(self, cash: float, fill_at_concession: float = 0.40,
-                 commission_per_contract: float = 0.65, account_hash: str = "paper") -> None:
+                 commission_per_contract: float = 0.65, account_hash: str = "paper",
+                 stock_spread_bps: float = 2.0, commission_per_share: float = 0.005,
+                 min_commission: float = 1.0) -> None:
         self.cash = float(cash)
         self.fill_at = fill_at_concession
         self.commission = commission_per_contract
+        self.stock_half_spread = stock_spread_bps / 2e4
+        self.commission_per_share, self.min_commission = commission_per_share, min_commission
         self.account_hash = account_hash
         self.now: datetime | None = None
         self.chains: Mapping[str, Chain] = {}
@@ -61,6 +69,9 @@ class PaperBroker:
     def _try_fill(self, cid: str) -> None:
         bo = self._orders[cid]
         o = bo.order
+        if isinstance(o, StockOrder):
+            self._try_fill_stock(bo, o)
+            return
         und = o.legs[0].contract.underlying
         chain = self.chains.get(und)
         prices = combo_prices(chain, o.legs) if chain is not None else None
@@ -71,10 +82,10 @@ class PaperBroker:
             return
         if (natural >= mid and o.limit < mid - 1e-9) or (natural < mid and o.limit > mid + 1e-9):
             return                                     # limiet aan de verkeerde kant van mid
-        self._fill(bo)
+        self._fill(bo, o)
 
-    def _fill(self, bo: BrokerOrder) -> None:
-        o, now = bo.order, self.now
+    def _fill(self, bo: BrokerOrder, o: ComboOrder) -> None:
+        now = self.now
         assert now is not None
         n_contracts = sum(abs(leg.ratio) for leg in o.legs) * o.quantity
         fee = self.commission * n_contracts
@@ -89,6 +100,23 @@ class PaperBroker:
                                               fee if i == 0 else 0.0))
         self._orders[o.client_id] = dataclasses.replace(bo, status=OrderStatus.FILLED,
                                                         filled=o.quantity, avg_fill=o.limit)
+
+    def _try_fill_stock(self, bo: BrokerOrder, o: StockOrder) -> None:
+        chain = self.chains.get(o.symbol)
+        if chain is None:
+            return
+        h = self.stock_half_spread
+        if (o.qty > 0 and o.limit < chain.spot * (1 + h) - 1e-9) or (
+                o.qty < 0 and o.limit > chain.spot * (1 - h) + 1e-9):
+            return
+        assert self.now is not None
+        fee = max(self.commission_per_share * abs(o.qty), self.min_commission)
+        self._book_shares(o.symbol, o.qty, o.limit)
+        self.cash -= fee
+        self._executions.append(Execution(self.now, ExecutionKind.FILL, o.client_id, None,
+                                          o.symbol, o.qty, o.limit, fee))
+        self._orders[o.client_id] = dataclasses.replace(bo, status=OrderStatus.FILLED,
+                                                        filled=abs(o.qty), avg_fill=o.limit)
 
     def _leg_price(self, c: OptionContract) -> float:
         chain = self.chains.get(c.underlying)
@@ -188,6 +216,20 @@ class PaperBroker:
         require(self.now is not None and all(self.now < expiry_moment(leg.contract.expiry)
                                               for leg in order.legs),
                 "verlopen contract", DataContractError, client_id=order.client_id)
+        self._orders[order.client_id] = BrokerOrder(order, OrderStatus.SUBMITTED)
+        self._try_fill(order.client_id)
+        return self._orders[order.client_id]
+
+    async def submit_stock(self, approved: ApprovedStockOrder,
+                           order: StockOrder) -> BrokerOrder:
+        if not isinstance(approved, ApprovedStockOrder):
+            raise TypeError("de paper-broker neemt alleen een ApprovedStockOrder aan")
+        p = approved.proposal
+        require(order.symbol == p.symbol and order.qty == p.qty and order.limit == p.limit,
+                "order wijkt af van de goedgekeurde order", DataContractError,
+                client_id=order.client_id)
+        require(order.client_id not in self._orders, "client-id al gebruikt",
+                DataContractError, client_id=order.client_id)
         self._orders[order.client_id] = BrokerOrder(order, OrderStatus.SUBMITTED)
         self._try_fill(order.client_id)
         return self._orders[order.client_id]

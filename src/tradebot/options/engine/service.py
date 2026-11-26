@@ -12,9 +12,22 @@ Taken (New York):
 | manage | elke `manage_interval_seconds` in de sessie | `manage()` per positie, poort, orders |
 | scan | op `scan_times` | `scan()` per strategie, beste kandidaat per strategie, poort, orders |
 | walk | elke `walk_interval_seconds` per open order | price-walk (10.2) |
+| unwind_shares | elke ronde in de sessie, na manage | aandelen van gesloten posities naar nul |
+| hedge | elke `hedging.interval_seconds` (als `hedging.enabled`) | delta-hedge met aandelen |
 | risk | elke `risk_interval_seconds` | dagverlies, drawdown (HALT), de-grossing |
 | reconcile | bij start en elke `reconcile_interval_seconds` | broker tegen staat |
 | end_of_day | `end_of_day` | ATM-IV, expiratie en assignment, equity, staat |
+
+Aandelen (de delta-hedger, `options.hedging`): een aandelenorder staat met `"stock": True` in
+`state.orders`, loopt niet mee in de price-walk en telt niet als "lopende order" van zijn
+positie (sluiten blijft dus mogelijk). Elke fill wordt apart geboekt als de aandelen-leg van de
+positie (één leg met `contract=None`, gemiddelde prijs); de geboekte executies staan in de
+order (`execs`), zodat een herstart ze niet nog eens boekt. Een open hedge-order van een vorige
+hedge-ronde wordt geannuleerd en pas de ronde daarna vervangen. Een gesloten positie met
+aandelen krijgt in dezelfde ronde een aandelenorder naar nul (purpose EXIT); een lopende
+hedge-order van die positie wordt eerst geannuleerd. De reconciliatie vergelijkt per symbool
+waarop gehedged is de aandelen bij de broker met de aandelen-legs: het verschil mag alleen uit
+hele lots van 100 bestaan (assignment of uitoefening, zoals bij de wheel).
 
 Fouten (9.3): een `SafetyBreach` zet de `HaltStore`; een onverwachte fout in een taak wordt
 gelogd en gealarmeerd, en drie keer achter elkaar in dezelfde taak is HALT.
@@ -43,12 +56,14 @@ from ..execution.orders import (
     ComboOrder,
     OrderStatus,
     Purpose,
+    StockOrder,
     client_id,
     combo_prices,
     position_id,
     walk_limit,
 )
 from ..execution.paper import PaperBroker
+from ..hedging import hedge_orders, hedge_rules, stock_limit
 from ..iv_metrics import IVHistory, IVMetrics, iv_rule_settings, realized_vol
 from ..positions import (
     MULTIPLIER,
@@ -71,7 +86,14 @@ from ..pricing.settings import pricer_settings
 from ..pricing.surface import SurfaceStatus, build_surface, skew_25d
 from ..rates import Carry
 from ..relative_value import rv_adjust, vrp_zscores
-from ..risk.gate import GateState, OrderKind, OrderProposal, RiskGate, SafetyBreach
+from ..risk.gate import (
+    GateState,
+    OrderKind,
+    OrderProposal,
+    RiskGate,
+    SafetyBreach,
+    StockProposal,
+)
 from ..risk.monitor import assess, degross_plan
 from ..selection import admit, selection_rules
 from ..strategies.common import Strategy, parse_time
@@ -173,6 +195,7 @@ class Engine:
         self.iv_rules = iv_rule_settings(cfg.iv_metrics)
         self.regime_rules = regime_settings(cfg.vol_regime)
         self.selection = selection_rules(cfg)
+        self.hedge_rules = hedge_rules(cfg)
         sch = cfg.schedule
         self.scan_times = tuple(parse_time(t) for t in sch.scan_times)
         self.close_time = parse_time(sch.close_before_expiry_time)
@@ -236,6 +259,9 @@ class Engine:
             await self._every("risk", now, self.cfg.schedule.risk_interval_seconds, self._risk)
             await self._every("manage", now, self.cfg.schedule.manage_interval_seconds,
                               self._manage)
+            await self._run("unwind_shares", now, self._unwind_shares)
+            if self.cfg.hedging.enabled:
+                await self._every("hedge", now, self.cfg.hedging.interval_seconds, self._hedge)
             await self._every("reconcile", now, self.cfg.schedule.reconcile_interval_seconds,
                               self._reconcile)
             for t in self.scan_times:
@@ -339,6 +365,9 @@ class Engine:
         await self._executions(now)
         acct = await self.broker.account()
         self._equity = acct.equity
+        await self._refresh_shares()
+
+    async def _refresh_shares(self) -> None:
         self._shares = {p.symbol: p.qty for p in await self.broker.positions()
                         if p.contract is None}
 
@@ -349,7 +378,17 @@ class Engine:
 
     def book(self) -> Book:
         return Book(tuple(self.state.open_positions()), dict(self._shares),
-                    dict(self.state.cost_basis), self._equity, dict(self.state.wheel))
+                    dict(self.state.cost_basis), self._equity, dict(self.state.wheel),
+                    self._hedge_shares())
+
+    def _hedge_shares(self) -> dict[str, int]:
+        """Aandelen-legs per symbool, ook van gesloten posities die nog naar nul gaan."""
+        out: dict[str, int] = {}
+        for p in self.state.positions:
+            n = p.shares
+            if n:
+                out[p.underlying] = out.get(p.underlying, 0) + n
+        return out
 
     def gate_state(self, now: datetime, daily_loss: float = 0.0) -> GateState:
         today = now.date().isoformat()
@@ -363,8 +402,14 @@ class Engine:
     # --- orders ---------------------------------------------------------------------------
 
     def _pending(self, pos_id: str) -> bool:
+        """Een lopende combo-order voor de positie (aandelenorders tellen niet)."""
         return any(o["position_id"] == pos_id and o["status"] not in {s.value for s in TERMINAL}
-                   for o in self.state.orders.values())
+                   and not o.get("stock") for o in self.state.orders.values())
+
+    def _open_stock(self) -> dict[str, dict[str, Any]]:
+        """Lopende aandelenorders per position-id."""
+        return {o["position_id"]: o for o in self.state.orders.values()
+                if o.get("stock") and o["status"] == OrderStatus.SUBMITTED.value}
 
     def _concession(self, purpose: Purpose, urgency: Urgency) -> float:
         e = self.cfg.execution
@@ -413,7 +458,7 @@ class Engine:
     async def _walk(self, now: datetime) -> None:
         tick = self.cfg.execution.ticks.combo
         for cid, o in sorted(self.state.orders.items()):
-            if o["status"] != OrderStatus.SUBMITTED.value:
+            if o["status"] != OrderStatus.SUBMITTED.value or o.get("stock"):
                 continue
             chain = self.chains.get(o["underlying"])
             prices = combo_prices(chain, intents_from(o["legs"])) if chain is not None else None
@@ -451,6 +496,9 @@ class Engine:
                 self._assignment(e, now)
         for cid in sorted(fills):
             o = self.state.orders.get(cid)
+            if o is not None and o.get("stock"):
+                self._book_stock_fill(cid, o, fills[cid], now)
+                continue
             if o is None or o.get("booked"):
                 continue
             o["booked"] = True
@@ -493,6 +541,7 @@ class Engine:
             old = qty.get(k, Leg(leg.contract, pos.underlying, 0, px.get(k, 0.0)))
             qty[k] = dataclasses.replace(old, qty=old.qty + leg.ratio * q)
         rest = tuple(v for _, v in sorted(qty.items()) if v.qty)
+        stock = tuple(leg for leg in pos.legs if leg.contract is None)
         if pos.opened_at.date() == now.date():
             self.state.day_trades.append(now.date().isoformat())
         if kind is OrderKind.CLOSE or not rest:
@@ -505,7 +554,7 @@ class Engine:
                         reason=o["reason"], exit_net=-limit * MULTIPLIER * q)
             return
         self.state.positions[i] = dataclasses.replace(
-            pos, legs=rest, max_loss=o["max_loss"] if o["max_loss"] is not None else math.inf,
+            pos, legs=rest + stock, max_loss=o["max_loss"] if o["max_loss"] is not None else math.inf,
             adjustments=pos.adjustments + (kind is OrderKind.ADJUST),
             entry_net=pos.entry_net - limit * MULTIPLIER * q)
         self._event(now, "position_changed", position_id=pos.position_id, kind=kind.value)
@@ -520,13 +569,14 @@ class Engine:
             if not legs:
                 continue
             rest = tuple(leg for leg in p.option_legs if leg.contract.key() != k)  # type: ignore[union-attr]
+            stock = tuple(leg for leg in p.legs if leg.contract is None)
             short = legs[0].qty < 0
             if p.strategy == "wheel" and e.kind is ExecutionKind.ASSIGNMENT:
                 self.state.wheel[p.underlying] = "shares" if p.phase == "csp" else "idle"
                 self.state.cost_basis[p.underlying] = (
                     e.contract.strike - p.entry_credit if p.phase == "csp"
                     else self.state.cost_basis.get(p.underlying, 0.0))
-            self.state.positions[i] = (dataclasses.replace(p, legs=rest) if rest
+            self.state.positions[i] = (dataclasses.replace(p, legs=rest + stock) if rest
                                        else dataclasses.replace(p,
                                                                 status=PositionStatus.CLOSED))
             if e.kind is not ExecutionKind.EXPIRY and short and p.strategy != "wheel":
@@ -534,6 +584,100 @@ class Engine:
                            f"short {k} van {p.position_id} {e.kind.value}")
             break
         self._event(now, e.kind.value, contract=k, qty=e.qty, price=e.price)
+
+    # --- aandelen (delta-hedger) ----------------------------------------------------------
+
+    def _book_stock_fill(self, cid: str, o: dict[str, Any], execs: list[Execution],
+                         now: datetime) -> None:
+        """Elke aandelenfill apart op de aandelen-leg van de positie (ook na annuleren)."""
+        i = next(i for i, p in enumerate(self.state.positions)
+                 if p.position_id == o["position_id"])
+        for e in execs:
+            rec = [e.ts.isoformat(), e.qty, e.price]
+            if rec in o["execs"]:
+                continue
+            o["execs"].append(rec)
+            o["filled"] += e.qty
+            pos = self.state.positions[i] = _with_shares(self.state.positions[i], e.qty, e.price)
+            self._book_version += 1
+            self._event(now, "hedge_fill", client_id=cid, position_id=o["position_id"],
+                        underlying=o["underlying"], purpose=o["purpose"], qty=e.qty,
+                        price=e.price, commission=e.commission, shares=pos.shares)
+        if o["filled"] == o["qty"]:
+            o["status"] = OrderStatus.FILLED.value
+
+    async def _send_stock(self, pos: StrategyPosition, qty: int, now: datetime,
+                          purpose: Purpose, delta: float | None = None) -> None:
+        chain = self.chains[pos.underlying]
+        limit = stock_limit(chain.spot, qty, self.cfg.paper.stock_spread_bps)
+        p = StockProposal(pos.position_id, pos.strategy, pos.underlying, qty, limit,
+                          closing=purpose is Purpose.EXIT)
+        d = self.gate.review_stock(p, self.book(), self.market_state(now),
+                                   self.gate_state(now, self._daily_loss()))
+        cid = None
+        if d.approved is not None:
+            key = f"{pos.position_id}|{purpose.value}|{now.date().isoformat()}"
+            attempt = self.state.attempts.get(key, 0)
+            self.state.attempts[key] = attempt + 1
+            cid = client_id(pos.position_id, purpose, now.date(), attempt)
+            self.state.orders[cid] = {
+                "client_id": cid, "stock": True, "position_id": pos.position_id,
+                "purpose": purpose.value, "strategy": pos.strategy,
+                "underlying": pos.underlying, "qty": qty, "limit": limit, "filled": 0,
+                "execs": [], "status": OrderStatus.SUBMITTED.value,
+                "submitted_at": now.isoformat()}
+        self._event(now, "hedge_order", client_id=cid, position_id=pos.position_id,
+                    strategy=pos.strategy, underlying=pos.underlying, purpose=purpose.value,
+                    qty=qty, limit=limit, verdict=d.verdict.value, reason=d.reason,
+                    delta_shares=None if delta is None else round(delta, 2),
+                    checks=[[c.name, round(c.measured, 4), round(c.threshold, 4)]
+                            for c in d.checks])
+        if d.approved is None or cid is None:
+            return
+        bo = await self.broker.submit_stock(
+            d.approved, StockOrder(cid, pos.position_id, pos.underlying, qty, limit, purpose))
+        if self.state.orders[cid]["status"] == OrderStatus.SUBMITTED.value:
+            self.state.orders[cid]["status"] = bo.status.value
+        await self._executions(now)
+        await self._refresh_shares()
+
+    async def _cancel_stock(self, o: dict[str, Any], now: datetime, reason: str) -> None:
+        await self.broker.cancel(o["client_id"])
+        o["status"] = OrderStatus.CANCELLED.value
+        self._event(now, "order_cancelled", client_id=o["client_id"],
+                    position_id=o["position_id"], reason=reason)
+
+    async def _unwind_shares(self, now: datetime) -> None:
+        """Gesloten posities met aandelen: lopende hedge annuleren, dan een order naar nul."""
+        closed = [p for p in self.state.positions
+                  if p.status is PositionStatus.CLOSED and p.shares]
+        if not closed and not self.cfg.hedging.enabled:
+            return
+        open_stock = self._open_stock()
+        for o in open_stock.values():
+            pos = next(p for p in self.state.positions if p.position_id == o["position_id"])
+            if pos.status is PositionStatus.CLOSED and o["purpose"] == Purpose.HEDGE.value:
+                await self._cancel_stock(o, now, "position_closed")
+        for pos in closed:
+            if pos.position_id in open_stock or pos.underlying not in self.chains:
+                continue
+            await self._send_stock(pos, -pos.shares, now, Purpose.EXIT)
+
+    async def _hedge(self, now: datetime) -> None:
+        """Eén hedge-ronde: oude hedge-orders annuleren, dan per onderliggende de band."""
+        open_stock = self._open_stock()
+        waiting = set()
+        for o in open_stock.values():
+            if o["purpose"] == Purpose.HEDGE.value:
+                await self._cancel_stock(o, now, "replaced")
+            waiting.add(o["underlying"])          # pas de volgende ronde opnieuw
+        blocked = self._blocked if self.mode is EngineMode.BLOCKED else frozenset()
+        live = tuple(p for p in self.state.open_positions()
+                     if p.underlying not in waiting and p.underlying not in blocked)
+        for h in hedge_orders(live, self.chains, self.cfg.account.capital_usd,
+                              self.hedge_rules):
+            pos = next(p for p in live if p.position_id == h.position_id)
+            await self._send_stock(pos, h.qty, now, Purpose.HEDGE, h.delta_shares)
 
     # --- taken ----------------------------------------------------------------------------
 
@@ -675,14 +819,15 @@ class Engine:
                                            "degross"), pos, now)
 
     async def _reconcile(self, now: datetime) -> None:
-        broker = {p.contract.key(): p.qty for p in await self.broker.positions()
-                  if p.contract is not None}
+        held = await self.broker.positions()
+        broker = {p.contract.key(): p.qty for p in held if p.contract is not None}
         mine: dict[str, int] = {}
         for p in self.state.open_positions():
             for leg in p.option_legs:
                 k = leg.contract.key()  # type: ignore[union-attr]
                 mine[k] = mine.get(k, 0) + leg.qty
         diff = sorted(k for k in set(broker) | set(mine) if broker.get(k, 0) != mine.get(k, 0))
+        diff += self._share_breaks({p.symbol: p.qty for p in held if p.contract is None})
         if diff:
             self._blocked = frozenset(k.split(" ")[0] for k in diff)
             if self.mode is not EngineMode.BLOCKED:
@@ -695,6 +840,15 @@ class Engine:
         if self.mode in (EngineMode.STARTING, EngineMode.RECONCILING, EngineMode.BLOCKED):
             self.mode = EngineMode.HALTED if self.halted else EngineMode.RUNNING
             self._event(now, "recon_ok", mode=self.mode.value)
+
+    def _share_breaks(self, broker: Mapping[str, int]) -> list[str]:
+        """Symbolen waarop gehedged is en waar de broker iets anders heeft dan de aandelen-legs
+        plus hele lots van 100 (assignment of uitoefening)."""
+        hedge = self._hedge_shares()
+        names = set(hedge) | {o["underlying"] for o in self.state.orders.values()
+                              if o.get("stock")}
+        return [f"{n} shares" for n in sorted(names)
+                if (broker.get(n, 0) - hedge.get(n, 0)) % MULTIPLIER]
 
     async def _end_of_day(self, now: datetime) -> None:
         today = now.date()
@@ -742,3 +896,19 @@ class Engine:
         self.builder.close()
         self._event(now, "stopped")
         self.mode = EngineMode.STOPPED
+
+
+def _with_shares(pos: StrategyPosition, qty: int, price: float) -> StrategyPosition:
+    """`pos` met `qty` aandelen erbij in haar ene aandelen-leg (gemiddelde prijs bij bijkopen,
+    de oude prijs bij afbouwen, de fillprijs bij een nieuwe of omgedraaide leg)."""
+    old = pos.shares
+    new = old + qty
+    prev = next((leg.entry_price for leg in pos.legs if leg.contract is None), price)
+    if old == 0 or (old > 0) != (new > 0):
+        avg = price
+    elif abs(new) > abs(old):
+        avg = (prev * old + price * qty) / new
+    else:
+        avg = prev
+    stock = (Leg(None, pos.underlying, new, avg),) if new else ()
+    return dataclasses.replace(pos, legs=pos.option_legs + stock)

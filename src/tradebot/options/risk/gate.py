@@ -20,6 +20,17 @@ Volgorde:
    - Bijsturen, rollen en een deel sluiten: goed als alles daarna past, of als de order
      risicoverkleinend is (elke nu overschreden maat daalt en geen andere gaat erover).
      In HALT alleen als hij risicoverkleinend is of alleen legs sluit. Nooit verkleind.
+
+Een aandelenorder van de delta-hedger (`review_stock`) heeft zijn eigen, kortere pad:
+
+1. **Hard** (`SafetyBreach`): aantal 0, een symbool buiten `universe.share_eligible`, of een
+   limiet die verder dan de volledige spread (`paper.stock_spread_bps`) plus één cent van de spot
+   ligt.
+2. Een order die de aandelen van een gesloten positie naar nul brengt (`closing`), wordt altijd
+   goedgekeurd: zonder opties eromheen is het alleen nog delta.
+3. Anders: geen keten of geen volledige Greeks is weigeren; op een onderliggende met een
+   reconciliatieverschil ook. In HALT of UNWIND alleen als de absolute beta-delta van het boek
+   daalt. Normaal: goed als de beta-delta daarna binnen de grens ligt of daalt.
 """
 from __future__ import annotations
 
@@ -45,12 +56,14 @@ from ..positions import (
     Urgency,
 )
 from ..pricing.engines import EngineSettings, Method
+from .aggregate import aggregate
 from .limits import BookMetrics, CheckResult, check, measure
 from .pdt import pdt_blocks_entry
 from .scenarios import grid
 
-__all__ = ["ApprovedOrder", "Decision", "GateState", "OrderKind", "OrderProposal", "RiskGate",
-           "SafetyBreach", "Verdict"]
+__all__ = ["ApprovedOrder", "ApprovedStockOrder", "Decision", "GateState", "OrderKind",
+           "OrderProposal", "RiskGate", "SafetyBreach", "StockDecision", "StockProposal",
+           "Verdict"]
 
 _SENTINEL = object()
 
@@ -125,6 +138,41 @@ class ApprovedOrder:
     def __post_init__(self) -> None:
         if self._token is not _SENTINEL:
             raise TypeError("een ApprovedOrder maakt alleen de risicopoort")
+
+
+@dataclass(frozen=True, slots=True)
+class StockProposal:
+    """Een aandelenorder voor de aandelen-leg van `position_id`: `qty` + kopen, − verkopen.
+
+    `closing`: de positie is gesloten en haar aandelen gaan terug naar nul.
+    """
+
+    position_id: str
+    strategy: str
+    symbol: str
+    qty: int
+    limit: float              # per aandeel
+    closing: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ApprovedStockOrder:
+    proposal: StockProposal
+    approved_at: datetime
+    checks: tuple[CheckResult, ...]
+    _token: object = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._token is not _SENTINEL:
+            raise TypeError("een ApprovedStockOrder maakt alleen de risicopoort")
+
+
+@dataclass(frozen=True, slots=True)
+class StockDecision:
+    verdict: Verdict
+    approved: ApprovedStockOrder | None
+    checks: tuple[CheckResult, ...]
+    reason: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,3 +352,48 @@ class RiskGate:
             return self._approve(p, Verdict.APPROVE, after, market, p.kind.value)
         failed = ",".join(c.name for c in after if not c.ok)
         return self._reject(after, f"limits:{failed}")
+
+    # --- aandelen (delta-hedger) ----------------------------------------------------------
+
+    def review_stock(self, p: StockProposal, book: Book, market: MarketState,
+                     state: GateState) -> StockDecision:
+        if p.qty == 0:
+            raise SafetyBreach(f"aandelenorder van 0 voor {p.position_id}")
+        if p.symbol not in self.cfg.universe.share_eligible:
+            raise SafetyBreach(f"{p.symbol} mag niet als aandeel gehouden worden")
+        chain = market.chains.get(p.symbol)
+        if chain is not None:
+            band = chain.spot * self.cfg.paper.stock_spread_bps / 1e4 + 0.01
+            if not math.isfinite(p.limit) or abs(p.limit - chain.spot) > band + 1e-9:
+                raise SafetyBreach(f"aandelenlimiet {p.limit:.4f} te ver van spot"
+                                   f" {chain.spot:.4f} voor {p.position_id}")
+        if p.closing:
+            return self._stock(p, Verdict.APPROVE, (), market, "close")
+        if chain is None:
+            return StockDecision(Verdict.REJECT, None, (), "quotes:missing")
+        if p.symbol in state.blocked_underlyings:
+            return StockDecision(Verdict.REJECT, None, (), "reconcile:diff")
+        live = tuple(x for x in book.positions if x.status.value != "closed")
+        before = aggregate(live, book.shares, market.chains, self.beta)
+        shares = dict(book.shares)
+        shares[p.symbol] = shares.get(p.symbol, 0) + p.qty
+        after = aggregate(live, shares, market.chains, self.beta)
+        checks = (CheckResult("beta_delta_usd", abs(after.beta_delta_usd),
+                              self.risk.max_abs_beta_delta_frac * market.capital_usd),)
+        if not (before.complete and after.complete):
+            return StockDecision(Verdict.REJECT, None, checks, "greeks_incomplete")
+        reducing = abs(after.beta_delta_usd) < abs(before.beta_delta_usd)
+        if (state.halted or state.unwind) and not reducing:
+            return StockDecision(Verdict.REJECT, None, checks,
+                                 "state:halt" if state.halted else "state:unwind")
+        if reducing:
+            return self._stock(p, Verdict.APPROVE, checks, market, "risk_reducing")
+        if checks[0].ok:
+            return self._stock(p, Verdict.APPROVE, checks, market, "hedge")
+        return StockDecision(Verdict.REJECT, None, checks, "limits:beta_delta_usd")
+
+    @staticmethod
+    def _stock(p: StockProposal, verdict: Verdict, checks: tuple[CheckResult, ...],
+               market: MarketState, reason: str) -> StockDecision:
+        return StockDecision(verdict, ApprovedStockOrder(p, market.now, checks, _SENTINEL),
+                             checks, reason)
