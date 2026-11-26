@@ -93,7 +93,7 @@ class ChainBuilder:
                   carry: Carry) -> PricedOption:
         c, q = raw.contract, raw.quote
         inp = OptionInputs(spot, c.strike, c.right, c.expiry, asof, carry)
-        has_div = bool(carry.dividends_in(asof.date(), c.expiry))
+        has_div = bool(inp.discrete_dividends)
         method = engine_for(self.use, has_div, self.settings.engines)
         def solve(p: float | None) -> IVResult:
             return implied_vol(inp, p, method, self.settings.engines, self.settings.iv)

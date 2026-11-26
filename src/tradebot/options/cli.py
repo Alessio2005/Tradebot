@@ -29,6 +29,7 @@ from .data.historical import HistoricalSeries, HistoricalSpec, build_market, fet
 from .data.store import read_market, write_market
 from .engine.paper import run_paper
 from .engine.replay import run_replay
+from .execution.ib_noise import quiet_ib
 
 __all__ = ["HEARTBEAT_MAX_AGE_SECONDS", "healthy", "main"]
 
@@ -55,6 +56,7 @@ async def _paper(cfg: OptionsConfig, run_dir: Path, env: Mapping[str, str]) -> N
 
 async def _history(cfg: OptionsConfig, spec: HistoricalSpec,
                    env: Mapping[str, str]) -> list[HistoricalSeries]:
+    quiet_ib()
     ib = IB()
     await ib.connectAsync(env.get("IB_HOST", "127.0.0.1"), int(env.get("IB_PORT", "4002")),
                           int(env.get("IB_CLIENT_ID", "18")), readonly=True)

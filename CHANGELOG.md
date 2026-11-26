@@ -20,6 +20,21 @@
   basisvaluta omgerekend naar USD met de IDEALPRO-koers `<valuta>.USD` (actuele koers, anders
   de slotkoers). Zonder bruikbare koers, of met regels in meer dan één valuta, blijft het een
   `DataContractError`.
+- Engine-keuze bij een dividend op de expiratiedag: de keten koos BAW of FD op het venster
+  `(vandaag, expiratie]`, de pricer neemt op de expiratiedag `(gisteren, expiratie]`. Valt de
+  expiratie door een feestdag op de ex-dividenddag (SPY, donderdag 18 juni 2026: vrijdag
+  Juneteenth), dan koos de keten BAW, weigerde de pricer, en haltte de engine na drie rondes.
+  Nu is er één venster: `OptionInputs.discrete_dividends`, gebruikt door de ketenbouw, de
+  IV-terugval, de scenario's en de marktgeneratoren. Gevonden met de historische simulatie.
+- `IBKRBroker.executions`: de eerste ronde na een start vroeg executies "sinds" `datetime.min`,
+  een tijd in jaar 1. IBKR weigert die (fout 10314) en gaf dan niets terug, zodat fills van
+  vóór de herstart niet gelezen werden. Zonder geldige tijd gaat het filter nu zonder tijd.
+- `IBKRBroker.connect` probeert tot 12 keer (elke 10 s) opnieuw zolang de gateway nog inlogt,
+  in plaats van te crashen met een traceback (na een herstart van de pc).
+- `options.execution.ib_noise`: IBKR-meldingen 200 (strike bestaat niet bij die expiratie),
+  10090 en 10167 (vertraagde data) en "API connection failed" gaan niet meer naar de log;
+  tick 90 (vertraagd "halted") krijgt de betekenis van tick 49, zodat `ib_async` 2.0.1 er geen
+  `AssertionError` meer voor logt. Alle andere meldingen blijven.
 
 ## Options: volatility risk premium, theta harvesting en vol-regimes (2026-11-24)
 Drie bronnen van rendement als vaste regels tussen `Strategy.scan` en de risicopoort. Alleen
