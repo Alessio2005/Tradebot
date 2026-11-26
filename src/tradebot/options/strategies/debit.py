@@ -6,9 +6,11 @@ handelsdag vóór een expiratie, na `close_before_expiry_time`, gaat alles dicht
 """
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, timedelta
 
 from ...schemas.options import CalendarSpreadConfig, DebitVerticalConfig, LongVolConfig
+from ..calendar import expiry_moment, year_fraction
 from ..chain.builder import Chain
 from ..contracts import Right
 from ..iv_metrics import IVCondition, IVRStatus
@@ -135,6 +137,51 @@ class CalendarSpread:
             return "ivp:fallback:ok"
         return None
 
+    @staticmethod
+    def _atm_iv(chain: Chain, expiry: date) -> float | None:
+        """Gemiddelde van call- en put-IV op de strike het dichtst bij de forward."""
+        call = strike_nearest(chain, expiry, Right.CALL, _level(chain, expiry))
+        put = chain.find(expiry, call.contract.strike, Right.PUT) if call is not None else None
+        if call is None or put is None or call.iv is None or put.iv is None:
+            return None
+        return (call.iv + put.iv) / 2
+
+    def _fwd_trace(self, market: MarketState, chain: Chain, und: str,
+                   near: date, far: date) -> str:
+        """Spoorregel van de forward-vol-regel; `fwd:ok` als die geldt, anders de reden."""
+        vs = market.vol.get(und)
+        if vs is None or vs.rv is None:
+            return "fwd:no_rv"
+        iv1, iv2 = self._atm_iv(chain, near), self._atm_iv(chain, far)
+        if iv1 is None or iv2 is None:
+            return "fwd:no_iv"
+        t1 = year_fraction(market.now, expiry_moment(near))
+        t2 = year_fraction(market.now, expiry_moment(far))
+        var_f = (iv2 ** 2 * t2 - iv1 ** 2 * t1) / (t2 - t1)
+        if var_f < 0:
+            return "fwd:neg_var"
+        h1 = (near - market.today).days
+        sigma_near = vs.rv.at_horizon(h1)
+        sigma_gap = vs.rv.at_horizon((far - near).days)
+        if (math.sqrt(var_f) <= self.cfg.max_fwd_vol_rv_ratio * sigma_gap
+                and iv1 >= self.cfg.min_near_iv_rv_ratio * sigma_near):
+            return "fwd:ok"
+        return "fwd:rejected"
+
+    def _entry_trace(self, market: MarketState, chain: Chain, und: str,
+                     near: date, far: date) -> tuple[str, ...]:
+        """De spoorregels van de toelatingsroute(s) die gelden; leeg als geen."""
+        rule, out = self.cfg.entry_rule, []
+        if rule in ("ivp", "either"):
+            ivp = self._iv_trace(market, und)
+            if ivp is not None:
+                out.append(ivp)
+        if rule in ("forward_vol", "either"):
+            fwd = self._fwd_trace(market, chain, und, near, far)
+            if fwd == "fwd:ok":
+                out.append(fwd)
+        return tuple(out)
+
     def scan(self, market: MarketState, book: Book) -> list[Candidate]:
         cfg, out = self.cfg, []
         for und in sorted(market.chains):
@@ -143,9 +190,9 @@ class CalendarSpread:
             far = pick_expiry(chain, *cfg.long_dte, market.today)
             if near is None or far is None or entry_blockers(market, und, near, self.rules):
                 continue
-            trace = self._iv_trace(market, und)
+            trace = self._entry_trace(market, chain, und, near, far)
             short = strike_nearest(chain, near, Right.CALL, _level(chain, near))
-            if trace is None or short is None:
+            if not trace or short is None:
                 continue
             long = chain.find(far, short.contract.strike, Right.CALL)
             if long is None:
@@ -160,7 +207,7 @@ class CalendarSpread:
                 continue
             out.append(Candidate(self.name, und, legs, units, -debit,
                                  debit * MULTIPLIER * units, theta / (debit * MULTIPLIER),
-                                 (trace, f"near:{near.isoformat()}", f"far:{far.isoformat()}",
+                                 (*trace, f"near:{near.isoformat()}", f"far:{far.isoformat()}",
                                   f"strike:{short.contract.strike:g}")))
         return sorted(out, key=lambda c: (-c.rank_score, c.underlying))
 

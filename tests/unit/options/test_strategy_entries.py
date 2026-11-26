@@ -20,6 +20,7 @@ from tradebot.options.contracts import Right
 from tradebot.options.events import Events
 from tradebot.options.iv_metrics import IVRStatus
 from tradebot.options.positions import Book, Leg, MarketState, StrategyPosition, Trend
+from tradebot.options.pricing.implied_vol import IVStatus
 from tradebot.options.strategies.common import rules_from_config
 from tradebot.options.strategies.credit import CreditSpread, IronCondor
 from tradebot.options.strategies.debit import CalendarSpread, DebitVertical, LongVol
@@ -27,6 +28,7 @@ from tradebot.options.strategies.income import CashSecuredPut, CoveredCall
 from tradebot.options.strategies.registry import build_strategies
 from tradebot.options.strategies.short_vol import ShortVol
 from tradebot.options.strategies.wheel import Wheel
+from tradebot.options.vol_regime import RVForecast, VolRegime, VolState
 from tradebot.utils.failfast import ConfigContractError
 
 RULES = rules_from_config(CFG)
@@ -168,6 +170,72 @@ def test_calendar_fallback_can_be_off_and_iv_can_be_missing():
     assert strat.scan(market(iv=fb), Book()) == []
     m = market()
     assert cal().scan(dataclasses.replace(m, iv={}), Book()) == []
+
+
+# --- calendar: forward-vol ---------------------------------------------------------------
+
+def _term_chain(near_iv: float, far_iv: float):
+    near = date(2026, 12, 18)
+    return make_chain(vol=lambda k, e: near_iv if e == near else far_iv)
+
+
+def _fv_market(chain, rv: float | None, iv=HIGH_IV):
+    f = RVForecast(rv, rv, rv, rv) if rv is not None else None
+    state = {"TST": VolState(VolRegime.CHEAP, 0.25, f, 0.01, "test")}
+    return dataclasses.replace(market(chain, iv=iv), vol=state)
+
+
+FWD = _term_chain(0.30, 0.25)      # σ_f ≈ 0,228 (near 24 d, far 87 d)
+
+
+@pytest.mark.parametrize(("rv", "expected"), [
+    (0.26, True),       # σ_f ≤ σ(gap) en IV₁ 0,30 ≥ 1,05 × 0,26
+    (0.20, False),      # σ_f 0,228 > 0,20
+    (0.30, False),      # IV₁ 0,30 < 1,05 × 0,30
+    (None, False),      # geen RV-verwachting
+])
+def test_calendar_forward_vol_rule(rv, expected):
+    # HIGH_IV laat de IVP-regel falen: alleen de forward-vol-route kan toelaten
+    cands = cal(entry_rule="forward_vol").scan(_fv_market(FWD, rv), Book())
+    assert bool(cands) is expected
+    if expected:
+        assert "fwd:ok" in cands[0].rule_trace and "ivp:ivr:ok" not in cands[0].rule_trace
+    assert cal().scan(_fv_market(FWD, rv), Book()) == []        # standaard: alleen IVP
+
+
+def test_calendar_forward_vol_needs_vol_state_and_iv():
+    assert cal(entry_rule="forward_vol").scan(market(FWD), Book()) == []
+    no_put = dataclasses.replace(FWD, options=tuple(
+        o for o in FWD.options
+        if not (o.contract.expiry == date(2027, 2, 19) and o.contract.right is Right.PUT)))
+    assert cal(entry_rule="forward_vol").scan(_fv_market(no_put, 0.26), Book()) == []
+    no_iv = dataclasses.replace(FWD, options=tuple(
+        dataclasses.replace(o, iv_mid=dataclasses.replace(o.iv_mid, status=IVStatus.NO_QUOTE))
+        if o.contract.expiry == date(2026, 12, 18) else o for o in FWD.options))
+    strat = cal(entry_rule="forward_vol")
+    assert strat._fwd_trace(_fv_market(no_iv, 0.26), no_iv, "TST", date(2026, 12, 18),
+                            date(2027, 2, 19)) == "fwd:no_iv"
+    assert strat.scan(_fv_market(no_iv, 0.26), Book()) == []
+
+
+def test_calendar_forward_vol_negative_forward_variance_is_refused():
+    inverted = _term_chain(0.50, 0.20)          # σ₂²T₂ < σ₁²T₁
+    strat = cal(entry_rule="forward_vol")
+    m = _fv_market(inverted, 0.60)
+    assert strat._fwd_trace(m, inverted, "TST", date(2026, 12, 18),
+                            date(2027, 2, 19)) == "fwd:neg_var"
+    assert strat.scan(m, Book()) == []
+
+
+def test_calendar_either_rule_traces_which_route_holds():
+    either = cal(entry_rule="either")
+    (fwd_only,) = either.scan(_fv_market(FWD, 0.26), Book())                 # IVP faalt
+    assert "fwd:ok" in fwd_only.rule_trace and "ivp:ivr:ok" not in fwd_only.rule_trace
+    (ivp_only,) = either.scan(_fv_market(FWD, None, iv=LOW_IV), Book())      # geen RV
+    assert "ivp:ivr:ok" in ivp_only.rule_trace and "fwd:ok" not in ivp_only.rule_trace
+    (both,) = either.scan(_fv_market(FWD, 0.26, iv=LOW_IV), Book())
+    assert {"ivp:ivr:ok", "fwd:ok"} <= set(both.rule_trace)
+    assert either.scan(_fv_market(FWD, 0.20), Book()) == []                  # geen van beide
 
 
 def test_calendar_skips():

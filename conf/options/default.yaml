@@ -110,6 +110,14 @@ strategies:
     min_term_slope: 0.0
     max_ivp: 50
     max_iv_rv_ratio_fallback: 1.00
+    # Toelating: ivp (IVP-regel hierboven), forward_vol of either (een van beide).
+    # forward_vol: σ_f² = (σ₂²T₂ − σ₁²T₁)/(T₂ − T₁) uit de ATM-IV van near en far (gemiddelde van
+    # call en put op de strike het dichtst bij de forward); toegelaten als σ_f ≤
+    # max_fwd_vol_rv_ratio × σ(h₂−h₁) én IV₁ ≥ min_near_iv_rv_ratio × σ(h₁), met σ(h) de
+    # verwachte RV (vol_regime). Negatieve σ_f² of ontbrekende IV/RV: niet toegelaten.
+    entry_rule: ivp
+    max_fwd_vol_rv_ratio: 1.00
+    min_near_iv_rv_ratio: 1.05
     take_profit_multiple_debit: 1.25
     stop_loss_frac_debit: 0.50
   long_straddle_strangle:

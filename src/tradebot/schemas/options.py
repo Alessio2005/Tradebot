@@ -217,6 +217,11 @@ class CalendarSpreadConfig(_Strategy):
     max_ivp: IVRLevel = 50.0
     # Zonder IV-historie: IV/RV hieronder (vervangende regel, gemarkeerd).
     max_iv_rv_ratio_fallback: Ratio = 1.00
+    # Toelatingsregel: de IVP-regel, de forward-vol-regel of een van beide.
+    entry_rule: Literal["ivp", "forward_vol", "either"] = "ivp"
+    # Forward-vol-regel: σ_f ≤ dit × σ(h₂−h₁) én IV₁ ≥ min_near × σ(h₁).
+    max_fwd_vol_rv_ratio: Ratio = 1.00
+    min_near_iv_rv_ratio: Ratio = 1.05
     take_profit_multiple_debit: Multiple = 1.25
     stop_loss_frac_debit: Fraction = 0.50
 
