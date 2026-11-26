@@ -32,6 +32,8 @@ from tradebot.options.positions import (
 )
 from tradebot.options.rates import CashDividend
 from tradebot.options.risk.gate import SafetyBreach
+from tradebot.options.vol_regime import VolRegime
+from tradebot.schemas.options import RegimeAllowedConfig
 
 SPEC = SyntheticSpec(underlyings=(SyntheticUnderlying("TSTB", 50.0, strike_step=1.0),),
                      start=date(2026, 12, 14), n_days=2,
@@ -432,3 +434,98 @@ def test_the_heartbeat_holds_exactly_the_last_tick(tmp_path):
     rig = Rig(tmp_path / "run")
     rig.run(at(D0, 9, 31), start=at(D0, 9, 30))
     assert rig.e.paths.heartbeat.read_text(encoding="utf-8") == at(D0, 9, 31).isoformat()
+
+
+# --- short strangle met harde limieten (aangezet door de eigenaar) ---------------------------
+
+SV_SPEC = dataclasses.replace(SPEC, underlyings=(SyntheticUnderlying("TSTA", 50.0, strike_step=1.0),
+                                                 SyntheticUnderlying("TSTB", 50.0, strike_step=1.0)))
+SV_MKT = generate(SV_SPEC)
+
+
+def undefined_cfg(stress_frac=0.06):
+    """Alleen de short strangle, op TSTA en TSTB, met undefined risk toegestaan."""
+    base = replay_config(CFG, SV_MKT)
+    s = base.strategies
+    off = {k: getattr(s, k).model_copy(update={"enabled": False}) for k in type(s).model_fields}
+    off["short_straddle_strangle"] = s.short_straddle_strangle.model_copy(update={
+        "enabled": True, "underlyings": ("TSTA", "TSTB")})
+    every = ("short_straddle_strangle",)
+    fb = base.iv_metrics.fallback.model_copy(update={"high_iv_ratio": 1.05})
+    return base.model_copy(update={
+        "strategies": s.model_copy(update=off),
+        "risk": base.risk.model_copy(update={
+            "allow_undefined_risk": True, "max_undefined_stress_loss_frac": stress_frac,
+            "max_scenario_loss_frac": 0.5}),
+        "sizing": base.sizing.model_copy(update={"max_loss_frac_capital": 0.05}),
+        "iv_metrics": base.iv_metrics.model_copy(update={"fallback": fb}),
+        "vol_regime": base.vol_regime.model_copy(update={
+            "allowed": RegimeAllowedConfig(rich=every, normal=every, cheap=every)})})
+
+
+def test_the_book_stress_cap_blocks_a_second_undefined_entry(tmp_path):
+    r = Rig(tmp_path / "a", undefined_cfg(), market=SV_MKT)
+    r.run(at(D0, 13, 31))
+    (pos,) = r.state.open_positions()
+    assert pos.strategy == "short_straddle_strangle" and math.isinf(pos.max_loss)
+    first, second = r.events("risk_decision")
+    assert first["verdict"] == "approve" and second["underlying"] != pos.underlying
+    assert second["verdict"] == "reject" and second["reason"] == "limits:undefined_stress_loss"
+    (name, measured, threshold) = second["checks"][-1]
+    assert name == "undefined_stress_loss" and measured > threshold == 1500.0
+    # Met een ruimere grens gaat dezelfde tweede entry wel door: de grens blokkeerde hem.
+    wide = Rig(tmp_path / "b", undefined_cfg(0.5), market=SV_MKT)
+    wide.run(at(D0, 13, 31))
+    assert len(wide.state.open_positions()) == 2
+
+
+@pytest.fixture
+def strangle_rig(tmp_path):
+    r = Rig(tmp_path, undefined_cfg(), market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    return r
+
+
+def _stress(rig, und):
+    rig.e._vol[und] = dataclasses.replace(rig.e._vol["TSTB"], regime=VolRegime.STRESS)
+
+
+def _stress_closes(rig, now):
+    return [a for a in rig.events("action") if a["reason"] == "regime_stress"
+            and a["ts"] == now.isoformat()]
+
+
+def test_stress_on_the_underlying_closes_undefined_risk(strangle_rig):
+    r = strangle_rig
+    (pos,) = r.state.open_positions()
+    now = at(D0, 10, 2)
+    asyncio.run(r.e._manage(now))
+    assert _stress_closes(r, now) == []
+    _stress(r, pos.underlying)
+    now = at(D0, 10, 3)
+    asyncio.run(r.e._manage(now))
+    (a,) = _stress_closes(r, now)
+    assert a["position_id"] == pos.position_id and a["urgency"] == "stop"
+    (d,) = [x for x in r.events("risk_decision") if x["kind"] == "close"]
+    assert d["verdict"] == "approve"
+
+
+def test_stress_closes_also_while_halted_and_only_undefined_risk(strangle_rig):
+    r = strangle_rig
+    (pos,) = r.state.open_positions()
+    r.e.paths.halt_file.touch()
+    asyncio.run(r.e.tick(at(D0, 10, 2)))
+    assert r.e.mode is EngineMode.HALTED
+    _stress(r, "SPY")                       # STRESS op de marktonderliggende: het hele boek
+    finite = dataclasses.replace(pos, max_loss=500.0)
+    r.state.positions = [finite]
+    now = at(D0, 10, 3)
+    asyncio.run(r.e._manage(now))
+    assert _stress_closes(r, now) == []
+    r.state.positions = [pos]
+    now = at(D0, 10, 4)
+    asyncio.run(r.e._manage(now))
+    (a,) = _stress_closes(r, now)
+    assert a["position_id"] == pos.position_id
+    assert [x["verdict"] for x in r.events("risk_decision") if x["kind"] == "close"] == [
+        "approve"]

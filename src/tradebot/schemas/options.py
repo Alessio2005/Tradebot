@@ -291,6 +291,9 @@ class ShortVolConfig(_Strategy):
     take_profit_frac: Fraction = 0.50
     stop_loss_multiple_credit: Multiple = 2.0
     close_dte: Days = 21
+    underlyings: tuple[Ticker, ...] = ("SPY", "QQQ", "IWM")   # allow-list
+    max_per_underlying: Annotated[int, Field(ge=1, le=10)] = 1
+    short_delta_exit: Delta = 0.30
 
 
 class StrategiesConfig(StrictModel):
@@ -398,6 +401,7 @@ class RiskConfig(StrictModel):
         -10.0, 0.0, 10.0, 20.0)
     max_scenario_loss_frac: Fraction = 0.08
     allow_undefined_risk: bool = False
+    max_undefined_stress_loss_frac: Fraction = 0.06
     pdt_guard: bool = True
 
     @model_validator(mode="after")

@@ -24,9 +24,14 @@ Drie vragen, elk met een vaste regel (geen training, geen fit op historische dat
    | NORMAL    | al het andere                                                          |
 
 Welke strategieën in welk regime nieuwe posities mogen openen, staat in de config
-(`vol_regime.allowed`). Het regime raakt ALLEEN nieuwe entries: sluiten, stops, rolls en
+(`vol_regime.allowed`). Het regime raakt verder alleen nieuwe entries: sluiten, stops, rolls en
 bijsturingen gaan altijd door. STRESS op de marktonderliggende (standaard SPY) geldt voor het
 hele boek (`effective_regimes`).
+
+Eén uitzondering, het enige effect op bestaande posities: is het effectieve regime van de
+onderliggende STRESS, dan sluit de engine elke undefined-risk positie (de short
+straddle/strangle, `max_loss` oneindig) op die onderliggende met `Urgency.STOP`, reden
+`regime_stress` (`Engine._manage`, vóór de regels van de strategie en ook in HALT).
 """
 from __future__ import annotations
 

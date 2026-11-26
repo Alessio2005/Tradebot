@@ -287,12 +287,38 @@ def test_wheel_transitions_are_exactly_the_table():
                 transition(p, e)
 
 
-def test_short_vol_manages_like_a_credit_position():
-    s = ShortVol(S.short_straddle_strangle, RULES)
-    (c,) = s.scan(market(capital=RICH), Book())
-    pos = open_position(c)
-    assert s.manage(pos, later()) == []
-    assert reasons(s, pos, later(80.0)) == [(*CLOSE_STOP, "stop_loss")]
+def short_vol(**kw):
+    return ShortVol(S.short_straddle_strangle.model_copy(update={"underlyings": ("TST",), **kw}),
+                    RULES)
+
+
+@pytest.fixture(scope="module")
+def strangle():
+    (c,) = short_vol().scan(market(capital=RICH), Book())
+    return open_position(c)
+
+
+def test_short_vol_manages_like_a_credit_position(strangle):
+    s = short_vol()
+    assert s.manage(strangle, later()) == []
+    assert reasons(s, strangle, later(80.0)) == [(*CLOSE_STOP, "stop_loss")]
+    assert reasons(s, strangle, later(now=at(2026, 12, 30, 15))) == [(*CLOSE_STOP, "expiry")]
+    assert reasons(short_vol(take_profit_frac=0.99), strangle, later(now=at(2026, 12, 11))) == [
+        (*CLOSE_NORMAL, "dte")]
+
+
+@pytest.mark.parametrize("spot", [95.0, 104.0])
+def test_short_vol_closes_a_short_leg_past_the_delta_exit(strangle, spot):
+    # De legs staan op ~0,16 delta; bij 95 of 104 is één kant > 0,30, het stopverlies nog niet.
+    assert reasons(short_vol(), strangle, later(spot)) == [(*CLOSE_STOP, "short_delta")]
+    assert reasons(short_vol(short_delta_exit=0.5), strangle, later(spot)) == []
+
+
+def test_short_vol_delta_exit_goes_before_the_time_rules(strangle):
+    s = short_vol(take_profit_frac=0.99)
+    m = later(106.0, now=at(2026, 12, 11))     # call-delta ~0,34
+    assert reasons(s, strangle, m) == [(*CLOSE_STOP, "short_delta")]
+    assert reasons(s, strangle, dataclasses.replace(m, chains={})) == [(*CLOSE_NORMAL, "dte")]
 
 
 def test_manage_is_pure(bull_put):

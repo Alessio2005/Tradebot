@@ -15,18 +15,31 @@ from tests.unit.options.market_helpers import (
     cached_chain,
     make_chain,
     market,
+    open_position,
 )
 from tradebot.options.contracts import Right
 from tradebot.options.events import Events
 from tradebot.options.iv_metrics import IVRStatus
-from tradebot.options.positions import Book, Leg, MarketState, StrategyPosition, Trend
+from tradebot.options.positions import (
+    Book,
+    Leg,
+    MarketState,
+    PositionStatus,
+    StrategyPosition,
+    Trend,
+)
 from tradebot.options.pricing.implied_vol import IVStatus
 from tradebot.options.strategies.common import rules_from_config
 from tradebot.options.strategies.credit import CreditSpread, IronCondor
 from tradebot.options.strategies.debit import CalendarSpread, DebitVertical, LongVol
 from tradebot.options.strategies.income import CashSecuredPut, CoveredCall
 from tradebot.options.strategies.registry import build_strategies
-from tradebot.options.strategies.short_vol import ShortVol
+from tradebot.options.strategies.short_vol import (
+    STRESS_MOVE,
+    ShortVol,
+    position_stress_loss_usd,
+    stress_loss,
+)
 from tradebot.options.strategies.wheel import Wheel
 from tradebot.options.vol_regime import RVForecast, VolRegime, VolState
 from tradebot.utils.failfast import ConfigContractError
@@ -362,7 +375,8 @@ def test_wheel_scans_by_phase():
 # --- short straddle / strangle en de registry ------------------------------------------------
 
 def sv(**kw):
-    return ShortVol(S.short_straddle_strangle.model_copy(update=kw), RULES)
+    return ShortVol(S.short_straddle_strangle.model_copy(update={"underlyings": ("TST",), **kw}),
+                    RULES)
 
 
 def test_short_vol_has_undefined_risk_and_a_stress_size():
@@ -374,6 +388,41 @@ def test_short_vol_has_undefined_risk_and_a_stress_size():
     assert sv().scan(market(capital=1_000.0), Book()) == []
     assert sv(iv_condition="low").scan(market(), Book()) == []
     assert sv(dte=(300, 400)).scan(market(), Book()) == []
+
+
+def test_short_vol_stress_loss_is_the_move_minus_the_credit():
+    (c,) = sv().scan(market(capital=RICH), Book())
+    put_k, call_k = (leg.contract.strike for leg in c.legs)
+    want = max(put_k - 100.0 * (1 - STRESS_MOVE), 100.0 * (1 + STRESS_MOVE) - call_k) - c.net_credit
+    assert stress_loss(put_k, call_k, 100.0, c.net_credit) == pytest.approx(want)
+    assert f"stress_loss_unit:{want * 100:.2f}" in c.rule_trace
+    pos = open_position(c)
+    assert position_stress_loss_usd(pos, 100.0) == pytest.approx(want * 100 * c.quantity)
+    # Bij een andere spot telt de nieuwe spot, met het credit van de entry.
+    assert position_stress_loss_usd(pos, 110.0) == pytest.approx(
+        (max(put_k - 88.0, 132.0 - call_k) - c.net_credit) * 100 * c.quantity)
+
+
+def test_short_vol_only_opens_on_the_allow_list():
+    assert S.short_straddle_strangle.underlyings == ("SPY", "QQQ", "IWM")
+    assert ShortVol(S.short_straddle_strangle, RULES).scan(market(capital=RICH), Book()) == []
+    assert sv(underlyings=("SPY", "TST")).scan(market(capital=RICH), Book()) != []
+
+
+def test_short_vol_opens_at_most_max_per_underlying():
+    (c,) = sv().scan(market(capital=RICH), Book())
+    held = Book(positions=(open_position(c),))
+    assert sv().scan(market(capital=RICH), held) == []
+    # Een tweede mag met max_per_underlying 2 (max_loss 0: los van de sizing op de ruimte).
+    held_zero = Book(positions=(dataclasses.replace(open_position(c), max_loss=0.0),))
+    assert len(sv(max_per_underlying=2).scan(market(capital=RICH), held_zero)) == 1
+    assert sv().scan(market(capital=RICH), held_zero) == []
+    pos = open_position(c)
+    closed = Book(positions=(dataclasses.replace(pos, status=PositionStatus.CLOSED),))
+    other = Book(positions=(dataclasses.replace(pos, underlying="TSTB", max_loss=0.0),
+                            dataclasses.replace(pos, strategy="iron_condor", max_loss=0.0)))
+    assert len(sv().scan(market(capital=RICH), closed)) == 1
+    assert len(sv().scan(market(capital=RICH), other)) == 1
 
 
 def test_short_vol_skips_without_quotes():

@@ -44,6 +44,7 @@ from tradebot.options.risk.gate import (
 from tradebot.options.strategies.common import rules_from_config
 from tradebot.options.strategies.credit import CreditSpread, IronCondor
 from tradebot.options.strategies.debit import DebitVertical
+from tradebot.options.strategies.short_vol import ShortVol, position_stress_loss_usd, stress_loss
 
 RULES = rules_from_config(CFG)
 GATE = RiskGate(CFG, SETTINGS.engines, Method.BAW)
@@ -128,6 +129,65 @@ def test_closed_positions_do_not_count(spread):
     closed = tuple(dataclasses.replace(open_position(spread, position_id=f"c{i}"),
                                        status=PositionStatus.CLOSED) for i in range(10))
     assert GATE.review(proposal(spread), Book(closed), market(), OK).verdict is Verdict.APPROVE
+
+
+# --- undefined risk: het boekbrede stressverlies -------------------------------------------
+
+def undefined_gate(frac=0.06):
+    cfg = CFG.model_copy(update={"risk": CFG.risk.model_copy(update={
+        "allow_undefined_risk": True, "max_undefined_stress_loss_frac": frac})})
+    return RiskGate(cfg, SETTINGS.engines, Method.BAW)
+
+
+@pytest.fixture(scope="module")
+def strangle():
+    sv = ShortVol(CFG.strategies.short_straddle_strangle.model_copy(
+        update={"underlyings": ("TST",)}), RULES)
+    (c,) = sv.scan(market(capital=1e6), Book())
+    return c
+
+
+def stress_check(d):
+    (c,) = (c for c in d.checks if c.name == "undefined_stress_loss")
+    return c
+
+
+def test_an_undefined_entry_is_checked_on_the_book_stress_loss(strangle):
+    m = market(capital=1e6)
+    d = undefined_gate().review(proposal(strangle), Book(), m, OK)
+    assert d.verdict is Verdict.APPROVE
+    unit = stress_loss(*(leg.contract.strike for leg in strangle.legs), 100.0,
+                       strangle.net_credit) * 100
+    c = stress_check(d)
+    assert c.measured == pytest.approx(unit * strangle.quantity) and c.threshold == 60_000.0
+    # Posities met beperkt risico tellen niet mee in het stressverlies.
+    (spread,) = CreditSpread(CFG.strategies.credit_spread, RULES).scan(market(), Book())
+    d = undefined_gate().review(proposal(strangle), Book((open_position(spread),)), m, OK)
+    assert stress_check(d).measured == pytest.approx(unit * strangle.quantity)
+    # Een entry met beperkt risico krijgt de check niet (het journal blijft gelijk).
+    assert all(c.name != "undefined_stress_loss"
+               for c in undefined_gate().review(proposal(spread), Book(), market(), OK).checks)
+
+
+def test_the_book_stress_cap_resizes_or_blocks_a_second_entry(strangle):
+    m = market(capital=1e6)
+    held = dataclasses.replace(open_position(strangle, position_id="o1"), max_loss=math.inf)
+    base = position_stress_loss_usd(held, 100.0)
+    unit = position_stress_loss_usd(dataclasses.replace(held, units=1, legs=tuple(
+        dataclasses.replace(leg, qty=leg.qty // held.units) for leg in held.legs),
+        entry_net=strangle.net_credit * 100), 100.0)
+    d = undefined_gate(0.03).review(proposal(strangle), Book((held,)), m, OK)
+    assert d.verdict is Verdict.RESIZE
+    assert d.approved.proposal.quantity == math.floor((30_000.0 - base) / unit)
+    assert math.isinf(d.approved.proposal.max_loss)
+    d = undefined_gate(0.02).review(proposal(strangle), Book((held,)), m, OK)
+    assert d.verdict is Verdict.REJECT and d.reason == "limits:undefined_stress_loss"
+    assert stress_check(d).measured == pytest.approx(base + unit)
+    # Zonder keten voor een open undefined-risk positie is het stressverlies onbekend: weigeren.
+    elsewhere = dataclasses.replace(held, underlying="TSTB")
+    d = undefined_gate().review(proposal(strangle), Book((elsewhere,)), m, OK)
+    assert d.verdict is Verdict.REJECT and "undefined_stress_loss" in d.reason
+    assert math.isinf(stress_check(d).measured)
 
 
 # --- harde fouten --------------------------------------------------------------------------

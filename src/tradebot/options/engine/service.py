@@ -779,13 +779,21 @@ class Engine:
                    for p in self.state.positions)
 
     async def _manage(self, now: datetime) -> None:
+        """Beheer per open positie; loopt ook in HALT (sluiten verkleint risico).
+
+        Vóór de regels van de strategie: een undefined-risk positie (`max_loss` oneindig) op een
+        onderliggende met effectief regime STRESS gaat dicht (STOP, `regime_stress`)."""
         market = self.market_state(now)
+        regimes = effective_regimes(self._vol, self.cfg.vol_regime.market_underlying)
         for pos in list(self.state.open_positions()):
             if self._pending(pos.position_id):
                 continue
             if self.mode is EngineMode.UNWINDING:
                 acts = [Action(ActionKind.CLOSE, pos.position_id, pos.intents(), Urgency.STOP,
                                "unwind")]
+            elif math.isinf(pos.max_loss) and regimes.get(pos.underlying) is VolRegime.STRESS:
+                acts = [Action(ActionKind.CLOSE, pos.position_id, pos.intents(), Urgency.STOP,
+                               "regime_stress")]
             else:
                 strat = self.by_name.get(pos.strategy)
                 acts = strat.manage(pos, market) if strat is not None else []

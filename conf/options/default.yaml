@@ -167,6 +167,9 @@ strategies:
     take_profit_frac: 0.50
     stop_loss_multiple_credit: 2.0
     close_dte: 21
+    underlyings: [SPY, QQQ, IWM]   # allow-list: alleen deze onderliggenden
+    max_per_underlying: 1          # open posities van deze strategie per onderliggende
+    short_delta_exit: 0.30         # een short leg met |delta| > 0,30 → CLOSE, STOP
 
 # Volatiliteitsregime en volatility risk premium (src/tradebot/options/vol_regime.py). Vaste
 # regels, geen fit: de verwachte RV is een vaste menging van de Yang-Zhang-RV over drie
@@ -229,6 +232,8 @@ risk:                            # detailontwerp 8; fracties van het kapitaal
   scenario_vol_points: [-10, 0, 10, 20]
   max_scenario_loss_frac: 0.08
   allow_undefined_risk: false
+  max_undefined_stress_loss_frac: 0.06  # som van het stressverlies (±20 % spot, min credit)
+                                        # van alle undefined-risk posities plus de nieuwe
   pdt_guard: true
 
 execution:                       # detailontwerp 10

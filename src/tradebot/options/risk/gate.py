@@ -14,6 +14,11 @@ Volgorde:
    undefined risk zonder `allow_undefined_risk`, of als de PDT-teller het verbiedt.
 3. **Aantallen**: open posities en nieuwe posities vandaag.
 4. **Pro forma**: de maten van het boek na de order, tegen elke grens.
+   - Een entry met undefined risk (`max_loss` oneindig) krijgt er één check bij,
+     `undefined_stress_loss`: de som van het stressverlies (`short_vol.STRESS_MOVE`, in USD, bij
+     de huidige spot) van alle open undefined-risk posities plus de nieuwe, tegen
+     `max_undefined_stress_loss_frac` × kapitaal. Zonder keten voor een open undefined-risk
+     positie is die som onbekend en dus te groot.
    - Een entry wordt per eenheid verkleind tot hij past (RESIZE), of geweigerd.
    - Een volledige sluiting wordt altijd goedgekeurd: hij haalt een positie met beperkt
      risico weg, ook in HALT. Een stop gaat vóór de PDT-regel.
@@ -56,6 +61,7 @@ from ..positions import (
     Urgency,
 )
 from ..pricing.engines import EngineSettings, Method
+from ..strategies.short_vol import position_stress_loss_usd
 from .aggregate import aggregate
 from .limits import BookMetrics, CheckResult, check, measure
 from .pdt import pdt_blocks_entry
@@ -253,6 +259,19 @@ class RiskGate:
         return measure(positions, book.shares, market, self.beta, self.scenarios, self.method,
                        self.engines)
 
+    @staticmethod
+    def _stress_usd(positions: tuple[StrategyPosition, ...], market: MarketState) -> float:
+        """Het stressverlies van de undefined-risk posities onder `positions` (USD)."""
+        total = 0.0
+        for x in positions:
+            if not math.isinf(x.max_loss):
+                continue
+            chain = market.chains.get(x.underlying)
+            if chain is None:
+                return math.inf
+            total += position_stress_loss_usd(x, chain.spot)
+        return total
+
     def _approve(self, p: OrderProposal, verdict: Verdict, checks: tuple[CheckResult, ...],
                  market: MarketState, reason: str) -> Decision:
         return Decision(verdict, ApprovedOrder(p, market.now, checks, _SENTINEL), checks, reason)
@@ -302,9 +321,15 @@ class RiskGate:
                                 variant=p.variant)
         base = self._measure(live, book, market)
         per_unit = self._measure((unit,), Book(), market)
+        undefined = math.isinf(p.max_loss)
+        stress_base = self._stress_usd(live, market) if undefined else 0.0
+        stress_unit = self._stress_usd((unit,), market) if undefined else 0.0
         checks: tuple[CheckResult, ...] = ()
         for q in range(p.quantity, 0, -1):
             checks = check(base.plus(per_unit, q), r, cap)
+            if undefined:
+                checks += (CheckResult("undefined_stress_loss", stress_base + q * stress_unit,
+                                       r.max_undefined_stress_loss_frac * cap),)
             if all(c.ok for c in checks):
                 if q == p.quantity:
                     return self._approve(p, Verdict.APPROVE, checks, market, "entry")
