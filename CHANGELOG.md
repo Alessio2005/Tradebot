@@ -4,6 +4,13 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: historische simulatie op echte koersen en echte IV (2026-11-26)
+`tradebot.options.data.historical` bouwt een markt voor de bestaande replay uit echte
+dagkoersen en de echte 30-daagse IV per dag (CSV per onderliggende), met QuantLib-modelketens
+(zelfde smile en spreads als de synthetische markt, gecentreerd op de IV van die dag). Er zijn
+geen historische optiekoersen: dit test de regels en de engine op echte paden en meet geen
+echt rendement. Dividenden en earnings ontbreken (geen bron).
+
 ## Fix: IBKR-account in een andere basisvaluta (2026-11-25)
 - `options.execution.ibkr.IBKRBroker.account` las alleen regels in USD. Een paper-account met
   EUR als basisvaluta gaf daardoor elke ronde `geen equity of cash van IBKR`, en na drie keer
