@@ -220,6 +220,18 @@ def test_the_feed_builds_snapshots_in_batches():
     assert f.events("TST") == Events("TST", NOW.date())
 
 
+def test_the_feed_always_fetches_the_legs_of_open_positions():
+    ib = FakeIB()
+    f = IBKRFeed(ib, ("TST",), 0.04, strike_range=0.05, events_source=_events, wait_seconds=0)
+    far = OptionContract("TST", date(2026, 12, 18), 120.0, Right.CALL)        # buiten +-5 %
+    f.held = lambda: [far, C,                                               # C: al in het raster
+                      OptionContract("OTH", date(2026, 12, 18), 120.0, Right.PUT),
+                      OptionContract("TST", date(2026, 1, 2), 120.0, Right.PUT)]   # verlopen
+    run(f.refresh(NOW))
+    keys = {r.contract.key() for r in f.snapshot("TST", NOW).options}
+    assert far.key() in keys and len(keys) == len(EXPIRIES) * 11 * 2 + 1
+
+
 def test_prices_from_ibkr_are_cleaned():
     assert _px(None) is None and _px("x") is None and _px(float("nan")) is None
     assert _px(0.0) is None and _px("1.5") == 1.5 and _int(-1) == 0 and _int(7.0) == 7

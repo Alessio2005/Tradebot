@@ -48,6 +48,8 @@ async def run_paper(cfg: OptionsConfig, ib: Any, run_dir: Path, stop: asyncio.Ev
         state = (load_state(paths.state, PAPER_MODE, broker.account_hash)
                  or EngineState(PAPER_MODE, broker.account_hash, clock().isoformat()))
         engine = Engine(cfg, feed, broker, paths, state, alert)
+        feed.held = lambda: [leg.contract for p in engine.state.open_positions()
+                             for leg in p.option_legs if leg.contract is not None]
         last: datetime | None = None
         while not stop.is_set():
             now = clock()

@@ -68,3 +68,41 @@ def test_the_cli_runs_a_replay(mkt, tmp_path, capsys):
     assert json.loads(capsys.readouterr().out)["open_short_legs_past_expiry"] == 0
     import tradebot.options.__main__ as entry  # de module-ingang laadt zonder te draaien
     assert entry.main is cli.main
+
+
+def test_parallel_prebuilt_chains_give_the_same_replay(mkt, result, tmp_path):
+    res, _ = result
+    par = asyncio.run(run_replay(CFG, mkt, tmp_path, workers=2))
+    assert par.as_record() | {"journal": ""} == res.as_record() | {"journal": ""}
+
+
+def test_the_cached_builder_falls_back_when_the_snapshot_differs(mkt):
+    from tradebot.options.chain.builder import ChainBuilder
+    from tradebot.options.engine.replay import CachedBuilder
+    from tradebot.options.pricing.engines import Use
+    from tradebot.options.pricing.settings import pricer_settings
+    from tradebot.options.rates import Carry
+
+    inner = ChainBuilder(pricer_settings(CFG.pricing), 10.0, Use.SCAN)
+    s = mkt.snapshots[0]
+    carry = Carry(mkt.rate, dividends=mkt.events[s.underlying].dividends)
+    cached = inner.build(s.underlying, s.spot, s.options[:4], s.asof, carry)
+    b = CachedBuilder(inner, {(s.underlying, s.asof): cached})
+    assert b.build(s.underlying, s.spot, s.options, s.asof, carry) is cached
+    other = b.build(s.underlying, s.spot + 1.0, s.options[:2], s.asof, carry)
+    assert other is not cached and len(other.options) <= 2
+
+
+def test_one_prebuild_job_is_a_plain_chain_build(mkt):
+    import dataclasses
+
+    from tradebot.options.chain.builder import ChainBuilder
+    from tradebot.options.engine.replay import _build_one
+    from tradebot.options.pricing.engines import Use
+    from tradebot.options.pricing.settings import pricer_settings
+    from tradebot.options.rates import Carry
+
+    s = dataclasses.replace(mkt.snapshots[0], options=mkt.snapshots[0].options[:2])
+    chain = _build_one((ChainBuilder(pricer_settings(CFG.pricing), 10.0, Use.SCAN), s,
+                        Carry(mkt.rate)))
+    assert (chain.underlying, chain.asof, chain.spot) == (s.underlying, s.asof, s.spot)

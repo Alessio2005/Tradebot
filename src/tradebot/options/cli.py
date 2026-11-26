@@ -1,7 +1,8 @@
 """De opdrachtregel van de options-engine: `python -I -m tradebot.options <opdracht>`.
 
-* `replay --market DIR --out DIR [--config PAD]`: speel een opgeslagen markt af met de
-  paper-broker en schrijf journal, staat en `summary.json` naar `--out`.
+* `replay --market DIR --out DIR [--config PAD] [--workers N]`: speel een opgeslagen markt af
+  met de paper-broker en schrijf journal, staat en `summary.json` naar `--out`. `--workers`
+  bouwt de ketens vooraf parallel; de uitkomst is dezelfde.
 * `historical --out DIR --start D --end D [--config PAD]`: bouw een historische markt uit de
   koersen en de IV van IBKR (alleen lezen; dezelfde `IB_*`-omgeving, client-id 18).
 * `paper --run-dir DIR [--config PAD] [--healthcheck]`: de paper-dienst tegen IB Gateway.
@@ -74,6 +75,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     rp.add_argument("--market", type=Path, required=True)
     rp.add_argument("--out", type=Path, required=True)
     rp.add_argument("--config", type=Path, default=DEFAULT_OPTIONS_CONFIG)
+    rp.add_argument("--workers", type=int, default=1,
+                    help="processen om de ketens vooraf parallel te bouwen (zelfde uitkomst)")
     hp = sub.add_parser("historical",
                         help="bouw een historische markt uit IBKR-koersen en -IV (alleen lezen)")
     hp.add_argument("--out", type=Path, required=True)
@@ -97,6 +100,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_market(build_market(series, spec), args.out)
         print(f"historische markt {spec.start} t/m {spec.end} geschreven naar {args.out}")
         return 0
-    res = asyncio.run(run_replay(cfg, read_market(args.market), args.out))
+    res = asyncio.run(run_replay(cfg, read_market(args.market), args.out,
+                                 args.workers))
     print(json.dumps(res.as_record(), indent=1, sort_keys=True))
     return 1 if res.open_short_legs_past_expiry or res.halted else 0

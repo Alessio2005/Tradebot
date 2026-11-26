@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -76,6 +76,10 @@ class IBKRFeed:
         self._bars: dict[str, pd.DataFrame] = {}
         self._events: dict[str, Events] = {}
         self._bars_day: date | None = None
+        #: De optiecontracten van open posities. Die worden altijd opgehaald, ook buiten
+        #: `strike_range` of na de laatste expiratie van het raster: anders heeft een leg na
+        #: een grote koersbeweging geen quote en kan de positie niet dicht (assignment).
+        self.held: Callable[[], Iterable[OptionContract]] = lambda: ()
 
     # --- MarketFeed ---------------------------------------------------------------------
 
@@ -135,9 +139,12 @@ class IBKRFeed:
                                           for x in smart.expirations) if today < e <= last)
             lo, hi = spot * (1 - self.strike_range), spot * (1 + self.strike_range)
             strikes = sorted(k for k in smart.strikes if lo <= k <= hi)
+            grid = {(e, float(k), r) for e in expiries for k in strikes for r in ("P", "C")}
+            grid |= {(c.expiry, c.strike, "C" if c.right is Right.CALL else "P")
+                     for c in self.held() if c.underlying == name and c.expiry >= today}
             wanted = [Option(name, e.strftime("%Y%m%d"), k, r, "SMART", multiplier="100",
                              currency="USD", tradingClass=smart.tradingClass)
-                      for e in expiries for k in strikes for r in ("P", "C")]
+                      for e, k, r in sorted(grid, key=lambda x: (x[0], x[1], x[2] == "C"))]
             q = [c for c in await self.ib.qualifyContractsAsync(*wanted)
                  if c is not None and c.conId]
             rows = []

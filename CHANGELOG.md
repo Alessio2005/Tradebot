@@ -12,6 +12,9 @@
 - `Market.iv_history` (in `market.json`, optioneel voor oudere markten) en `run_replay` zet die
   als begin-IV-historie: IVR is in de simulatie vanaf dag één bruikbaar.
 - Runbook en detailontwerp (sectie 15) bijgewerkt. De uitkomst meet de regels, niet echte fills.
+- `replay --workers N`: alle ketens vooraf parallel bouwen (IV en greeks zijn ruim 90 % van de
+  tijd); dezelfde uitkomst, een half jaar in ongeveer een half uur in plaats van vier uur.
+- Strikebereik van de historische markt ±25 % (was ±12 %), zodat gehouden legs een quote houden.
 
 ## Fix: IBKR-account in een andere basisvaluta (2026-11-25)
 - `options.execution.ibkr.IBKRBroker.account` las alleen regels in USD. Een paper-account met
@@ -35,6 +38,9 @@
   10090 en 10167 (vertraagde data) en "API connection failed" gaan niet meer naar de log;
   tick 90 (vertraagd "halted") krijgt de betekenis van tick 49, zodat `ib_async` 2.0.1 er geen
   `AssertionError` meer voor logt. Alle andere meldingen blijven.
+- `IBKRFeed` haalt de contracten van open posities altijd op, ook buiten `strike_range`. Zonder
+  dat had een leg na een grote koersbeweging geen quote meer en kon de positie niet dicht
+  (gezien in de simulatie: AAPL +16 %, de korte call van een calendar werd geassigned).
 
 ## Options fase 7: IBKR-paper, deployment en de live-schakelaar (uit) (2026-11-24)
 Detailontwerp: secties 10.6, 12.1, 13 en 14. Nog steeds alleen fictief geld.

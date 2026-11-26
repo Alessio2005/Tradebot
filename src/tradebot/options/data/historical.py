@@ -66,7 +66,7 @@ class HistoricalSpec:
     end: date
     rate: float = 0.04
     snapshot_times: tuple[time, ...] = (time(10, 0), time(13, 30), time(15, 0))
-    strike_range: float = 0.12
+    strike_range: float = 0.25    # ruim: een gehouden leg houdt na een grote beweging een quote
     weekly_days: int = 21
     max_days: int = 60
     smile_curvature: float = 0.10

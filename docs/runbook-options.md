@@ -29,7 +29,7 @@ docker compose -f infra/compose/docker-compose.yml run --rm --no-deps -e IB_CLIE
   --out /var/lib/tradebot/historical/markt --start 2026-06-01 --end 2026-11-25
 docker compose -f infra/compose/docker-compose.yml run --rm --no-deps options-paper \
   python -I -m tradebot.options replay \
-  --market /var/lib/tradebot/historical/markt --out /var/lib/tradebot/historical/run
+  --market /var/lib/tradebot/historical/markt --out /var/lib/tradebot/historical/run --workers 5
 ```
 
 `historical` vraagt bij IB Gateway (alleen lezen, client-id 18) twee jaar dagbars en IBKR's
@@ -37,7 +37,8 @@ dagelijkse 30-daagse IV per onderliggende, en dividenden en earnings bij yfinanc
 worden met QuantLib gereconstrueerd: het IV-niveau is echt, de smile, de spreads en het open
 interest komen uit het model (`options.data.historical`). De IV van vóór de startdatum gaat mee
 als IV-historie, zodat IVR vanaf dag één werkt. De uitkomst meet de regels op echte koers- en
-IV-paden, **niet** echte fills. Een maand duurt ongeveer een kwartier.
+IV-paden, **niet** echte fills. `--workers 5` bouwt de ketens vooraf parallel: een half jaar
+duurt dan ongeveer een half uur tot een uur in plaats van vier uur.
 
 ## De paper-dienst tegen IBKR
 
