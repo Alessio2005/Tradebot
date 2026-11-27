@@ -407,7 +407,7 @@ class RiskConfig(StrictModel):
     allow_undefined_risk: bool = False
     max_undefined_stress_loss_frac: Fraction = 0.06
     # Per positie met credit: sluit (STOP `gamma_risk`) als het gamma-verlies over één dag (½·|Γ|·
-    # (S·σ_1d)²) deze fractie van de ontvangen credit overschrijdt. None = uit; aanbevolen 0,5.
+    # (S·σ_1d)²) deze fractie van de netto credit (`entry_net`, na een ADJUST de lopende) overschrijdt. None = uit; aanbevolen 0,5.
     max_gamma_loss_frac_credit: Annotated[float, Field(gt=0.0, le=10.0)] | None = None
     pdt_guard: bool = True
 

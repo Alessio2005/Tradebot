@@ -626,11 +626,6 @@ def _gamma_cfg(frac):
         update={"max_gamma_loss_frac_credit": frac})})
 
 
-def _gamma_closes(rig, now):
-    return [a for a in rig.events("action") if a["reason"] == "gamma_risk"
-            and a["ts"] == now.isoformat()]
-
-
 def test_gamma_loss_1d_is_half_gamma_times_the_daily_move_squared(strangle_rig):
     from tradebot.options.risk.gamma import gamma_loss_1d, sigma_1d
     r = strangle_rig
@@ -665,9 +660,11 @@ def test_gamma_risk_is_off_by_default_and_with_a_wide_limit_or_no_rv_or_no_credi
     for i, frac in enumerate((None, 1e6)):
         r = Rig(tmp_path / str(i), _gamma_cfg(frac), market=SV_MKT)
         r.run(at(D0, 10, 1))
+        (pos,) = r.state.open_positions()
+        assert not r.e._gamma_breach(pos)
         now = at(D0, 10, 3)
         asyncio.run(r.e._manage(now))
-        assert _gamma_closes(r, now) == []
+        assert [a for a in r.events("action") if a["reason"] == "gamma_risk"] == []
     r = Rig(tmp_path / "x", _gamma_cfg(1e-6), market=SV_MKT)
     r.run(at(D0, 10, 1))
     (pos,) = r.state.open_positions()

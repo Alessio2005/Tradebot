@@ -21,7 +21,10 @@ __all__ = ["gamma_loss_1d", "sigma_1d"]
 
 
 def sigma_1d(rv: RVForecast) -> float:
-    """De verwachte dagbeweging (fractie van spot): σ(1 dag) geannualiseerd × √(1/252)."""
+    """De verwachte dagbeweging (fractie van spot): σ(1 dag) geannualiseerd × √(1/252).
+
+    `at_horizon(1)` is één kalenderdag; die geannualiseerde σ gaat met √(1/252) naar één
+    handelsdag, zoals het plan voorschrijft."""
     return rv.at_horizon(1) * math.sqrt(1.0 / 252.0)
 
 

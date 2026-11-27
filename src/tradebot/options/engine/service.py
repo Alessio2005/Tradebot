@@ -841,7 +841,8 @@ class Engine:
                 await self._act(a, pos, now)
 
     def _gamma_breach(self, pos: StrategyPosition) -> bool:
-        """Gamma-verlies over één dag boven `risk.max_gamma_loss_frac_credit` × ontvangen credit
+        """Gamma-verlies over één dag boven `risk.max_gamma_loss_frac_credit` × de netto credit
+        (`entry_net`; na een ADJUST de lopende netto credit, niet de oorspronkelijke ontvangst)
         (D2); uit bij `None`, zonder credit of zonder RV-voorspelling."""
         limit = self.cfg.risk.max_gamma_loss_frac_credit
         st = self._vol.get(pos.underlying)
