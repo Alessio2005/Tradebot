@@ -563,6 +563,17 @@ def test_a_halt_file_during_the_day_halts_a_running_engine(rig):
     assert rig.e.mode is EngineMode.HALTED
 
 
+def test_a_halt_cancels_a_pending_entry(tmp_path):
+    r = Rig(tmp_path, fill=1.0)             # de paper-broker vult pas op natural
+    r.run(at(D0, 10, 0))
+    (o,) = r.state.orders.values()
+    assert o["status"] == "submitted" and o["purpose"] == "entry"
+    r.e.paths.halt_file.touch()
+    r.run(at(D0, 10, 3), start=at(D0, 10, 0, 15))
+    assert o["status"] == "cancelled" and not r.state.positions
+    assert [e["reason"] for e in r.events("order_cancelled")] == ["halt"]
+
+
 def test_a_pending_entry_is_not_sent_twice(tmp_path):
     r = Rig(tmp_path, cfg_with("schedule", scan_times=("10:00", "10:05")).model_copy(
         update={"execution": BASE.execution.model_copy(update={"walk_interval_seconds": 600.0})}),
@@ -677,12 +688,12 @@ def test_the_book_stress_cap_blocks_a_second_undefined_entry(tmp_path):
     assert len(wide.state.open_positions()) == 2
 
 
-def test_the_book_carries_pending_undefined_entries(tmp_path):
+def test_the_book_carries_pending_entries(tmp_path):
     r = Rig(tmp_path, undefined_cfg(), market=SV_MKT)
     r.run(at(D0, 10, 1))
     (pos,) = r.state.open_positions()
     (o,) = [x for x in r.state.orders.values() if x["position_id"] == pos.position_id]
-    assert r.e.book().pending_undefined == ()                 # gevuld: een positie, geen order
+    assert r.e.book().pending_entries == ()                   # gevuld: een positie, geen order
     r.state.orders["w"] = {**o, "client_id": "w", "position_id": "w1", "status": "submitted"}
     r.state.orders["x"] = {**o, "client_id": "x", "position_id": "x1", "status": "cancelled"}
     r.state.orders["y"] = {**o, "client_id": "y", "position_id": "y1", "status": "submitted",
@@ -691,7 +702,12 @@ def test_the_book_carries_pending_undefined_entries(tmp_path):
                            "kind": "close"}
     r.state.orders["s"] = {"client_id": "s", "stock": True, "position_id": "s1",
                            "status": "submitted"}
-    (w,) = r.e.book().pending_undefined
+    book = r.e.book()
+    (w,) = book.pending_undefined
+    assert sorted(x.position_id for x in book.pending_entries) == ["w1", "y1"]
+    (y,) = [x for x in book.pending_entries if x.position_id == "y1"]
+    assert y.max_loss == 300.0
+    assert book.open_max_loss(pos.underlying) == math.inf        # de strangle zelf is open
     assert (w.position_id, w.strategy, w.underlying, w.units) == (
         "w1", pos.strategy, pos.underlying, o["quantity"])
     assert math.isinf(w.max_loss) and w.variant == o["variant"]

@@ -390,17 +390,16 @@ class Engine:
     def book(self) -> Book:
         return Book(tuple(self.state.open_positions()), dict(self._shares),
                     dict(self.state.cost_basis), self._equity, dict(self.state.wheel),
-                    self._hedge_shares(), self._pending_undefined(),
+                    self._hedge_shares(), self._pending_entries(),
                     {p.position_id: (p.underlying, p.shares) for p in self.state.positions
                      if p.status is PositionStatus.CLOSED and p.shares})
 
-    def _pending_undefined(self) -> tuple[StrategyPosition, ...]:
-        """Lopende entry-orders met undefined risk, als positie (voor de stresscheck)."""
+    def _pending_entries(self) -> tuple[StrategyPosition, ...]:
+        """Lopende (nog niet gevulde) entry-orders, als positie (voor de poort en de sizing)."""
         terminal = {s.value for s in TERMINAL}
         out = []
         for o in self.state.orders.values():
-            if (o.get("stock") or o["kind"] != OrderKind.OPEN.value or o["max_loss"] is not None
-                    or o["status"] in terminal):
+            if o.get("stock") or o["kind"] != OrderKind.OPEN.value or o["status"] in terminal:
                 continue
             q = o["quantity"]
             out.append(StrategyPosition(
@@ -408,7 +407,7 @@ class Engine:
                 tuple(Leg(leg.contract, o["underlying"], leg.ratio * q, 0.0)
                       for leg in intents_from(o["legs"])),
                 datetime.fromisoformat(o["submitted_at"]), q, -o["limit"] * MULTIPLIER * q,
-                math.inf, variant=o["variant"]))
+                math.inf if o["max_loss"] is None else o["max_loss"], variant=o["variant"]))
         return tuple(out)
 
     def _hedge_shares(self) -> dict[str, int]:
@@ -514,10 +513,19 @@ class Engine:
         await self._executions(now)
 
     async def _walk(self, now: datetime) -> None:
+        # In HALT of UNWIND geen nieuw risico: een lopende entry wordt geannuleerd in plaats
+        # van doorgeschoven richting natural (review 2026-11-27, punt 2).
+        stop_entries = self.halted or self.unwinding
         for cid, o in sorted(self.state.orders.items()):
             if o["status"] != OrderStatus.SUBMITTED.value or o.get("stock"):
                 continue
             purpose = Purpose(o["purpose"])
+            if stop_entries and purpose is Purpose.ENTRY:
+                await self.broker.cancel(cid)
+                o["status"] = OrderStatus.CANCELLED.value
+                self._event(now, "order_cancelled", client_id=cid, position_id=o["position_id"],
+                            reason="halt")
+                continue
             nxt = self._limit(o["underlying"], intents_from(o["legs"]), purpose,
                               Urgency(o["urgency"]), o["step"] + 1)
             if nxt is None:

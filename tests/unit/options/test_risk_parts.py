@@ -184,9 +184,9 @@ def test_pdt_counts_the_last_five_trading_days():
     assert day_trades_in_window(days, date(2026, 11, 24), CAL) == 4
     assert day_trades_in_window(days, date(2026, 11, 30), CAL) == 2
     late = datetime(2026, 11, 24, 15, 0, tzinfo=NY)
-    early = datetime(2026, 11, 24, 14, 59, tzinfo=NY)
+    scan = datetime(2026, 11, 24, 10, 0, tzinfo=NY)       # de eerste scan van de dag
     assert pdt_blocks_entry(days, late, 24_999.0, CAL)
-    assert not pdt_blocks_entry(days, early, 24_999.0, CAL)
+    assert pdt_blocks_entry(days, scan, 24_999.0, CAL)
     assert not pdt_blocks_entry(days, late, 25_000.0, CAL)
     assert not pdt_blocks_entry(days[:2], late, 1.0, CAL)
 

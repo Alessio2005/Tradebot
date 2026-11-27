@@ -123,6 +123,13 @@ def test_size_takes_the_smaller_of_budget_and_room():
     assert size(0.0, m, Book(), "TST", RULES, ()) == 0
 
 
+def test_size_is_zero_next_to_an_open_undefined_risk_position():
+    # Een open short strangle (max_loss = inf): geen ruimte meer, en geen OverflowError.
+    book = Book((_pos(math.inf),))
+    assert size(100.0, market(), book, "TST", RULES, ()) == 0
+    assert size(100.0, market(), book, "OTHER", RULES, ()) == 5
+
+
 # --- E1: sizing op dag-σ en de drawdown-rem -------------------------------------------------
 
 SIG = 0.01                                           # σ_1d: 1 % per dag

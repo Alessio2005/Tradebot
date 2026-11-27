@@ -126,6 +126,38 @@ def test_entry_gates(spread, state, kw, book_n, why):
     assert d.verdict is Verdict.REJECT and d.reason == why
 
 
+def test_pending_entries_count_as_open_positions(spread):
+    # Review 2026-11-27, punt 1: entries uit dezelfde scanronde toetsen tegen elkaar.
+    late = datetime(2026, 11, 24, 15, 30, tzinfo=NY)
+    m = market(cached_chain(now=late), now=late)
+    ten = tuple(open_position(spread, position_id=f"o{i}") for i in range(10))
+    d = GATE.review(proposal(spread), Book(pending_entries=ten), m, OK)
+    assert d.reason == "count:open_positions"
+    today = open_position(spread, opened_at=late, position_id="t1")
+    d = GATE.review(proposal(spread), Book(pending_entries=(today,)), m,
+                    GateState(equity=25_000.0, new_positions_today=2))
+    assert d.reason == "count:new_today"
+    # Een lopende entry van gisteren telt als open positie, niet als nieuwe van vandaag; de
+    # eigen lopende order (zelfde position-id) telt helemaal niet.
+    old = open_position(spread, opened_at=datetime(2026, 11, 23, 10, 0, tzinfo=NY), position_id="y1")
+    own = open_position(spread, opened_at=late, position_id="p1")
+    d = GATE.review(proposal(spread), Book(pending_entries=(old, own)), m,
+                    GateState(equity=25_000.0, new_positions_today=2))
+    assert d.verdict is not Verdict.REJECT
+
+
+def test_a_pending_entry_takes_room_from_the_next(spread):
+    tight = CFG.model_copy(update={"risk": CFG.risk.model_copy(
+        update={"max_loss_per_underlying_frac": 0.04})})          # 1000 USD bij 25k
+    g = RiskGate(tight, SETTINGS.engines, Method.BAW)
+    big = proposal(spread, quantity=20, max_loss=spread.max_loss / spread.quantity * 20)
+    alone = g.review(big, Book(), market(), OK)
+    pending = Book(pending_entries=(open_position(spread, position_id="o1"),))
+    after = g.review(big, pending, market(), OK)
+    assert alone.verdict is after.verdict is Verdict.RESIZE
+    assert after.approved.proposal.quantity < alone.approved.proposal.quantity
+
+
 def test_closed_positions_do_not_count(spread):
     closed = tuple(dataclasses.replace(open_position(spread, position_id=f"c{i}"),
                                        status=PositionStatus.CLOSED) for i in range(10))
@@ -203,14 +235,14 @@ def test_a_pending_undefined_entry_counts_in_the_stress_loss(strangle):
     m = market(capital=1e6)
     held = dataclasses.replace(open_position(strangle, position_id="o1"), max_loss=math.inf)
     filled = undefined_gate(0.02).review(proposal(strangle), Book((held,)), m, OK)
-    pending = undefined_gate(0.02).review(proposal(strangle), Book(pending_undefined=(held,)),
+    pending = undefined_gate(0.02).review(proposal(strangle), Book(pending_entries=(held,)),
                                           m, OK)
     assert pending.reason == filled.reason == "limits:undefined_stress_loss"
     assert stress_check(pending).measured == pytest.approx(stress_check(filled).measured)
     # De eigen lopende order (zelfde position-id) telt niet dubbel.
     own = dataclasses.replace(held, position_id="p1")
     alone = undefined_gate().review(proposal(strangle), Book(), m, OK)
-    d = undefined_gate().review(proposal(strangle), Book(pending_undefined=(own,)), m, OK)
+    d = undefined_gate().review(proposal(strangle), Book(pending_entries=(own,)), m, OK)
     assert stress_check(d).measured == pytest.approx(stress_check(alone).measured)
 
 
