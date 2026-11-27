@@ -601,24 +601,36 @@ class Engine:
             entry_net=pos.entry_net - limit * MULTIPLIER * q)
         self._event(now, "position_changed", position_id=pos.position_id, kind=kind.value)
 
+    def _warn_settlement(self, now: datetime, code: str, detail: str) -> None:
+        self.alert("error", code, detail)
+        self._event(now, "settlement_alert", code=code, detail=detail)
+
     def _assignment(self, e: Execution, now: datetime) -> None:
+        """Reken `e` af op elke open positie met dit contract (de broker doet het gecombineerd).
+
+        De hoeveelheid van de uitvoering wordt in positievolgorde over de posities verdeeld (elke
+        positie krijgt haar hele leg of niets); blijft er iets over, dan volgt een alert.
+        """
         self._book_version += 1
         k = e.contract.key()
-        pid: str | None = None
-        settle_usd = 0.0
-        closed: StrategyPosition | None = None
+        remaining = abs(e.qty)
+        settled = False
         for i, p in enumerate(self.state.positions):
             if p.status is PositionStatus.CLOSED:
                 continue
             legs = [leg for leg in p.option_legs if leg.contract.key() == k]  # type: ignore[union-attr]
-            if not legs:
+            if not legs or abs(legs[0].qty) > remaining:
                 continue
+            settled = True
+            remaining -= abs(legs[0].qty)
             rest = tuple(leg for leg in p.option_legs if leg.contract.key() != k)  # type: ignore[union-attr]
             stock = tuple(leg for leg in p.legs if leg.contract is None)
-            short = legs[0].qty < 0
-            pid = p.position_id
+            settle_usd = 0.0
             if e.kind is not ExecutionKind.EXPIRY:       # waarde van de levering tegen de slotkoers
-                chain = self.chains.get(p.underlying)         # zonder keten: geen waarde (spot = strike)
+                chain = self.chains.get(p.underlying)
+                if chain is None:
+                    self._warn_settlement(now, "options_settlement_no_chain",
+                                          f"{k} van {p.position_id}: geen keten, settle_usd = 0")
                 spot = chain.spot if chain is not None else e.contract.strike
                 itm = spot - e.contract.strike if e.contract.right is Right.CALL \
                     else e.contract.strike - spot
@@ -631,18 +643,22 @@ class Engine:
             self.state.positions[i] = (dataclasses.replace(p, legs=rest + stock) if rest
                                        else dataclasses.replace(p,
                                                                 status=PositionStatus.CLOSED))
-            if e.kind is not ExecutionKind.EXPIRY and short and p.strategy != "wheel":
+            if e.kind is not ExecutionKind.EXPIRY and legs[0].qty < 0 and p.strategy != "wheel":
                 self.alert("critical", "options_assignment",
                            f"short {k} van {p.position_id} {e.kind.value}")
-            closed = p if not rest else None
-            break
-        self._event(now, e.kind.value, contract=k, qty=e.qty, price=e.price,
-                    position_id=pid, settle_usd=round(settle_usd, 2))
-        if closed is not None:
-            hedge = ({"hedge_realized_usd": round(closed.hedge_realized_usd, 2)}
-                     if closed.hedge_realized_usd or closed.shares else {})
-            self._event(now, "position_closed", position_id=closed.position_id,
-                        reason=e.kind.value, exit_net=round(settle_usd, 2), **hedge)
+            self._event(now, e.kind.value, contract=k, qty=-legs[0].qty, price=e.price,
+                        position_id=p.position_id, settle_usd=round(settle_usd, 2))
+            if not rest:
+                hedge = ({"hedge_realized_usd": round(p.hedge_realized_usd, 2)}
+                         if p.hedge_realized_usd or p.shares else {})
+                self._event(now, "position_closed", position_id=p.position_id,
+                            reason=e.kind.value, exit_net=round(settle_usd, 2), **hedge)
+        if not settled:
+            self._event(now, e.kind.value, contract=k, qty=e.qty, price=e.price,
+                        position_id=None, settle_usd=0.0)
+        if remaining:
+            self._warn_settlement(now, "options_settlement_remainder",
+                                  f"{k}: {remaining} contract(en) van {e.kind.value} zonder positie")
 
     # --- aandelen (delta-hedger) ----------------------------------------------------------
 

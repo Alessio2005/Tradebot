@@ -17,6 +17,12 @@
   (waarde van de afrekening: 0 bij expiratie, aantal × intrinsiek × 100 bij levering, tegen de
   slotkoers); rekent de laatste optieleg van een positie af, dan volgt ook `position_closed`
   (`reason` = het event, `exit_net` = `settle_usd`). Posities en equity veranderen niet.
+- Een uitvoering van de broker (assignment, uitoefening, expiratie) rekent nu elke open positie met
+  dat contract af (de hoeveelheid wordt in positievolgorde verdeeld; een rest geeft een alert
+  `options_settlement_remainder` en een journal-regel `settlement_alert`), niet alleen de eerste.
+  Zonder keten geeft `options_settlement_no_chain` een alert (settle_usd = 0).
+- `positions_closed` in summary.json en sweep.json telt nu ook posities die door settlement
+  sluiten (die schrijven nu `position_closed`).
 - Alleen toegevoegde sleutels: de standaard-replay verandert niet (journal identiek, 3 posities,
   eind-equity 25.303,60 USD).
 

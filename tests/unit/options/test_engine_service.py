@@ -366,8 +366,8 @@ def test_booking_follows_the_wheel(rig, phase, after_open, after_close):
     assert rig.state.wheel["TSTB"] == after_close
 
 
-def _assign(rig, contract, kind=ExecutionKind.ASSIGNMENT):
-    rig.e._assignment(Execution(at(D0, 16, 30), kind, "", contract, "TSTB", 1, contract.strike),
+def _assign(rig, contract, kind=ExecutionKind.ASSIGNMENT, qty=1):
+    rig.e._assignment(Execution(at(D0, 16, 30), kind, "", contract, "TSTB", qty, contract.strike),
                       at(D0, 16, 30))
 
 
@@ -378,6 +378,7 @@ def _pos(pid, strategy, legs, phase="", status=PositionStatus.OPEN):
 
 
 def test_assignments_close_legs_and_alert(rig):
+    _spot(rig, 45.0)
     rig.state.positions += [_pos("gone", "credit_spread", [(C1, -1)],
                                  status=PositionStatus.CLOSED),
                             _pos("s", "credit_spread", [(C1, -1), (C2, 1)])]
@@ -389,7 +390,7 @@ def test_assignments_close_legs_and_alert(rig):
     assert not rig.state.open_positions() and len(rig.alerts) == 1
     _assign(rig, OptionContract("TSTB", date(2027, 1, 15), 10.0, Right.PUT))
     assert [r["event"] for r in rig.e.journal.read()] == [
-        "assignment", "expiry", "position_closed", "assignment"]
+        "assignment", "expiry", "position_closed", "assignment", "settlement_alert"]
 
 
 def _spot(rig, spot):
@@ -404,10 +405,30 @@ def test_settlement_events_carry_position_and_value(rig):
     assert not rig.events("position_closed")
     (a,) = rig.events("assignment")
     assert a["position_id"] == "cal" and a["settle_usd"] == -300.0
-    _assign(rig, C2)                                    # laatste leg van "solo"... en van "cal"
-    (closed,) = rig.events("position_closed")
-    assert closed["position_id"] == "cal" and closed["reason"] == "assignment"
-    assert closed["exit_net"] == 100.0 * 1 * 2.0 and "hedge_realized_usd" not in closed
+    _assign(rig, C2, qty=2)             # gecombineerd: laatste leg van "cal" en van "solo"
+    closed = {c["position_id"]: c for c in rig.events("position_closed")}
+    assert set(closed) == {"cal", "solo"} and not rig.state.open_positions()
+    assert closed["cal"]["reason"] == "assignment" and "hedge_realized_usd" not in closed["cal"]
+    assert closed["cal"]["exit_net"] == 100.0 * 1 * 2.0       # long put 47, 2 in the money
+    assert closed["solo"]["exit_net"] == -100.0 * 1 * 2.0     # short put 47
+
+
+def test_one_execution_settles_every_position_on_the_contract(rig):
+    _spot(rig, 45.0)
+    rig.state.positions += [_pos("a", "credit_spread", [(C1, -1)]),
+                            _pos("b", "credit_spread", [(C1, -1)]),
+                            _pos("c", "credit_spread", [(C1, -1)])]
+    _assign(rig, C1, qty=2)                  # de broker rekent 2 af; "c" blijft over
+    assert [p.position_id for p in rig.state.open_positions()] == ["c"]
+    ev = rig.events("assignment")
+    assert [(x["position_id"], x["qty"], x["settle_usd"]) for x in ev] == [
+        ("a", 1, -300.0), ("b", 1, -300.0)]
+    assert [c["position_id"] for c in rig.events("position_closed")] == ["a", "b"]
+    assert not rig.events("settlement_alert")
+    _assign(rig, C1, qty=3)                  # meer dan de posities hebben: rest meldt een alert
+    (al,) = rig.events("settlement_alert")
+    assert al["code"] == "options_settlement_remainder" and "2 contract" in al["detail"]
+    assert rig.alerts[-1][1] == "options_settlement_remainder" and not rig.state.open_positions()
 
 
 def test_expiry_and_hedged_settlement_close_the_position(rig):
@@ -429,11 +450,14 @@ def test_settlement_without_a_chain_or_position_is_defined(rig):
     _assign(rig, C1)                                    # geen keten: spot = strike, waarde 0
     (a,) = rig.events("assignment")
     assert a["position_id"] == "s" and a["settle_usd"] == 0.0
+    (al,) = rig.events("settlement_alert")              # de nul is niet stil
+    assert al["code"] == "options_settlement_no_chain" and al["code"] in [a[1] for a in rig.alerts]
     _assign(rig, C2)                                    # geen positie
     assert rig.events("assignment")[-1]["position_id"] is None
 
 
 def test_wheel_assignments_move_the_phase(rig):
+    _spot(rig, 45.0)
     rig.state.positions.append(_pos("w", "wheel", [(C1, -1)], phase="csp"))
     _assign(rig, C1)
     assert rig.state.wheel["TSTB"] == "shares"
