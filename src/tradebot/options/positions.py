@@ -28,7 +28,7 @@ from .iv_metrics import IVMetrics
 from .vol_regime import VolState
 
 __all__ = ["MULTIPLIER", "Action", "ActionKind", "Book", "Candidate", "Leg", "LegIntent",
-           "MarketState", "PositionStatus", "StrategyPosition", "Trend", "Urgency", "mark",
+           "MarketState", "PendingChange", "PositionStatus", "StrategyPosition", "Trend", "Urgency", "mark",
            "position_greek", "trend_of"]
 
 MULTIPLIER = 100
@@ -177,6 +177,20 @@ class MarketState:
 
 
 @dataclass(frozen=True, slots=True)
+class PendingChange:
+    """Een lopende (nog niet gevulde) bijsturing of roll van een open positie.
+
+    `legs` zijn de legs van de order in handelsrichting (per eenheid), `max_loss` het maximale
+    verlies van de positie ná de order (USD totaal, oneindig bij undefined risk).
+    """
+
+    position_id: str
+    legs: tuple[LegIntent, ...]
+    quantity: int
+    max_loss: float
+
+
+@dataclass(frozen=True, slots=True)
 class Book:
     positions: tuple[StrategyPosition, ...] = ()
     shares: Mapping[str, int] = field(default_factory=dict)
@@ -195,6 +209,9 @@ class Book:
     # Per gesloten positie die nog aandelen heeft: (onderliggende, aandelen). Daartegen toetst
     # de risicopoort een sluitorder, niet tegen het totaal van het symbool (`hedge_shares`).
     closing_shares: Mapping[str, tuple[str, int]] = field(default_factory=dict)
+    # Lopende ADJUST- en ROLL-orders (review 2026-11-27, N10): de poort ziet het risico ervan
+    # alvast, zoals bij `pending_entries`.
+    pending_changes: tuple[PendingChange, ...] = ()
 
     @property
     def pending_undefined(self) -> tuple[StrategyPosition, ...]:

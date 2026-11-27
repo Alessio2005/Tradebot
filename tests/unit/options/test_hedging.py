@@ -176,9 +176,12 @@ def test_hard_errors_in_a_stock_order():
             review(p)
 
 
-def closing_book(own, symbol="TST", total=None):
-    """Gesloten positie p1 met `own` aandelen; `total` = alle aandelen-legs op het symbool."""
-    return Book(hedge_shares={symbol: own if total is None else total},
+def closing_book(own, symbol="TST", total=None, broker=None):
+    """Gesloten positie p1 met `own` aandelen; `total` = alle aandelen-legs op het symbool,
+    `broker` = wat de broker heeft (standaard gelijk aan de aandelen-legs)."""
+    held = own if total is None else total
+    return Book(shares={symbol: held if broker is None else broker},
+                hedge_shares={symbol: held},
                 closing_shares={"p1": (symbol, own)} if own else {})
 
 
@@ -216,6 +219,34 @@ def test_a_closing_order_counts_only_the_closed_positions_own_shares():
     assert d.verdict is Verdict.APPROVE and d.reason == "close"
     with pytest.raises(SafetyBreach, match="sluitorder"):
         review(stock(30, closing=True), closing_book(50, total=-30))
+
+
+def test_a_closing_order_is_bounded_by_what_the_broker_holds():
+    # N3, crash-herstart: de staat toont nog −100 (EOD-moment), de broker heeft ze al terug. De
+    # sluitorder +100 zou nu een nieuwe long openen en wordt geweigerd.
+    d = review(stock(100, closing=True), closing_book(-100, broker=0))
+    assert d.verdict is Verdict.REJECT and d.reason == "close:exceeds_broker"
+    # Te groot voor wat er is, of dezelfde kant op als wat de broker heeft: ook geweigerd.
+    assert review(stock(-50, closing=True), closing_book(50, broker=30)).reason \
+        == "close:exceeds_broker"
+    assert review(stock(30, closing=True), closing_book(-50, broker=-10)).verdict \
+        is Verdict.REJECT
+    # Past het wel: goedgekeurd, ook als de broker meer heeft dan de positie (andere hedges).
+    assert review(stock(-40, closing=True), closing_book(40, broker=90, total=90)).verdict \
+        is Verdict.APPROVE
+    assert review(stock(-30, closing=True), closing_book(30, broker=60, total=70)).verdict \
+        is Verdict.APPROVE
+
+
+def test_a_closing_order_needs_a_chain_and_no_reconcile_break():
+    nochain = dataclasses.replace(market(), chains={})
+    d = review(stock(-10, closing=True), closing_book(10), mkt=nochain)
+    assert d.verdict is Verdict.REJECT and d.reason == "quotes:missing"
+    blocked = GateState(equity=25_000.0, blocked_underlyings=frozenset({"TST"}))
+    assert review(stock(-10, closing=True), closing_book(10), blocked).reason == "reconcile:diff"
+    # De prijsband geldt ook voor een sluitorder.
+    with pytest.raises(SafetyBreach, match="te ver"):
+        review(stock(-10, 99.0, closing=True), closing_book(10))
 
 
 def test_the_notional_cap_on_the_share_legs():
@@ -685,7 +716,11 @@ def test_reconcile_allows_whole_lots_but_not_stray_shares(tmp_path):
     r = HedgeRig(tmp_path)
     r.add()
     r.tick(at(D0, 10, 0, 15))
-    assert r.e._share_breaks({"TSTB": r.pos().shares + 100}) == []      # een assignment-lot
+    # Een assignment-lot is alleen goed op een wheel-symbool (N3); elders is het een break.
+    assert r.e._share_breaks({"TSTB": r.pos().shares + 100}) == ["TSTB shares"]
+    r.state.wheel["TSTB"] = "shares"
+    assert r.e._share_breaks({"TSTB": r.pos().shares + 100}) == []
+    r.state.wheel.clear()
     r.broker._book_shares("TSTB", 7, 50.0)
     run(r.e._reconcile(at(D0, 10, 1)))
     assert r.e.mode is EngineMode.BLOCKED
@@ -698,6 +733,8 @@ def test_an_exit_waits_for_a_chain_and_an_open_exit(tmp_path):
     p, _ = r.add()
     r.state.positions[-1] = dataclasses.replace(
         p, legs=p.legs + (Leg(None, "TSTB", -30, 50.0),), status=PositionStatus.CLOSED)
+    r.broker._book_shares("TSTB", -30, 50.0)
+    run(r.e._refresh_shares())
     chain = r.e.chains.pop("TSTB")
     run(r.e._unwind_shares(at(D0, 10, 1)))
     assert not r.events("hedge_order")                # geen keten: wachten
@@ -791,7 +828,9 @@ def test_an_unfilled_exit_is_replaced_until_flat(tmp_path):
     p, _ = r.add()
     r.state.positions[-1] = dataclasses.replace(
         p, legs=p.legs + (Leg(None, "TSTB", -30, 50.0),), status=PositionStatus.CLOSED)
+    r.broker._book_option(p.legs[0].contract, -p.legs[0].qty, 1.0)     # de opties zijn dicht
     r.broker._book_shares("TSTB", -30, 50.0)
+    run(r.e._refresh_shares())
     t = at(D0, 10, 0, 15)
     r.tick(t)
     (first,) = [x for x in r.state.orders.values() if x.get("purpose") == "exit"]
@@ -805,3 +844,49 @@ def test_an_unfilled_exit_is_replaced_until_flat(tmp_path):
     r.tick(at(D0, 10, 5, 30))                           # de ronde erna opnieuw
     exits = [x for x in r.events("hedge_order") if x["purpose"] == "exit"]
     assert len(exits) == 2 and r.pos().shares == 0
+
+
+def _closed_with_shares(r, shares, broker_shares):
+    r.state.positions.append(StrategyPosition(
+        "h9", HEDGED, "TSTB", (Leg(None, "TSTB", shares, 50.0),), r.t0, 1, 0.0, 1e4,
+        status=PositionStatus.CLOSED))
+    if broker_shares:
+        r.broker._book_shares("TSTB", broker_shares, 50.0)
+    run(r.e._refresh_shares())
+
+
+def test_a_restart_does_not_buy_back_shares_the_broker_no_longer_has(tmp_path):
+    # N3: de staat zegt −100 (gesloten positie), de broker heeft 0. De exit koopt niet opnieuw
+    # 100 aandelen, en de reconciliatie slaat alarm (geen modulo-100-marge buiten de wheel).
+    r = HedgeRig(tmp_path, HCFG.model_copy(update={"hedging": BASE.hedging}))
+    _closed_with_shares(r, -100, 0)
+    run(r.e._unwind_shares(at(D0, 10, 1)))
+    (o,) = r.events("hedge_order")
+    assert o["verdict"] == "reject" and o["reason"] == "close:exceeds_broker"
+    assert not [x for x in r.state.orders.values() if x.get("stock")]
+    run(r.e._reconcile(at(D0, 10, 2)))
+    assert r.e.mode is EngineMode.BLOCKED
+    assert r.events("recon_break")[-1]["contracts"] == ["TSTB shares"]
+
+
+def test_an_exit_is_not_resent_before_the_cancel_is_confirmed(tmp_path):
+    # N30c: annuleren is bij IBKR asynchroon; zolang de broker de order nog open heeft, geen
+    # nieuwe order ernaast.
+    r = HedgeRig(tmp_path, HCFG.model_copy(update={"hedging": BASE.hedging}))
+    _closed_with_shares(r, -30, -30)
+    r.broker.stock_half_spread = 0.01
+    run(r.e._unwind_shares(at(D0, 10, 1)))
+    (first,) = [x for x in r.state.orders.values() if x.get("purpose") == "exit"]
+    real_cancel = r.broker.cancel
+
+    async def slow_cancel(cid):
+        return None
+
+    r.broker.cancel = slow_cancel
+    late = at(D0, 10, 7)
+    run(r.e._unwind_shares(late))
+    assert first["status"] == "submitted" and len(r.events("hedge_order")) == 1
+    assert r.events("order_cancel_pending")[0]["client_id"] == first["client_id"]
+    r.broker.cancel = real_cancel
+    run(r.e._unwind_shares(at(D0, 10, 8)))
+    assert first["status"] == "cancelled"

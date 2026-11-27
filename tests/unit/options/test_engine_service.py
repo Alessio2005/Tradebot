@@ -23,6 +23,7 @@ from tradebot.options.events import Events
 from tradebot.options.execution.broker import Execution, ExecutionKind
 from tradebot.options.execution.paper import PaperBroker
 from tradebot.options.positions import (
+    MULTIPLIER,
     Action,
     ActionKind,
     Leg,
@@ -30,6 +31,7 @@ from tradebot.options.positions import (
     PositionStatus,
     StrategyPosition,
     Urgency,
+    mark,
 )
 from tradebot.options.pricing.surface import Smile
 from tradebot.options.rates import Carry, CashDividend
@@ -312,6 +314,45 @@ def test_actions_are_deferred_without_a_chain_or_quote(rig):
     asyncio.run(rig.e._act(Action(ActionKind.CLOSE, pos.position_id, ghost, Urgency.STOP, "t"),
                            pos, now))
     assert [x["reason"] for x in rig.events("action_deferred")] == ["no_chain", "no_quote"]
+
+
+def test_an_adjust_recomputes_max_loss_from_the_new_legs(tmp_path):
+    # Oud 5: na een ADJUST is het maximale verlies dat van de nieuwe legs, niet het oude.
+    rig = Rig(tmp_path, cfg_with("risk", max_loss_per_underlying_frac=0.5))
+    pos = opened(rig)
+    long = next(leg for leg in pos.intents() if leg.ratio > 0)
+    short = next(leg for leg in pos.intents() if leg.ratio < 0)
+    chain = rig.e.chains["TSTB"]
+    below = sorted(o.contract.strike for o in chain.options
+                   if o.contract.expiry == long.contract.expiry
+                   and o.contract.right is long.contract.right
+                   and o.contract.strike < long.contract.strike)
+    new = LegIntent(dataclasses.replace(long.contract, strike=below[-2]), 1)     # breder
+    a = Action(ActionKind.ADJUST, pos.position_id, (long,), Urgency.NORMAL, "adjust", (new,))
+    asyncio.run(rig.e._act(a, pos, at(D0, 10, 2)))
+    (o,) = [x for x in rig.state.orders.values() if x["kind"] == "adjust"]
+    m = mark(chain, (LegIntent(long.contract, -1), new))
+    width = (short.contract.strike - new.contract.strike) * MULTIPLIER * pos.units
+    assert o["max_loss"] == pytest.approx(width - (pos.entry_net - m * MULTIPLIER * pos.units))
+    assert o["max_loss"] > pos.max_loss
+
+
+def test_the_book_shows_pending_adjusts_and_rolls_to_the_gate(rig):
+    # N10: alleen lopende ADJUST/ROLL-combo-orders; niet een entry, aandelenorder of gevulde.
+    legs = (LegIntent(C1, -1), LegIntent(C2, 1))
+    base = {"position_id": "w1", "legs": intents_record(legs), "quantity": 2, "limit": -0.5,
+            "strategy": "credit_spread", "underlying": "TSTB", "variant": "",
+            "submitted_at": at(D0, 10, 0).isoformat()}
+    rig.state.orders.update({
+        "a": {**base, "kind": "adjust", "max_loss": 300.0, "status": "submitted"},
+        "r": {**base, "kind": "roll", "max_loss": None, "status": "submitted"},
+        "o": {**base, "kind": "open", "max_loss": 100.0, "status": "submitted"},
+        "d": {**base, "kind": "adjust", "max_loss": 100.0, "status": "filled"},
+        "s": {**base, "kind": "adjust", "max_loss": 100.0, "status": "submitted", "stock": True},
+    })
+    ch = rig.e.book().pending_changes
+    assert [(c.position_id, c.quantity, c.max_loss, c.legs) for c in ch] == [
+        ("w1", 2, 300.0, legs), ("w1", 2, math.inf, legs)]
 
 
 def test_a_roll_is_sized_on_the_new_strike(rig):
