@@ -247,10 +247,15 @@ Vereisten: een IBKR-paper-login (account-id begint met `DU`) en IB Gateway in pa
 ### Met Docker
 
 ```bash
-cp infra/compose/.env.example infra/compose/.env     # TWS_USERID, TWS_PASSWORD, IB_ACCOUNT
+cp infra/compose/.env.ib.example infra/compose/.env.ib             # TWS_USERID, TWS_PASSWORD
+cp infra/compose/.env.options.example infra/compose/.env.options   # IB_ACCOUNT, alarmen
 docker compose -f infra/compose/docker-compose.yml up -d --build ib-gateway options-paper
 docker compose -f infra/compose/docker-compose.yml logs -f options-paper
 ```
+
+Least privilege: de gateway leest alleen `.env.ib` (de login), de dienst alleen `.env.options`
+(account en alarmkanalen); de Kraken-sleutels staan in `.env` en komen niet in de options-diensten.
+Pin het `ib-gateway`-image op een digest (zie de TODO in `docker-compose.yml`).
 
 De gateway-container staat vast op `TRADING_MODE: paper`. De dienst verbindt via poort 4004.
 
@@ -297,8 +302,25 @@ Een HALT door de dienst zelf (drawdown, drie fouten op rij, `SafetyBreach`) staa
 | `options_short_past_expiry` | Een short optie staat na expiratie nog in de staat | Controleer bij IBKR; dit hoort nooit te gebeuren |
 | `options_task_*` | Een taak faalde | Lees het journal (`task_error`); drie op rij is HALT |
 
-Assignments bij IBKR komen binnen als positiewijziging. De reconcile ziet het verschil,
-blokkeert entries op die onderliggende en alarmeert.
+Assignment, uitoefening en expiratie komen bij IBKR binnen als positiewijziging. De adapter
+leidt er uit het verschil (positie min eigen fills, twee keer achter elkaar gezien) een
+`ASSIGNMENT`-, `EXERCISE`- of `EXPIRY`-executie van af, die de engine boekt; een expiratie terwijl
+de dienst uit stond ziet alleen de reconcile (breuk: entries geblokkeerd op die onderliggende,
+alarm).
+
+### Uitval, herstart en alarmen
+
+- Valt de verbinding met de gateway weg (of herstart hij), dan tickt de dienst niet (de heartbeat
+  blijft stilstaan en de healthcheck wordt rood), verbindt hij opnieuw met backoff (5 s tot 60 s) en
+  reconcilieert daarna opnieuw. Na `IB_RECONNECT_TIMEOUT_SECONDS` (standaard 900) zonder verbinding
+  volgt HALT (`options_ib_disconnected`).
+- Na een crash neemt de dienst bij de start de open orders over op `orderRef`; orders die bij de
+  broker niet meer open staan, gaan in de staat op CANCELLED (`order_orphaned`). De staat wordt na
+  elke order-gebeurtenis bewaard, dus een herstart stuurt dezelfde order niet nog eens.
+- Een gedeeltelijk gevulde combo boekt het gevulde deel; het restant blijft open tot de walk of
+  het einde van de dag het annuleert.
+- Alarmen gaan naar `ALERT_WEBHOOK_URL` en/of Telegram (zie `.env.options.example`) en altijd naar
+  het log; `HEARTBEAT_URL` is de dead man's switch (een GET per minuut zolang de verbinding leeft).
 
 ## Configuratie
 
