@@ -11,13 +11,14 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from ...schemas.options import RiskConfig
-from ..positions import MarketState, PositionStatus, StrategyPosition
+from ..contracts import Right
+from ..positions import MULTIPLIER, Leg, MarketState, PositionStatus, StrategyPosition
 from ..pricing.engines import EngineSettings, Method
 from .aggregate import aggregate
 from .margin import buying_power
 from .scenarios import Scenario, position_values
 
-__all__ = ["BookMetrics", "CheckResult", "check", "measure"]
+__all__ = ["BookMetrics", "CheckResult", "check", "expiry_max_loss", "measure"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,3 +91,28 @@ def check(m: BookMetrics, cfg: RiskConfig, capital: float) -> tuple[CheckResult,
         CheckResult("buying_power", m.buying_power, cfg.max_buying_power_frac * capital),
         CheckResult("scenario_loss", worst, cfg.max_scenario_loss_frac * capital),
     )
+
+
+def expiry_max_loss(legs: Sequence[Leg], entry_net: float, default: float) -> float:
+    """Het maximale verlies (USD totaal) van optie-legs op één expiratie, uit de uitbetaling bij
+    expiratie en de ontvangen netto credit `entry_net` (+ credit, − debit).
+
+    Is het verlies onbegrensd (netto short calls) dan oneindig. Bij meer dan één expiratie of
+    zonder optie-legs is de uitbetaling niet vast te stellen: dan `default`."""
+    opts = [leg for leg in legs if leg.contract is not None]
+    if not opts or len({leg.contract.expiry for leg in opts}) > 1:  # type: ignore[union-attr]
+        return default
+    calls = [leg.qty for leg in opts if leg.contract.right is Right.CALL]  # type: ignore[union-attr]
+    if sum(calls) < 0:
+        return math.inf
+
+    def payoff(spot: float) -> float:
+        total = 0.0
+        for leg in opts:
+            k, right = leg.contract.strike, leg.contract.right  # type: ignore[union-attr]
+            intrinsic = max(spot - k, 0.0) if right is Right.CALL else max(k - spot, 0.0)
+            total += leg.qty * MULTIPLIER * intrinsic
+        return total
+
+    spots = [0.0] + [leg.contract.strike for leg in opts]  # type: ignore[union-attr]
+    return max(0.0, -min(payoff(x) for x in spots) - entry_net)

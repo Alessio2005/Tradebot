@@ -1,7 +1,8 @@
 # infra/compose/docker-compose.yml — de diensten op één server.
 #
 # Options-paper (standaard, fictief geld; docs/runbook-options.md):
-#   cp infra/compose/.env.example infra/compose/.env         # TWS_USERID, TWS_PASSWORD
+#   cp infra/compose/.env.ib.example infra/compose/.env.ib            # TWS_USERID, TWS_PASSWORD
+#   cp infra/compose/.env.options.example infra/compose/.env.options  # IB_ACCOUNT, alarmen
 #   docker compose -f infra/compose/docker-compose.yml up -d --build ib-gateway options-paper
 #
 # Het Kraken-boek (v9-U1), in standby:
@@ -65,8 +66,12 @@ services:
   # TRADING_MODE staat hier vast op paper; de dienst weigert bovendien elk account dat
   # niet met DU begint (src/tradebot/options/live.py).
   ib-gateway:
+    # TODO(pin): pin op een digest. `stable` beweegt mee en kan een gateway-update binnenhalen
+    # tussen twee herstarts. Bepaal de digest na een geslaagde paper-run
+    # (`docker buildx imagetools inspect ghcr.io/gnzsnz/ib-gateway:stable`) en vervang de regel
+    # door `ghcr.io/gnzsnz/ib-gateway:<versie>@sha256:<DIGEST-PLAATSHOUDER>`.
     image: ghcr.io/gnzsnz/ib-gateway:stable
-    env_file: .env               # TWS_USERID en TWS_PASSWORD (de paper-login)
+    env_file: .env.ib            # alleen TWS_USERID en TWS_PASSWORD (de paper-login)
     environment:
       TRADING_MODE: paper        # vast: wint van wat er in .env staat
       READ_ONLY_API: "no"
@@ -86,7 +91,7 @@ services:
     image: tradebot-runner:local
     command: ["python", "-I", "-m", "tradebot.options", "paper",
               "--run-dir", "/var/lib/tradebot/options"]
-    env_file: .env
+    env_file: .env.options       # IB_ACCOUNT en alarmkanalen; geen IBKR-wachtwoord, geen Kraken
     environment:
       IB_HOST: ib-gateway
       IB_PORT: "4004"            # de paper-poort van de gateway-container

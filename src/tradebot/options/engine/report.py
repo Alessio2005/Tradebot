@@ -8,8 +8,9 @@ PER STRATEGIE (alleen posities met een `position_closed`-regel)
   De P&L van een positie is de som van haar fills (`fill`: -prijs × 100 × aantal, ook de
   bijsturingen) min de commissie, plus de afrekening van vervallen, toegewezen of uitgeoefende
   legs (`settle_usd` op `expiry`/`assignment`/`exercise`), plus de laatste cumulatieve
-  `hedge_realized_usd` (van `hedge_fill` of `position_closed`, dus inclusief het afbouwen van
-  de aandelen na het sluiten van de opties). Een positie is gesloten bij `position_closed`; dat
+  `hedge_realized_usd` (van `hedge_fill`, `hedge_netted`, `dividend` of `position_closed`, dus
+  inclusief het afbouwen van de aandelen na het sluiten van de opties en het dividend op de
+  aandelen-legs; de paper-broker boekt dat op de ex-datum, zie `PaperBroker.pay_dividends`). Een positie is gesloten bij `position_closed`; dat
   schrijft de engine ook als de laatste leg afrekent.
 
 VOOR HET BOEK (equity per dag, met het startkapitaal als eerste punt)
@@ -40,6 +41,7 @@ __all__ = ["BookStats", "ReplayStats", "StrategyStats", "book_stats", "buy_and_h
 TRADING_DAYS = 252
 #: Journal-events die een optieleg afrekenen; `settle_usd` is de waarde van die afrekening.
 _SETTLEMENTS = ("expiry", "assignment", "exercise")
+_HEDGE_EVENTS = ("hedge_fill", "hedge_netted", "dividend", "position_closed")
 #: Onder deze waarde geldt een spreiding als nul (floatruis van een vlakke reeks).
 _EPS = 1e-12
 
@@ -101,7 +103,7 @@ def strategy_stats(rows: Sequence[Mapping[str, Any]]) -> dict[str, StrategyStats
             pnl[pid] += -r["price"] * MULTIPLIER * r["quantity"] - r["commission"]
         elif event in _SETTLEMENTS and pid is not None:
             pnl[pid] += r["settle_usd"]
-        elif event in ("hedge_fill", "position_closed") and "hedge_realized_usd" in r:
+        elif event in _HEDGE_EVENTS and "hedge_realized_usd" in r:
             hedge[pid] = r["hedge_realized_usd"]
         if event == "position_closed" and pid in strategy:
             closed.append(pid)

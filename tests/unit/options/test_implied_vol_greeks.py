@@ -11,7 +11,7 @@ from tradebot.options.calendar import NY, expiry_moment
 from tradebot.options.contracts import Right
 from tradebot.options.pricing import implied_vol as iv_mod
 from tradebot.options.pricing.engines import Method
-from tradebot.options.pricing.greeks import greeks
+from tradebot.options.pricing.greeks import Bumps, greeks, spot_bump_fraction
 from tradebot.options.pricing.implied_vol import IVSettings, IVStatus, implied_vol
 from tradebot.options.pricing.settings import pricer_settings
 from tradebot.options.pricing.vanilla import price, value
@@ -197,3 +197,68 @@ def test_a_price_out_of_the_model_range_has_no_fallback(monkeypatch):
     deep_itm_call = inputs(right=Right.CALL, spot=130.0)       # S − K·e^{−rT} ≈ 30,26
     assert implied_vol(deep_itm_call, 30.05, Method.BAW).status is IVStatus.NO_CONVERGENCE
     assert calls == [Method.BAW]
+
+
+def _dividend_carry(ex: date) -> Carry:
+    return Carry(0.04, dividends=(CashDividend(ex, 1.80),))
+
+
+@pytest.mark.parametrize("right", list(Right))
+def test_theta_the_day_before_the_ex_date_keeps_the_dividend(right):
+    # N11: SPY-achtig, ATM, D = 1,80, ex-datum morgen. Zonder correctie viel het dividend uit
+    # het venster van `now + 1 dag` en sprong de theta van de call positief.
+    now = datetime(2026, 11, 24, 15, 0, tzinfo=NY)
+    inp = inputs(spot=600.0, strike=600.0, right=right, now=now,
+                 carry=_dividend_carry(date(2026, 11, 25)))
+    assert greeks(inp, 0.15, Method.FD).theta < 0
+    # drie dagen eerder en een dag na de ex-datum is de theta gewoon negatief
+    assert greeks(inp.with_now(now - timedelta(days=3)), 0.15, Method.FD).theta < 0
+    assert greeks(inp.with_now(now + timedelta(days=1)), 0.15, Method.FD).theta < 0
+
+
+def test_theta_drops_the_spot_by_the_dividend_that_goes_ex_in_the_step():
+    now = datetime(2026, 11, 24, 15, 0, tzinfo=NY)
+    inp = inputs(spot=600.0, strike=600.0, right=Right.CALL, now=now,
+                 carry=_dividend_carry(date(2026, 11, 25)))
+    g = greeks(inp, 0.15, Method.FD)
+    after = price(inp.with_now(now + timedelta(days=1)).with_spot(600.0 - 1.80), 0.15,
+                  Method.FD)
+    assert g.theta == pytest.approx(after - price(inp, 0.15, Method.FD), rel=1e-12)
+
+
+def test_baw_gamma_on_the_expiry_day_follows_the_european_gamma():
+    # N5: op de expiratiedag is σ√T ≈ 1 %; de vaste bump van 0,5 % smeerde de gammapiek uit.
+    now = datetime(2026, 12, 18, 10, 0, tzinfo=NY)
+    inp = inputs(spot=100.0, strike=100.0, right=Right.CALL, now=now)
+    baw = greeks(inp, 0.25, Method.BAW)
+    european = greeks(inp, 0.25, Method.EUROPEAN)
+    assert baw.gamma == pytest.approx(european.gamma, rel=0.03)
+    h = 0.005 * inp.spot
+    fixed = (price(inp.with_spot(100 + h), 0.25, Method.BAW) - 2 * price(inp, 0.25, Method.BAW)
+             + price(inp.with_spot(100 - h), 0.25, Method.BAW)) / h**2
+    assert abs(fixed / european.gamma - 1) > 0.03        # de oude vaste bump zat ernaast
+
+
+def test_the_spot_bump_scales_with_sigma_root_t_between_its_limits():
+    b = Bumps()
+    assert spot_bump_fraction(0.25, 1.0, b) == b.spot_frac                  # lange looptijd
+    assert spot_bump_fraction(0.25, 1e-6, b) == b.spot_frac_min             # uren voor expiratie
+    mid = float(spot_bump_fraction(0.25, 0.0004, b))
+    assert b.spot_frac_min < mid < b.spot_frac
+    assert mid == pytest.approx(b.spot_sigma_frac * 0.25 * 0.02)
+
+
+def test_a_dividend_with_its_ex_date_on_the_expiry_day_is_counted_once():
+    # Oud #34: op de expiratiedag zit het dividend al in de spot; het mag er niet nog eens
+    # als dividend afgaan. De dag ervoor telt het nog wel.
+    carry = Carry(0.04, dividends=(CashDividend(EXPIRY, 1.80),))
+    on_expiry = inputs(now=datetime(2026, 12, 18, 10, 0, tzinfo=NY), carry=carry,
+                       right=Right.CALL)
+    assert on_expiry.discrete_dividends == ()
+    plain = inputs(now=on_expiry.now, right=Right.CALL)
+    assert price(on_expiry, 0.25, Method.BAW) == pytest.approx(price(plain, 0.25, Method.BAW))
+    day_before = inputs(now=datetime(2026, 12, 17, 10, 0, tzinfo=NY), carry=carry,
+                        right=Right.CALL)
+    assert day_before.discrete_dividends == carry.dividends
+    # theta de dag ervoor: het dividend gaat in de stap ex, de spot zakt mee
+    assert greeks(day_before, 0.25, Method.FD).theta < 0

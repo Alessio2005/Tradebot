@@ -6,8 +6,9 @@ constructor eist een module-private sentinel. `BrokerAdapter.submit` accepteert 
 
 Volgorde:
 
-1. **Hard** (`SafetyBreach`): aantal ≤ 0, een verlopen contract, premie boven `max_order_usd`,
-   of een limietprijs buiten [intrinsiek − 1 tick, natuurlijke prijs + 1 tick]. Dat zijn fouten
+1. **Hard** (`SafetyBreach`): aantal ≤ 0, een verlopen contract, premie boven `max_order_usd`
+   (alleen OPEN, ADJUST en ROLL: een sluiting mag nooit een HALT geven), een CLOSE die niet
+   precies de legs van de positie naar nul brengt, of een limietprijs buiten [intrinsiek − 1 tick, natuurlijke prijs + 1 tick]. Dat zijn fouten
    in code of config; de engine gaat dan in HALT.
 2. **Toestand**: in HALT geen order die risico toevoegt; in UNWIND alleen sluitorders. Geen
    entry na de dagverliesgrens, op een onderliggende met een reconciliatieverschil, met
@@ -25,6 +26,9 @@ Volgorde:
    - Een entry wordt per eenheid verkleind tot hij past (RESIZE), of geweigerd.
    - Een volledige sluiting wordt altijd goedgekeurd: hij haalt een positie met beperkt
      risico weg, ook in HALT. Een stop gaat vóór de PDT-regel.
+   - Bijsturen en rollen: eerst de toestandspoorten van een entry (reconciliatieverschil,
+     dagverlies, PDT bij een positie van vandaag). Lopende ADJUST/ROLL (`Book.pending_changes`)
+     en lopende entries tellen mee, ook voor een nieuwe entry.
    - Bijsturen, rollen en een deel sluiten: goed als alles daarna past, of als de order
      risicoverkleinend is (elke nu overschreden maat daalt en geen andere gaat erover).
      In HALT alleen als hij risicoverkleinend is of alleen legs sluit. Nooit verkleind.
@@ -34,11 +38,14 @@ Een aandelenorder van de delta-hedger (`review_stock`) heeft zijn eigen, kortere
 1. **Hard** (`SafetyBreach`): aantal 0, een symbool buiten `universe.share_eligible`, of een
    limiet die verder dan de volledige spread (`paper.stock_spread_bps`) plus één cent van de spot
    ligt.
-2. Een order die de aandelen van een gesloten positie naar nul brengt (`closing`), wordt altijd
-   goedgekeurd: zonder opties eromheen is het alleen nog delta. De poort controleert dat hij
-   echt afbouwt: op het symbool van de gesloten positie, tegengesteld aan haar eigen
+2. Een order die de aandelen van een gesloten positie naar nul brengt (`closing`), wordt
+   goedgekeurd, ook in HALT: zonder opties eromheen is het alleen nog delta. De poort controleert
+   dat hij echt afbouwt: op het symbool van de gesloten positie, tegengesteld aan haar eigen
    aandelen-leg (`Book.closing_shares`) en niet groter dan die; anders is het een
-   `SafetyBreach`.
+   `SafetyBreach`. Daarbovenop (review 2026-11-27, N3): zonder keten of op een symbool met een
+   reconciliatieverschil is het een weigering, en de order moet bouwen af wat de broker echt
+   heeft (`Book.shares`: tegengesteld en niet groter), tenzij de broker precies de aandelen-legs
+   heeft (`Book.hedge_shares`, bijvoorbeeld twee posities met tegengestelde hedges).
 3. Anders: geen keten of geen volledige Greeks is weigeren; op een onderliggende met een
    reconciliatieverschil ook. In HALT of UNWIND alleen als de order de aandelen-legs op dat
    symbool in absolute waarde verkleint én de absolute beta-delta van het boek daalt.
@@ -57,6 +64,7 @@ from enum import StrEnum
 from ...schemas.options import OptionsConfig
 from ..calendar import expiry_moment
 from ..chain.builder import Chain
+from ..execution.orders import tick_for
 from ..positions import (
     MULTIPLIER,
     Action,
@@ -66,6 +74,7 @@ from ..positions import (
     Leg,
     LegIntent,
     MarketState,
+    PendingChange,
     PositionStatus,
     StrategyPosition,
     Urgency,
@@ -79,7 +88,7 @@ from .scenarios import grid
 
 __all__ = ["ApprovedOrder", "ApprovedStockOrder", "Decision", "GateState", "OrderKind",
            "OrderProposal", "RiskGate", "SafetyBreach", "StockDecision", "StockProposal",
-           "Verdict"]
+           "Verdict", "apply_changes"]
 
 _SENTINEL = object()
 
@@ -88,6 +97,31 @@ _SENTINEL = object()
 def _live(book: Book) -> tuple[StrategyPosition, ...]:
     """De posities in het boek die nog niet gesloten zijn."""
     return tuple(x for x in book.positions if x.status is not PositionStatus.CLOSED)
+
+def apply_changes(positions: tuple[StrategyPosition, ...],
+                  changes: tuple[PendingChange, ...]) -> tuple[StrategyPosition, ...]:
+    """De posities na de bijsturingen in `changes` (legs erbij of eraf, nieuw `max_loss`)."""
+    out = []
+    for x in positions:
+        for c in changes:
+            if c.position_id != x.position_id:
+                continue
+            qty: dict[str, int] = {}
+            legs: dict[str, Leg] = {}
+            for leg in x.option_legs:
+                qty[leg.contract.key()] = leg.qty  # type: ignore[union-attr]
+                legs[leg.contract.key()] = leg  # type: ignore[union-attr]
+            for li in c.legs:
+                k = li.contract.key()
+                qty[k] = qty.get(k, 0) + li.ratio * c.quantity
+                legs.setdefault(k, Leg(li.contract, x.underlying, 0, 0.0))
+            new_legs = tuple(replace(legs[k], qty=n) for k, n in sorted(qty.items()) if n)
+            # De aandelen-legs (de hedge) blijven bij de positie (review 2026-11-27, N30).
+            stock = tuple(leg for leg in x.legs if leg.contract is None)
+            x = replace(x, legs=new_legs + stock, max_loss=c.max_loss)
+        out.append(x)
+    return tuple(out)
+
 
 class SafetyBreach(RuntimeError):
     """Een order die nooit gemaakt had mogen worden: de engine gaat in HALT."""
@@ -255,14 +289,17 @@ class RiskGate:
                 raise SafetyBreach(f"leg {c.key()} hoort niet bij {p.underlying}")
             if market.now >= expiry_moment(c.expiry):
                 raise SafetyBreach(f"verlopen contract {c.key()}")
-        if p.notional_usd > self.cfg.execution.max_order_usd:
+        # De notionele grens beschermt tegen een te grote order die risico toevoegt; een sluiting
+        # mag er nooit door in HALT gaan (review 2026-11-27, N9).
+        if (p.kind in (OrderKind.OPEN, OrderKind.ADJUST, OrderKind.ROLL)
+                and p.notional_usd > self.cfg.execution.max_order_usd):
             raise SafetyBreach(f"premie {p.notional_usd:.2f} USD boven max_order_usd")
         chain = market.chains.get(p.underlying)
         bounds = _combo_bounds(p, chain) if chain is not None else None
         if bounds is None:
             return "quotes:missing"
-        tick = self.cfg.execution.ticks.combo
         debit = -p.limit_net
+        tick = tick_for(self.cfg.execution.ticks, abs(debit), p.legs)
         best, natural = bounds
         if debit < best - tick - 1e-9 or debit > natural + tick + 1e-9:
             raise SafetyBreach(f"limiet {debit:.4f} buiten [{best:.4f}, {natural:.4f}]"
@@ -299,6 +336,8 @@ class RiskGate:
 
     def review(self, p: OrderProposal, book: Book, market: MarketState,
                state: GateState) -> Decision:
+        if p.kind is OrderKind.CLOSE:
+            self._check_full_close(p, book)
         missing = self._hard(p, market)
         if p.kind is OrderKind.CLOSE:
             if missing is not None:
@@ -312,12 +351,37 @@ class RiskGate:
             return self._review_open(p, book, market, state)
         return self._review_change(p, book, market, state)
 
+    @staticmethod
+    def _check_full_close(p: OrderProposal, book: Book) -> None:
+        """Een CLOSE moet de optie-legs van de positie precies naar nul brengen: geen nieuwe
+        legs, en elke leg × aantal is −positie (review 2026-11-27, N30)."""
+        pos = next((x for x in _live(book) if x.position_id == p.position_id), None)
+        if pos is None:
+            raise SafetyBreach(f"sluiting van onbekende of gesloten positie {p.position_id}")
+        net: dict[str, int] = {}
+        for held in pos.option_legs:
+            net[held.contract.key()] = held.qty  # type: ignore[union-attr]
+        for li in p.legs:
+            k = li.contract.key()
+            net[k] = net.get(k, 0) + li.ratio * p.quantity
+        if any(net.values()):
+            raise SafetyBreach(f"sluiting van {p.position_id} brengt zijn legs niet naar nul")
+
+    def _live_with_pending(self, book: Book, exclude: str) -> tuple[StrategyPosition, ...]:
+        """De open posities met hun lopende ADJUST/ROLL erin, plus de lopende entries.
+
+        De eigen lopende order (zelfde position-id) telt niet mee."""
+        changes = tuple(c for c in book.pending_changes if c.position_id != exclude)
+        pending = tuple(x for x in book.pending_entries if x.position_id != exclude)
+        return apply_changes(_live(book), changes) + pending
+
     def _review_open(self, p: OrderProposal, book: Book, market: MarketState,
                      state: GateState) -> Decision:
         r, cap = self.risk, market.capital_usd
-        # De eigen lopende order (zelfde position-id) telt niet dubbel.
+        # De eigen lopende order (zelfde position-id) telt niet dubbel; lopende ADJUST/ROLL
+        # tellen met hun nieuwe legs mee (review 2026-11-27, N10).
         pending = tuple(x for x in book.pending_entries if x.position_id != p.position_id)
-        live = _live(book) + pending
+        live = self._live_with_pending(book, p.position_id)
         today = sum(x.opened_at.date() == market.now.date() for x in pending)
         gates = [
             (state.halted, "state:halt"),
@@ -328,7 +392,8 @@ class RiskGate:
             (state.new_positions_today + today >= r.max_new_positions_per_day,
              "count:new_today"),
             (r.pdt_guard and pdt_blocks_entry(state.day_trades, market.now, state.equity,
-                                              market.calendar), "pdt"),
+                                              market.calendar,
+                                              state.new_positions_today + today), "pdt"),
         ]
         for blocked, why in gates:
             if blocked:
@@ -358,33 +423,31 @@ class RiskGate:
         return self._reject(checks, f"limits:{failed}")
 
     def _after(self, p: OrderProposal, book: Book) -> tuple[StrategyPosition, ...]:
-        """Het boek na een bijsturing, rol of gedeeltelijke sluiting."""
-        out = []
-        for x in book.positions:
-            if x.status is PositionStatus.CLOSED:
-                continue
-            if x.position_id != p.position_id:
-                out.append(x)
-                continue
-            qty: dict[str, int] = {}
-            legs: dict[str, Leg] = {}
-            for leg in x.option_legs:
-                qty[leg.contract.key()] = leg.qty  # type: ignore[union-attr]
-                legs[leg.contract.key()] = leg  # type: ignore[union-attr]
-            for leg in p.legs:
-                k = leg.contract.key()
-                qty[k] = qty.get(k, 0) + leg.ratio * p.quantity
-                legs.setdefault(k, Leg(leg.contract, p.underlying, 0, 0.0))
-            new_legs = tuple(replace(legs[k], qty=n) for k, n in sorted(qty.items()) if n)
-            out.append(replace(x, legs=new_legs, max_loss=p.max_loss))
-        return tuple(out)
+        """Het boek na een bijsturing, rol of gedeeltelijke sluiting (zonder lopende entries)."""
+        changes = tuple(c for c in book.pending_changes if c.position_id != p.position_id)
+        change = PendingChange(p.position_id, p.legs, p.quantity, p.max_loss)
+        return apply_changes(_live(book), (*changes, change))
 
     def _review_change(self, p: OrderProposal, book: Book, market: MarketState,
                        state: GateState) -> Decision:
         r, cap = self.risk, market.capital_usd
-        live = _live(book)
+        if p.kind in (OrderKind.ADJUST, OrderKind.ROLL):
+            # Bijsturen en rollen openen legs: dezelfde toestandspoorten als een entry
+            # (review 2026-11-27, oud 5).
+            pos = next((x for x in _live(book) if x.position_id == p.position_id), None)
+            today = pos is not None and pos.opened_at.date() == market.now.date()
+            for blocked, why in (
+                    (p.underlying in state.blocked_underlyings, "reconcile:diff"),
+                    (state.daily_loss_frac >= r.daily_loss_stop_entries_frac,
+                     "daily_loss:entries"),
+                    (r.pdt_guard and today and pdt_blocks_entry(
+                        state.day_trades, market.now, state.equity, market.calendar), "pdt")):
+                if blocked:
+                    return self._reject((), why)
+        pending = tuple(x for x in book.pending_entries if x.position_id != p.position_id)
+        live = self._live_with_pending(book, p.position_id)
         before = check(self._measure(live, book, market), r, cap)
-        after = check(self._measure(self._after(p, book), book, market), r, cap)
+        after = check(self._measure(self._after(p, book) + pending, book, market), r, cap)
         reducing = all(
             (a.measured < b.measured) if not b.ok else a.ok
             for b, a in zip(before, after, strict=True))
@@ -422,6 +485,18 @@ class RiskGate:
             if und != p.symbol or own == 0 or (own > 0) == (p.qty > 0) or abs(p.qty) > abs(own):
                 raise SafetyBreach(f"sluitorder {p.qty} {p.symbol} voor {p.position_id} past"
                                    f" niet bij zijn aandelen-leg ({own} {und})")
+            # Verder: de prijsband is verplicht, geen order op een symbool met een
+            # reconciliatieverschil, en de order bouwt af wat de broker echt heeft (review
+            # 2026-11-27, N3). Na een crash kan de staat nog aandelen tonen die de broker al kwijt
+            # is; dan zou de sluitorder een nieuwe positie openen.
+            if chain is None:
+                return StockDecision(Verdict.REJECT, None, (), "quotes:missing")
+            if p.symbol in state.blocked_underlyings:
+                return StockDecision(Verdict.REJECT, None, (), "reconcile:diff")
+            broker = book.shares.get(p.symbol, 0)
+            reduces = (broker > 0) != (p.qty > 0) and broker != 0 and abs(p.qty) <= abs(broker)
+            if not reduces and broker != held:
+                return StockDecision(Verdict.REJECT, None, (), "close:exceeds_broker")
             return self._stock(p, Verdict.APPROVE, (), market, "close")
         if chain is None:
             return StockDecision(Verdict.REJECT, None, (), "quotes:missing")

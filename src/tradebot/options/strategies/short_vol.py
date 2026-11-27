@@ -19,8 +19,15 @@ Beheer, in deze volgorde: de stops van `manage_credit` (expiratie, kosten ≥
 `stop_loss_multiple_credit` × credit), dan een short leg met `|delta| > short_delta_exit` →
 CLOSE, STOP (`short_delta`), dan winst nemen en `close_dte` van `manage_credit`.
 
-Optionele entrypoort `min_vrp_ratio` (`null` = uit): gemiddelde short-IV ≥ ratio × σ(h)
-(`common.vrp_gate`, spoorregel `vrp_h:<ratio>`).
+Optionele entrypoort `min_vrp_ratio` (`null` = uit): ATM-IV van de expiratie ≥ ratio × σ(h)
+(`common.vrp_gate`, spoorregel `vrp_h:<ratio>`). De short call opent niet vóór een ex-dividend
+waarbij zijn extrinsieke waarde kleiner is dan het dividend (`short_call_dividend_blockers`).
+De short strikes van de strangle liggen binnen `strangle_delta ± strangle_delta_tolerance`.
+
+Bij 25k kapitaal slaapt deze strategie: het budget per positie is 2 % (500 USD) tegen een
+stressverlies van ongeveer 8.300 USD per eenheid op SPY, dus `size` geeft 0 eenheden. Dat is
+bedoeld (open vraag over `allow_undefined_risk`); de sizing verandert niet. Hij wordt pas
+actief bij een veelvoud van het kapitaal.
 """
 from __future__ import annotations
 
@@ -50,6 +57,7 @@ from .common import (
     entry_blockers,
     iv_ok,
     pick_expiry,
+    short_call_dividend_blockers,
     size,
     strike_at_delta,
     strike_nearest,
@@ -96,8 +104,9 @@ class ShortVol:
             put = (chain.find(expiry, call.contract.strike, Right.PUT)
                    if call is not None else None)
         else:
-            call = strike_at_delta(chain, expiry, Right.CALL, self.cfg.strangle_delta)
-            put = strike_at_delta(chain, expiry, Right.PUT, self.cfg.strangle_delta)
+            d, tol = self.cfg.strangle_delta, self.cfg.strangle_delta_tolerance
+            call = strike_at_delta(chain, expiry, Right.CALL, d, (d - tol, d + tol))
+            put = strike_at_delta(chain, expiry, Right.PUT, d, (d - tol, d + tol))
         if call is None or put is None:
             return None
         return LegIntent(put.contract, -1), LegIntent(call.contract, -1)
@@ -120,7 +129,9 @@ class ShortVol:
             m = mark(chain, legs) if legs is not None else None
             if legs is None or m is None:
                 continue
-            vrp_ok, vrp_trace = vrp_gate(market, und, expiry, legs, cfg.min_vrp_ratio)
+            if short_call_dividend_blockers(market, und, legs):
+                continue
+            vrp_ok, vrp_trace = vrp_gate(market, und, expiry, cfg.min_vrp_ratio)
             if not vrp_ok:
                 continue
             credit = -m
@@ -139,7 +150,7 @@ class ShortVol:
         c = self.cfg
         acts = manage_credit(pos, market, self.rules, c.take_profit_frac,
                              c.stop_loss_multiple_credit, c.close_dte)
-        if acts and acts[0].urgency is Urgency.STOP:
+        if (acts and acts[0].urgency is Urgency.STOP) or pos.shares:
             return acts
         chain = market.chains.get(pos.underlying)
         if chain is not None and any(self._tested(chain, leg) for leg in pos.intents()

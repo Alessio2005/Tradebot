@@ -54,7 +54,7 @@ E = EXPIRIES[1]
 def test_rules_and_times_come_from_the_config():
     assert parse_time("09:05") == time(9, 5)
     assert RULES.close_before_expiry == time(15, 0) and RULES.max_loss_frac_capital == 0.02
-    assert RULES.max_loss_per_underlying_frac == 0.05 and RULES.iv.lookback_days == 252
+    assert RULES.max_loss_per_underlying_frac == 0.05 and RULES.iv.lookback_days == 365
 
 
 def test_pick_expiry_takes_the_middle_and_the_earliest_on_a_tie():

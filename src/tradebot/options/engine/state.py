@@ -41,6 +41,7 @@ class EngineState:
     wheel: dict[str, str] = field(default_factory=dict)
     cost_basis: dict[str, float] = field(default_factory=dict)
     new_positions: dict[str, int] = field(default_factory=dict)   # datum → aantal
+    done_today: list[str] = field(default_factory=list)           # "datum|taak", tegen dubbel scannen
 
     def open_positions(self) -> list[StrategyPosition]:
         return [p for p in self.positions if p.status is not PositionStatus.CLOSED]
@@ -85,7 +86,8 @@ def _pos(p: StrategyPosition) -> dict[str, Any]:
             "units": p.units, "entry_net": p.entry_net,
             "max_loss": None if p.max_loss == float("inf") else p.max_loss,
             "adjustments": p.adjustments, "phase": p.phase, "variant": p.variant,
-            "status": p.status.value, "hedge_realized_usd": p.hedge_realized_usd}
+            "status": p.status.value, "hedge_realized_usd": p.hedge_realized_usd,
+            "assigned": p.assigned}
 
 
 def _unpos(r: Mapping[str, Any]) -> StrategyPosition:
@@ -96,7 +98,8 @@ def _unpos(r: Mapping[str, Any]) -> StrategyPosition:
                             float("inf") if r["max_loss"] is None else float(r["max_loss"]),
                             int(r["adjustments"]), r["phase"], r["variant"],
                             PositionStatus(r["status"]),
-                            float(r.get("hedge_realized_usd", 0.0)))   # ouder bestand: 0
+                            float(r.get("hedge_realized_usd", 0.0)),   # ouder bestand: 0
+                            bool(r.get("assigned", False)))
 
 
 def to_record(s: EngineState) -> dict[str, Any]:
@@ -106,7 +109,7 @@ def to_record(s: EngineState) -> dict[str, Any]:
             "iv_history": {k: [list(x) for x in v] for k, v in s.iv_history.items()},
             "equity": [list(x) for x in s.equity], "high_water_mark": s.high_water_mark,
             "day_trades": s.day_trades, "wheel": s.wheel, "cost_basis": s.cost_basis,
-            "new_positions": s.new_positions}
+            "new_positions": s.new_positions, "done_today": s.done_today}
 
 
 def save_state(s: EngineState, path: Path) -> None:
@@ -139,7 +142,8 @@ def load_state(path: Path, mode: str, account_hash: str) -> EngineState | None:
                        [(d, float(v)) for d, v in r["equity"]], float(r["high_water_mark"]),
                        list(r["day_trades"]), dict(r["wheel"]),
                        {k: float(v) for k, v in r["cost_basis"].items()},
-                       {k: int(v) for k, v in r["new_positions"].items()})
+                       {k: int(v) for k, v in r["new_positions"].items()},
+                       list(r.get("done_today", [])))             # ouder bestand: leeg
 
 
 class Journal:

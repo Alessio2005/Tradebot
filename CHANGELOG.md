@@ -77,7 +77,10 @@ Beperkingen van de data (keuzes van mij, die Alessio kan terugdraaien):
   rekent. Is de positie dicht, dan sluit `_unwind_shares` ze de volgende ronde; anders gaan
   ze mee als de positie sluit. Eerder bleven ze los in het boek staan. In de DoltHub-replay liet
   een vroege assignment van een short SPY-call vóór ex-dividend daardoor −100 SPY open van 2020
-  tot 2026 (eind-equity −11.000 USD). Dit geldt ook voor IBKR-paper; het alarm
+  tot 2026 (eind-equity −11.000 USD). Dit geldt alleen voor de paper-broker van de
+  replay: `execution/ibkr.py` geeft alleen FILL-uitvoeringen door, dus assignment en uitoefening
+  via IBKR-paper zijn nog niet gebouwd en daar gebeurt dit (nog) niet (review 2026-11-27, N31).
+  Het alarm
   `options_assignment` blijft. De risicopoort (`risk/gate.py`) laat daarom een sluitorder op
   aandelen toe op elk symbool, ook buiten `share_eligible` (zoals SPY). Opbouwen blijft
   beperkt tot `share_eligible`, en de sluitorder moet nog steeds precies de eigen leg afbouwen.
@@ -90,6 +93,31 @@ Beperkingen van de data (keuzes van mij, die Alessio kan terugdraaien):
   `/mnt/project-files/options-dolthub/replay-2026-11-27/waarom-achter-op-buy-hold.md`.
 - **Netwerk**: de cloudomgeving moest `www.dolthub.com`, `query2.finance.yahoo.com` en
   `data.sec.gov` toelaten (met akkoord van Alessio).
+
+### Reviewfixes engine, assignment en paper-broker (review 2026-11-27, strategieën N2-N31)
+
+- **N2**: de aandelen uit een assignment worden alleen voor `wheel`, `covered_call` en
+  `cash_secured_put` niet als aandelen-leg geboekt en niet teruggekocht: ze blijven losse aandelen
+  (CSP → covered call; `CoveredCall.scan` ziet geen extra lot, geen naakte call) en geven geen
+  `options_assignment`-alarm. Een geassignde CSP zet de kostprijs (`cost_basis`) als die er nog
+  niet is.
+- **N7**: een gedeeltelijke assignment of uitoefening rekent per positie `min(|q|, rest)` af en
+  verkleint de leg (aandelen-leg voor het geleverde deel). Passen de legs daarna niet meer bij
+  `units`, dan wordt `units` de grootste gemene deler, zodat een sluitorder klopt.
+- **N8**: `position_closed` na een assignment leest `hedge_realized_usd` uit de bijgewerkte
+  positie (na het boeken van de geleverde aandelen).
+- **N6**: de paper-broker boekt dividend op aandelenposities (`PaperBroker.pay_dividends`, aan het
+  einde van de dag vóór de ex-datum, na `early_assign`; long ontvangt, short betaalt). De engine
+  boekt hetzelfde bedrag op de aandelen-legs (`hedge_realized_usd`) en journaalt `dividend_paid`
+  en `dividend` (per positie); losse aandelen (wheel) raken alleen de equity. Buy-and-hold in
+  `report.py` blijft ongewijzigd (kas op de ex-datum).
+- **N29**: `_unwind_shares` verrekent eerst tegengestelde aandelen-legs van gesloten posities
+  op hetzelfde symbool tegen de spot (`hedge_netted`, zonder commissie), zodat alleen het netto
+  aantal verhandeld wordt.
+- **N17** (engine-deel): `StrategyPosition.assigned` (bewaard in de staat) markeert een positie
+  waarvan een assignment of uitoefening aandelen leverde; `_manage` sluit zo'n positie met rest
+  meteen (STOP, reden `assigned`), voor elke strategie.
+- **N31**: de claim "geldt ook voor IBKR-paper" hierboven is gecorrigeerd.
 
 ## Opruimen en optimaliseren, plus de risicogaten uit de review (2026-11-27)
 
@@ -817,3 +845,92 @@ oordeel of ledger-entry veranderd; de backtest van v6–v8 is bit-identiek.
 - CPCV + purge/embargo, triple-barrier/TrendScan-labeling, HRP/RP-portfolio,
   TCA-laag, OMS + audit-log (R-8), circuit-breakers (R-7), paper-engine,
   MRM-rapportage, lookahead-testsuite, determinisme-suite (R-5).
+
+### Reviewfixes risicopoort, monitor en PDT (2026-11-27)
+
+- N3: de aandelen-sluitorder (`review_stock`, `closing`) is begrensd op wat de broker echt heeft
+  (`Book.shares`: tegengesteld en niet groter, tenzij de broker precies de aandelen-legs heeft),
+  weigert op een symbool met een reconciliatieverschil, en heeft een verplichte prijsband (zonder
+  keten een weigering). `_share_breaks` laat de modulo-100-marge alleen nog gelden op wheel-,
+  cash-secured-put- en covered-call-symbolen; elders is elk verschil een recon-break. Een
+  crash-herstart die opnieuw +100 SPY zou kopen wordt zo geweigerd en gemeld.
+- N9: `max_order_usd` geldt alleen voor OPEN, ADJUST en ROLL; een sluiting geeft geen HALT meer.
+- N10: ADJUST/ROLL meten het boek met de lopende entries erbij, en een nieuwe entry telt lopende
+  ADJUST/ROLL-orders mee (`Book.pending_changes`, `PendingChange`).
+- Oud 5: ADJUST en ROLL toetsen `blocked_underlyings`, dagverlies en PDT (positie van vandaag);
+  het maximale verlies na een ADJUST komt uit de nieuwe legs (`risk.limits.expiry_max_loss`).
+- N18: `degross_plan` trekt de aandelen-legs van de te sluiten posities af bij het meten van de rest.
+- N23: de PDT-guard telt daytrades plus entries van vandaag (gevuld en lopend) tegen de grens.
+- N30: een CLOSE moet de legs van de positie precies naar nul brengen (anders `SafetyBreach`);
+  `_after` houdt de aandelen-legs; een aandelen-exit wordt pas opnieuw gestuurd nadat de broker de
+  geannuleerde order niet meer open heeft (`order_cancel_pending`).
+
+### Reviewfixes pricing, oppervlak, dividendinput en orderlimieten
+
+- N4: `Surface.atm_vol` extrapoleert alleen nog binnen `min(14 dagen, 30 % van de looptijd)` van
+  de dichtstbijzijnde smile, anders `None`; `term_slope` is `None` tenzij 30 én 60 dagen door
+  smiles aan twee kanten omsloten zijn (was: vlak, dus helling 0,0). Aanroepers (service,
+  `debit.min_term_slope`, `classify`) verwerkten `None` al: geen helling = geen debit-entry,
+  geen backwardation-STRESS. Gedragswijziging in de replay: een ketting met maar tot ~45 dagen
+  aan expiraties geeft geen ATM-IV-30/60-helling meer.
+- N11: theta de dag vóór een ex-datum laat het dividend niet meer uit het venster vallen: de
+  spot van het herwaarderingstijdstip zakt met het dividend dat in de stap ex gaat.
+- N5: de spotbump voor BAW-delta/gamma schaalt met 0,25·σ√T, geklemd op [0,05 %, 0,5 %] (was
+  vast 0,5 %); bij langere looptijden ongewijzigd. Ook in de batch-kernel.
+- N26: de forward uit put-call-pariteit corrigeert de Amerikaanse mids voor de
+  vroege-uitoefenpremie (BAW min Europees bij de IV van de optie).
+- N27: `combo_fair` gebruikt voor alle legs de mid zodra één expiratie geen smile heeft.
+- N24: `execution.orders.tick_for` leest `execution.ticks` (nieuw: `penny`, `penny_symbols`);
+  `ticks.default` is niet langer dode config.
+- N5 (live): `ibkr_feed.project_dividends` projecteert het dividendschema (laatste bedrag, vaste
+  cadans uit de historie, tot 365 dagen) met `CashDividend.estimated`.
+- Oud #34: een dividend met ex-datum op de expiratiedag telt niet meer dubbel (zit al in de
+  spot); de docstring van `pricing.engines` zegt nu waar `Use.DECISION` wel en niet gebruikt wordt.
+## Reviewfixes strategieën en selectie (2026-11-27, tweede ronde)
+
+Uit `review-strategieen-2026-11-27.md` (N1 t/m N28) en de eerdere review (#6, #24, #25, #26):
+
+- N1: de earnings-blackout dekt `[vandaag, expiratie]`: ook de earningsdag zelf blokkeert
+  (`Events.earnings_within`; `earnings_between` en `next_earnings` zijn ongewijzigd).
+- #6: ex-dividendcheck op elke short call buiten de covered call (bear call, callkant van de
+  condor, short strangle, korte leg van calendar en bull call spread): geen entry als er voor de
+  expiratie een ex-dividend valt met extrinsieke waarde (nu) < dividend (`events:ex_dividend`).
+  `income.py` deelt de regel (`common.early_assignment_risk`).
+- N12: calendar forward-vol-regel vergelijkt σ_f met de verwachte RV over [h1, h2], niet met σ(h2 − h1).
+- N13: `classify` toetst ATM-IV(30) tegen `at_horizon(atm_tenor_days)`; `VolState.vrp_ratio` en
+  `vrp_points` (ook in het journal) idem. Gedrag: bij mean reversion andere RICH/NORMAL-grens.
+- N14: een earnings-variant van de long straddle wordt in `selection.admit` niet geweigerd om STRESS
+  door `backwardation` (zijn eigen event in IV30): het regime wordt zonder termijnhelling herberekend.
+  Een vol-schok blijft STRESS. Let op: de event-IV kan het regime daarna RICH maken, dat de variant
+  niet toestaat; dat is niet aangepast.
+- N15: een roll van CSP/covered call toetst de nieuwe expiratie met `entry_blockers`, anders CLOSE (`dte`).
+- N16: vastgelegd in config en runbook dat de short strangle bij 25k slaapt (0 eenheden); sizing ongewijzigd.
+- N17 (strategiekant): met aandelen-legs zwijgen stop, take-profit, delta- en ITM-regels en de
+  condor-adjust op de optie-legs; expiratie en DTE blijven. De engine sluit zulke posities als `assigned`.
+- N19: `max_loss`, sizing en budget van debit-strategieën rekenen met het natural-debit (ask/bid), de
+  limiet start op de mid. Gedrag: iets minder eenheden.
+- N20: het cash van een nieuwe CSP is `Book.cash_usd` min de reservering (`strike × 100 × aantal`) van
+  open en lopende CSP's/wheel-puts; zonder nieuw `Book`-veld.
+- N21: `_covered` telt alleen short calls van `covered_call` en `wheel` (open en lopende entries).
+- N22: de VRP-poort gebruikt de ATM-IV van de expiratie (`common.atm_iv`), niet de skew-IV van de short leg.
+  `vrp_gate` heeft de parameter `legs` niet meer.
+- N28: IVR/IVP over de laatste `ivr_lookback_days` KALENDERdagen (default 365, was 252 waarnemingen),
+  minimaal `ivr_min_observations` (nieuw, 120) waarnemingen. Gedrag: bij dagelijkse data komt de IVR
+  eerder beschikbaar (120 i.p.v. 252 waarnemingen).
+- #24: de take-profit van de debit vertical is `take_profit_frac_max_gain` (0,60) van de maximale winst
+  (breedte − debit); vervangt `take_profit_frac_debit` (2 × debit was bij debit ≥ ½ breedte onbereikbaar).
+- #25: de credit spread rangschikt alle breedtes op (credit − kosten)/max verlies (kosten: commissie voor
+  openen en sluiten van beide legs, `Rules.commission_per_contract`), bij gelijke stand de smalste.
+- #26: de short strikes van iron condor (incl. adjust) en short strangle liggen binnen een deltaband:
+  `short_delta_tolerance` / `strangle_delta_tolerance` (0,05), zoals de credit spread.
+
+### Reviewfixes IBKR-paper-robuustheid
+
+- Oud #14: runbook en `live.py` zeggen nu eerlijk dat alleen `require_paper` (DU-hek) en `TRADING_MODE: paper` in het pad zitten; `gather`/`live_decision` zijn niet aangesloten.
+- Oud #8: de paper-dienst (`Engine(persist=True)`) bewaart de staat atomisch na elke submit, fill, walk-wijziging en annulering, inclusief `done_today` (nieuw veld in `state.json`, ouder bestand: leeg) en de pogingenteller; vóór de broker-call staat de intentie al in de staat. Bij de start (en na herverbinden) neemt `_adopt_orders` open orders over op `orderRef` (`BrokerAdapter.adopt`, nieuw) of zet ze op CANCELLED (`order_orphaned`); er komt nooit een tweede order voor dezelfde client-id. De replay bewaart niet tussendoor (gedrag ongewijzigd).
+- Oud #10: `run_paper` verbindt bij uitval opnieuw met backoff (5 s, verdubbelend tot 60 s), tickt niet zolang de verbinding weg is (de heartbeat gaat dus niet groen/blijft stilstaan) en geeft HALT na `IB_RECONNECT_TIMEOUT_SECONDS` (standaard 900); na herstel opnieuw adopteren en reconciliëren.
+- Oud #11: de CLI koppelt `carry.alerts.Alerter` (webhook/Telegram uit de omgeving, altijd ook het log) als alert-callback aan `run_paper`, en `HEARTBEAT_URL` als dead man's switch (hoogstens eens per minuut, alleen bij een verbonden ronde).
+- Oud #13: een gedeeltelijk gevulde combo wordt niet meer als volledig FILLED geboekt: per leg telt de order het gevulde aantal (`leg_fills`, ontdubbeld op `exec_ids`), alleen de nieuwe complete eenheden worden geboekt (`filled_units`; entry laat de positie groeien, `max_loss` schaalt mee, een gedeeltelijke CLOSE laat de positie open), de order blijft open voor het restant en EOD-cancel/walk annuleert het restant. Lopende orders tellen in de poort alleen hun restant. Een late fill na annuleren wordt nog geboekt. De `_seen`-sleutel bevat nu ook bij opties de `exec_id`. Gedrag bij volledige fills (replay) ongewijzigd.
+- Oud #9: `IBKRBroker.executions` leidt expiratie, assignment en uitoefening af uit positieverschillen (positie bij de broker min wat de eigen fills verklaren; een verschil telt na twee opeenvolgende aanroepen): optie weg zonder aandelenlevering is `EXPIRY`, mét levering `ASSIGNMENT` (short) of `EXERCISE` (long), tegen de strike. De bestaande engine-afhandeling (`_assignment`) boekt ze. Beperking: een expiratie terwijl de dienst uit stond ziet alleen de reconciliatie (breuk).
+- Oud #15: aparte env-bestanden per dienst (`.env.ib` voor de gateway-login, `.env.options` voor account en alarmen; `.env` blijft voor Kraken), het `ib-gateway`-image met een TODO/digest-plaatshouder, `.gitignore` en de docker-workflow kopiëren de voorbeeldbestanden mee. Runbook bijgewerkt (uitval, herstart, alarmen).
+- Oud #12: de IBKR-feed vraagt hoogstens `max_expiries` (6, `IB_MAX_EXPIRIES`) gespreide expiraties en strikes binnen ±10 % (`IB_STRIKE_RANGE`, was 15 %); dat begrenst het aantal marktdatalijnen en de wachttijd per refresh (de batches slapen al asynchroon). Gedragswijziging alleen voor de live-feed. `Quote.delayed` blijft de constante `True` (de adapter vraagt altijd vertraagde data, type 3).

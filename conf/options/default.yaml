@@ -52,13 +52,14 @@ pricing:
   pool_min_contracts: 16
 
 iv_metrics:
-  ivr_lookback_days: 252         # handelsdagen dagelijkse ATM-IV(30)
+  ivr_lookback_days: 365         # KALENDERdagen dagelijkse ATM-IV(30); selectie op datum
+  ivr_min_observations: 120      # minimaal aantal waarnemingen in dat venster, anders vervangende regel
   atm_tenor_days: 30
   rv_window_days: 20             # Yang-Zhang
   high_ivr: 30
   low_ivr: 30
   very_low_ivr: 20
-  fallback:                      # open vraag B: zolang er geen 252 dagen historie is
+  fallback:                      # open vraag B: zolang er te weinig IV-historie is
     enabled: true
     high_iv_ratio: 1.20          # vervangt IVR >= 30
     low_iv_ratio: 1.00           # vervangt IVR <= 30
@@ -72,7 +73,7 @@ strategies:
     dte: [30, 45]
     short_delta: [0.20, 0.30]
     short_delta_target: 0.25
-    wing_width_strikes: [1, 5]   # de kleinste breedte die het credit-criterium haalt
+    wing_width_strikes: [1, 5]   # alle breedtes die het credit-criterium halen, rang op (credit − kosten)/max verlies
     # credit / breedte is ongeveer de kans op ITM, dus ongeveer |short delta|. De ⅓ uit het
     # detailontwerp is bij delta 0,25 onhaalbaar; 0,20 laat de beste kwart van de spreads door.
     min_credit_frac_width: 0.20
@@ -89,6 +90,7 @@ strategies:
     enabled: true
     dte: [30, 45]
     short_delta: 0.16
+    short_delta_tolerance: 0.05  # deltaband van de short strikes: short_delta ± 0,05
     wing_width_strikes: [5, 10]
     min_credit_frac_width: 0.15  # totaal; bij delta 0,16 aan beide kanten (zie hierboven)
     iv_condition: high
@@ -106,7 +108,7 @@ strategies:
     max_debit_frac_width: 0.50
     max_width_strikes: 10
     iv_condition: low            # IVR <= 30
-    take_profit_frac_debit: 1.0  # 100 % winst
+    take_profit_frac_max_gain: 0.60  # sluiten bij 60 % van de maximale winst (breedte − debit)
     stop_loss_frac_debit: 0.50
     close_dte: 21
   calendar_spread:
@@ -164,7 +166,10 @@ strategies:
     roll_dte: 21
   wheel:
     enabled: false
-  short_straddle_strangle:       # undefined risk: laadt alleen met risk.allow_undefined_risk
+  # Undefined risk: laadt alleen met risk.allow_undefined_risk. SLAAPT BIJ 25k: budget per positie
+  # 2 % = 500 USD tegen ±8.300 USD stressverlies per eenheid op SPY, dus 0 eenheden. Bedoeld;
+  # de sizing is niet aangepast (docs/runbook-options.md, "Short strangle").
+  short_straddle_strangle:
     enabled: false
     style: strangle
     strangle_delta: 0.16
@@ -175,6 +180,7 @@ strategies:
     close_dte: 21
     underlyings: [SPY, QQQ, IWM]   # allow-list: alleen deze onderliggenden
     max_per_underlying: 1          # open posities per onderliggende; hooguit 1 (een tweede krijgt 0 eenheden)
+    strangle_delta_tolerance: 0.05 # deltaband van de short strikes: strangle_delta ± 0,05
     short_delta_exit: 0.30         # een short leg met |delta| > 0,30 → CLOSE, STOP
     min_vrp_ratio: null            # null = uit (aanbevolen 1.10); zie credit_spread
 
@@ -259,7 +265,11 @@ execution:                       # detailontwerp 10
   max_edge_frac: 0.5             # bij fair: de walk concedeert nooit voorbij
                                  # fair + max_edge_frac × |natural − mid| richting natural
   max_spread_frac_fair: 0.25     # bij fair: geen entry als 2 × |natural − mid| > dit × |fair|
-  ticks: {default: {below_3: 0.01, above_3: 0.05}, combo: 0.01}
+  ticks:                         # gelezen door execution.orders.tick_for
+    default: {below_3: 0.01, above_3: 0.05}   # één leg, niet-penny-onderliggende
+    combo: 0.01                               # meer dan één leg
+    penny: 0.01                               # één leg op een penny-pilot-symbool
+    penny_symbols: [SPY, QQQ, IWM]
   max_order_usd: 5000            # premie per order; daarboven is het een fout (HALT)
 
 schedule:                        # New York-tijd

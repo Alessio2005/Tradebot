@@ -7,6 +7,9 @@ Prijzen per eenheid en per aandeel, met het teken van de broker: `limit` > 0 is 
 (debit), < 0 is ontvangen (credit). Er is geen market-order: een enkele optie is een combo
 met één leg.
 
+Prijsstappen: `tick_for` (config `execution.ticks`): combo 0,01; één leg op SPY/QQQ/IWM 0,01;
+één leg op andere onderliggenden 0,01 onder $3 en 0,05 erboven.
+
 Price-walk:
 
 ```text
@@ -50,6 +53,7 @@ from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
 
+from ...schemas.options import TicksConfig
 from ..chain.builder import Chain
 from ..positions import LegIntent, Urgency
 from ..pricing.engines import EngineSettings, Use, engine_for
@@ -57,7 +61,8 @@ from ..pricing.surface import Surface, SurfaceStatus
 from ..pricing.vanilla import OptionInputs, price
 
 __all__ = ["ComboOrder", "OrderStatus", "Purpose", "StockOrder", "WalkStep", "client_id",
-           "combo_fair", "combo_prices", "fair_walk_limit", "position_id", "walk_limit"]
+           "combo_fair", "combo_prices", "fair_walk_limit", "position_id", "tick_for",
+           "walk_limit"]
 
 
 class Purpose(StrEnum):
@@ -144,6 +149,9 @@ def combo_fair(chain: Chain, surface: Surface | None, legs: Sequence[LegIntent],
     geen bid of ask heeft."""
     smiles = ({s.expiry: s for s in surface.smiles}
               if surface is not None and surface.status is SurfaceStatus.OK else {})
+    # Eén expiratie zonder smile (uit het oppervlak gevallen): alle legs op de mid, anders
+    # vergelijkt de fair-limiet een modelwaarde met een mid (N27).
+    use_model = all(leg.contract.expiry in smiles for leg in legs)
     fair = 0.0
     for leg in legs:
         c = leg.contract
@@ -152,13 +160,32 @@ def combo_fair(chain: Chain, surface: Surface | None, legs: Sequence[LegIntent],
             return None
         leg_fair = 0.5 * (o.quote.bid + o.quote.ask)
         smile = smiles.get(c.expiry)
-        vol = smile.vol(math.log(c.strike / smile.forward)) if smile is not None else 0.0
+        vol = (smile.vol(math.log(c.strike / smile.forward))
+               if use_model and smile is not None else 0.0)
         if vol > 0.0:
             inp = OptionInputs(chain.spot, c.strike, c.right, c.expiry, chain.asof, chain.carry)
             method = engine_for(Use.SCAN, bool(inp.discrete_dividends), engines)
             leg_fair = price(inp, vol, method, engines)
         fair += leg.ratio * leg_fair
     return fair
+
+
+def tick_for(ticks: TicksConfig, price: float, legs: Sequence[LegIntent]) -> float:
+    """De prijsstap voor een order op `legs` bij een (absolute) prijs `price` per aandeel.
+
+    * meer dan één leg (een echte combo): `ticks.combo`;
+    * één leg op een penny-pilot-onderliggende (`ticks.penny_symbols`: SPY, QQQ, IWM):
+      `ticks.penny` (0,01) op elk prijsniveau;
+    * één leg op de rest: `ticks.default.below_3` onder $3, `ticks.default.above_3` vanaf $3.
+
+    Een enkele optie is hier een combo met één leg, maar beurst als gewone order: de
+    combo-tick (0,01) zou bij een niet-penny-optie boven $3 een niet-bestaande prijs sturen.
+    """
+    if len(legs) > 1:
+        return ticks.combo
+    if legs and legs[0].contract.underlying in ticks.penny_symbols:
+        return ticks.penny
+    return ticks.default.below_3 if abs(price) < 3.0 else ticks.default.above_3
 
 
 def _favourable(x: float, tick: float, direction: float) -> int:

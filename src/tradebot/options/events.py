@@ -29,6 +29,10 @@ class Events:
         """Valt er een earningsdatum in `(after, until]`?"""
         return any(after < d <= until for d in self.earnings)
 
+    def earnings_within(self, start: date, until: date) -> bool:
+        """Valt er een earningsdatum in `[start, until]`? (Beide grenzen tellen mee.)"""
+        return any(start <= d <= until for d in self.earnings)
+
     def next_earnings(self, after: date) -> date | None:
         future = [d for d in self.earnings if d > after]
         return min(future) if future else None

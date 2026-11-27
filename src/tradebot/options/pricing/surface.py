@@ -3,14 +3,17 @@
 Dit is KALIBRATIE AAN DE HUIDIGE MARKT, geen training op historische data (detailontwerp 6.2).
 
 * Forward per expiratie uit put-call-pariteit op de drie strikes rond spot (mediaan), zodat
-  dividenden en borrow vanzelf meetellen: `F = K + (C − P)·e^{rT}`.
+  dividenden en borrow vanzelf meetellen: `F = K + (C − P)·e^{rT}`, met C en P eerst
+  teruggebracht tot Europese prijzen (min de vroege-uitoefenpremie uit het model).
 * Smile: OTM-IV's (puts onder de forward, calls erboven), als totale variantie
   `w = σ²T` tegen log-moneyness `k = ln(K/F)`, kubische spline; minstens 5 punten. Een punt
   telt alleen mee als de vega minstens `min_vega` (USD per volpunt per aandeel) is: quotes
   staan op centen, en bij een kleine vega is de IV van een afgeronde prijs ruis (een halve
   cent bij vega 0,01 is een half volpunt).
 * Over de tijd: lineair in totale variantie bij gelijke `k`; buiten het bereik van de
-  expiraties: vlakke vol van de dichtstbijzijnde expiratie.
+  expiraties: vlakke vol van de dichtstbijzijnde expiratie, maar alleen binnen een kleine
+  marge (zie `Surface.atm_vol`); verder `None`. `term_slope` vereist interpolatie aan
+  beide kanten.
 * Controles: kalender (w stijgt in T op een k-raster, binnen het k-bereik dat beide
   expiraties met punten dekken) en butterfly (de dichtheid uit de
   callprijzen ≥ 0, prijzen via `ql.blackFormula`). Een expiratie met butterfly-arbitrage
@@ -32,15 +35,21 @@ import numpy as np
 import QuantLib as ql
 from scipy.interpolate import CubicSpline
 
+from ...utils.failfast import DataContractError
 from ..calendar import expiry_moment, year_fraction
 from ..chain.builder import Chain, PricedOption
 from ..contracts import Right
+from ..rates import Carry
+from .engines import Method
+from .vanilla import OptionInputs, price
 
 __all__ = ["MIN_SMILE_POINTS", "MIN_VEGA", "Smile", "Surface", "SurfaceStatus", "build_surface",
            "forward", "skew_25d"]
 
 MIN_SMILE_POINTS = 5
 MIN_VEGA = 0.01
+EXTRAPOLATION_MAX_DAYS = 14.0
+EXTRAPOLATION_MAX_FRACTION = 0.30
 _K_GRID = np.linspace(-0.2, 0.2, 21)
 _TOL = 1e-6
 
@@ -88,15 +97,23 @@ class Surface:
     reason: str = ""
 
     def atm_vol(self, tenor_days: float) -> float | None:
-        """ATM-vol (k = 0) op `tenor_days`, lineair in totale variantie over de tijd."""
+        """ATM-vol (k = 0) op `tenor_days`, lineair in totale variantie over de tijd.
+
+        Binnen het bereik van de expiraties wordt geïnterpoleerd. Erbuiten is een vlakke vol
+        van de dichtstbijzijnde smile alleen een benadering als die smile dichtbij ligt:
+        verder dan `min(EXTRAPOLATION_MAX_DAYS, EXTRAPOLATION_MAX_FRACTION · looptijd)` dagen
+        geeft `None` (geen cijfer is beter dan een vlak cijfer dat een termijnstructuur van 0
+        suggereert).
+        """
         if self.status is not SurfaceStatus.OK:
             return None
         t = tenor_days / 365.0
         s = self.smiles
+        margin = min(EXTRAPOLATION_MAX_DAYS, EXTRAPOLATION_MAX_FRACTION * tenor_days) / 365.0
         if t <= s[0].t:
-            return s[0].vol(0.0)
+            return s[0].vol(0.0) if s[0].t - t <= margin else None
         if t >= s[-1].t:
-            return s[-1].vol(0.0)
+            return s[-1].vol(0.0) if t - s[-1].t <= margin else None
         i = next(j for j in range(1, len(s)) if s[j].t >= t)
         a, b = s[i - 1], s[i]
         x = (t - a.t) / (b.t - a.t)
@@ -104,8 +121,45 @@ class Surface:
         return math.sqrt(w / t)
 
     def term_slope(self, short_days: float = 30, long_days: float = 60) -> float | None:
+        """IV(long) − IV(short); `None` tenzij beide tenors door smiles aan twee kanten
+        omsloten zijn (extrapolatie zou een helling van 0 voorwenden)."""
+        if self.status is not SurfaceStatus.OK:
+            return None
+        lo_t, hi_t = self.smiles[0].t, self.smiles[-1].t
+        if not all(lo_t <= d / 365.0 <= hi_t for d in (short_days, long_days)):
+            return None
         lo, hi = self.atm_vol(short_days), self.atm_vol(long_days)
         return None if lo is None or hi is None else hi - lo
+
+
+def _european_equivalent(chain: Chain, o: PricedOption, expiry: date) -> float:
+    """De Amerikaanse mid van `o` minus de vroege-uitoefenpremie (Amerikaans − Europees uit
+    het model bij de IV van `o`). Zonder IV blijft de mid zoals hij is.
+
+    Put-call-pariteit geldt alleen voor Europese prijzen; de Amerikaanse put is duurder dan de
+    Europese (en de call bij een dividend), waardoor `K + (C − P)·e^{rT}` een te lage forward
+    geeft (N26). Discrete dividenden gaan als gelijkwaardige continue yield de premieberekening
+    in (BAW en de analytische Europese engine kennen geen discrete dividenden): voor de kleine
+    premie is dat ruim nauwkeurig genoeg.
+    """
+    mid = o.quote.mid
+    iv = o.iv
+    if mid is None or iv is None:
+        return float(mid) if mid is not None else 0.0
+    carry = chain.carry
+    divs = carry.dividends_in(chain.asof.date(), expiry)
+    if divs:
+        t = year_fraction(chain.asof, expiry_moment(expiry))
+        pv = sum(d.amount * math.exp(-carry.rate * max((d.ex_date - chain.asof.date()).days, 0)
+                                     / 365.0) for d in divs)
+        carry = Carry(carry.rate, min(pv / (chain.spot * t), 0.25))
+    inp = OptionInputs(chain.spot, o.contract.strike, o.contract.right, expiry, chain.asof,
+                       carry)
+    try:
+        eep = price(inp, iv, Method.BAW) - price(inp, iv, Method.EUROPEAN)
+    except DataContractError:           # verlopen of onbruikbare invoer: geen correctie
+        return float(mid)
+    return float(mid) - max(eep, 0.0)
 
 
 def _forward(chain: Chain, expiry: date, discount: float) -> float | None:
@@ -116,13 +170,14 @@ def _forward(chain: Chain, expiry: date, discount: float) -> float | None:
     both = sorted(set(calls) & set(puts), key=lambda k: abs(k - chain.spot))[:3]
     if not both:
         return None
-    fwd = [k + (calls[k].quote.mid - puts[k].quote.mid) / discount  # type: ignore[operator]
-           for k in both]
+    fwd = [k + (_european_equivalent(chain, calls[k], expiry)
+                - _european_equivalent(chain, puts[k], expiry)) / discount for k in both]
     return float(median(fwd))
 
 
 def forward(chain: Chain, expiry: date) -> float | None:
-    """Forward van één expiratie uit put-call-pariteit (mediaan over drie strikes rond spot)."""
+    """Forward van één expiratie uit put-call-pariteit (mediaan over drie strikes rond spot),
+    gecorrigeerd voor de vroege-uitoefenpremie van de Amerikaanse quotes."""
     t = year_fraction(chain.asof, expiry_moment(expiry))
     return _forward(chain, expiry, math.exp(-chain.carry.rate * t))
 

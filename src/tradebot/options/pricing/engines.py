@@ -7,6 +7,13 @@
 | discreet dividend in looptijd | FD met dividendschema                          |
 | referentie, pariteit          | analytisch Europees                            |
 
+Wie de tabel leest: de keten wordt altijd met `Use.SCAN` gebouwd (BAW, FD bij een discreet
+dividend); `Use.DECISION` en `settings.decision` worden door `engine_for` alleen op verzoek
+gekozen en door de standaardketen NIET gebruikt. De beslissingsengine (`pricing.decision_engine`)
+komt alleen in de risicopoort (`RiskGate(..., Method(decision_engine))`: de herwaardering van de
+scenario's), niet in sizing of in de IV van de keten. Een discreet dividend
+dwingt daar ook FD af.
+
 Binomiaal en BAW kennen alleen een continue yield; met een discreet dividend in de looptijd
 is FD de enige Amerikaanse engine die het goed doet. `engine_for` dwingt dat af.
 """

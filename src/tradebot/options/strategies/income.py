@@ -10,7 +10,14 @@ Beheer, in deze volgorde:
    het dividend → CLOSE, STOP (vroege assignment voorkomen);
 3. kosten ≤ (1 − `take_profit_frac`) × credit → CLOSE, NORMAL;
 4. DTE ≤ `roll_dte` → ROLL naar de expiratie die `dte` het best haalt, op dezelfde delta, als
-   de nieuwe premie de kosten van sluiten overtreft; anders CLOSE, NORMAL.
+   de nieuwe premie de kosten van sluiten overtreft; anders CLOSE, NORMAL. De nieuwe expiratie
+   moet door `entry_blockers` (earnings, verse events): een roll door de earnings heen kan
+   niet, dan sluit de positie.
+
+Cash van de CSP: `Book.cash_usd` min het cash dat al gereserveerd is door open of lopende CSP's
+(`strike × 100 × aantal` van hun short puts, ook van de wheel). Dekking van de covered call:
+alleen de short calls van `covered_call` en `wheel` tellen (open en lopende entries); de short
+call van een bear call of condor dekt geen aandelen.
 """
 from __future__ import annotations
 
@@ -37,6 +44,7 @@ from .common import (
     Rules,
     close,
     dte,
+    early_assignment_risk,
     entry_blockers,
     expiry_close_due,
     iv_ok,
@@ -47,17 +55,28 @@ from .common import (
 
 __all__ = ["CashSecuredPut", "CoveredCall"]
 
+_COVER_STRATEGIES = ("covered_call", "wheel")
+_CSP_STRATEGIES = ("cash_secured_put", "wheel")
+
+
+def _reserved_cash(book: Book) -> float:
+    """`strike × 100 × aantal` van alle open en lopende short puts van CSP en wheel."""
+    return sum(-leg.qty * leg.contract.strike * MULTIPLIER  # type: ignore[union-attr]
+               for p in (*book.positions, *book.pending_entries)
+               if p.strategy in _CSP_STRATEGIES and p.status is not PositionStatus.CLOSED
+               for leg in p.option_legs if leg.qty < 0 and leg.contract.right is Right.PUT)  # type: ignore[union-attr]
+
 
 def _roll_or_close(pos: StrategyPosition, market: MarketState, chain: Chain, cost: float,
                    dte_range: tuple[int, int], target: float, band: tuple[float, float],
-                   min_strike: float = 0.0) -> Action:
+                   rules: Rules, min_strike: float = 0.0) -> Action:
     (leg,) = pos.intents()
     old = leg.contract
     later = Chain(chain.underlying, chain.spot, chain.asof, chain.carry,
                   tuple(o for o in chain.options if o.contract.expiry > old.expiry))
     expiry = pick_expiry(later, *dte_range, market.today)
     new: PricedOption | None = None
-    if expiry is not None:
+    if expiry is not None and not entry_blockers(market, pos.underlying, expiry, rules):
         rows = Chain(later.underlying, later.spot, later.asof, later.carry,
                      tuple(o for o in later.by_expiry(expiry, old.right)
                            if o.contract.strike >= min_strike))
@@ -89,7 +108,7 @@ class CashSecuredPut:
             loss_unit = put.contract.strike * MULTIPLIER
             legs = (LegIntent(put.contract, -1),)
             units = min(size(loss_unit, market, book, und, self.rules, legs),
-                        int(book.cash_usd // loss_unit))
+                        int(max(book.cash_usd - _reserved_cash(book), 0.0) // loss_unit))
             if units <= 0:
                 continue
             credit = put.quote.mid
@@ -115,7 +134,7 @@ class CashSecuredPut:
             return [close(pos, Urgency.NORMAL, "take_profit")]
         if dte(leg.contract.expiry, market.today) <= cfg.roll_dte:
             return [_roll_or_close(pos, market, chain, cost, cfg.dte, cfg.delta_target,
-                                   cfg.delta)]
+                                   cfg.delta, self.rules)]
         return []
 
 
@@ -127,8 +146,9 @@ class CoveredCall:
         self.cfg, self.rules, self.eligible = cfg, rules, frozenset(share_eligible)
 
     def _covered(self, book: Book, und: str) -> int:
-        return sum(-leg.qty for p in book.positions
+        return sum(-leg.qty for p in (*book.positions, *book.pending_entries)
                    if p.underlying == und and p.status is not PositionStatus.CLOSED
+                   and p.strategy in _COVER_STRATEGIES
                    for leg in p.option_legs
                    if leg.qty < 0 and leg.contract.right is Right.CALL)  # type: ignore[union-attr]
 
@@ -163,11 +183,11 @@ class CoveredCall:
     def _early_assignment(self, c: OptionContract, chain: Chain, market: MarketState) -> bool:
         o = chain.find(c.expiry, c.strike, c.right)
         ev = market.events.get(c.underlying)
-        if o is None or o.quote.mid is None or ev is None or chain.spot <= c.strike:
+        if o is None or ev is None or chain.spot <= c.strike:
             return False
         tomorrow = market.calendar.next_trading_day(market.today)
         div = sum(d.amount for d in ev.dividends if d.ex_date == tomorrow)
-        return div > 0 and o.quote.mid - (chain.spot - c.strike) < div
+        return early_assignment_risk(o, chain.spot, div)
 
     def manage(self, pos: StrategyPosition, market: MarketState) -> list[Action]:
         cfg = self.cfg
@@ -187,5 +207,5 @@ class CoveredCall:
             return [close(pos, Urgency.NORMAL, "take_profit")]
         if dte(leg.contract.expiry, market.today) <= cfg.roll_dte:
             return [_roll_or_close(pos, market, chain, cost, cfg.dte, cfg.delta_target,
-                                   cfg.delta, min_strike=leg.contract.strike)]
+                                   cfg.delta, self.rules, min_strike=leg.contract.strike)]
         return []

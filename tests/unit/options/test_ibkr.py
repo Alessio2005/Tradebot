@@ -14,7 +14,14 @@ from tests.unit.options.market_helpers import CFG, EXPIRIES, market
 from tests.unit.options.test_execution import approved, order_for
 from tradebot.options.calendar import NY
 from tradebot.options.contracts import OptionContract, Right
-from tradebot.options.data.ibkr_feed import BATCH, IBKRFeed, _int, _px, yfinance_events
+from tradebot.options.data.ibkr_feed import (
+    BATCH,
+    IBKRFeed,
+    _int,
+    _px,
+    project_dividends,
+    yfinance_events,
+)
 from tradebot.options.engine import paper as paper_mod
 from tradebot.options.engine.paper import now_ny, run_paper
 from tradebot.options.events import Events
@@ -22,6 +29,7 @@ from tradebot.options.execution.ibkr import IBKRBroker, contract_of, option_of
 from tradebot.options.execution.orders import OrderStatus
 from tradebot.options.live import LiveRefused, account_hash
 from tradebot.options.positions import Book, Trend
+from tradebot.options.rates import CashDividend
 from tradebot.options.strategies.common import rules_from_config
 from tradebot.options.strategies.credit import CreditSpread
 from tradebot.utils.failfast import DataContractError
@@ -264,6 +272,45 @@ def test_yfinance_events_are_read(monkeypatch):
     assert yfinance_events("SPY", today) == Events("SPY", today)
 
 
+def test_the_dividend_schedule_is_projected_on_the_historic_cadence():
+    # N5: alleen het eerstvolgende dividend meenemen liet de latere uit de prijs.
+    today = date(2026, 11, 24)
+    hist = [(date(2026, 3, 20), 1.50), (date(2026, 6, 19), 1.55), (date(2026, 9, 18), 1.60)]
+    out = project_dividends(date(2026, 12, 18), hist, today)
+    assert out[0] == CashDividend(date(2026, 12, 18), 1.60) and not out[0].estimated
+    assert [d.ex_date for d in out[1:]] == [date(2026, 12, 18) + timedelta(days=91 * i)
+                                            for i in (1, 2, 3)]
+    assert all(d.estimated and d.amount == 1.60 for d in out[1:])
+    assert out[-1].ex_date <= today + timedelta(days=365)
+    # Geen aankondiging: rol vanaf de laatste ex-datum door tot de toekomst.
+    rolled = project_dividends(None, hist, today)
+    assert rolled[0].ex_date == date(2026, 9, 18) + timedelta(days=91) and rolled[0].estimated
+    # Maandelijks (mediaan 30 dagen) en zonder historie.
+    monthly = [(date(2026, 8, 31), 0.2), (date(2026, 9, 30), 0.2), (date(2026, 10, 30), 0.2)]
+    assert project_dividends(None, monthly, today)[0].ex_date == date(2026, 11, 29)
+    assert project_dividends(date(2026, 12, 1), [], today) == ()
+    stale = project_dividends(None, [(date(2026, 6, 19), 1.5)], today)   # twee kwartalen over
+    assert stale[0].ex_date == date(2026, 6, 19) + timedelta(days=182)
+    # Een enkel historisch dividend: standaardcadans (kwartaal).
+    one = project_dividends(None, [(date(2026, 11, 1), 0.3)], today)
+    assert one[0].ex_date == date(2026, 11, 1) + timedelta(days=91)
+
+
+def test_yfinance_events_project_the_dividend_schedule(monkeypatch):
+    import pandas as pd
+    today = date(2026, 11, 24)
+    idx = pd.DatetimeIndex(["2026-03-20", "2026-06-19", "2026-09-18"], tz="America/New_York")
+
+    class T:
+        def __init__(self, sym):
+            self.calendar = {"Earnings Date": [], "Ex-Dividend Date": date(2026, 12, 18)}
+            self.dividends = pd.Series([1.5, 1.55, 1.6], index=idx)
+
+    monkeypatch.setattr("tradebot.options.data.ibkr_feed.yf.Ticker", T)
+    divs = yfinance_events("SPY", today).dividends
+    assert len(divs) == 4 and divs[0].ex_date == date(2026, 12, 18) and divs[1].estimated
+
+
 # --- de paper-dienst -----------------------------------------------------------------------
 
 def test_the_paper_service_runs_until_stopped(tmp_path, monkeypatch):
@@ -271,7 +318,7 @@ def test_the_paper_service_runs_until_stopped(tmp_path, monkeypatch):
     uni = CFG.universe.model_copy(update={"underlyings": ("TST",), "share_eligible": ()})
     cfg = CFG.model_copy(update={"universe": uni})
     monkeypatch.setattr(paper_mod, "IBKRFeed",
-                        lambda ib, names, rate: IBKRFeed(ib, names, rate, events_source=_events,
+                        lambda ib, names, rate, **kw: IBKRFeed(ib, names, rate, events_source=_events,
                                                          wait_seconds=0))
     t = [datetime.combine(date(2026, 11, 24), time(9, 59), tzinfo=NY)]
     stop = asyncio.Event()
@@ -308,16 +355,46 @@ def test_the_cli_paper_command_and_healthcheck(tmp_path, monkeypatch):
     assert not cli.healthy(tmp_path, now)
     seen = {}
 
-    async def fake_run(cfg, ib, run_dir, stop, account, host, port, client_id):
-        seen.update(account=account, host=host, port=port, client_id=client_id,
+    async def fake_run(cfg, ib, run_dir, stop, account, host, port, client_id, **kw):
+        seen.update(account=account, host=host, port=port, client_id=client_id, kw=kw,
                     run_dir=run_dir)
 
     monkeypatch.setattr(cli, "run_paper", fake_run)
     monkeypatch.setenv("IB_PORT", "4004")
     monkeypatch.setenv("IB_ACCOUNT", "DU1")
     assert cli.main(["paper", "--run-dir", str(tmp_path)]) == 0
+    kw = seen.pop("kw")
     assert seen == {"account": "DU1", "host": "127.0.0.1", "port": 4004, "client_id": 17,
                     "run_dir": tmp_path}
+    assert kw["reconnect_timeout"] == 900.0 and kw["pulse"] is None   # geen HEARTBEAT_URL
+    assert kw["alert"].__self__.channels == []          # geen kanaal: alleen het log
+    monkeypatch.setenv("ALERT_WEBHOOK_URL", "http://hook.invalid/x")
+    monkeypatch.setenv("HEARTBEAT_URL", "http://hc.invalid/y")
+    monkeypatch.setenv("IB_RECONNECT_TIMEOUT_SECONDS", "120")
+    assert cli.main(["paper", "--run-dir", str(tmp_path)]) == 0
+    kw = seen.pop("kw")
+    assert kw["reconnect_timeout"] == 120.0 and kw["pulse"] is not None
+    assert kw["alert"].__self__.channels == ["webhook"]
+
+
+def test_the_dead_mans_switch_pings_at_most_once_a_minute_and_survives_a_failure(caplog):
+    from tradebot.options import cli
+    assert cli.make_pulse(None) is None
+    calls, t = [], [0.0]
+
+    def ping(url):
+        calls.append(url)
+        if len(calls) == 2:
+            raise OSError("weg")
+
+    pulse = cli.make_pulse("http://hc", ping, lambda: t[0], 60.0)
+    pulse()
+    t[0] = 30.0
+    pulse()                                             # te snel: geen ping
+    t[0] = 61.0
+    with caplog.at_level("WARNING"):
+        pulse()                                         # faalt, maar stopt niets
+    assert calls == ["http://hc", "http://hc"] and "heartbeat-ping faalde" in caplog.text
 
 
 # --- verbinden met een gateway die nog opstart -------------------------------------------
@@ -344,3 +421,134 @@ def test_connect_gives_up_after_the_last_attempt():
     with pytest.raises(TimeoutError):
         run(IBKRBroker(ib, connect_attempts=2, sleep=sleep).connect())
     assert ib.disconnects == 1
+
+
+# --- een herstart neemt open orders over (oud #8) ----------------------------------------
+
+def test_a_restarted_broker_adopts_an_open_order_by_its_order_ref(ap):
+    ib = FakeIB()
+    first = broker(ib)
+    order = order_for(ap, -0.5)
+    run(first.submit(ap, order))
+    run(first.submit(ap, order_for(ap, -0.6, "c0")))    # een andere order staat er ook open
+    fresh = broker(ib)                                  # nieuw proces, zelfde gateway
+    assert run(fresh.open_orders()) == []
+    bo = run(fresh.adopt(order))
+    assert bo is not None and bo.status is OrderStatus.SUBMITTED
+    assert run(fresh.adopt(order)) == bo                # al overgenomen: dezelfde
+    assert [o.order.client_id for o in run(fresh.open_orders())] == ["c1"]   # c0 niet geadopteerd
+    run(fresh.cancel("c1"))
+    assert ib.cancelled and run(fresh.adopt(dataclasses.replace(order, client_id="c2"))) is None
+
+
+def test_adopt_skips_an_order_of_another_account_or_a_finished_one(ap):
+    ib = FakeIB()
+    order = order_for(ap, -0.5)
+    run(broker(ib).submit(ap, order))
+    ib.trades[0].order.account = "DU999"
+    assert run(broker(ib).adopt(order)) is None
+    ib.trades[0].order.account = "DU1234567"
+    ib.trades[0].orderStatus.status = "Filled"
+    assert run(broker(ib).adopt(order)) is None
+    ib.trades[0].orderStatus.status = "Submitted"
+    second = broker(ib)
+    ib.trades[0].orderStatus.status = "Cancelled"       # tussen openTrades en refresh
+    ib.openTrades = lambda: ib.trades                   # type: ignore[method-assign]
+    assert run(second.adopt(order)) is None
+
+
+# --- assignment, uitoefening en expiratie uit positieverschillen (oud #9) ---------------------
+
+def _opt(strike, right, exp="20261231"):
+    return NS(secType="OPT", symbol="TST", lastTradeDateOrContractMonth=exp, strike=strike,
+              right=right)
+
+
+def _held(opt_pos, stock=None):
+    rows = [NS(contract=_opt(s, r), position=float(q), avgCost=100.0)
+            for (s, r), q in opt_pos.items()]
+    if stock is not None:
+        rows.append(NS(contract=NS(secType="STK", symbol="TST"), position=float(stock),
+                       avgCost=95.0))
+    return rows
+
+
+def _settle_broker(ib):
+    from datetime import UTC
+    b = IBKRBroker(ib, clock=lambda: datetime(2027, 1, 4, 15, 0, tzinfo=UTC))
+    run(b.connect())
+    return b
+
+
+def _derived(b):
+    return [x for x in run(b.executions(datetime.min)) if x.kind.value != "fill"]
+
+
+def test_a_short_put_that_disappears_with_shares_is_an_assignment_after_two_looks():
+    ib = FakeIB()
+    ib.held = _held({(95.0, "P"): -2, (90.0, "P"): 2}, stock=0)
+    b = _settle_broker(ib)
+    assert _derived(b) == []                                       # beginstand
+    ib.held = _held({(90.0, "P"): 2}, stock=200)                   # short put weg, +200 aandelen
+    assert _derived(b) == []                                       # eerste keer: nog wachten
+    (e,) = _derived(b)
+    assert (e.kind.value, e.contract, e.qty, e.price, e.client_id) == (
+        "assignment", C, 2, 95.0, "")
+    assert _derived(b) == []                                       # maar één keer gemeld
+
+
+def test_a_long_option_that_is_exercised_and_a_worthless_expiry():
+    ib = FakeIB()
+    ib.held = _held({(95.0, "C"): 1, (99.0, "C"): -1, (85.0, "P"): -3}, stock=0)
+    b = _settle_broker(ib)
+    _derived(b)
+    ib.held = _held({(85.0, "P"): -3}, stock=100)    # long call uitgeoefend, short call vervallen
+    _derived(b)
+    got = sorted((e.kind.value, e.contract.strike, e.qty, e.price) for e in _derived(b))
+    assert got == [("exercise", 95.0, -1, 95.0), ("expiry", 99.0, 1, 0.0)]
+
+
+def test_own_fills_and_lagging_positions_are_no_settlement():
+    ib = FakeIB()
+    ib.held = _held({(95.0, "P"): -1}, stock=0)
+    b = _settle_broker(ib)
+    _derived(b)
+    ib.fills = [NS(contract=_opt(95.0, "P"),
+                   execution=NS(shares=1, side="BOT", price=1.2, orderRef="c1", execId="x1"),
+                   commissionReport=NS(commission=0.65), time=datetime(2027, 1, 4, 14, 0))]
+    ib.held = _held({}, stock=0)                      # de eigen sluiting is verklaard door de fill
+    assert _derived(b) == [] and _derived(b) == []
+    ib.held = _held({(95.0, "P"): -1}, stock=0)       # een positie die kort afwijkt en terugkomt
+    _derived(b)
+    ib.held = _held({}, stock=0)
+    assert _derived(b) == []
+
+
+# --- de keten begrenzen (oud #12) ----------------------------------------------------------
+
+def test_the_chain_is_capped_to_a_spread_of_expiries_and_a_strike_range():
+    from tradebot.options.data.ibkr_feed import MAX_EXPIRIES, STRIKE_RANGE, spread_expiries
+    days = [date(2026, 12, 1) + timedelta(days=i) for i in range(10)]
+    assert spread_expiries(days, 20) == days and spread_expiries(days, 1) == days[:1]
+    pick = spread_expiries(days, 4)
+    assert len(pick) == 4 and pick[0] == days[0] and pick[-1] == days[-1]
+    assert (MAX_EXPIRIES, STRIKE_RANGE) == (6, 0.10)
+    ib = FakeIB()
+    f = IBKRFeed(ib, ("TST",), 0.04, events_source=_events, wait_seconds=0, max_expiries=2)
+    run(f.refresh(NOW))
+    s = f.snapshot("TST", NOW)
+    assert {r.contract.expiry for r in s.options} == {EXPIRIES[0], EXPIRIES[-1]}
+    assert {r.contract.strike for r in s.options} == {float(k) for k in range(90, 111)}
+
+
+def test_the_dead_mans_switch_default_ping_is_a_get(monkeypatch):
+    from tradebot.options import cli
+    calls = []
+
+    class R:
+        def raise_for_status(self):
+            calls.append("ok")
+
+    monkeypatch.setattr(cli.requests, "get", lambda url, timeout: calls.append(url) or R())
+    cli._ping("http://hc")
+    assert calls == ["http://hc", "ok"]

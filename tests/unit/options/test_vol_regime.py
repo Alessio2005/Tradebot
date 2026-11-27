@@ -186,7 +186,7 @@ def test_vrp_at_measures_iv_against_sigma_of_the_term():
     sigma = st.rv.at_horizon(45)
     ratio, points = st.vrp_at(0.30, 45)
     assert ratio == pytest.approx(0.30 / sigma) and points == pytest.approx(0.30 - sigma)
-    assert st.vrp_at(0.30, 0) == (st.vrp_ratio, st.vrp_points)
+    assert st.vrp_at(0.30, 30) == (st.vrp_ratio, st.vrp_points)   # N13: op de tenor van de ATM-IV
     assert classify(0.30, None, None, S).vrp_at(0.30, 45) is None
 
 

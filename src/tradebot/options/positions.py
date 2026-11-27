@@ -28,7 +28,7 @@ from .iv_metrics import IVMetrics
 from .vol_regime import VolState
 
 __all__ = ["MULTIPLIER", "Action", "ActionKind", "Book", "Candidate", "Leg", "LegIntent",
-           "MarketState", "PositionStatus", "StrategyPosition", "Trend", "Urgency", "mark",
+           "MarketState", "PendingChange", "PositionStatus", "StrategyPosition", "Trend", "Urgency", "mark",
            "position_greek", "trend_of"]
 
 MULTIPLIER = 100
@@ -101,6 +101,9 @@ class StrategyPosition:
     # Gerealiseerde P&L van de aandelen-legs (USD totaal): wat afbouwen of omdraaien van de
     # hedge vastlegde, min de commissie van elke aandelenfill. Het open deel zit in de leg.
     hedge_realized_usd: float = 0.0
+    # Een assignment of uitoefening leverde aandelen in een aandelen-leg: de engine sluit de rest
+    # van de positie meteen (reden `assigned`), welke strategie het ook is.
+    assigned: bool = False
 
     def __post_init__(self) -> None:
         require(self.units > 0, "units moet positief zijn", DataContractError, units=self.units)
@@ -177,6 +180,20 @@ class MarketState:
 
 
 @dataclass(frozen=True, slots=True)
+class PendingChange:
+    """Een lopende (nog niet gevulde) bijsturing of roll van een open positie.
+
+    `legs` zijn de legs van de order in handelsrichting (per eenheid), `max_loss` het maximale
+    verlies van de positie ná de order (USD totaal, oneindig bij undefined risk).
+    """
+
+    position_id: str
+    legs: tuple[LegIntent, ...]
+    quantity: int
+    max_loss: float
+
+
+@dataclass(frozen=True, slots=True)
 class Book:
     positions: tuple[StrategyPosition, ...] = ()
     shares: Mapping[str, int] = field(default_factory=dict)
@@ -195,6 +212,9 @@ class Book:
     # Per gesloten positie die nog aandelen heeft: (onderliggende, aandelen). Daartegen toetst
     # de risicopoort een sluitorder, niet tegen het totaal van het symbool (`hedge_shares`).
     closing_shares: Mapping[str, tuple[str, int]] = field(default_factory=dict)
+    # Lopende ADJUST- en ROLL-orders (review 2026-11-27, N10): de poort ziet het risico ervan
+    # alvast, zoals bij `pending_entries`.
+    pending_changes: tuple[PendingChange, ...] = ()
 
     @property
     def pending_undefined(self) -> tuple[StrategyPosition, ...]:

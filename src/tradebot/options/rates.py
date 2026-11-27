@@ -21,6 +21,7 @@ __all__ = ["CashDividend", "Carry"]
 class CashDividend:
     ex_date: date
     amount: float
+    estimated: bool = False          # geprojecteerd uit de historie, niet aangekondigd
 
     def __post_init__(self) -> None:
         require(self.amount > 0, "een dividend moet positief zijn", DataContractError,
