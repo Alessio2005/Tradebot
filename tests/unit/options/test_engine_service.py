@@ -616,3 +616,64 @@ def test_stress_blocks_undefined_entries_even_with_the_regime_layer_off(tmp_path
     assert blocked == {"short_straddle_strangle:regime": len(cands)}
     normal = dict.fromkeys(r.e._vol, VolRegime.NORMAL)
     assert len(r.e._admitted(cands, normal, {}, D0)) == len(cands)
+
+
+# --- gamma management per positie (D2) --------------------------------------------------------
+
+def _gamma_cfg(frac):
+    cfg = undefined_cfg()
+    return cfg.model_copy(update={"risk": cfg.risk.model_copy(
+        update={"max_gamma_loss_frac_credit": frac})})
+
+
+def _gamma_closes(rig, now):
+    return [a for a in rig.events("action") if a["reason"] == "gamma_risk"
+            and a["ts"] == now.isoformat()]
+
+
+def test_gamma_loss_1d_is_half_gamma_times_the_daily_move_squared(strangle_rig):
+    from tradebot.options.risk.gamma import gamma_loss_1d, sigma_1d
+    r = strangle_rig
+    (pos,) = r.state.open_positions()
+    rv = r.e._vol[pos.underlying].rv
+    assert rv is not None
+    sig = sigma_1d(rv)
+    assert sig == pytest.approx(rv.at_horizon(1) * math.sqrt(1 / 252))
+    chain = r.e.chains[pos.underlying]
+    loss = gamma_loss_1d(pos, chain, sig)
+    assert loss > 0.0 and gamma_loss_1d(pos, chain, 2 * sig) == pytest.approx(4 * loss)
+    assert gamma_loss_1d(pos, None, sig) == 0.0
+    # Long gamma (omgekeerde legs): geen verlies; ontbrekende Greeks: ook 0.
+    long = dataclasses.replace(pos, legs=tuple(
+        dataclasses.replace(leg, qty=-leg.qty) for leg in pos.legs))
+    assert gamma_loss_1d(long, chain, sig) == 0.0
+    gone = dataclasses.replace(chain, options=())
+    assert gamma_loss_1d(pos, gone, sig) == 0.0
+
+
+def test_gamma_risk_closes_a_short_gamma_position_over_the_limit(tmp_path):
+    r = Rig(tmp_path, _gamma_cfg(1e-6), market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    # De positie gaat bij de eerste beheerronde na de entry dicht, vóór de strategie-regels.
+    (a,) = [x for x in r.events("action") if x["reason"] == "gamma_risk"]
+    assert a["urgency"] == "stop" and a["kind"] == "close"
+    assert [x["verdict"] for x in r.events("risk_decision") if x["kind"] == "close"] == [
+        "approve"]
+
+
+def test_gamma_risk_is_off_by_default_and_with_a_wide_limit_or_no_rv_or_no_credit(tmp_path):
+    for i, frac in enumerate((None, 1e6)):
+        r = Rig(tmp_path / str(i), _gamma_cfg(frac), market=SV_MKT)
+        r.run(at(D0, 10, 1))
+        now = at(D0, 10, 3)
+        asyncio.run(r.e._manage(now))
+        assert _gamma_closes(r, now) == []
+    r = Rig(tmp_path / "x", _gamma_cfg(1e-6), market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    (pos,) = r.state.open_positions()
+    assert r.e._gamma_breach(pos)
+    assert not r.e._gamma_breach(dataclasses.replace(pos, entry_net=-100.0))
+    r.e._vol[pos.underlying] = dataclasses.replace(r.e._vol[pos.underlying], rv=None)
+    assert not r.e._gamma_breach(pos)
+    del r.e._vol[pos.underlying]
+    assert not r.e._gamma_breach(pos)

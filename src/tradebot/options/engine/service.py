@@ -92,6 +92,7 @@ from ..pricing.settings import pricer_settings
 from ..pricing.surface import Surface, SurfaceStatus, build_surface, skew_25d
 from ..rates import Carry
 from ..relative_value import rv_adjust, vrp_zscores
+from ..risk.gamma import gamma_loss_1d, sigma_1d
 from ..risk.gate import (
     GateState,
     OrderKind,
@@ -814,7 +815,9 @@ class Engine:
         """Beheer per open positie; loopt ook in HALT (sluiten verkleint risico).
 
         Vóór de regels van de strategie: een undefined-risk positie (`max_loss` oneindig) op een
-        onderliggende met effectief regime STRESS gaat dicht (STOP, `regime_stress`). Dezelfde
+        onderliggende met effectief regime STRESS gaat dicht (STOP, `regime_stress`); een positie
+        met credit waarvan het gamma-verlies over één dag te groot is, ook (STOP, `gamma_risk`,
+        alleen met `risk.max_gamma_loss_frac_credit`). Dezelfde
         bron als de toelating in `_scan` (`effective_regimes` over `_vol`, dat `_market` altijd
         bijwerkt, ook met `vol_regime.enabled: false`), dus wat hier sluit, opent daar niet."""
         market = self.market_state(now)
@@ -828,11 +831,24 @@ class Engine:
             elif math.isinf(pos.max_loss) and regimes.get(pos.underlying) is VolRegime.STRESS:
                 acts = [Action(ActionKind.CLOSE, pos.position_id, pos.intents(), Urgency.STOP,
                                "regime_stress")]
+            elif self._gamma_breach(pos):
+                acts = [Action(ActionKind.CLOSE, pos.position_id, pos.intents(), Urgency.STOP,
+                               "gamma_risk")]
             else:
                 strat = self.by_name.get(pos.strategy)
                 acts = strat.manage(pos, market) if strat is not None else []
             for a in acts[:1]:
                 await self._act(a, pos, now)
+
+    def _gamma_breach(self, pos: StrategyPosition) -> bool:
+        """Gamma-verlies over één dag boven `risk.max_gamma_loss_frac_credit` × ontvangen credit
+        (D2); uit bij `None`, zonder credit of zonder RV-voorspelling."""
+        limit = self.cfg.risk.max_gamma_loss_frac_credit
+        st = self._vol.get(pos.underlying)
+        if limit is None or pos.entry_net <= 0.0 or st is None or st.rv is None:
+            return False
+        loss = gamma_loss_1d(pos, self.chains.get(pos.underlying), sigma_1d(st.rv))
+        return loss > limit * pos.entry_net
 
     async def _act(self, a: Action, pos: StrategyPosition, now: datetime) -> None:
         chain = self.chains.get(pos.underlying)

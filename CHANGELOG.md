@@ -4,6 +4,13 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: gamma management per positie (2026-11-27)
+- `risk.max_gamma_loss_frac_credit` (standaard `null` = uit, aanbevolen 0,5): een positie met
+  credit waarvan ½·|Γ|·(S·σ_1d)² (short gamma, σ_1d = `RVForecast.at_horizon(1)` × √(1/252)) boven
+  die fractie van de ontvangen credit komt, gaat dicht: CLOSE STOP `gamma_risk`, vóór de regels
+  van de strategie (`risk/gamma.py`, `Engine._manage`). Uit = journal ongewijzigd (3 posities,
+  eind-equity 25.303,60 USD).
+
 ## Options: fair-value-limieten voor entries (2026-11-27)
 - `execution.limit_anchor: mid | fair` (standaard `mid`). Bij `fair` begint de limiet van een ENTRY
   op de combo-fair value Σ ratio × fair_leg, met fair_leg de QuantLib-waarde (scan-engine via

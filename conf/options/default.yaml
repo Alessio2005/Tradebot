@@ -240,6 +240,8 @@ risk:                            # detailontwerp 8; fracties van het kapitaal
   allow_undefined_risk: false
   max_undefined_stress_loss_frac: 0.06  # som van het stressverlies (±20 % spot, min credit)
                                         # van alle undefined-risk posities plus de nieuwe
+  max_gamma_loss_frac_credit: null      # null = uit (aanbevolen 0.5): per positie met credit CLOSE
+                                        # STOP `gamma_risk` als ½·|Γ|·(S·σ_1d)² > frac × credit
   pdt_guard: true
 
 execution:                       # detailontwerp 10
