@@ -9,6 +9,14 @@
 * `modify` verandert alleen `lmtPrice`; legs en aantal liggen vast.
 * Executies komen per leg, en per aandelenfill (zonder contract); de `BAG`-regel zelf wordt
   overgeslagen.
+* Expiratie, assignment en uitoefening komen bij IBKR niet als executie binnen maar als
+  positiewijziging. `executions` leidt ze af: de positie bij de broker min wat de eigen fills
+  verklaren (`_settlements`). Verdwijnt een optiepositie (of wordt ze kleiner) zonder fill, dan
+  is dat een `EXPIRY` (geen aandelenverschuiving) of een `ASSIGNMENT`/`EXERCISE` (met
+  aandelen). Een verschil telt pas als het bij twee opeenvolgende aanroepen blijft staan,
+  tegen de vertraging tussen een fill (of de aandelenlevering) en de positie.
+  De eerste aanroep legt de beginstand vast; een expiratie terwijl de dienst uit stond ziet
+  de reconciliatie als breuk.
 * Equity, cash en buying power zijn altijd in USD. Een account met een andere basisvaluta
   (bv. EUR) wordt omgerekend met de IDEALPRO-koers van die valuta tegen USD.
 
@@ -27,6 +35,7 @@ from typing import Any
 from ib_async import ComboLeg, Contract, ExecutionFilter, Forex, LimitOrder, Option, Stock
 
 from ...utils.failfast import DataContractError, require
+from ..calendar import NY
 from ..contracts import OptionContract, Right
 from ..live import account_hash, require_paper
 from ..risk.gate import ApprovedOrder, ApprovedStockOrder
@@ -82,11 +91,17 @@ class IBKRBroker:
                  client_id: int = 17, account: str = "",
                  connect_attempts: int = CONNECT_ATTEMPTS,
                  connect_wait: float = CONNECT_WAIT_SECONDS,
-                 sleep: Callable[[float], Awaitable[None]] = asyncio.sleep) -> None:
+                 sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+                 clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
         self.ib, self.host, self.port, self.client_id = ib, host, port, client_id
         self.account_id = account
         self.connect_attempts, self.connect_wait = connect_attempts, connect_wait
-        self._sleep = sleep
+        self._sleep, self._clock = sleep, clock
+        self._base: dict[str, int] | None = None       # beginstand per contract/symbool
+        self._fill_net: dict[str, int] = {}            # netto van de eigen fills
+        self._counted: set[str] = set()
+        self._streak: dict[str, int] = {}              # onverklaard verschil dat bleef staan
+        self._contracts: dict[str, OptionContract] = {}
         self._trades: dict[str, Any] = {}
         self._orders: dict[str, BrokerOrder] = {}
 
@@ -289,5 +304,61 @@ class IBKRBroker:
                                  c.symbol, qty, float(ex.price),
                                  fee if math.isfinite(fee) else 0.0,
                                  str(getattr(ex, "execId", "") or "")))
+        out.extend(self._settlements(out))
         return sorted(out, key=lambda e: (e.ts, e.client_id,
                                           e.contract.key() if e.contract else e.symbol))
+
+    def _settlements(self, fills: list[Execution]) -> list[Execution]:
+        """Expiratie, assignment en uitoefening uit positieverschillen (review #9)."""
+        for f in fills:
+            ident = f.exec_id or f"{f.ts.isoformat()}|{f.client_id}|{f.qty}|{f.price}"
+            if ident in self._counted:
+                continue
+            self._counted.add(ident)
+            k = f.contract.key() if f.contract else f.symbol
+            self._fill_net[k] = self._fill_net.get(k, 0) + f.qty
+            if f.contract is not None:
+                self._contracts[k] = f.contract
+        actual: dict[str, int] = {}
+        for p in self.ib.positions(self.account_id):
+            c = p.contract
+            if c.secType == "OPT":
+                oc = contract_of(c)
+                actual[oc.key()], self._contracts[oc.key()] = int(p.position), oc
+            elif c.secType == "STK":
+                actual[c.symbol] = int(p.position)
+        if self._base is None:
+            self._base = {k: actual.get(k, 0) - self._fill_net.get(k, 0)
+                          for k in set(actual) | set(self._fill_net)}
+            return []
+        base = self._base
+        today = self._clock().astimezone(NY).date()
+        diff = {k: actual.get(k, 0) - base.get(k, 0) - self._fill_net.get(k, 0)
+                for k in set(actual) | set(base) | set(self._fill_net)}
+        diff = {k: d for k, d in diff.items() if d}
+        self._streak = {k: self._streak.get(k, 0) + 1 for k in diff}
+        out: list[Execution] = []
+        ts = self._clock()
+        stock_left = {k: d for k, d in diff.items() if k not in self._contracts}
+        for k in sorted(diff):
+            c = self._contracts.get(k)
+            if c is None:                                   # een aandelenverschil: via de optie
+                continue
+            if self._streak[k] < 2:                         # wacht op een stabiel verschil
+                continue
+            delta = diff[k]
+            lots = abs(delta) * 100
+            sgn = 1 if (c.right is Right.PUT) == (delta > 0) else -1     # aandelen die ik krijg
+            delivered = stock_left.get(c.underlying, 0) * sgn >= lots
+            if delivered:
+                kind = ExecutionKind.ASSIGNMENT if delta > 0 else ExecutionKind.EXERCISE
+                price = c.strike
+            else:
+                kind, price = ExecutionKind.EXPIRY, 0.0
+            out.append(Execution(ts, kind, "", c, c.underlying, delta, price, 0.0,
+                                 f"settle-{k}-{today.isoformat()}-{delta}"))
+            base[k] = base.get(k, 0) + delta                # verklaard: niet nog eens melden
+            if delivered:
+                stock_left[c.underlying] -= sgn * lots
+                base[c.underlying] = base.get(c.underlying, 0) + sgn * lots
+        return out

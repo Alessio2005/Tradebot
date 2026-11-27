@@ -454,3 +454,70 @@ def test_adopt_skips_an_order_of_another_account_or_a_finished_one(ap):
     ib.trades[0].orderStatus.status = "Cancelled"       # tussen openTrades en refresh
     ib.openTrades = lambda: ib.trades                   # type: ignore[method-assign]
     assert run(second.adopt(order)) is None
+
+
+# --- assignment, uitoefening en expiratie uit positieverschillen (oud #9) ---------------------
+
+def _opt(strike, right, exp="20261231"):
+    return NS(secType="OPT", symbol="TST", lastTradeDateOrContractMonth=exp, strike=strike,
+              right=right)
+
+
+def _held(opt_pos, stock=None):
+    rows = [NS(contract=_opt(s, r), position=float(q), avgCost=100.0)
+            for (s, r), q in opt_pos.items()]
+    if stock is not None:
+        rows.append(NS(contract=NS(secType="STK", symbol="TST"), position=float(stock),
+                       avgCost=95.0))
+    return rows
+
+
+def _settle_broker(ib):
+    from datetime import UTC
+    b = IBKRBroker(ib, clock=lambda: datetime(2027, 1, 4, 15, 0, tzinfo=UTC))
+    run(b.connect())
+    return b
+
+
+def _derived(b):
+    return [x for x in run(b.executions(datetime.min)) if x.kind.value != "fill"]
+
+
+def test_a_short_put_that_disappears_with_shares_is_an_assignment_after_two_looks():
+    ib = FakeIB()
+    ib.held = _held({(95.0, "P"): -2, (90.0, "P"): 2}, stock=0)
+    b = _settle_broker(ib)
+    assert _derived(b) == []                                       # beginstand
+    ib.held = _held({(90.0, "P"): 2}, stock=200)                   # short put weg, +200 aandelen
+    assert _derived(b) == []                                       # eerste keer: nog wachten
+    (e,) = _derived(b)
+    assert (e.kind.value, e.contract, e.qty, e.price, e.client_id) == (
+        "assignment", C, 2, 95.0, "")
+    assert _derived(b) == []                                       # maar één keer gemeld
+
+
+def test_a_long_option_that_is_exercised_and_a_worthless_expiry():
+    ib = FakeIB()
+    ib.held = _held({(95.0, "C"): 1, (99.0, "C"): -1, (85.0, "P"): -3}, stock=0)
+    b = _settle_broker(ib)
+    _derived(b)
+    ib.held = _held({(85.0, "P"): -3}, stock=100)    # long call uitgeoefend, short call vervallen
+    _derived(b)
+    got = sorted((e.kind.value, e.contract.strike, e.qty, e.price) for e in _derived(b))
+    assert got == [("exercise", 95.0, -1, 95.0), ("expiry", 99.0, 1, 0.0)]
+
+
+def test_own_fills_and_lagging_positions_are_no_settlement():
+    ib = FakeIB()
+    ib.held = _held({(95.0, "P"): -1}, stock=0)
+    b = _settle_broker(ib)
+    _derived(b)
+    ib.fills = [NS(contract=_opt(95.0, "P"),
+                   execution=NS(shares=1, side="BOT", price=1.2, orderRef="c1", execId="x1"),
+                   commissionReport=NS(commission=0.65), time=datetime(2027, 1, 4, 14, 0))]
+    ib.held = _held({}, stock=0)                      # de eigen sluiting is verklaard door de fill
+    assert _derived(b) == [] and _derived(b) == []
+    ib.held = _held({(95.0, "P"): -1}, stock=0)       # een positie die kort afwijkt en terugkomt
+    _derived(b)
+    ib.held = _held({}, stock=0)
+    assert _derived(b) == []
