@@ -173,16 +173,18 @@ def test_events_are_only_usable_when_fresh():
     assert ev.next_earnings(date(2027, 2, 1)) is None
 
 
-def test_on_the_expiry_day_a_dividend_of_today_is_priced_with_fd():
-    # Vrijdag 19 juni 2026 is dicht: SPY expireert donderdag 18 juni, de ex-dividenddag. De
-    # pricer neemt dat dividend mee (eval_date is dan gisteren); de engine moet dus FD zijn.
+def test_a_dividend_that_goes_ex_on_the_expiry_day_is_priced_with_fd_the_day_before():
+    # Donderdag 18 juni 2026 is SPY's expiratie en ex-dividenddag. De dag ervoor gaat het
+    # dividend nog af (FD); op de dag zelf zit het al in de spot en telt het niet nog eens
+    # mee (oud #34: dubbel geteld), dus daar is de scan-engine weer BAW.
     from datetime import datetime
 
     from tradebot.options.calendar import NY
     from tradebot.options.pricing.vanilla import OptionInputs
 
-    now, day = datetime(2026, 6, 18, 10, 0, tzinfo=NY), date(2026, 6, 18)
+    day = date(2026, 6, 18)
     carry = Carry(0.04, dividends=(CashDividend(day, 1.9),))
+    now = datetime(2026, 6, 17, 10, 0, tzinfo=NY)
     inp = OptionInputs(700.0, 700.0, Right.CALL, day, now, carry)
     assert inp.discrete_dividends == carry.dividends
     theo = price(inp, 0.2, Method.FD)
@@ -190,3 +192,5 @@ def test_on_the_expiry_day_a_dividend_of_today_is_priced_with_fd():
     po = ChainBuilder(SETTINGS, 10.0).price_one(
         RawOption(OptionContract("SPY", day, 700.0, Right.CALL), q), 700.0, now, carry)
     assert po.method is Method.FD and po.iv is not None
+    same_day = datetime(2026, 6, 18, 10, 0, tzinfo=NY)
+    assert OptionInputs(700.0, 700.0, Right.CALL, day, same_day, carry).discrete_dividends == ()

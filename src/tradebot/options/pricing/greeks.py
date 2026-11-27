@@ -18,20 +18,37 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import Any
 
-from ..calendar import expiry_moment
+import numpy as np
+
+from ..calendar import NY, expiry_moment, year_fraction
 from ..units import GreeksPerShare
 from .engines import EngineSettings, Method
 from .vanilla import OptionInputs, price, value
 
-__all__ = ["Bumps", "greeks"]
+__all__ = ["Bumps", "greeks", "spot_bump_fraction"]
 
 
 @dataclass(frozen=True, slots=True)
 class Bumps:
     vol: float = 0.01          # 1 volpunt
     rate: float = 0.0001       # 1 bp
-    spot_frac: float = 0.005   # 0,5 % van spot, alleen voor BAW
+    spot_frac: float = 0.005   # bovengrens van de spotbump (fractie van spot), alleen BAW
+    spot_frac_min: float = 0.0005    # ondergrens: onder dit niveau domineert afrondingsruis
+    spot_sigma_frac: float = 0.25    # de bump is deze fractie van σ√T (de breedte van de dichtheid)
+
+
+def spot_bump_fraction(vol: Any, t_real: Any, bumps: Bumps = Bumps()) -> Any:
+    """De spotbump als fractie van spot voor delta/gamma van BAW (scalar of array).
+
+    Schaalt met σ√T, geklemd op `[spot_frac_min, spot_frac]`. Een vaste bump van 0,5 % is op
+    de expiratiedag (σ√T ≈ 1-2 %) een kwart tot de helft van de dichtheidsbreedte en geeft dan
+    een gamma dat de piek rond de strike uitsmeert; bij langere looptijden (σ√T ≥ 2 %) is de
+    bump ongewijzigd 0,5 %.
+    """
+    raw = bumps.spot_sigma_frac * vol * np.sqrt(t_real)
+    return np.clip(raw, bumps.spot_frac_min, bumps.spot_frac)
 
 
 def greeks(inp: OptionInputs, vol: float, method: Method,
@@ -44,7 +61,8 @@ def greeks(inp: OptionInputs, vol: float, method: Method,
     if base.delta is not None and base.gamma is not None:
         delta, gamma = base.delta, base.gamma
     else:
-        h = bumps.spot_frac * inp.spot
+        t_real = year_fraction(inp.now, expiry_moment(inp.expiry))
+        h = float(spot_bump_fraction(vol, t_real, bumps)) * inp.spot
         up, down = npv(inp.with_spot(inp.spot + h)), npv(inp.with_spot(inp.spot - h))
         delta = (up - down) / (2 * h)
         gamma = (up - 2 * base.npv + down) / (h * h)
@@ -61,6 +79,14 @@ def greeks(inp: OptionInputs, vol: float, method: Method,
 
     remaining = expiry_moment(inp.expiry) - inp.now
     step = min(timedelta(days=1), remaining / 2)
-    theta = (npv(inp.with_now(inp.now + step)) - base.npv) / (step / timedelta(days=1))
+    later = inp.with_now(inp.now + step)
+    # Een dividend dat in de overgeslagen dag ex gaat, valt anders uit het venster van `later`
+    # en laat de optie "gratis" waarde winnen (theta van een call springt dan positief). Het
+    # aandeel zakt over die dag met het dividend, dus dat gaat van de spot af.
+    gone = inp.carry.dividends_in(inp.now.astimezone(NY).date(),
+                                  later.now.astimezone(NY).date())
+    for d in gone:
+        later = later.with_spot(max(later.spot - d.amount, 1e-6))
+    theta = (npv(later) - base.npv) / (step / timedelta(days=1))
 
     return GreeksPerShare(delta=delta, gamma=gamma, vega=vega, theta=theta, rho=rho)

@@ -259,7 +259,11 @@ execution:                       # detailontwerp 10
   max_edge_frac: 0.5             # bij fair: de walk concedeert nooit voorbij
                                  # fair + max_edge_frac × |natural − mid| richting natural
   max_spread_frac_fair: 0.25     # bij fair: geen entry als 2 × |natural − mid| > dit × |fair|
-  ticks: {default: {below_3: 0.01, above_3: 0.05}, combo: 0.01}
+  ticks:                         # gelezen door execution.orders.tick_for
+    default: {below_3: 0.01, above_3: 0.05}   # één leg, niet-penny-onderliggende
+    combo: 0.01                               # meer dan één leg
+    penny: 0.01                               # één leg op een penny-pilot-symbool
+    penny_symbols: [SPY, QQQ, IWM]
   max_order_usd: 5000            # premie per order; daarboven is het een fout (HALT)
 
 schedule:                        # New York-tijd

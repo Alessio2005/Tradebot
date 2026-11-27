@@ -30,6 +30,7 @@ from tradebot.options.execution.orders import (
     combo_prices,
     fair_walk_limit,
     position_id,
+    tick_for,
     walk_limit,
 )
 from tradebot.options.execution.paper import PaperBroker
@@ -282,3 +283,35 @@ def test_early_assignment_before_a_dividend():
     assert b.early_assign({}, NOW) == []
     b.update_market(NOW, {})
     assert b.early_assign(div, NOW) == []
+
+
+def test_a_calendar_with_one_expiry_missing_from_the_surface_uses_the_mid_for_every_leg():
+    # N27: model voor de ene leg en mid voor de andere geeft een nep-edge van model − mid.
+    base = cached_chain()
+    surf = build_surface(base)
+    other = next(x.expiry for x in surf.smiles if x.expiry != E)
+    near = OptionContract("TST", E, 95.0, Right.PUT)
+    far = OptionContract("TST", other, 95.0, Right.PUT)
+    legs = (LegIntent(near, -1), LegIntent(far, 1))
+    ch = _shifted(base, 0.10, near.key())            # de quotes van de korte leg staan te hoog
+    mid, _ = combo_prices(ch, legs)
+    both = combo_fair(ch, surf, legs, SETTINGS.engines)
+    partial = Surface("TST", SurfaceStatus.OK, tuple(x for x in surf.smiles if x.expiry != other))
+    assert both != pytest.approx(mid, abs=1e-9)                      # volledig oppervlak: model
+    assert combo_fair(ch, partial, legs, SETTINGS.engines) == pytest.approx(mid)
+
+
+def test_tick_for_reads_the_config_per_contract_class():
+    ticks = CFG.execution.ticks
+    one = (LegIntent(OptionContract("TST", E, 95.0, Right.PUT), 1),)
+    spy = (LegIntent(OptionContract("SPY", E, 95.0, Right.PUT), 1),)
+    two = one + (LegIntent(OptionContract("TST", E, 90.0, Right.PUT), -1),)
+    assert tick_for(ticks, 1.2, one) == ticks.default.below_3 == 0.01
+    assert tick_for(ticks, 3.0, one) == ticks.default.above_3 == 0.05
+    assert tick_for(ticks, 8.0, spy) == ticks.penny == 0.01          # penny-pilot: altijd 0,01
+    assert tick_for(ticks, 8.0, two) == ticks.combo
+    custom = ticks.model_copy(update={"default": ticks.default.model_copy(
+        update={"above_3": 0.10}), "penny_symbols": ()})
+    assert tick_for(custom, -5.0, one) == 0.10                       # |prijs|, config gelezen
+    assert tick_for(custom, 5.0, spy) == 0.10                        # SPY niet meer penny
+    assert tick_for(custom, 5.0, ()) == 0.10                         # geen legs: geen penny

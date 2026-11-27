@@ -449,8 +449,10 @@ class TickConfig(StrictModel):
 
 
 class TicksConfig(StrictModel):
-    default: TickConfig = TickConfig()
+    default: TickConfig = TickConfig()       # één leg op een niet-penny-onderliggende
     combo: Annotated[float, Field(gt=0.0, le=1.0)] = 0.01
+    penny: Annotated[float, Field(gt=0.0, le=1.0)] = 0.01      # één leg op een penny-pilot-symbool
+    penny_symbols: tuple[str, ...] = ("SPY", "QQQ", "IWM")
 
 
 class ExecutionConfig(StrictModel):
