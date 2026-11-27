@@ -239,6 +239,11 @@ class PaperBroker:
     async def open_orders(self) -> list[BrokerOrder]:
         return [bo for bo in self._orders.values() if bo.status not in TERMINAL]
 
+    async def adopt(self, order: ComboOrder | StockOrder) -> BrokerOrder | None:
+        """De open order met deze client-id, of None (de paper-broker leeft in het geheugen)."""
+        bo = self._orders.get(order.client_id)
+        return bo if bo is not None and bo.status not in TERMINAL else None
+
     async def submit(self, approved: ApprovedOrder, order: ComboOrder) -> BrokerOrder:
         if not isinstance(approved, ApprovedOrder):
             raise TypeError("de paper-broker neemt alleen een ApprovedOrder van de risicopoort aan")

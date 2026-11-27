@@ -18,6 +18,7 @@ class FakeIB:
         self.data_type = None
         self.placed: list[tuple[Any, Any]] = []
         self.cancelled: list[Any] = []
+        self.trades: list[Any] = []
         self.fills: list[Any] = []
         self.status = "Submitted"
         self.summary = [NS(tag="NetLiquidation", value="25000", currency="USD"),
@@ -32,6 +33,7 @@ class FakeIB:
         self.unknown: set[float] = set()
         self.fx = (1.1, 1.05)                           # marketPrice en close van base.USD
         self.fail_connects, self.disconnects = 0, 0
+        self.dropped = False
 
     # verbinding
     def isConnected(self):
@@ -43,6 +45,10 @@ class FakeIB:
             raise TimeoutError()
         self.connected = True
         self.args = (host, port, clientId, account)
+
+    def drop(self):
+        """De gateway valt weg: `isConnected()` is onwaar tot een herverbinding lukt."""
+        self.connected, self.dropped = False, True
 
     def disconnect(self):
         self.disconnects += 1
@@ -74,8 +80,14 @@ class FakeIB:
     # orders
     def placeOrder(self, contract, order):
         self.placed.append((contract, order))
-        return NS(contract=contract, order=order,
-                  orderStatus=NS(status=self.status, filled=0, avgFillPrice=0.0))
+        trade = NS(contract=contract, order=order,
+                   orderStatus=NS(status=self.status, filled=0, avgFillPrice=0.0))
+        self.trades.append(trade)
+        return trade
+
+    def openTrades(self):
+        return [t for t in self.trades if t.order not in self.cancelled
+                and t.orderStatus.status in ("Submitted", "PreSubmitted")]
 
     def cancelOrder(self, order):
         self.cancelled.append(order)

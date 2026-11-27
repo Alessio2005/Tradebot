@@ -94,8 +94,11 @@ class IBKRBroker:
     def account_hash(self) -> str:
         return account_hash(self.account_id)
 
-    async def connect(self) -> None:
-        for attempt in range(1, self.connect_attempts + 1):
+    async def connect(self, attempts: int | None = None) -> None:
+        """Verbind en controleer het account; `attempts` overschrijft `connect_attempts`
+        (de herverbinding van de paper-dienst probeert één keer per ronde van haar backoff)."""
+        n = self.connect_attempts if attempts is None else attempts
+        for attempt in range(1, n + 1):
             if self.ib.isConnected():
                 break
             try:
@@ -103,10 +106,10 @@ class IBKRBroker:
                                            account=self.account_id)
                 break
             except (TimeoutError, OSError) as e:        # ConnectionRefusedError is een OSError
-                if attempt == self.connect_attempts:
+                if attempt == n:
                     raise
                 log.warning("IB Gateway nog niet klaar (poging %d van %d): %r",
-                            attempt, self.connect_attempts, e)
+                            attempt, n, e)
                 self.ib.disconnect()
                 await self._sleep(self.connect_wait)
         accounts = list(self.ib.managedAccounts())
@@ -164,6 +167,25 @@ class IBKRBroker:
     async def open_orders(self) -> list[BrokerOrder]:
         return [self._refresh(cid) for cid in sorted(self._orders)
                 if self._refresh(cid).status is OrderStatus.SUBMITTED]
+
+    async def adopt(self, order: ComboOrder | StockOrder) -> BrokerOrder | None:
+        """Neem een order over die na een herstart nog open staat bij de broker.
+
+        Zoekt op `orderRef` (= de client-id) in de open orders van het account; zo kunnen
+        `modify` en `cancel` hem weer bedienen. Geen treffer: None (de order is al gevuld of
+        geannuleerd, of is nooit aangekomen)."""
+        if order.client_id in self._orders:
+            return self._refresh(order.client_id)
+        for trade in self.ib.openTrades():
+            if getattr(trade.order, "orderRef", "") != order.client_id:
+                continue
+            if getattr(trade.order, "account", self.account_id) not in ("", self.account_id):
+                continue
+            self._trades[order.client_id] = trade
+            self._orders[order.client_id] = BrokerOrder(order, OrderStatus.SUBMITTED)
+            bo = self._refresh(order.client_id)
+            return bo if bo.status is OrderStatus.SUBMITTED else None
+        return None
 
     def _refresh(self, cid: str) -> BrokerOrder:
         bo, trade = self._orders[cid], self._trades[cid]

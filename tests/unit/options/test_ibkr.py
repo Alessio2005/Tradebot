@@ -355,16 +355,46 @@ def test_the_cli_paper_command_and_healthcheck(tmp_path, monkeypatch):
     assert not cli.healthy(tmp_path, now)
     seen = {}
 
-    async def fake_run(cfg, ib, run_dir, stop, account, host, port, client_id):
-        seen.update(account=account, host=host, port=port, client_id=client_id,
+    async def fake_run(cfg, ib, run_dir, stop, account, host, port, client_id, **kw):
+        seen.update(account=account, host=host, port=port, client_id=client_id, kw=kw,
                     run_dir=run_dir)
 
     monkeypatch.setattr(cli, "run_paper", fake_run)
     monkeypatch.setenv("IB_PORT", "4004")
     monkeypatch.setenv("IB_ACCOUNT", "DU1")
     assert cli.main(["paper", "--run-dir", str(tmp_path)]) == 0
+    kw = seen.pop("kw")
     assert seen == {"account": "DU1", "host": "127.0.0.1", "port": 4004, "client_id": 17,
                     "run_dir": tmp_path}
+    assert kw["reconnect_timeout"] == 900.0 and kw["pulse"] is None   # geen HEARTBEAT_URL
+    assert kw["alert"].__self__.channels == []          # geen kanaal: alleen het log
+    monkeypatch.setenv("ALERT_WEBHOOK_URL", "http://hook.invalid/x")
+    monkeypatch.setenv("HEARTBEAT_URL", "http://hc.invalid/y")
+    monkeypatch.setenv("IB_RECONNECT_TIMEOUT_SECONDS", "120")
+    assert cli.main(["paper", "--run-dir", str(tmp_path)]) == 0
+    kw = seen.pop("kw")
+    assert kw["reconnect_timeout"] == 120.0 and kw["pulse"] is not None
+    assert kw["alert"].__self__.channels == ["webhook"]
+
+
+def test_the_dead_mans_switch_pings_at_most_once_a_minute_and_survives_a_failure(caplog):
+    from tradebot.options import cli
+    assert cli.make_pulse(None) is None
+    calls, t = [], [0.0]
+
+    def ping(url):
+        calls.append(url)
+        if len(calls) == 2:
+            raise OSError("weg")
+
+    pulse = cli.make_pulse("http://hc", ping, lambda: t[0], 60.0)
+    pulse()
+    t[0] = 30.0
+    pulse()                                             # te snel: geen ping
+    t[0] = 61.0
+    with caplog.at_level("WARNING"):
+        pulse()                                         # faalt, maar stopt niets
+    assert calls == ["http://hc", "http://hc"] and "heartbeat-ping faalde" in caplog.text
 
 
 # --- verbinden met een gateway die nog opstart -------------------------------------------
@@ -391,3 +421,36 @@ def test_connect_gives_up_after_the_last_attempt():
     with pytest.raises(TimeoutError):
         run(IBKRBroker(ib, connect_attempts=2, sleep=sleep).connect())
     assert ib.disconnects == 1
+
+
+# --- een herstart neemt open orders over (oud #8) ----------------------------------------
+
+def test_a_restarted_broker_adopts_an_open_order_by_its_order_ref(ap):
+    ib = FakeIB()
+    first = broker(ib)
+    order = order_for(ap, -0.5)
+    run(first.submit(ap, order))
+    fresh = broker(ib)                                  # nieuw proces, zelfde gateway
+    assert run(fresh.open_orders()) == []
+    bo = run(fresh.adopt(order))
+    assert bo is not None and bo.status is OrderStatus.SUBMITTED
+    assert run(fresh.adopt(order)) == bo                # al overgenomen: dezelfde
+    assert [o.order.client_id for o in run(fresh.open_orders())] == ["c1"]
+    run(fresh.cancel("c1"))
+    assert ib.cancelled and run(fresh.adopt(dataclasses.replace(order, client_id="c2"))) is None
+
+
+def test_adopt_skips_an_order_of_another_account_or_a_finished_one(ap):
+    ib = FakeIB()
+    order = order_for(ap, -0.5)
+    run(broker(ib).submit(ap, order))
+    ib.trades[0].order.account = "DU999"
+    assert run(broker(ib).adopt(order)) is None
+    ib.trades[0].order.account = "DU1234567"
+    ib.trades[0].orderStatus.status = "Filled"
+    assert run(broker(ib).adopt(order)) is None
+    ib.trades[0].orderStatus.status = "Submitted"
+    second = broker(ib)
+    ib.trades[0].orderStatus.status = "Cancelled"       # tussen openTrades en refresh
+    ib.openTrades = lambda: ib.trades                   # type: ignore[method-assign]
+    assert run(second.adopt(order)) is None

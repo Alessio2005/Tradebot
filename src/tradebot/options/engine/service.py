@@ -38,6 +38,7 @@ gelogd en gealarmeerd, en drie keer achter elkaar in dezelfde taak is HALT.
 from __future__ import annotations
 
 import dataclasses
+import json
 import logging
 import math
 import os
@@ -195,9 +196,11 @@ def _no_alert(level: str, key: str, text: str) -> None:
 class Engine:
     def __init__(self, cfg: OptionsConfig, feed: MarketFeed, broker: BrokerAdapter,
                  paths: Paths, state: EngineState, alert: Alert = _no_alert,
-                 strategies: tuple[Strategy, ...] | None = None) -> None:
+                 strategies: tuple[Strategy, ...] | None = None,
+                 persist: bool = False) -> None:
         self.cfg, self.feed, self.broker, self.paths, self.state = cfg, feed, broker, paths, state
         self.alert = alert
+        self.persist = persist        # staat na elke order-gebeurtenis bewaren (paper-dienst)
         self.cal = TradingCalendar(cfg.universe.half_days)
         self.settings = pricer_settings(cfg.pricing)
         self.builder = ChainBuilder(self.settings, cfg.filters.max_quote_age_seconds, Use.SCAN)
@@ -224,7 +227,9 @@ class Engine:
         self._trend: dict[str, Trend] = {}
         self._last: dict[str, datetime] = {}
         self._failures: dict[str, int] = {}
-        self._done_today: set[tuple[date, str]] = set()
+        self._done_today: set[tuple[date, str]] = {
+            (date.fromisoformat(k.split('|', 1)[0]), k.split('|', 1)[1])
+            for k in state.done_today}
         self._shares: dict[str, int] = {}
         self._equity = cfg.account.capital_usd
         self._versions = (0, 0)
@@ -246,6 +251,17 @@ class Engine:
     @property
     def unwinding(self) -> bool:
         return self.paths.unwind_file.exists()
+
+    def _persist(self, now: datetime) -> None:
+        """Bewaar de staat atomisch na een order-gebeurtenis (alleen de paper-dienst).
+
+        Zo kent een herstart na een crash de orders, de pogingen (client-id's) en de taken die
+        vandaag al liepen, en stuurt hij niet nog eens dezelfde order (review 2026-11-27, #8)."""
+        if not self.persist:
+            return
+        self.state.done_today = [f"{d.isoformat()}|{n}" for d, n in sorted(self._done_today)
+                                 if d >= now.date()]
+        save_state(self.state, self.paths.state)
 
     def _event(self, now: datetime, event: str, **kw: Any) -> None:
         self.journal.write(now, event, **kw)
@@ -301,6 +317,7 @@ class Engine:
         if now < datetime.combine(now.date(), at, tzinfo=NY):
             return
         self._done_today.add(key)
+        self._persist(now)
         await self._run(name, now, fn)
 
     async def _run(self, name: str, now: datetime, fn: Task) -> None:
@@ -528,14 +545,17 @@ class Engine:
         self._event(now, "order_submitted", client_id=cid, position_id=ap.position_id,
                     purpose=purpose.value, limit=step.limit, quantity=ap.quantity,
                     strategy=ap.strategy, underlying=ap.underlying)
+        self._persist(now)              # eerst de intentie, dan pas naar de broker
         bo = await self.broker.submit(d.approved, order)
         self.state.orders[cid]["status"] = bo.status.value
+        self._persist(now)
         await self._executions(now)
 
     async def _walk(self, now: datetime) -> None:
         # In HALT of UNWIND geen nieuw risico: een lopende entry wordt geannuleerd in plaats
         # van doorgeschoven richting natural (review 2026-11-27, punt 2).
         stop_entries = self.halted or self.unwinding
+        before = json.dumps(self.state.orders, sort_keys=True)
         for cid, o in sorted(self.state.orders.items()):
             if o["status"] != OrderStatus.SUBMITTED.value or o.get("stock"):
                 continue
@@ -562,6 +582,8 @@ class Engine:
             bo = await self.broker.modify(cid, step.limit)
             o["status"] = bo.status.value
             self._event(now, "order_modified", client_id=cid, limit=step.limit, step=o["step"])
+        if json.dumps(self.state.orders, sort_keys=True) != before:
+            self._persist(now)
         await self._executions(now)
 
     async def _executions(self, now: datetime) -> None:
@@ -590,6 +612,8 @@ class Engine:
             o["booked"] = True
             o["status"] = OrderStatus.FILLED.value
             self._book_fill(cid, o, fills[cid], now)
+        if execs:
+            self._persist(now)
 
     def _book_fill(self, cid: str, o: dict[str, Any], execs: list[Execution], now: datetime) -> None:
         q = o["quantity"]
@@ -823,10 +847,12 @@ class Engine:
                             for c in d.checks])
         if d.approved is None or cid is None:
             return
+        self._persist(now)              # eerst de intentie, dan pas naar de broker
         bo = await self.broker.submit_stock(
             d.approved, StockOrder(cid, pos.position_id, pos.underlying, qty, limit, purpose))
         if self.state.orders[cid]["status"] == OrderStatus.SUBMITTED.value:
             self.state.orders[cid]["status"] = bo.status.value
+        self._persist(now)
         await self._executions(now)
         await self._refresh_shares()
 
@@ -843,6 +869,7 @@ class Engine:
         o["status"] = OrderStatus.CANCELLED.value
         self._event(now, "order_cancelled", client_id=o["client_id"],
                     position_id=o["position_id"], reason=reason)
+        self._persist(now)
         return True
 
     async def _unwind_shares(self, now: datetime) -> None:
@@ -1106,7 +1133,28 @@ class Engine:
                     await self._act(Action(ActionKind.CLOSE, pid, pos.intents(), Urgency.STOP,
                                            "degross"), pos, now)
 
+    async def _adopt_orders(self, now: datetime) -> None:
+        """Bij de start (en na een herverbinding): open orders in de staat tegen de broker.
+
+        Eerst de executies binnenhalen (fills tijdens de stilstand), dan per open order in de
+        staat: staat hij bij de broker nog open (op `orderRef`), dan wordt hij overgenomen; zo
+        niet, dan is hij niet (meer) actief en gaat hij op CANCELLED. Er wordt nooit een
+        tweede order voor dezelfde client-id gestuurd (review 2026-11-27, #8)."""
+        await self._executions(now)
+        for cid, o in sorted(self.state.orders.items()):
+            if o["status"] != OrderStatus.SUBMITTED.value:
+                continue
+            bo = await self.broker.adopt(_order_of(o))
+            if bo is None:
+                o["status"] = OrderStatus.CANCELLED.value
+                self._event(now, "order_orphaned", client_id=cid, position_id=o["position_id"])
+            else:
+                self._event(now, "order_adopted", client_id=cid, position_id=o["position_id"])
+        self._persist(now)
+
     async def _reconcile(self, now: datetime) -> None:
+        if self.mode is EngineMode.STARTING:
+            await self._adopt_orders(now)
         held = await self.broker.positions()
         broker = {p.contract.key(): p.qty for p in held if p.contract is not None}
         mine: dict[str, int] = {}
@@ -1213,6 +1261,15 @@ class Engine:
         self.builder.close()
         self._event(now, "stopped")
         self.mode = EngineMode.STOPPED
+
+
+def _order_of(o: Mapping[str, Any]) -> ComboOrder | StockOrder:
+    """De broker-order uit een record in `state.orders`."""
+    if o.get("stock"):
+        return StockOrder(o["client_id"], o["position_id"], o["underlying"], o["qty"],
+                          o["limit"], Purpose(o["purpose"]))
+    return ComboOrder(o["client_id"], o["position_id"], intents_from(o["legs"]), o["quantity"],
+                      o["limit"], Purpose(o["purpose"]), Urgency(o["urgency"]))
 
 
 def _units_after(rest: tuple[Leg, ...], units: int) -> int:
