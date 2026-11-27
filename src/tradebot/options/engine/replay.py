@@ -4,8 +4,9 @@ De klok loopt per handelsdag van de opening tot de sluiting in stappen van
 `execution.walk_interval_seconds`, plus één ronde op `schedule.end_of_day`. Er is geen echte
 tijd en geen netwerk: de broker is de `PaperBroker`, het geld is fictief.
 
-Het universum wordt de namen uit de markt, met beta 1,0 voor elke naam die de config niet kent:
-een synthetische markt heeft geen SPY-beta.
+Het universum wordt de namen uit de markt, met beta 1,0 voor elke naam die de config niet kent
+(een testmarkt heeft geen SPY-beta). Staat SPY in de markt, dan komt in `summary.json` ook
+`buy_hold`: SPY kopen en houden over dezelfde dagen, als vergelijking.
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from ..data.feed import ReplayFeed
 from ..data.store import Market
 from ..execution.paper import PaperBroker
 from ..strategies.common import parse_time
-from .report import ReplayStats, replay_stats
+from .report import ReplayStats, buy_and_hold, replay_stats
 from .service import Engine, Paths
 from .state import EngineState
 
@@ -42,6 +43,7 @@ class ReplayResult:
     halted: bool
     journal: Path
     stats: ReplayStats
+    buy_hold: dict[str, Any] | None = None   # SPY kopen en houden over dezelfde dagen
 
     def as_record(self) -> dict[str, Any]:
         return {"start_equity": self.start_equity, "end_equity": round(self.end_equity, 2),
@@ -50,17 +52,26 @@ class ReplayResult:
                 "positions_closed": self.positions_closed,
                 "open_short_legs_past_expiry": self.open_short_legs_past_expiry,
                 "halted": self.halted, "journal": str(self.journal),
-                "stats": self.stats.as_record()}
+                "stats": self.stats.as_record(), "buy_hold": self.buy_hold}
 
 
 def replay_config(cfg: OptionsConfig, market: Market) -> OptionsConfig:
-    """`cfg` met het universum van de markt (en de halve dagen van de kalender)."""
+    """`cfg` met het universum van de markt (en de halve dagen van de kalender).
+
+    Heeft de markt één snapshot per dag (`Market.daily_snapshot`, DoltHub), dan vallen de
+    scantijd en het sluitmoment vóór expiratie op dat tijdstip: op een andere tijd is er die
+    dag geen keten."""
     names = tuple(sorted(market.bars))
     beta = {n: cfg.universe.beta_to_spy.get(n, 1.0) for n in names}
     share = tuple(n for n in cfg.universe.share_eligible if n in names)
     uni = cfg.universe.model_copy(update={"underlyings": names, "beta_to_spy": beta,
                                           "share_eligible": share})
-    return cfg.model_copy(update={"universe": uni})
+    update: dict[str, Any] = {"universe": uni}
+    if market.daily_snapshot is not None:
+        update["schedule"] = cfg.schedule.model_copy(update={
+            "scan_times": (market.daily_snapshot,),
+            "close_before_expiry_time": market.daily_snapshot})
+    return cfg.model_copy(update=update)
 
 
 def session_clock(cal: TradingCalendar, day: date, step_seconds: float,
@@ -108,10 +119,19 @@ async def run_replay(cfg: OptionsConfig, market: Market, out: Path) -> ReplayRes
                        sum(1 for r in rows if r["event"] == "position_closed"),
                        past, engine.halted,
                        engine.paths.journal,
-                       replay_stats(rows, cfg.account.capital_usd, state.equity))
+                       replay_stats(rows, cfg.account.capital_usd, state.equity),
+                       _buy_hold(market, cfg.account.capital_usd))
     (out / "summary.json").write_text(json.dumps(res.as_record(), indent=1, sort_keys=True),
                                       encoding="utf-8")
     return res
+
+
+def _buy_hold(market: Market, capital: float, symbol: str = "SPY") -> dict[str, Any] | None:
+    if symbol not in market.bars:
+        return None
+    ev = market.events.get(symbol)
+    return buy_and_hold(market.bars[symbol], ev.dividends if ev is not None else (),
+                        market.days, capital, symbol)
 
 
 def broker_equity(state: EngineState, cfg: OptionsConfig) -> float:

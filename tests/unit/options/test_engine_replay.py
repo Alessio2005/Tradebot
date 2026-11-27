@@ -8,10 +8,10 @@ from datetime import date, datetime, time
 import pytest
 
 from tests.unit.options.market_helpers import CFG
+from tests.unit.options.synthetic_market import SyntheticSpec, SyntheticUnderlying, generate
 from tradebot.options import cli
 from tradebot.options.calendar import NY, TradingCalendar
 from tradebot.options.data.store import write_market
-from tradebot.options.data.synthetic import SyntheticSpec, SyntheticUnderlying, generate
 from tradebot.options.engine.replay import replay_config, run_replay, session_clock
 
 SPEC = SyntheticSpec(underlyings=(SyntheticUnderlying("TSTB", 50.0, strike_step=1.0),),

@@ -1,6 +1,6 @@
 .PHONY: help install install-dev lint format type-check
 .PHONY: test test-fast test-slow test-regression benchmark coverage clean
-.PHONY: options-replay
+.PHONY: options-replay options-smoke
 
 PYTHON  ?= python
 PYTEST  ?= pytest
@@ -55,9 +55,16 @@ coverage:  ## Run fast tests + coverage report
 
 REPLAY_DIR ?= /tmp/tradebot-replay
 
-options-replay:  ## Synthetische markt + replay (fictief geld) naar $(REPLAY_DIR)
-	$(PYTHON) -I -m tradebot.options.data.synthetic --out $(REPLAY_DIR)/markt
+DOLT_CACHE ?= $(REPLAY_DIR)/dolthub-cache
+DOLT_START ?= 2019-02-11
+DOLT_END   ?= 2026-11-26
+
+options-replay:  ## DoltHub-markt bouwen + replay (fictief geld) naar $(REPLAY_DIR)
+	$(PYTHON) -I -m tradebot.options dolthub --cache $(DOLT_CACHE) --out $(REPLAY_DIR)/markt --start $(DOLT_START) --end $(DOLT_END)
 	$(PYTHON) -I -m tradebot.options replay --market $(REPLAY_DIR)/markt --out $(REPLAY_DIR)/run --overwrite
+
+options-smoke:  ## Replay op de kleine DoltHub-testmarkt in tests/fixtures (geen netwerk)
+	$(PYTHON) -I -m tradebot.options replay --market tests/fixtures/options/dolthub_mini --out $(REPLAY_DIR)/smoke --overwrite
 
 # ── Maintenance ───────────────────────────────────────────────────────────────
 

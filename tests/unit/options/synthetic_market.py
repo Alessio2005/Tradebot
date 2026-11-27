@@ -1,7 +1,8 @@
-"""Synthetische markten voor replay en tests: deterministisch, met een vast seed.
+"""Synthetische testmarkten: deterministisch, met een vast seed. ALLEEN voor tests.
 
-Er is geen historische ketendata. Deze generator maakt een kleine, volledig vastgelegde markt
-om de ENGINE en de REGELS te testen, niet om rendement te meten (detailontwerp 15).
+Sinds 2026-11-27 is de synthetische markt geen replay- of demobron meer: replays draaien op
+echte DoltHub-ketens (`tradebot.options.data.dolthub`). Deze generator maakt een kleine,
+volledig vastgelegde markt om de ENGINE en de REGELS in tests te raken.
 
 * Onderliggende: GBM met vaste parameters per naam, plus optioneel één geplande sprong en één
   dividend. Een opwarmperiode met dagbars (voor RV20 en SMA50) gaat aan de start vooraf.
@@ -14,33 +15,28 @@ om de ENGINE en de REGELS te testen, niet om rendement te meten (detailontwerp 1
 * Quotes: theo ± een halve spread (`max(min_spread, spread_frac × theo)`), op centen; bid
   niet onder 0. Open interest en volume vast, behalve in de verre vleugels (die vallen in de
   filters af).
-
-`python -I -m tradebot.options.data.synthetic --out <map>` schrijft de standaardmarkt naar
-schijf (parquet + JSON), in het formaat dat `data.store` leest.
 """
 from __future__ import annotations
 
-import argparse
 import math
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from ..calendar import NY, TradingCalendar
-from ..chain.builder import RawOption
-from ..contracts import OptionContract, Quote, Right
-from ..events import Events
-from ..pricing.engines import Method
-from ..pricing.ql_env import scaled_time
-from ..pricing.vanilla import OptionInputs, price
-from ..rates import Carry, CashDividend
-from .store import Market, Snapshot, write_market
+from tradebot.options.calendar import NY, TradingCalendar
+from tradebot.options.chain.builder import RawOption
+from tradebot.options.contracts import OptionContract, Right
+from tradebot.options.data.historical import _expiries, _quote
+from tradebot.options.data.store import Market, Snapshot
+from tradebot.options.events import Events
+from tradebot.options.pricing.engines import Method
+from tradebot.options.pricing.ql_env import scaled_time
+from tradebot.options.pricing.vanilla import OptionInputs, price
+from tradebot.options.rates import Carry, CashDividend
 
-__all__ = ["SyntheticUnderlying", "SyntheticSpec", "default_spec", "generate", "main"]
+__all__ = ["SyntheticUnderlying", "SyntheticSpec", "default_spec", "generate"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,30 +97,9 @@ def _trading_days(cal: TradingCalendar, start: date, n: int) -> list[date]:
     return days
 
 
-def _expiries(cal: TradingCalendar, today: date, spec: SyntheticSpec) -> list[date]:
-    out = []
-    d = today + timedelta(days=1)
-    while (d - today).days <= spec.max_days:
-        if d.weekday() == 4:
-            third_friday = 15 <= d.day <= 21
-            if (d - today).days <= spec.weekly_days or third_friday:
-                e = d if cal.is_trading_day(d) else cal.previous_trading_day(d)
-                out.append(e)
-        d += timedelta(days=1)
-    return out
-
-
 def _smile_vol(spec: SyntheticSpec, spot: float, strike: float) -> float:
     k = math.log(strike / spot)
     return spec.smile_base + spec.smile_curvature * k * k + spec.smile_slope * k
-
-
-def _quote(theo: float, spec: SyntheticSpec, ts: datetime, thin: bool) -> Quote:
-    half = 0.5 * max(spec.min_spread, spec.spread_frac * theo)
-    bid = max(round(theo - half, 2), 0.0)
-    ask = max(round(theo + half, 2), round(bid + 0.01, 2))
-    oi, vol = (100, 10) if thin else (spec.open_interest, spec.volume)
-    return Quote(bid, ask, ts, volume=vol, open_interest=oi)
 
 
 def generate(spec: SyntheticSpec) -> Market:
@@ -195,17 +170,3 @@ def _chain(spec: SyntheticSpec, cal: TradingCalendar, u: SyntheticUnderlying, sp
                 c = OptionContract(u.name, expiry, float(round(k, 2)), right)
                 out.append(RawOption(c, _quote(theo, spec, ts, thin)))
     return out
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="tradebot.options.data.synthetic",
-                                 description="Schrijf de synthetische standaardmarkt naar schijf.")
-    ap.add_argument("--out", type=Path, required=True)
-    args = ap.parse_args(argv)
-    write_market(generate(default_spec()), args.out)
-    print(f"synthetische markt geschreven naar {args.out}")
-    return 0
-
-
-if __name__ == "__main__":  # pragma: no cover - CLI-ingang, getest via main()
-    raise SystemExit(main())

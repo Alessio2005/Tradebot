@@ -30,10 +30,11 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from ..positions import MULTIPLIER
 
-__all__ = ["BookStats", "ReplayStats", "StrategyStats", "book_stats", "replay_stats",
+__all__ = ["BookStats", "ReplayStats", "StrategyStats", "book_stats", "buy_and_hold", "replay_stats",
            "strategy_stats"]
 
 TRADING_DAYS = 252
@@ -145,3 +146,19 @@ def replay_stats(rows: Sequence[Mapping[str, Any]], start_equity: float,
                  equity: Sequence[tuple[str, float]]) -> ReplayStats:
     return ReplayStats(strategy_stats(rows),
                        book_stats([start_equity, *(v for _, v in equity)]))
+
+
+def buy_and_hold(bars: pd.DataFrame, dividends: Sequence[Any], days: Sequence[Any],
+                 capital: float, symbol: str) -> dict[str, Any]:
+    """De vergelijking naast een replay: `capital` op de eerste dag tegen de slotkoers in
+    `symbol`, dividenden als kas op de ex-datum, en elke handelsdag op de slotkoers
+    gewaardeerd. Zelfde conventie als het boek: het startkapitaal is het eerste punt."""
+    close = bars["close"]
+    shares = capital / float(close.loc[pd.Timestamp(days[0])])
+    paid = {d.ex_date: float(d.amount) for d in dividends}
+    cash, equity = 0.0, [capital]
+    for d in days:
+        cash += shares * paid.get(d, 0.0)
+        equity.append(shares * float(close.loc[pd.Timestamp(d)]) + cash)
+    return {"symbol": symbol, "end_equity": round(equity[-1], 2),
+            **book_stats(equity).as_record()}

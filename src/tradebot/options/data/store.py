@@ -1,6 +1,7 @@
 """Opslag van markten: ketensnapshots (parquet), dagbars (parquet) en gebeurtenissen (JSON).
 
-Hetzelfde formaat dient voor de synthetische replay-markt en, later, voor het ketenarchief
+Hetzelfde formaat dient voor de DoltHub-replaymarkt (`data.dolthub`), de historische markt
+uit IBKR-IV (`data.historical`), de testmarkten en, later, voor het ketenarchief
 dat de dienst bij elke scan wegschrijft (detailontwerp 11.3). Er staan alleen ruwe quotes in,
 geen IV: die rekent de engine bij het afspelen opnieuw uit, met de pricer van dat moment.
 """
@@ -42,8 +43,11 @@ class Market:
     snapshots: tuple[Snapshot, ...]
     events: dict[str, Events]
     # Dagelijkse ATM-IV van vóór de eerste dag, per onderliggende: (ISO-datum, IV). Leeg voor
-    # een synthetische markt; de historische markt zet hier de IV-historie van IBKR in.
+    # een DoltHub- of testmarkt; de historische markt zet hier de IV-historie van IBKR in.
     iv_history: dict[str, tuple[tuple[str, float], ...]] = field(default_factory=dict)
+    # "HH:MM" als de markt één snapshot per dag heeft (DoltHub): `replay_config` legt de
+    # scantijd en het sluitmoment vóór expiratie dan op dat tijdstip. None: de config geldt.
+    daily_snapshot: str | None = None
 
 
 def write_market(m: Market, out: Path) -> None:
@@ -53,7 +57,9 @@ def write_market(m: Market, out: Path) -> None:
              "right": r.contract.right.value, "bid": r.quote.bid, "ask": r.quote.ask,
              "volume": r.quote.volume, "open_interest": r.quote.open_interest}
             for s in m.snapshots for r in s.options]
-    pd.DataFrame(rows).to_parquet(out / _SNAPSHOTS, index=False)
+    cols = ["underlying", "asof", "spot", "expiry", "strike", "right", "bid", "ask", "volume",
+            "open_interest"]
+    pd.DataFrame(rows, columns=cols).to_parquet(out / _SNAPSHOTS, index=False)
     pd.concat({k: v for k, v in sorted(m.bars.items())}, names=["underlying", "date"]) \
         .to_parquet(out / _BARS)
     meta = {"rate": m.rate, "days": [d.isoformat() for d in m.days],
@@ -61,7 +67,11 @@ def write_market(m: Market, out: Path) -> None:
                            "earnings": [d.isoformat() for d in e.earnings],
                            "dividends": [[d.ex_date.isoformat(), d.amount] for d in e.dividends]}
                        for k, e in sorted(m.events.items())},
-            "iv_history": {k: [list(x) for x in v] for k, v in sorted(m.iv_history.items())}}
+            "iv_history": {k: [list(x) for x in v] for k, v in sorted(m.iv_history.items())},
+            "daily_snapshot": m.daily_snapshot,
+            # Snapshots zonder opties (alleen de koers) passen niet in de ketentabel.
+            "empty_snapshots": [[s.underlying, s.asof.isoformat(), s.spot]
+                                for s in m.snapshots if not s.options]}
     (out / _META).write_text(json.dumps(meta, indent=2, sort_keys=True), encoding="utf-8")
 
 
@@ -82,6 +92,8 @@ def read_market(src: Path) -> Market:
                             volume=int(r.volume), open_interest=int(r.open_interest)))
             for r in g.itertuples(index=False))
         snapshots.append(Snapshot(str(und), ts, float(g["spot"].iloc[0]), opts))
+    snapshots += [Snapshot(str(u), datetime.fromisoformat(str(t)), float(x), ())
+                  for u, t, x in meta.get("empty_snapshots", [])]
     snapshots.sort(key=lambda s: (s.asof, s.underlying))
     bars_all = pd.read_parquet(src / _BARS)
     bars = {str(k): g.droplevel("underlying") for k, g in bars_all.groupby(level="underlying")}
@@ -93,4 +105,4 @@ def read_market(src: Path) -> Market:
     ivh = {str(k): tuple((str(d), float(v)) for d, v in rows)
            for k, rows in meta.get("iv_history", {}).items()}   # oudere markten: zonder
     return Market(float(meta["rate"]), tuple(date.fromisoformat(d) for d in meta["days"]),
-                  bars, tuple(snapshots), events, ivh)
+                  bars, tuple(snapshots), events, ivh, meta.get("daily_snapshot"))

@@ -10,11 +10,11 @@ from datetime import date, datetime, time, timedelta
 import pytest
 
 from tests.unit.options.market_helpers import CFG
+from tests.unit.options.synthetic_market import SyntheticSpec, SyntheticUnderlying, generate
 from tradebot.options.calendar import NY
 from tradebot.options.chain.builder import Chain
 from tradebot.options.contracts import OptionContract, Right
 from tradebot.options.data.feed import ReplayFeed
-from tradebot.options.data.synthetic import SyntheticSpec, SyntheticUnderlying, generate
 from tradebot.options.engine import service
 from tradebot.options.engine.replay import replay_config
 from tradebot.options.engine.service import Engine, EngineMode, Paths

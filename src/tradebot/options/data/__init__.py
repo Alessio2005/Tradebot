@@ -1,1 +1,1 @@
-"""Marktdata: opslag, synthetische replay-markten en (fase 7) de live feed."""
+"""Marktdata: opslag, DoltHub- en IBKR-historische replay-markten en (fase 7) de live feed."""

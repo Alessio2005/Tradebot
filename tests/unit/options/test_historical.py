@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from tests.unit.options.market_helpers import CFG
+from tests.unit.options.synthetic_market import SyntheticSpec, SyntheticUnderlying, generate
 from tradebot.options import cli
 from tradebot.options.calendar import NY
 from tradebot.options.data import historical as hist
@@ -24,7 +25,6 @@ from tradebot.options.data.historical import (
     yfinance_history,
 )
 from tradebot.options.data.store import read_market, write_market
-from tradebot.options.data.synthetic import SyntheticSpec, SyntheticUnderlying, generate
 from tradebot.options.engine.replay import run_replay
 from tradebot.options.rates import CashDividend
 from tradebot.utils.failfast import DataContractError

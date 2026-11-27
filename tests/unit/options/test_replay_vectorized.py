@@ -10,7 +10,7 @@ import json
 from datetime import date, time
 
 from tests.unit.options.market_helpers import CFG
-from tradebot.options.data.synthetic import SyntheticSpec, SyntheticUnderlying, generate
+from tests.unit.options.synthetic_market import SyntheticSpec, SyntheticUnderlying, generate
 from tradebot.options.engine.replay import run_replay
 
 SPEC = SyntheticSpec(underlyings=(SyntheticUnderlying("TSTB", 50.0, strike_step=1.0,

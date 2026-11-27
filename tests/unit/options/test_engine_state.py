@@ -8,10 +8,10 @@ from datetime import date, datetime, time
 import pytest
 
 from tests.unit.options.helpers import NOW
+from tests.unit.options.synthetic_market import SyntheticSpec, SyntheticUnderlying, generate
 from tradebot.options.calendar import NY
 from tradebot.options.contracts import OptionContract, Right
 from tradebot.options.data.feed import ReplayFeed
-from tradebot.options.data.synthetic import SyntheticSpec, SyntheticUnderlying, generate
 from tradebot.options.engine.state import (
     EngineState,
     Journal,
