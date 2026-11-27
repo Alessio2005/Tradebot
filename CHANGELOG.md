@@ -4,6 +4,18 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: backteststatistiek en sweep (2026-11-27)
+- `summary.json` en `ReplayResult` krijgen `stats` (`engine/report.py`): per strategie aantal
+  gesloten posities, win rate, gemiddelde en totale P&L, grootste verlies (uit de fills en
+  `position_closed` van het journal); voor het boek totaalrendement, max drawdown, Sharpe en
+  Sortino op dagrendementen (√252, risicovrij 0). Randgevallen (geen gesloten posities, één
+  equity-punt, stdev of neerwaartse afwijking 0) geven lege lijsten of `null`, nooit NaN.
+- Nieuw: `python -I -m tradebot.options sweep --markets DIR... --out DIR [--workers N]`: dezelfde
+  config op meerdere markten in een procespool (`forkserver`), `sweep.json` met de stats per markt.
+  Robuustheidscheck, geen parameter-grid.
+- Alleen toegevoegde sleutels: de standaard-replay verandert niet (journal identiek, 3 posities,
+  eind-equity 25.303,60 USD).
+
 ## Options: sizing op risico en drawdown-rem (2026-11-27)
 - `sizing.daily_risk_frac` (standaard `null` = uit): eenheden = min(regel van 7.3,
   floor(daily_risk_frac × kapitaal / σ_unit)), σ_unit = √((Δ·S·σ_1d)² + 2·(½·Γ·S²·σ_1d²)² +

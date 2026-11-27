@@ -2,6 +2,10 @@
 
 * `replay --market DIR --out DIR [--config PAD]`: speel een opgeslagen markt af met de
   paper-broker en schrijf journal, staat en `summary.json` naar `--out`.
+* `sweep --markets DIR [DIR ...] --out DIR [--config PAD] [--workers N]`: dezelfde config op
+  meerdere opgeslagen markten (robuustheidscheck, geen parameter-grid); per markt een replay in
+  `--out/<mapnaam>/` en de statistiek van alle markten in `--out/sweep.json`. `--workers`
+  (standaard auto) is het aantal markten tegelijk.
 * `historical --out DIR --start D --end D [--config PAD]`: bouw een historische markt uit de
   koersen en de IV van IBKR (alleen lezen; dezelfde `IB_*`-omgeving, client-id 18).
 * `paper --run-dir DIR [--config PAD] [--healthcheck]`: de paper-dienst tegen IB Gateway.
@@ -29,6 +33,7 @@ from .data.historical import HistoricalSeries, HistoricalSpec, build_market, fet
 from .data.store import read_market, write_market
 from .engine.paper import run_paper
 from .engine.replay import run_replay
+from .engine.sweep import run_sweep
 from .execution.ib_noise import quiet_ib
 
 __all__ = ["HEARTBEAT_MAX_AGE_SECONDS", "healthy", "main"]
@@ -74,6 +79,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     rp.add_argument("--market", type=Path, required=True)
     rp.add_argument("--out", type=Path, required=True)
     rp.add_argument("--config", type=Path, default=DEFAULT_OPTIONS_CONFIG)
+    sp = sub.add_parser("sweep", help="dezelfde config op meerdere opgeslagen markten")
+    sp.add_argument("--markets", type=Path, nargs="+", required=True)
+    sp.add_argument("--out", type=Path, required=True)
+    sp.add_argument("--config", type=Path, default=DEFAULT_OPTIONS_CONFIG)
+    sp.add_argument("--workers", type=int, default=None)
     hp = sub.add_parser("historical",
                         help="bouw een historische markt uit IBKR-koersen en -IV (alleen lezen)")
     hp.add_argument("--out", type=Path, required=True)
@@ -97,6 +107,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_market(build_market(series, spec), args.out)
         print(f"historische markt {spec.start} t/m {spec.end} geschreven naar {args.out}")
         return 0
+    if args.command == "sweep":
+        record = run_sweep(cfg, args.markets, args.out, args.workers)
+        print(json.dumps(record, indent=1, sort_keys=True))
+        return 1 if any(m["open_short_legs_past_expiry"] or m["halted"]
+                        for m in record["markets"].values()) else 0
     res = asyncio.run(run_replay(cfg, read_market(args.market), args.out))
     print(json.dumps(res.as_record(), indent=1, sort_keys=True))
     return 1 if res.open_short_legs_past_expiry or res.halted else 0

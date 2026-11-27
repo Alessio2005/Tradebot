@@ -21,6 +21,7 @@ from ..data.feed import ReplayFeed
 from ..data.store import Market
 from ..execution.paper import PaperBroker
 from ..strategies.common import parse_time
+from .report import ReplayStats, replay_stats
 from .service import Engine, Paths
 from .state import EngineState
 
@@ -40,6 +41,7 @@ class ReplayResult:
     open_short_legs_past_expiry: int
     halted: bool
     journal: Path
+    stats: ReplayStats
 
     def as_record(self) -> dict[str, Any]:
         return {"start_equity": self.start_equity, "end_equity": round(self.end_equity, 2),
@@ -47,7 +49,8 @@ class ReplayResult:
                 "positions_opened": self.positions_opened,
                 "positions_closed": self.positions_closed,
                 "open_short_legs_past_expiry": self.open_short_legs_past_expiry,
-                "halted": self.halted, "journal": str(self.journal)}
+                "halted": self.halted, "journal": str(self.journal),
+                "stats": self.stats.as_record()}
 
 
 def replay_config(cfg: OptionsConfig, market: Market) -> OptionsConfig:
@@ -104,7 +107,8 @@ async def run_replay(cfg: OptionsConfig, market: Market, out: Path) -> ReplayRes
                        sum(1 for r in rows if r["event"] == "position_opened"),
                        sum(1 for r in rows if r["event"] == "position_closed"),
                        past, engine.halted,
-                       engine.paths.journal)
+                       engine.paths.journal,
+                       replay_stats(rows, cfg.account.capital_usd, state.equity))
     (out / "summary.json").write_text(json.dumps(res.as_record(), indent=1, sort_keys=True),
                                       encoding="utf-8")
     return res
