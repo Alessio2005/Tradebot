@@ -2,9 +2,12 @@
 
 IV RANK HEEFT HISTORIE NODIG, EN DIE BESTAAT NOG NIET
 -----------------------------------------------------
-IVR en IVP worden berekend over de laatste `ivr_lookback_days` (252) handelsdagen van de
-dagelijkse ATM-IV (30 dagen), die de dienst zelf om `end_of_day` wegschrijft (`IVHistory`).
-Zolang er minder waarden zijn, is de status `INSUFFICIENT_HISTORY`.
+IVR en IVP worden berekend over de waarden van de laatste `ivr_lookback_days` (365)
+KALENDERDAGEN van de dagelijkse ATM-IV (30 dagen), die de dienst zelf om `end_of_day`
+wegschrijft (`IVHistory`). Selectie op datum, niet op aantal: bij een ruwe databron (DoltHub,
+±150 waarnemingen per jaar) beslaan 252 waarnemingen ±1,7 jaar en is de IVR geen jaar-IVR meer.
+Zolang er in dat venster minder dan `ivr_min_observations` (120) waarden zijn, is de status
+`INSUFFICIENT_HISTORY`.
 
 Dan geldt de vervangende regel (open vraag B, standaard aan): de verhouding
 `iv_rv_ratio = ATM-IV(30) / RV(20)`, met RV de Yang-Zhang-vol over 20 dagen. Elke drempel op
@@ -17,7 +20,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from enum import StrEnum
 
 import numpy as np
@@ -45,7 +48,8 @@ class IVCondition(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class IVRuleSettings:
-    lookback_days: int = 252
+    lookback_days: int = 365            # kalenderdagen
+    min_observations: int = 120         # minimum aantal waarnemingen in dat venster
     high_ivr: float = 30.0
     low_ivr: float = 30.0
     very_low_ivr: float = 20.0
@@ -57,7 +61,7 @@ class IVRuleSettings:
 
 def iv_rule_settings(cfg: IVMetricsConfig) -> IVRuleSettings:
     fb = cfg.fallback
-    return IVRuleSettings(cfg.ivr_lookback_days, cfg.high_ivr, cfg.low_ivr, cfg.very_low_ivr,
+    return IVRuleSettings(cfg.ivr_lookback_days, cfg.ivr_min_observations, cfg.high_ivr, cfg.low_ivr, cfg.very_low_ivr,
                           fb.enabled, fb.high_iv_ratio, fb.low_iv_ratio, fb.very_low_iv_ratio)
 
 
@@ -79,6 +83,12 @@ class IVHistory:
     def values(self, until: date, n: int) -> list[float]:
         """De laatste `n` waarden tot en met `until`."""
         return [self._rows[d] for d in sorted(self._rows) if d <= until][-n:]
+
+    def since(self, until: date, days: int) -> list[float]:
+        """De waarden van de laatste `days` kalenderdagen tot en met `until`
+        (`until − days < datum ≤ until`), oplopend in datum."""
+        start = until - timedelta(days=days)
+        return [self._rows[d] for d in sorted(self._rows) if start < d <= until]
 
     def rows(self) -> list[tuple[date, float]]:
         return sorted(self._rows.items())
@@ -136,8 +146,8 @@ class IVMetrics:
         ratio = atm_iv / rv if atm_iv is not None and rv else None
         if atm_iv is None:
             return cls(None, None, None, IVRStatus.NO_ATM_IV, None, term_slope, skew_25d)
-        hist = history.values(today, cfg.lookback_days)
-        if len(hist) < cfg.lookback_days:
+        hist = history.since(today, cfg.lookback_days)
+        if len(hist) < cfg.min_observations:
             return cls(atm_iv, None, None, IVRStatus.INSUFFICIENT_HISTORY, ratio, term_slope,
                        skew_25d)
         ivr, ivp = iv_rank(hist, atm_iv)

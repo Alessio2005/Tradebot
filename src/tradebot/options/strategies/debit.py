@@ -3,6 +3,18 @@
 Bij elke debit-strategie is het maximale verlies het betaalde debit. "Waarde" is de mark van de
 combo (wat sluiten nu oplevert, per aandeel). De expiratieregel uit 7.5 geldt ook hier: op de
 handelsdag vóór een expiratie, na `close_before_expiry_time`, gaat alles dicht.
+
+Het maximale verlies (`Candidate.max_loss`, en dus budget en opgeslagen `max_loss`) rekent met
+het debit tegen de natuurlijke prijs (ask bij kopen, bid bij verkopen): de limietwalk mag tot
+daar concederen, dus de mid onderschat het echte risico. De limiet start nog op de mid.
+
+Heeft de positie aandelen-legs (na een vroege assignment), dan zijn take-profit en stop-loss op
+de optie-legs alleen niet meer zinvol: ze zwijgen. De engine sluit zo'n positie zelf met
+reden `assigned`; de expiratie- en DTE-regel blijven gelden.
+
+De debit vertical neemt winst bij `take_profit_frac_max_gain` van de maximale winst
+(breedte − debit), een doel dat altijd haalbaar is (2 × debit was dat niet bij een debit van
+de halve breedte).
 """
 from __future__ import annotations
 
@@ -27,17 +39,20 @@ from ..positions import (
     mark,
     position_greek,
 )
-from ..pricing.surface import forward
 from .common import (
     Rules,
+    atm_iv,
+    atm_level,
     close,
     dte,
     entry_blockers,
     expiry_close_due,
     iv_ok,
+    natural_mark,
     otm_step,
     parse_time,
     pick_expiry,
+    short_call_dividend_blockers,
     size,
     strike_at_delta,
     strike_nearest,
@@ -54,7 +69,8 @@ def _manage_debit(pos: StrategyPosition, market: MarketState, rules: Rules,
         return [close(pos, Urgency.STOP, "expiry")]
     chain = market.chains.get(pos.underlying)
     debit = -pos.entry_credit
-    m = mark(chain, pos.intents()) if chain is not None else None
+    # Met aandelen-legs (assigned) zijn de optie-legs alleen geen maat voor de waarde (N17).
+    m = mark(chain, pos.intents()) if chain is not None and not pos.shares else None
     if m is not None and m >= take_profit_value * debit:
         return [close(pos, Urgency.NORMAL, "take_profit")]
     if m is not None and m <= stop_value * debit:
@@ -64,9 +80,14 @@ def _manage_debit(pos: StrategyPosition, market: MarketState, rules: Rules,
     return []
 
 
-def _level(chain: Chain, expiry: date) -> float:
-    f = forward(chain, expiry)
-    return f if f is not None else chain.spot
+_level = atm_level                       # vol_trading importeert deze naam
+
+
+def _risk_debit(chain: Chain, legs: tuple[LegIntent, ...], debit: float) -> float:
+    """Het debit per eenheid en per aandeel voor het risico: tegen de natuurlijke prijs, nooit
+    onder de mid (`debit`, die er al is, dus bid en ask zijn er ook)."""
+    nat = natural_mark(chain, legs)
+    return debit if nat is None else max(nat, debit)
 
 
 class DebitVertical:
@@ -103,20 +124,28 @@ class DebitVertical:
             if found is None:
                 continue
             legs, debit, width = found
-            units = size(debit * MULTIPLIER, market, book, und, self.rules, legs)
+            risk = _risk_debit(chain, legs, debit)
+            if short_call_dividend_blockers(market, und, legs):
+                continue
+            units = size(risk * MULTIPLIER, market, book, und, self.rules, legs)
             if units == 0:
                 continue
             kind = "bull_call" if right is Right.CALL else "bear_put"
             out.append(Candidate(self.name, und, legs, units, -debit,
-                                 debit * MULTIPLIER * units, (width - debit) / debit,
+                                 risk * MULTIPLIER * units, (width - debit) / debit,
                                  (f"trend:{trend.value}", kind, iv_trace,
                                   f"dte:{dte(expiry, market.today)}", f"width:{width:g}")))
         return sorted(out, key=lambda c: (-c.rank_score, c.underlying))
 
     def manage(self, pos: StrategyPosition, market: MarketState) -> list[Action]:
         c = self.cfg
-        return _manage_debit(pos, market, self.rules, 1 + c.take_profit_frac_debit,
-                             c.stop_loss_frac_debit, c.close_dte)
+        debit = -pos.entry_credit
+        strikes = [leg.contract.strike for leg in pos.option_legs]  # type: ignore[union-attr]
+        gain = abs(strikes[0] - strikes[1]) - debit if len(strikes) == 2 else 0.0   # maximale winst
+        take_profit = (1 + c.take_profit_frac_max_gain * gain / debit
+                       if gain > 0 and debit > 0 else math.inf)
+        return _manage_debit(pos, market, self.rules, take_profit, c.stop_loss_frac_debit,
+                             c.close_dte)
 
 
 class CalendarSpread:
@@ -137,15 +166,6 @@ class CalendarSpread:
             return "ivp:fallback:ok"
         return None
 
-    @staticmethod
-    def _atm_iv(chain: Chain, expiry: date) -> float | None:
-        """Gemiddelde van call- en put-IV op de strike het dichtst bij de forward."""
-        call = strike_nearest(chain, expiry, Right.CALL, _level(chain, expiry))
-        put = chain.find(expiry, call.contract.strike, Right.PUT) if call is not None else None
-        if call is None or put is None or call.iv is None or put.iv is None:
-            return None
-        return (call.iv + put.iv) / 2
-
     def _fwd_trace(self, market: MarketState, chain: Chain, und: str,
                    near: date, far: date) -> str:
         """Spoorregel van de forward-vol-regel; `fwd:ok` als die geldt, anders de reden.
@@ -157,7 +177,7 @@ class CalendarSpread:
         vs = market.vol.get(und)
         if vs is None or vs.rv is None:
             return "fwd:no_rv"
-        iv1, iv2 = self._atm_iv(chain, near), self._atm_iv(chain, far)
+        iv1, iv2 = atm_iv(chain, near), atm_iv(chain, far)
         if iv1 is None or iv2 is None:
             return "fwd:no_iv"
         t1 = year_fraction(market.now, expiry_moment(near))
@@ -165,9 +185,12 @@ class CalendarSpread:
         var_f = (iv2 ** 2 * t2 - iv1 ** 2 * t1) / (t2 - t1)
         if var_f < 0:
             return "fwd:neg_var"
-        h1 = (near - market.today).days
+        h1, h2 = (near - market.today).days, (far - market.today).days
         sigma_near = vs.rv.at_horizon(h1)
-        sigma_gap = vs.rv.at_horizon((far - near).days)
+        # De verwachte RV over [h1, h2], uit de cumulatieve variantie σ(h)²·h: met mean
+        # reversion is dat iets anders dan σ(h2 − h1), de RV over een even lange periode vanaf
+        # vandaag (review N12).
+        sigma_gap = math.sqrt((vs.rv.at_horizon(h2) ** 2 * h2 - sigma_near ** 2 * h1) / (h2 - h1))
         if (math.sqrt(var_f) <= self.cfg.max_fwd_vol_rv_ratio * sigma_gap
                 and iv1 >= self.cfg.min_near_iv_rv_ratio * sigma_near):
             return "fwd:ok"
@@ -207,11 +230,14 @@ class CalendarSpread:
             theta = position_greek(chain, legs, "theta")
             if debit is None or debit <= 0 or theta is None:
                 continue
-            units = size(debit * MULTIPLIER, market, book, und, self.rules, legs)
+            risk = _risk_debit(chain, legs, debit)
+            if short_call_dividend_blockers(market, und, legs):
+                continue
+            units = size(risk * MULTIPLIER, market, book, und, self.rules, legs)
             if units == 0:
                 continue
             out.append(Candidate(self.name, und, legs, units, -debit,
-                                 debit * MULTIPLIER * units, theta / (debit * MULTIPLIER),
+                                 risk * MULTIPLIER * units, theta / (debit * MULTIPLIER),
                                  (*trace, f"near:{near.isoformat()}", f"far:{far.isoformat()}",
                                   f"strike:{short.contract.strike:g}")))
         return sorted(out, key=lambda c: (-c.rank_score, c.underlying))
@@ -279,11 +305,12 @@ class LongVol:
             vega = position_greek(chain, legs, "vega") if legs is not None else None
             if legs is None or debit is None or debit <= 0 or vega is None:
                 continue
-            units = size(debit * MULTIPLIER, market, book, und, self.rules, legs)
+            risk = _risk_debit(chain, legs, debit)
+            units = size(risk * MULTIPLIER, market, book, und, self.rules, legs)
             if units == 0:
                 continue
             out.append(Candidate(self.name, und, legs, units, -debit,
-                                 debit * MULTIPLIER * units, vega / (debit * MULTIPLIER),
+                                 risk * MULTIPLIER * units, vega / (debit * MULTIPLIER),
                                  (trace, self.cfg.style, f"dte:{dte(expiry, market.today)}"),
                                  variant))
         return sorted(out, key=lambda c: (-c.rank_score, c.underlying))

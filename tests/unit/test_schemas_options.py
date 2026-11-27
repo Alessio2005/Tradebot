@@ -24,7 +24,7 @@ def test_the_default_config_loads():
     assert set(cfg.universe.share_eligible) == {"AAPL", "MSFT"}
     assert cfg.pricing.decision_engine == "binomial_lr"
     assert cfg.filters.min_open_interest == 500
-    assert cfg.iv_metrics.ivr_lookback_days == 252
+    assert cfg.iv_metrics.ivr_lookback_days == 365
     assert cfg.iv_metrics.fallback.enabled
     assert cfg.strategies.credit_spread.enabled and not cfg.strategies.wheel.enabled
     assert not cfg.strategies.short_straddle_strangle.enabled

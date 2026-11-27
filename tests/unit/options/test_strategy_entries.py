@@ -124,6 +124,16 @@ def dv(**kw):
     return DebitVertical(S.debit_vertical.model_copy(update=kw), RULES)
 
 
+def _natural_debit(c):
+    """Ask bij kopen, bid bij verkopen, uit de testketen."""
+    chain = cached_chain()
+    total = 0.0
+    for leg in c.legs:
+        o = chain.find(leg.contract.expiry, leg.contract.strike, leg.contract.right)
+        total += leg.ratio * (o.quote.ask if leg.ratio > 0 else o.quote.bid)
+    return total
+
+
 def test_debit_vertical_follows_the_trend_and_caps_the_debit():
     (bull,) = dv().scan(market(iv=LOW_IV, trend=Trend.UP), Book())
     (lng, sht) = legs_of(bull)
@@ -131,7 +141,9 @@ def test_debit_vertical_follows_the_trend_and_caps_the_debit():
     width = sht[1] - lng[1]
     debit = -bull.net_credit
     assert 0 < debit <= 0.5 * width
-    assert bull.max_loss == pytest.approx(debit * 100 * bull.quantity)
+    natural = _natural_debit(bull)
+    assert natural > debit                                  # N19: het risico is het natural-debit
+    assert bull.max_loss == pytest.approx(natural * 100 * bull.quantity)
     assert bull.rank_score == pytest.approx((width - debit) / debit)
     (bear,) = dv().scan(market(iv=LOW_IV, trend=Trend.DOWN), Book())
     assert legs_of(bear)[0][2] is Right.PUT and legs_of(bear)[1][1] < legs_of(bear)[0][1]
@@ -530,13 +542,12 @@ def test_vrp_gate_refuses_without_vol_state_or_rv(make, kw):
     assert strat.scan(_vrp_market(None, **kw), Book()) == []       # geen RV-verwachting
 
 
-def test_vrp_gate_refuses_a_short_leg_without_iv():
+def test_vrp_gate_refuses_an_expiry_without_atm_iv():
     m = _vrp_market(0.20, trend=Trend.UP)
-    (c,) = cs().scan(m, Book())
-    short = c.legs[0].contract
     chain = m.chains["TST"]
     blind = dataclasses.replace(chain, options=tuple(
         dataclasses.replace(o, iv_mid=dataclasses.replace(o.iv_mid, status=IVStatus.NO_QUOTE))
-        if o.contract == short else o for o in chain.options))
+        if o.contract.strike == 100.0 and o.contract.expiry == date(2026, 12, 31) else o
+        for o in chain.options))
     blind_m = dataclasses.replace(m, chains={"TST": blind})
     assert cs(min_vrp_ratio=1.10).scan(blind_m, Book()) == []

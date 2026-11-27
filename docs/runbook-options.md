@@ -158,7 +158,7 @@ schakelaar aan door de sleutel in je eigen config te overschrijven (of in
 
 | Sleutel | Standaard | Wat het doet | Aanzetten |
 |---|---|---|---|
-| `strategies.credit_spread.min_vrp_ratio`, `iron_condor.min_vrp_ratio`, `short_straddle_strangle.min_vrp_ratio` | `null` (uit) | VRP-poort per looptijd: gemiddelde IV van de short legs ≥ ratio × σ(h), h = de DTE | `1.10` aanbevolen |
+| `strategies.credit_spread.min_vrp_ratio`, `iron_condor.min_vrp_ratio`, `short_straddle_strangle.min_vrp_ratio` | `null` (uit) | VRP-poort per looptijd: ATM-IV van de gekozen expiratie (niet de skew-IV van de short leg) ≥ ratio × σ(h), h = de DTE | `1.10` aanbevolen |
 | `strategies.credit_spread.short_delta_exit` | `null` (uit) | short leg met \|delta\| boven deze waarde: sluiten (STOP, `delta_breach`), vóór de ITM-stop | `0.40` aanbevolen |
 | `strategies.short_straddle_strangle.*` | `enabled: false` | zie "Short strangle" hieronder | zie daar |
 | `risk.max_undefined_stress_loss_frac` | `0.06` | grens op de som van het stressverlies (±20 % spot, min credit) van alle undefined-risk posities, de lopende (nog niet gevulde) undefined-risk entries en de nieuwe; werkt alleen als undefined risk aan staat | getal aanpassen |
@@ -173,11 +173,22 @@ regime RICH, het stressverlies-plafond hierboven, stop op 2 × credit,
 risico direct dicht. **Alessio beslist of dit aan gaat**; dit is geen aanbeveling om het aan
 te zetten.
 
+**Bij 25.000 USD slaapt de short strangle.** Het budget per positie is 2 % (500 USD) en het
+stressverlies (±20 % spot, min credit) is op SPY ongeveer 8.300 USD per eenheid: `size` geeft dan
+0 eenheden, ook als beide schakelaars aan staan. Dat is bedoeld en de sizing is niet aangepast;
+hij wordt pas actief bij een veelvoud van het kapitaal. Leg dit vast voordat er over
+`allow_undefined_risk` wordt beslist.
+
+Voor elke short call buiten de covered call (bear call, callkant van de iron condor, short
+strangle, korte leg van de calendar en van de bull call spread) geldt een ex-dividendcheck: geen
+entry als er vóór de expiratie een ex-dividend valt waarbij de extrinsieke waarde van de short call
+(nu) kleiner is dan het dividend (`events:ex_dividend`).
+
 ### Volatility trading
 
 | Sleutel | Standaard | Wat het doet | Aanzetten |
 |---|---|---|---|
-| `strategies.calendar_spread.entry_rule` | `ivp` | toelating van de calendar: `ivp` (oude IVP-regel), `forward_vol` of `either`. Forward-vol: σ_f² = (σ₂²T₂ − σ₁²T₁)/(T₂ − T₁) ≤ `max_fwd_vol_rv_ratio` (1,00) × σ(h₂−h₁) en IV near ≥ `min_near_iv_rv_ratio` (1,05) × σ(h₁). `long_dte` moet helemaal na `short_dte` liggen (het schema eist dat) | `forward_vol` of `either` |
+| `strategies.calendar_spread.entry_rule` | `ivp` | toelating van de calendar: `ivp` (oude IVP-regel), `forward_vol` of `either`. Forward-vol: σ_f² = (σ₂²T₂ − σ₁²T₁)/(T₂ − T₁) ≤ `max_fwd_vol_rv_ratio` (1,00) × de verwachte RV over [h₁, h₂], √((σ(h₂)²h₂ − σ(h₁)²h₁)/(h₂ − h₁)), en IV near ≥ `min_near_iv_rv_ratio` (1,05) × σ(h₁). `long_dte` moet helemaal na `short_dte` liggen (het schema eist dat) | `forward_vol` of `either` |
 | `strategies.gamma_scalp.enabled` | `false` | long ATM-straddle (30 tot 60 DTE) als IV ≤ `max_iv_rv_ratio` (0,90) × σ(h), gedelta-hedged. Exits: winstdoel (1,30 × debit, met de gerealiseerde hedge-P&L), stop (60 %), 14 DTE of IV terug op σ(h) | `enabled: true` én `hedging.enabled: true` |
 | `hedging.enabled` | `false` | de delta-hedger: per onderliggende de netto delta van de posities van `hedging.strategies` (standaard `[gamma_scalp]`) terug in aandelen zodra \|delta\| > `band_shares` (20); plafond `max_notional_frac` (0,5) × kapitaal; elke `interval_seconds` (300). Alleen op `universe.share_eligible` (AAPL, MSFT): US-ETF's kunnen vanuit de EU niet als aandeel. Een hedge gaat door de risicopoort; die houdt hetzelfde plafond aan (`stock_notional_usd`) en controleert dat een sluitorder de aandelen-leg echt naar nul brengt. In HALT en UNWIND alleen afbouwen: de order moet de aandelen op die onderliggende in absolute waarde verkleinen én de delta van het boek verlagen; nieuwe aandelen (ook een hedge vanaf nul) niet | `true`, samen met `gamma_scalp` |
 | `paper.stock_spread_bps`, `commission_per_share`, `min_commission_per_order` | `2`, `0.005`, `1.0` | kosten van aandelenorders in de paper-broker | alleen relevant met hedging |
