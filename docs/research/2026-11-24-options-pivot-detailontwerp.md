@@ -593,7 +593,7 @@ de positie te sluiten.
 - `max_loss = debit × 100 × aantal`.
 - Beheer: expiratie (1) als hierboven; waarde ≥ 2 × debit → CLOSE (100 % winst); waarde ≤ 0,5 ×
   debit → CLOSE, STOP; DTE ≤ 21 → CLOSE. Een doel van 50 % winst is een tweede, in config te
-  kiezen waarde (`take_profit_frac_debit: 1.0` standaard).
+  kiezen waarde (`take_profit_frac_max_gain: 0.60` standaard na de reviewfixes (was `take_profit_frac_debit: 1.0`)).
 
 **Calendar spread.**
 
