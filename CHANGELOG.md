@@ -4,6 +4,22 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: gamma scalping verwijderd (2026-11-27)
+- Op verzoek van Alessio is de strategie `gamma_scalp` helemaal weg: `strategies/vol_trading.py`
+  (`GammaScalp`), `GammaScalpConfig`, de sleutel `strategies.gamma_scalp`, de naam in
+  `StrategyName` en in de regime-lijsten (`vol_regime.allowed.normal`/`cheap`), de configcheck
+  in het register en de tests. Een config met `gamma_scalp` geeft nu een validatiefout.
+- De verschuiving van gamma scalp vóór de long straddle (vorige sectie, nog niet gemerged) is
+  daarmee ongedaan: de scanvolgorde is weer die van `StrategiesConfig`, met LongVol direct na
+  de calendar.
+- De delta-hedger (`options/hedging.py`, `hedging.*`, aandelenorders in poort, engine en
+  paper-broker) blijft: hij is generiek en kan elke strategie uit `hedging.strategies` hedgen.
+  Keuze: `hedging.strategies` staat nu standaard leeg (was `[gamma_scalp]`), dus met
+  `hedging.enabled: true` en zonder lijst doet de hedger niets.
+- De ontwerp- en plandocumenten van 2026-11-26 zijn niet herschreven; ze beschrijven wat toen
+  gebouwd is.
+- Standaardreplay ongewijzigd (gamma scalp stond uit): 3 posities, eind-equity 25.303,60 USD.
+
 ## Opruimen en optimaliseren, plus de risicogaten uit de review (2026-11-27)
 
 Opruimen (geen gedragsverandering):
@@ -45,10 +61,6 @@ Risicogaten uit de review van 2026-11-27 (P1, punten 1-4); keuzes van mij:
 - **PDT-guard op elk uur**: onder 25.000 USD en met 3 daytrades in 5 handelsdagen geen entry
   meer, ook om 10:00 en 13:30. De 15:00-grens uit detailontwerp 8.5 greep nooit in omdat de
   scans eerder liggen. Afwijking van het ontwerp.
-- **Gamma scalp vóór de long straddle** in de strategievolgorde. De scan neemt per
-  onderliggende per dag één entry, in registervolgorde; LongVol (dezelfde ATM-straddle zonder
-  hedge) pakte elke hedgebare naam eerst, dus gamma scalp kwam nooit aan bod en de hedger deed
-  niets. Alleen van belang met `gamma_scalp.enabled`.
 
 Gemeten, niet veranderd (beslissing voor Alessio):
 - De replay is QuantLib-gebonden: in een profiel (1 worker) gaat 117 van de 140 s naar

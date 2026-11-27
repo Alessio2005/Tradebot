@@ -459,7 +459,7 @@ def test_offsetting_positions_on_one_contract_both_settle_at_expiry(rig):
     other = OptionContract("TSTB", D0, 40.0, Right.PUT)
     _spot(rig, 45.0)                          # put 48 ITM, call 60 OTM
     rig.state.positions += [_pos("a", "credit_spread", [(put, -1), (call, 1)]),
-                            _pos("b", "gamma_scalp", [(put, 1), (call, -1)]),
+                            _pos("b", "long_straddle_strangle", [(put, 1), (call, -1)]),
                             _pos("c", "credit_spread", [(other, -1)])]
     assert asyncio.run(rig.broker.positions()) == []   # netto nul: de broker ziet niets
     asyncio.run(rig.e._end_of_day(at(D0, 16, 30)))
@@ -478,11 +478,12 @@ def test_offsetting_positions_on_one_contract_both_settle_at_expiry(rig):
 
 
 def test_an_exercise_of_a_hedged_strategy_alerts(tmp_path):
-    cfg = BASE.model_copy(update={"hedging": BASE.hedging.model_copy(update={"enabled": True})})
+    cfg = BASE.model_copy(update={"hedging": BASE.hedging.model_copy(
+        update={"enabled": True, "strategies": ("long_straddle_strangle",)})})
     r = Rig(tmp_path, cfg)
     _spot(r, 45.0)
-    r.state.positions += [_pos("g", "gamma_scalp", [(C1, 1)]),
-                          _pos("l", "long_straddle_strangle", [(C2, 1)])]
+    r.state.positions += [_pos("g", "long_straddle_strangle", [(C1, 1)]),
+                          _pos("l", "debit_vertical", [(C2, 1)])]
     _assign(r, C1, ExecutionKind.EXERCISE, qty=-1)
     _assign(r, C2, ExecutionKind.EXERCISE, qty=-1)    # niet gehedged: geen alert
     assert [(a[1], a[2]) for a in r.alerts] == [
@@ -491,7 +492,7 @@ def test_an_exercise_of_a_hedged_strategy_alerts(tmp_path):
 
 def test_expiry_and_hedged_settlement_close_the_position(rig):
     _spot(rig, 45.0)
-    base = _pos("h", "gamma_scalp", [(C1, -1)])
+    base = _pos("h", "long_straddle_strangle", [(C1, -1)])
     hedged = dataclasses.replace(base, legs=(*base.legs, Leg(None, "TSTB", 100, 45.0)),
                                  hedge_realized_usd=5.0)
     rig.state.positions.append(hedged)
