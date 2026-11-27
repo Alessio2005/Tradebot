@@ -91,3 +91,22 @@ def test_a_file_that_is_not_a_mapping_is_refused(tmp_path):
     p.write_text("- 1\n- 2\n", encoding="utf-8")
     with pytest.raises(ConfigContractError, match="mapping"):
         load_options_config(p)
+
+
+def test_the_five_percent_profile_only_scales_the_risk_budget():
+    # conf/options/inzet5.yaml: 5 % per positie, de risicolimieten ×2,5 (de HALT ×2), verder gelijk.
+    path = DEFAULT_OPTIONS_CONFIG.with_name("inzet5.yaml")
+    five = yaml.safe_load(path.read_text(encoding="utf-8"))
+    load_options_config(path)
+    scaled = {("sizing", "max_loss_frac_capital"), ("sizing", "drawdown_brake"),
+              ("risk", "max_vega_frac"), ("risk", "max_gamma_loss_5pct_frac"),
+              ("risk", "max_loss_per_underlying_frac"), ("risk", "daily_loss_stop_entries_frac"),
+              ("risk", "daily_loss_degross_frac"), ("risk", "drawdown_halt_frac"),
+              ("risk", "max_scenario_loss_frac"), ("execution", "max_order_usd")}
+    changed = {(s, k) for s in RAW for k in (RAW[s] if isinstance(RAW[s], dict) else {})
+               if five[s][k] != RAW[s][k]}
+    assert changed == scaled
+    assert five["sizing"]["max_loss_frac_capital"] == 0.05
+    assert five["risk"]["drawdown_halt_frac"] == 0.20   # ×2, niet ×2,5: de rem loopt tot 20 %
+    for s, k in scaled - {("sizing", "drawdown_brake"), ("risk", "drawdown_halt_frac")}:
+        assert five[s][k] == pytest.approx(2.5 * RAW[s][k])

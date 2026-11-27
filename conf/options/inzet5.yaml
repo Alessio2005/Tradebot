@@ -1,0 +1,300 @@
+# Standaardconfig met 5 % maximaal verlies per positie (besluit Alessio, 27-11-2026); de
+# bijbehorende risicolimieten ×2,5. Replay-uitslag DoltHub 2019-2026: zie CHANGELOG.
+#
+# Gevalideerd door `tradebot.schemas.options.load_options_config`: een onbekende sleutel is
+# een fout. De secties groeien per fase mee (docs/research/2026-11-24-options-pivot-
+# detailontwerp.md, sectie 3.1). Elk getal dat een handelsbeslissing stuurt, staat hier.
+
+universe:
+  underlyings: [SPY, QQQ, IWM, AAPL, MSFT]
+  # Mag als aandeel gehouden worden (covered call, wheel). US-ETF's niet: geen EU-KID.
+  share_eligible: [AAPL, MSFT]
+  # Vaste tabel, jaarlijks herzien; geen rolling schatting in v1.
+  beta_to_spy: {SPY: 1.0, QQQ: 1.15, IWM: 1.2, AAPL: 1.2, MSFT: 1.1}
+  # NYSE-sluiting om 13:00. QuantLib kent de feestdagen, niet de halve dagen. Elk jaar
+  # bijwerken vanaf de NYSE-site.
+  half_days: [2026-11-27, 2026-12-24, 2027-11-26]
+
+filters:
+  min_open_interest: 500
+  min_volume: 100
+  # Een contract valt af als de spread zowel de absolute drempel als de fractie van mid
+  # overschrijdt.
+  max_spread_abs: 0.10
+  max_spread_frac_mid: 0.10
+  min_underlying_adv_shares: 1000000
+  max_quote_age_seconds: 10
+  earnings_blackout: true        # geen nieuwe positie die door een earningsdatum loopt
+  max_calendar_data_age_days: 1  # ouder earnings-/dividendbestand: niet handelen
+
+pricing:
+  scan_engine: baw               # snel, voor filters over hele ketens
+  decision_engine: binomial_lr   # beslissing, sizing en risico
+  binomial_steps: 401            # oneven (Leisen-Reimer)
+  fd_time_steps: 200             # FD bij een discreet dividend in de looptijd
+  fd_grid_points: 400
+  vega_bump_vol: 0.01            # 1 volpunt
+  rho_bump_rate: 0.0001          # 1 bp
+  iv_accuracy: 1.0e-6
+  iv_max_evaluations: 200
+  iv_min: 1.0e-2                 # onder 1 % is QuantLib numeriek onbetrouwbaar
+  iv_max: 5.0
+  surface_min_vega: 0.01         # USD per volpunt; daaronder is de IV afrondingsruis
+  # Vlak, handmatig bijgewerkt (3-maands T-bill, als fractie). Niet negatief: BAW weigert een
+  # call bij een negatieve rente.
+  risk_free_rate: 0.04
+  # Keten in batches: BAW-contracten in één numpy-kernel (pariteit met QuantLib vastgepind),
+  # FD-contracten met een startwaarde uit die kernel. Uit = elk contract apart door QuantLib.
+  vectorized: true
+  # Het QuantLib-deel van de keten (FD, binomiaal, terugval) over een procespool:
+  # auto = min(4, aantal cores), 1 = in het eigen proces. Pas boven pool_min_contracts
+  # contracten per keten; daaronder kost het verdelen meer dan het oplevert.
+  workers: auto
+  pool_min_contracts: 16
+
+iv_metrics:
+  ivr_lookback_days: 252         # handelsdagen dagelijkse ATM-IV(30)
+  atm_tenor_days: 30
+  rv_window_days: 20             # Yang-Zhang
+  high_ivr: 30
+  low_ivr: 30
+  very_low_ivr: 20
+  fallback:                      # open vraag B: zolang er geen 252 dagen historie is
+    enabled: true
+    high_iv_ratio: 1.20          # vervangt IVR >= 30
+    low_iv_ratio: 1.00           # vervangt IVR <= 30
+    very_low_iv_ratio: 0.90      # vervangt IVR <= 20
+
+# De strategieën, in de vaste volgorde waarin de engine hun kandidaten neemt
+# (detailontwerp 7.3, 7.4). Dte en delta's zijn bereiken [laag, hoog].
+strategies:
+  credit_spread:                 # bull put bij trend UP, bear call bij DOWN
+    enabled: true
+    dte: [30, 45]
+    short_delta: [0.20, 0.30]
+    short_delta_target: 0.25
+    wing_width_strikes: [1, 5]   # de kleinste breedte die het credit-criterium haalt
+    # credit / breedte is ongeveer de kans op ITM, dus ongeveer |short delta|. De ⅓ uit het
+    # detailontwerp is bij delta 0,25 onhaalbaar; 0,20 laat de beste kwart van de spreads door.
+    min_credit_frac_width: 0.20
+    iv_condition: high           # IVR >= 30, of de vervangende regel
+    take_profit_frac: 0.50       # sluiten bij een waarde <= 50 % van het credit
+    stop_loss_multiple_credit: 2.0
+    itm_stop_frac: 0.01          # short leg meer dan 1 % ITM: sluiten
+    close_dte: 21
+    # VRP-poort per looptijd: gem. IV van de short legs >= min_vrp_ratio × σ(h), h = de DTE.
+    min_vrp_ratio: null          # null = uit (aanbevolen 1.10)
+    # Short leg met |delta| boven deze waarde: CLOSE, STOP (delta_breach), vóór de ITM-stop.
+    short_delta_exit: null       # null = uit (aanbevolen 0.40)
+  iron_condor:
+    enabled: true
+    dte: [30, 45]
+    short_delta: 0.16
+    wing_width_strikes: [5, 10]
+    min_credit_frac_width: 0.15  # totaal; bij delta 0,16 aan beide kanten (zie hierboven)
+    iv_condition: high
+    take_profit_frac: 0.50
+    stop_loss_multiple_credit: 2.0
+    close_dte: 21
+    adjust_short_delta: 0.30
+    max_adjustments: 1
+    min_vrp_ratio: null          # null = uit (aanbevolen 1.10); zie credit_spread
+  debit_vertical:                # bull call bij UP, bear put bij DOWN
+    enabled: true
+    dte: [30, 60]
+    long_delta: [0.50, 0.60]
+    long_delta_target: 0.55
+    max_debit_frac_width: 0.50
+    max_width_strikes: 10
+    iv_condition: low            # IVR <= 30
+    take_profit_frac_debit: 1.0  # 100 % winst
+    stop_loss_frac_debit: 0.50
+    close_dte: 21
+  calendar_spread:
+    enabled: true
+    short_dte: [20, 35]
+    long_dte: [50, 90]             # moet helemaal na short_dte liggen (forward-vol deelt door T₂ − T₁)
+    min_term_slope: 0.0
+    max_ivp: 50
+    max_iv_rv_ratio_fallback: 1.00
+    # Toelating: ivp (IVP-regel hierboven), forward_vol of either (een van beide).
+    # forward_vol: σ_f² = (σ₂²T₂ − σ₁²T₁)/(T₂ − T₁) uit de ATM-IV van near en far (gemiddelde van
+    # call en put op de strike het dichtst bij de forward); toegelaten als σ_f ≤
+    # max_fwd_vol_rv_ratio × σ(h₂−h₁) én IV₁ ≥ min_near_iv_rv_ratio × σ(h₁), met σ(h) de
+    # verwachte RV (vol_regime). Negatieve σ_f² of ontbrekende IV/RV: niet toegelaten.
+    entry_rule: ivp
+    max_fwd_vol_rv_ratio: 1.00
+    min_near_iv_rv_ratio: 1.05
+    take_profit_multiple_debit: 1.25
+    stop_loss_frac_debit: 0.50
+  long_straddle_strangle:
+    enabled: true
+    style: straddle
+    strangle_delta: [0.25, 0.30]
+    earnings_variant: true       # earnings over 5-15 kalenderdagen
+    earnings_window_days: [5, 15]
+    earnings_min_dte: 14
+    low_iv_variant: true         # IVR <= 20
+    low_iv_condition: very_low
+    low_iv_dte: [30, 45]
+    take_profit_multiple_debit: 1.25
+    stop_loss_frac_debit: 0.50
+    close_dte: 7
+    pre_earnings_close_time: "15:00"
+  gamma_scalp:                   # long ATM-straddle, gedelta-hedged; vraagt hedging.enabled
+    enabled: false
+    dte: [30, 60]
+    max_iv_rv_ratio: 0.90        # entry: IV (gem. call/put) <= 0,90 × σ(h), h = de DTE
+    take_profit_multiple_debit: 1.30   # waarde = mark + gerealiseerde hedge-P&L per aandeel
+    stop_loss_frac_debit: 0.60
+    close_dte: 14                # en eerder dicht zodra IV >= σ(h) (iv_normalized)
+  cash_secured_put:              # open vraag C: slaapt bij 25k
+    enabled: false
+    dte: [30, 45]
+    delta: [0.20, 0.30]
+    delta_target: 0.25
+    iv_condition: high
+    take_profit_frac: 0.50
+    roll_dte: 21
+  covered_call:
+    enabled: false
+    dte: [30, 45]
+    delta: [0.20, 0.30]
+    delta_target: 0.25
+    take_profit_frac: 0.50
+    roll_dte: 21
+  wheel:
+    enabled: false
+  short_straddle_strangle:       # undefined risk: laadt alleen met risk.allow_undefined_risk
+    enabled: false
+    style: strangle
+    strangle_delta: 0.16
+    dte: [30, 45]
+    iv_condition: high
+    take_profit_frac: 0.50
+    stop_loss_multiple_credit: 2.0
+    close_dte: 21
+    underlyings: [SPY, QQQ, IWM]   # allow-list: alleen deze onderliggenden
+    max_per_underlying: 1          # open posities per onderliggende; hooguit 1 (een tweede krijgt 0 eenheden)
+    short_delta_exit: 0.30         # een short leg met |delta| > 0,30 → CLOSE, STOP
+    min_vrp_ratio: null            # null = uit (aanbevolen 1.10); zie credit_spread
+
+# Volatiliteitsregime en volatility risk premium (src/tradebot/options/vol_regime.py). Vaste
+# regels, geen fit: de verwachte RV is een vaste menging van de Yang-Zhang-RV over drie
+# vensters (de vorm van HAR-RV zonder regressie). Het regime raakt alleen NIEUWE entries.
+vol_regime:
+  enabled: true
+  rv_windows: [5, 20, 60]        # handelsdagen: kort, middel, lang
+  rv_weights: [0.2, 0.5, 0.3]    # in variantie; ontbreekt het lange venster, dan herschaald
+  ewma_lambda: 0.94              # EWMA van de dagrendementen (RiskMetrics): verval per dag
+  ewma_weight: 0.0               # aandeel van de EWMA-variantie in de blend (0 = uit, regime
+                                 # ongewijzigd); bij > 0 worden de andere gewichten herschaald
+  mean_reversion_kappa: 4.0      # per jaar: snelheid waarmee σ(h) van de blend naar de lange RV
+                                 # trekt (RVForecast.at_horizon, VolState.vrp_at, theta_cover)
+  stress_term_slope: -0.02       # IV60 − IV30 ≤ −2 volpunten: backwardation → STRESS
+  stress_rv_expansion: 1.5       # RV5 / RV20 ≥ 1,5: vol-schok → STRESS
+  rich_vrp_ratio: 1.15           # IV30 / verwachte RV ≥ 1,15 ...
+  rich_min_vrp_points: 0.02      # ... en minstens 2 volpunten erboven → RICH
+  rich_min_term_slope: -0.005    # RICH alleen bij een vlakke of stijgende termijnstructuur
+  cheap_vrp_ratio: 0.95          # IV30 / verwachte RV < 0,95 → CHEAP
+  market_underlying: SPY         # STRESS op SPY geldt voor het hele boek
+  allowed:                       # wie in welk regime mag OPENEN; sluiten mag altijd
+    rich: [credit_spread, iron_condor, cash_secured_put, covered_call, wheel,
+           short_straddle_strangle]
+    normal: [credit_spread, debit_vertical, calendar_spread, long_straddle_strangle,
+             gamma_scalp, cash_secured_put, covered_call, wheel]
+    cheap: [debit_vertical, calendar_spread, long_straddle_strangle, gamma_scalp]
+    stress: []
+    unknown: []
+
+# Theta harvesting (src/tradebot/options/selection.py): alleen voor kandidaten die premie
+# ONTVANGEN. Dekking = (θ/dag × 365) / (½·|Γ|·S²·σ_RV²), met σ_RV de verwachte RV hierboven:
+# boven 1 betaalt het tijdswaardeverval het verwachte bewegingsverlies (de VRP per positie).
+# σ_RV is σ(h) voor de DTE van de vroegste expiratie van de kandidaat (mean reversion).
+theta_harvest:
+  enabled: true
+  min_theta_gamma_cover: 1.0
+  min_theta_per_max_loss: 0.0    # θ/dag als fractie van het max verlies; 0 = alleen dekking
+
+# Relative value: de z-score van de VRP-ratio (ATM-IV30 / σ(30 d)) over het universum herweegt de
+# rangscore met 1 ± w·z (credit +, debit −), begrensd op [0,5, 1,5]. Geen poort, alleen rangorde.
+relative_value:
+  weight: 0.0                    # 0 = uit
+
+sizing:
+  max_loss_frac_capital: 0.05    # per nieuwe positie
+  ranking: credit_per_max_loss   # vast
+  daily_risk_frac: null          # aan (bv. 0.005): eenheden ≤ floor(frac × kapitaal / σ_unit), σ_unit
+                                 # de verwachte 1-dags P&L-σ per eenheid uit Δ, Γ, V (geen Greeks: 0)
+  vol_of_vol_daily_points: 1.0   # verwachte dagbeweging van de IV in volpunten (vega-term van σ_unit)
+  drawdown_brake: [0.10, 0.20]   # eenheden × factor 1 → 0,5 lineair tussen deze drawdowns van de
+                                 # equity-piek, daarna 0,5; null = uit
+
+risk:                            # detailontwerp 8; fracties van het kapitaal
+  max_abs_beta_delta_frac: 0.30  # |beta-gewogen dollar-delta|
+  max_vega_frac: 0.0125          # |vega| in USD per volpunt
+  max_gamma_loss_5pct_frac: 0.075 # verlies uit gamma bij 5 % beweging van SPY
+  max_loss_per_underlying_frac: 0.125
+  max_buying_power_frac: 0.50
+  max_open_positions: 10
+  max_new_positions_per_day: 3
+  daily_loss_stop_entries_frac: 0.05  # geen entries tot de volgende handelsdag
+  daily_loss_degross_frac: 0.10       # sluitingen voorstellen tot alles weer past
+  drawdown_halt_frac: 0.20            # HaltStore: alleen met de hand weer open
+  scenario_spot: [-0.20, -0.10, -0.05, 0.05, 0.10, 0.20]
+  scenario_vol_points: [-10, 0, 10, 20]
+  max_scenario_loss_frac: 0.20
+  allow_undefined_risk: false
+  max_undefined_stress_loss_frac: 0.06  # som van het stressverlies (±20 % spot, min credit)
+                                        # van alle undefined-risk posities plus de nieuwe
+  max_gamma_loss_frac_credit: null      # null = uit (aanbevolen 0.5): per positie met credit CLOSE
+                                        # STOP `gamma_risk` als ½·|Γ|·(S·σ_1d)² > frac × credit
+  pdt_guard: true
+
+execution:                       # detailontwerp 10
+  walk_interval_seconds: 15
+  max_concession_entry: 0.60     # fractie van mid naar de natuurlijke prijs
+  max_concession_exit: 1.00
+  limit_anchor: mid              # mid | fair: fair = QuantLib-waarde (scan-engine) bij de IV
+                                 # van de gladde smile; zonder smilepunt de mid. Alleen ENTRY.
+  max_edge_frac: 0.5             # bij fair: de walk concedeert nooit voorbij
+                                 # fair + max_edge_frac × |natural − mid| richting natural
+  max_spread_frac_fair: 0.25     # bij fair: geen entry als 2 × |natural − mid| > dit × |fair|
+  ticks: {default: {below_3: 0.01, above_3: 0.05}, combo: 0.01}
+  max_order_usd: 12500           # premie per order; daarboven is het een fout (HALT)
+
+schedule:                        # New York-tijd
+  close_before_expiry_time: "15:00"   # op de handelsdag vóór expiratie
+  scan_times: ["10:00", "13:30"]      # entries alleen op deze tijden
+  end_of_day: "16:15"                 # ATM-IV, expiratie, equity en staat
+  no_entry_first_minutes: 15
+  no_entry_last_minutes: 30
+  manage_interval_seconds: 60
+  risk_interval_seconds: 60
+  reconcile_interval_seconds: 300
+
+account:
+  capital_usd: 25000                  # fictief: replay en IBKR-paper
+
+paper:
+  fill_at_concession: 0.40
+  commission_per_contract: 0.65
+  # Aandelen (de delta-hedger): een order vult op zijn limiet zodra die spot ± de halve spread
+  # raakt. De engine zet de limiet van een aandelenorder daar ook neer (ook tegen IBKR).
+  stock_spread_bps: 2              # volledige bid-ask in basispunten
+  commission_per_share: 0.005      # USD per aandeel
+  min_commission_per_order: 1.0    # USD, minimum per aandelenorder
+
+# Delta-hedger (src/tradebot/options/hedging.py): per onderliggende de netto delta in aandelen
+# van de open posities van de strategieën hieronder (optie-delta × 100 × aantal + hun
+# aandelen-legs). Boven de band een aandelenorder van −round(delta), begrensd op
+# |aandelen| × spot ≤ max_notional_frac × kapitaal. Alleen op universe.share_eligible (US-ETF's
+# kunnen vanuit de EU niet als aandeel: geen KID). Een order gaat door de risicopoort; in HALT
+# alleen als hij de absolute beta-delta verkleint. Een gesloten positie gaat in dezelfde ronde
+# terug naar nul aandelen.
+hedging:
+  enabled: false
+  strategies: [gamma_scalp]        # wiens posities de hedger delta-neutraal houdt
+  band_shares: 20
+  max_notional_frac: 0.5
+  interval_seconds: 300
