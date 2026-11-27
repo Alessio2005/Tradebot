@@ -4,6 +4,93 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Replay op echte DoltHub-optieketens; synthetische markt weg als replaybron (2026-11-27)
+
+Op verzoek van Alessio: de synthetische marktdata (TSTA/TSTB) is geen replay- of demobron meer.
+Replay en sweep draaien op echte einde-dag-ketens uit de openbare DoltHub-database
+`post-no-preference/options` (februari 2019 t/m november 2026). Alessio accepteert dat dit niet
+overal precies is; hieronder wat wel en niet klopt.
+
+Nieuw:
+- `options/data/dolthub.py` en `python -I -m tradebot.options dolthub --cache DIR --out DIR
+  --start D --end D [--symbols ...] [--offline] [--rate R]`. Eén SQL-query per dag op de
+  DoltHub-API, met retries; de ruwe rijen per dag in een cache (`YYYY-MM-DD.csv`, of `.empty`),
+  die hervat waar hij stopte. Daarna bouwt hij een `Market` in het bestaande formaat.
+- Koersen en dividenden: Yahoo's chart-API (`query2.finance.yahoo.com`), teruggerekend naar de
+  koersen van toen (Yahoo corrigeert voor splits; DoltHub heeft de echte strikes, bv. AAPL vóór
+  de 4:1-split van 31-08-2020). yfinance zelf werd vanuit de cloud geweigerd (rate limit op de
+  crumb), de chart-API niet.
+- Earnings: SEC EDGAR (`data.sec.gov`), de datum van elk 8-K met item 2.02. Dat is de dag
+  van het persbericht (bij AAPL en MSFT na de slotbel). ETF's hebben geen earnings. Alleen
+  AAPL en MSFT hebben een CIK in de tabel; een andere naam krijgt geen earnings (met een melding).
+- `Market.daily_snapshot` ("15:15"): heeft een markt één snapshot per dag, dan zet
+  `replay_config` de scantijd en het sluitmoment vóór expiratie op dat tijdstip. Op een ander
+  tijdstip is er die dag geen keten. Snapshots zonder opties (alleen de koers) worden nu ook
+  opgeslagen (`empty_snapshots` in `market.json`).
+- `summary.json` heeft `buy_hold`: hetzelfde kapitaal op de eerste dag in SPY (slotkoers),
+  dividenden als kas op de ex-datum, met dezelfde statistiek als het boek. Alleen als SPY in
+  de markt staat.
+- Kleine echte testmarkt `tests/fixtures/options/dolthub_mini` (SPY, AAPL, MSFT; 3 januari t/m
+  28 februari 2023). `options-paper-smoke.yml` en `make options-smoke` spelen die af; `make
+  options-replay` bouwt de hele DoltHub-markt en speelt hem af.
+- De synthetische generator staat nu in `tests/unit/options/synthetic_market.py`, alleen als
+  deterministische testfixture. `_expiries` en `_quote` zijn verhuisd naar `data/historical.py`
+  (de IBKR-modelmarkt gebruikt ze). De CLI `python -m tradebot.options.data.synthetic` is weg.
+
+Beperkingen van de data (keuzes van mij, die Alessio kan terugdraaien):
+- **Eén snapshot per dag, op 15:15.** De quotes zijn van rond de slotkoers en de koers bij de
+  keten is de slotkoers uit Yahoo. Alles van een dag gebeurt dus op één prijs; er is geen
+  intraday-pad. Dat is iets optimistisch: een slotquote om 15:15.
+- **Niet elke dag een keten.** In 2019 één per week (de zaterdag, met de quotes van vrijdag:
+  die schuift naar vrijdag), daarna meestal maandag, woensdag en vrijdag. 1.336 data met
+  ketens. Op elke handelsdag is er wel een snapshot.
+- **Weinig expiraties en strikes.** Meestal drie expiraties (~2, ~4 en ~6-8 weken) en grove
+  strikes; verre vleugels ontbreken vaak. Een strategie die een precieze delta of vleugel
+  zoekt, vindt dan niets of iets verders.
+- **Aanvullen.** Een contract dat uit de keten verdwijnt (door de rollende selectie van DoltHub,
+  of op een dag zonder keten), wordt tot `fill_days` = 60 handelsdagen aangevuld, binnen
+  |K/S − 1| ≤ 20 %. De quote is QuantLib (BAW, of FD bij een dividend) op de koers van vandaag,
+  met de laatste DoltHub-IV en -spread van dat contract. Zo'n quote heeft volume en open
+  interest 0: de filters laten hem niet toe voor een nieuwe entry, alleen een open positie
+  kan erop waarderen en sluiten. Zonder dit konden posities niet sluiten en liepen ze naar
+  expiratie of assignment (gezien in de proefreplay van 2019). Verder buiten de geld rekent de
+  settlement op intrinsieke waarde.
+- **Geen volume of open interest** in de bron: op de echte quotes vast 1.000 en 5.000, boven
+  de filters. Fills zijn die van de paper-broker op bid/ask: optimistischer dan in een dunne
+  echte keten.
+- **IV en greeks van DoltHub** worden niet gebruikt voor de engine: die rekent ze uit de quotes
+  met QuantLib (Amerikaans, met dividenden), zoals altijd. Alleen het aanvullen gebruikt de
+  DoltHub-IV.
+- **QQQ en IWM staan niet in DoltHub.** De replay draait op SPY, AAPL en MSFT; de config blijft
+  ongewijzigd en `replay_config` neemt het universum van de markt.
+- **Rente**: één vaste 3 % voor de hele periode (`--rate`), terwijl die in 2020-2021 bijna 0 was.
+- **Oppervlak op echte ketens** (`pricing/surface.py`): een expiratie met butterfly-arbitrage
+  valt nu alleen zelf uit het oppervlak (in `reason`); de rest blijft bruikbaar. Eerder legde
+  één foute expiratie de hele keten stil. Op de DoltHub-ketens van 2023 was dat 83 % van de
+  dagen, waardoor het vol-regime UNKNOWN bleef en er bijna niets opende; nu is 93 % van de
+  echte ketens bruikbaar. De kalendercontrole blijft gelden voor wat overblijft. Dit geldt
+  ook voor de IBKR-paper-dienst. Dit is de aanbevolen optie die aan Alessio is voorgelegd, en
+  hij kan hem terugdraaien.
+- **Aandelen uit een assignment worden afgebouwd** (`engine/service.py`, besluit van Alessio):
+  bij een assignment of uitoefening buiten de wheel worden de geleverde aandelen een
+  aandelen-leg van de positie. Ze worden geboekt op de slotkoers waartegen `settle_usd` al
+  rekent. Is de positie dicht, dan sluit `_unwind_shares` ze de volgende ronde; anders gaan
+  ze mee als de positie sluit. Eerder bleven ze los in het boek staan. In de DoltHub-replay liet
+  een vroege assignment van een short SPY-call vóór ex-dividend daardoor −100 SPY open van 2020
+  tot 2026 (eind-equity −11.000 USD). Dit geldt ook voor IBKR-paper; het alarm
+  `options_assignment` blijft. De risicopoort (`risk/gate.py`) laat daarom een sluitorder op
+  aandelen toe op elk symbool, ook buiten `share_eligible` (zoals SPY). Opbouwen blijft
+  beperkt tot `share_eligible`, en de sluitorder moet nog steeds precies de eigen leg afbouwen.
+- **Profiel `conf/options/inzet5.yaml`** (besluit van Alessio): maximaal verlies per positie
+  5 % in plaats van 2 %. De vega-, gamma-, per-onderliggende-, scenario- en dagverlieslimieten
+  en `max_order_usd` gaan ×2,5 mee, de drawdown-rem naar 10-20 % en de HALT naar 20 %.
+  De standaardconfig blijft 2 %. Sweep per jaar op DoltHub 2019-2026 met dit profiel: zes van
+  de acht jaren negatief (2023 −12 %, 2025 −19 % met HALT), alleen 2026 duidelijk positief
+  (+20 %). Meer inzet laat vooral de duurdere calendars door, en die verliezen. Analyse:
+  `/mnt/project-files/options-dolthub/replay-2026-11-27/waarom-achter-op-buy-hold.md`.
+- **Netwerk**: de cloudomgeving moest `www.dolthub.com`, `query2.finance.yahoo.com` en
+  `data.sec.gov` toelaten (met akkoord van Alessio).
+
 ## Opruimen en optimaliseren, plus de risicogaten uit de review (2026-11-27)
 
 Opruimen (geen gedragsverandering):

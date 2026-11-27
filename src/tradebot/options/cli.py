@@ -11,6 +11,10 @@
 journal wordt aangevuld, dus een tweede run erin zou elke telling verdubbelen. `--overwrite`
 wist alleen de bekende bestanden van een eerdere replay- of sweep-uitvoer (zie `prepare_out`);
 elke andere map, een map met HALT/UNWIND/`halt/` en een map met de markt erin blijven staan.
+* `dolthub --cache DIR --out DIR --start D --end D [--symbols S ...] [--offline]`: bouw een
+  replay-markt uit echte einde-dag-optieketens van DoltHub (openbare API, alleen lezen) met
+  koersen en dividenden uit yfinance. `--cache` bewaart de ruwe ketens per dag; `--offline`
+  gebruikt alleen wat daar al staat. Beperkingen: zie `data/dolthub.py` en de CHANGELOG.
 * `historical --out DIR --start D --end D [--config PAD]`: bouw een historische markt uit de
   koersen en de IV van IBKR (alleen lezen; dezelfde `IB_*`-omgeving, client-id 18).
 * `paper --run-dir DIR [--config PAD] [--healthcheck]`: de paper-dienst tegen IB Gateway.
@@ -35,6 +39,7 @@ from ib_async import IB
 
 from ..schemas.options import DEFAULT_OPTIONS_CONFIG, OptionsConfig, load_options_config
 from .calendar import NY
+from .data.dolthub import DEFAULT_RATE, DEFAULT_SYMBOLS, DoltSpec, make_market
 from .data.historical import HistoricalSeries, HistoricalSpec, build_market, fetch_history
 from .data.store import read_market, write_market
 from .engine.paper import run_paper
@@ -171,6 +176,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     hp.add_argument("--start", type=date.fromisoformat, required=True)
     hp.add_argument("--end", type=date.fromisoformat, required=True)
     hp.add_argument("--config", type=Path, default=DEFAULT_OPTIONS_CONFIG)
+    dp = sub.add_parser("dolthub", help="bouw een replay-markt uit DoltHub-optieketens")
+    dp.add_argument("--cache", type=Path, required=True)
+    dp.add_argument("--out", type=Path, required=True)
+    dp.add_argument("--start", type=date.fromisoformat, required=True)
+    dp.add_argument("--end", type=date.fromisoformat, required=True)
+    dp.add_argument("--symbols", nargs="+", default=list(DEFAULT_SYMBOLS))
+    dp.add_argument("--rate", type=float, default=DEFAULT_RATE)
+    dp.add_argument("--offline", action="store_true", help="niets ophalen, alleen de cache")
+    dp.add_argument("--config", type=Path, default=DEFAULT_OPTIONS_CONFIG)
     pp = sub.add_parser("paper", help="de paper-dienst tegen IB Gateway (alleen paper)")
     pp.add_argument("--run-dir", type=Path, required=True)
     pp.add_argument("--config", type=Path, default=DEFAULT_OPTIONS_CONFIG)
@@ -187,6 +201,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         series = asyncio.run(_history(cfg, spec, os.environ))
         write_market(build_market(series, spec), args.out)
         print(f"historische markt {spec.start} t/m {spec.end} geschreven naar {args.out}")
+        return 0
+    if args.command == "dolthub":
+        dspec = DoltSpec(args.start, args.end, rate=args.rate,
+                         half_days=tuple(cfg.universe.half_days))
+        market = make_market(args.cache, dspec, tuple(args.symbols), fetch=not args.offline)
+        write_market(market, args.out)
+        print(f"DoltHub-markt {dspec.start} t/m {dspec.end} ({', '.join(sorted(market.bars))},"
+              f" {len(market.days)} handelsdagen) geschreven naar {args.out}")
         return 0
     error = prepare_out(args.out, args.overwrite,
                         args.markets if args.command == "sweep" else [args.market])

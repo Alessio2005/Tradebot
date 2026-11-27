@@ -9,10 +9,10 @@ from datetime import date
 import pytest
 
 from tests.unit.options.market_helpers import CFG
+from tests.unit.options.synthetic_market import generate
 from tests.unit.options.test_engine_replay import SPEC
 from tradebot.options import cli
 from tradebot.options.data.store import write_market
-from tradebot.options.data.synthetic import generate
 from tradebot.options.engine.report import book_stats, replay_stats, strategy_stats
 from tradebot.options.engine.sweep import resolve_sweep_workers, run_sweep
 from tradebot.utils.failfast import TradebotContractError

@@ -1,4 +1,5 @@
-"""De synthetische replay-markt en de opslag ervan: deterministisch en verliesvrij."""
+"""De synthetische testmarkt, de ketenhulpen van `historical` en de opslag: deterministisch
+en verliesvrij."""
 from __future__ import annotations
 
 import dataclasses
@@ -7,18 +8,18 @@ from datetime import date, datetime, time
 import pandas as pd
 import pytest
 
-from tradebot.options.calendar import NY, TradingCalendar
-from tradebot.options.chain.builder import ChainBuilder
-from tradebot.options.chain.filters import FilterSettings, filtered
-from tradebot.options.contracts import Quote
-from tradebot.options.data import synthetic
-from tradebot.options.data.store import read_market, write_market
-from tradebot.options.data.synthetic import (
+from tests.unit.options.synthetic_market import (
     SyntheticSpec,
     SyntheticUnderlying,
     default_spec,
     generate,
 )
+from tradebot.options.calendar import NY, TradingCalendar
+from tradebot.options.chain.builder import ChainBuilder
+from tradebot.options.chain.filters import FilterSettings, filtered
+from tradebot.options.contracts import Quote
+from tradebot.options.data import historical
+from tradebot.options.data.store import read_market, write_market
 from tradebot.options.pricing.settings import pricer_settings
 from tradebot.options.pricing.surface import SurfaceStatus, build_surface
 from tradebot.options.rates import Carry
@@ -79,16 +80,16 @@ def test_the_synthetic_chain_gives_a_clean_surface_at_the_smile_base(market):
 def test_expiries_skip_to_thursday_on_a_friday_holiday():
     cal = TradingCalendar()
     spec = dataclasses.replace(SMALL, weekly_days=30, max_days=30)
-    out = synthetic._expiries(cal, date(2027, 3, 15), spec)
+    out = historical._expiries(cal, date(2027, 3, 15), spec)
     assert date(2027, 3, 25) in out and date(2027, 3, 26) not in out  # Goede Vrijdag
-    monthly = synthetic._expiries(cal, date(2026, 12, 1), dataclasses.replace(
+    monthly = historical._expiries(cal, date(2026, 12, 1), dataclasses.replace(
         SMALL, weekly_days=7, max_days=80))
     assert monthly == [date(2026, 12, 4), date(2026, 12, 18), date(2027, 1, 15),
                        date(2027, 2, 19)]
 
 
 def test_bid_is_never_negative():
-    q = synthetic._quote(0.001, SMALL, datetime(2026, 12, 1, 10, tzinfo=NY), thin=False)
+    q = historical._quote(0.001, SMALL, datetime(2026, 12, 1, 10, tzinfo=NY), thin=False)
     assert isinstance(q, Quote) and q.bid == 0.0 and q.ask == 0.01
 
 
@@ -121,11 +122,17 @@ def test_a_missing_file_is_a_data_contract_error(tmp_path):
         read_market(tmp_path)
 
 
-def test_the_cli_writes_the_default_market(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(synthetic, "default_spec", lambda: SMALL)
-    assert synthetic.main(["--out", str(tmp_path / "m")]) == 0
-    assert read_market(tmp_path / "m").days == (date(2026, 12, 1), date(2026, 12, 2))
-    assert "geschreven" in capsys.readouterr().out
+def test_empty_snapshots_and_the_daily_snapshot_time_survive_the_round_trip(market, tmp_path):
+    first = market.snapshots[0]
+    bare = dataclasses.replace(first, options=())
+    m = dataclasses.replace(market, snapshots=(bare, *market.snapshots[1:]),
+                            daily_snapshot="15:15")
+    write_market(m, tmp_path)
+    back = read_market(tmp_path)
+    assert back.daily_snapshot == "15:15"
+    again = [s for s in back.snapshots if s.asof == first.asof and s.underlying == first.underlying]
+    assert again == [bare]
+    assert len(back.snapshots) == len(market.snapshots)
 
 
 def test_the_default_spec_has_two_names_and_fifteen_days():

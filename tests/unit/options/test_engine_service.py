@@ -10,11 +10,11 @@ from datetime import date, datetime, time, timedelta
 import pytest
 
 from tests.unit.options.market_helpers import CFG
+from tests.unit.options.synthetic_market import SyntheticSpec, SyntheticUnderlying, generate
 from tradebot.options.calendar import NY
 from tradebot.options.chain.builder import Chain
 from tradebot.options.contracts import OptionContract, Right
 from tradebot.options.data.feed import ReplayFeed
-from tradebot.options.data.synthetic import SyntheticSpec, SyntheticUnderlying, generate
 from tradebot.options.engine import service
 from tradebot.options.engine.replay import replay_config
 from tradebot.options.engine.service import Engine, EngineMode, Paths
@@ -405,11 +405,18 @@ def test_settlement_events_carry_position_and_value(rig):
     assert not rig.events("position_closed")
     (a,) = rig.events("assignment")
     assert a["position_id"] == "cal" and a["settle_usd"] == -300.0
+    # De geleverde aandelen (short put 48: +100) staan als aandelen-leg op de positie, op de
+    # slotkoers waartegen settle_usd rekent.
+    (cal,) = [p for p in rig.state.positions if p.position_id == "cal"]
+    assert cal.shares == 100 and cal.legs[-1].entry_price == 45.0
     # C2: +1 in "cal", −1 in "solo", netto 0 bij de broker; elke leg naar haar eigen teken.
     _assign(rig, C2, qty=0)
     closed = {c["position_id"]: c for c in rig.events("position_closed")}
     assert set(closed) == {"cal", "solo"} and not rig.state.open_positions()
-    assert closed["cal"]["reason"] == "exercise" and "hedge_realized_usd" not in closed["cal"]
+    # De uitoefening van de long put levert −100: de aandelen gaan tegen elkaar weg.
+    assert closed["cal"]["reason"] == "exercise" and closed["cal"]["hedge_realized_usd"] == 0.0
+    shares = {p.position_id: p.shares for p in rig.state.positions}
+    assert shares["cal"] == 0 and shares["solo"] == 100     # "solo" wordt daarna afgebouwd
     assert closed["solo"]["reason"] == "assignment"
     assert closed["cal"]["exit_net"] == 100.0 * 1 * 2.0       # long put 47, 2 in the money
     assert closed["solo"]["exit_net"] == -100.0 * 1 * 2.0     # short put 47

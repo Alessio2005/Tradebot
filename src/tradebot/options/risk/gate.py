@@ -403,7 +403,10 @@ class RiskGate:
                      state: GateState) -> StockDecision:
         if p.qty == 0:
             raise SafetyBreach(f"aandelenorder van 0 voor {p.position_id}")
-        if p.symbol not in self.cfg.universe.share_eligible:
+        # Opbouwen alleen op `share_eligible`; afbouwen (een sluitorder tegen de eigen
+        # aandelen-leg, hieronder streng gecontroleerd) mag op elk symbool, want na een
+        # assignment kan een positie aandelen hebben die de bot nooit zelf had gekocht.
+        if not p.closing and p.symbol not in self.cfg.universe.share_eligible:
             raise SafetyBreach(f"{p.symbol} mag niet als aandeel gehouden worden")
         chain = market.chains.get(p.symbol)
         if chain is not None:

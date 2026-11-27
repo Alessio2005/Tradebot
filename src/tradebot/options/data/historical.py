@@ -1,13 +1,13 @@
 """Een historische markt voor replay: echte koersen en echte IV, ketens uit het model.
 
-Er is geen historische ketendata (detailontwerp Q6). Deze bouwer neemt per onderliggende de
+Uit de tijd zonder historische ketendata (detailontwerp Q6). Deze bouwer neemt per onderliggende de
 echte dagbars en IBKR's dagelijkse 30-daagse implied volatility, en reconstrueert daaruit de
-ketens met QuantLib, op dezelfde manier als de synthetische markt:
+ketens met QuantLib (een modelketen; de echte ketens staan in `data.dolthub`):
 
 * Spot en IV op een snapshot-tijd liggen lineair tussen de opening en de slotkoers van die dag,
   naar het deel van de handelsdag dat verstreken is (10:00 ligt dicht bij de opening).
 * De smile is `σ(k) = iv + curvature·k² + slope·k` in `k = ln(K/S)`: het niveau is echt, de
-  vorm is vast. Quotes, spreads, open interest en volume komen uit het model (`synthetic`).
+  vorm is vast. Quotes, spreads, open interest en volume komen uit het model (`_quote`).
 * Dividenden en earnings komen uit de bron (yfinance). `Events.fetched` is de laatste dag:
   de kalender is in een historische run volledig bekend, net als in de dienst vooraf.
 * De IBKR-IV van vóór de eerste dag gaat als `Market.iv_history` mee, zodat IVR vanaf dag één
@@ -25,7 +25,7 @@ import math
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
-from typing import Any
+from typing import Any, Protocol
 
 import numpy as np
 import pandas as pd
@@ -35,14 +35,13 @@ from ib_async import Stock
 from ...utils.failfast import DataContractError, require
 from ..calendar import NY, TradingCalendar
 from ..chain.builder import RawOption
-from ..contracts import OptionContract, Right
+from ..contracts import OptionContract, Quote, Right
 from ..events import Events
 from ..pricing.engines import Method
 from ..pricing.ql_env import scaled_time
 from ..pricing.vanilla import OptionInputs, price
 from ..rates import Carry, CashDividend
 from .store import Market, Snapshot
-from .synthetic import _expiries, _quote
 
 __all__ = ["HistoricalSeries", "HistoricalSpec", "build_market", "fetch_history",
            "session_fraction", "strike_step", "yfinance_history"]
@@ -77,6 +76,41 @@ class HistoricalSpec:
     volume: int = 1000
     thin_wing_k: float = 0.10
     half_days: tuple[date, ...] = field(default=())
+
+
+class _ChainShape(Protocol):
+    """Wat `_expiries` en `_quote` van een spec lezen (ook de testmarkt in tests/ heeft dit)."""
+    weekly_days: int
+    max_days: int
+    min_spread: float
+    spread_frac: float
+    open_interest: int
+    volume: int
+
+
+def _expiries(cal: TradingCalendar, today: date, spec: _ChainShape) -> list[date]:
+    """Vrijdagen: wekelijks tot `weekly_days`, daarna de derde vrijdag van de maand tot
+    `max_days`; naar donderdag (de handelsdag ervoor) als de vrijdag geen handelsdag is."""
+    out = []
+    d = today + timedelta(days=1)
+    while (d - today).days <= spec.max_days:
+        if d.weekday() == 4:
+            third_friday = 15 <= d.day <= 21
+            if (d - today).days <= spec.weekly_days or third_friday:
+                e = d if cal.is_trading_day(d) else cal.previous_trading_day(d)
+                out.append(e)
+        d += timedelta(days=1)
+    return out
+
+
+def _quote(theo: float, spec: _ChainShape, ts: datetime, thin: bool) -> Quote:
+    """theo ± een halve spread (`max(min_spread, spread_frac × theo)`), op centen, bid niet
+    onder 0; open interest en volume vast, behalve in de dunne vleugels."""
+    half = 0.5 * max(spec.min_spread, spec.spread_frac * theo)
+    bid = max(round(theo - half, 2), 0.0)
+    ask = max(round(theo + half, 2), round(bid + 0.01, 2))
+    oi, vol = (100, 10) if thin else (spec.open_interest, spec.volume)
+    return Quote(bid, ask, ts, volume=vol, open_interest=oi)
 
 
 def session_fraction(t: time) -> float:

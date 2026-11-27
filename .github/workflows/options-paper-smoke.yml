@@ -1,7 +1,8 @@
 name: Options Paper Smoke
 
-# Replay van de options-engine op de SYNTHETISCHE standaardmarkt (twee namen, 15
-# handelsdagen) met de paper-broker. Fictief geld, geen netwerk, geen broker-account.
+# Replay van de options-engine op een kleine ECHTE markt uit DoltHub-ketens (SPY, AAPL en
+# MSFT, jan-feb 2023, vast in tests/fixtures/options/dolthub_mini) met de paper-broker.
+# Fictief geld, geen netwerk, geen broker-account.
 # Faalt als de engine haltte of als er na de laatste handelsdag nog een short optie
 # open staat die al expireerde (exit-code van `python -m tradebot.options replay`).
 
@@ -15,6 +16,7 @@ on:
       - "src/tradebot/options/**"
       - "src/tradebot/schemas/options.py"
       - "conf/options/**"
+      - "tests/fixtures/options/**"
       - ".github/workflows/options-paper-smoke.yml"
   # Ook op elke PR die de options-code raakt: dit is de primaire setup, en zonder deze
   # trigger kon een PR de replay breken zonder dat een check rood werd (opruim-PR 2026-11-27).
@@ -24,6 +26,7 @@ on:
       - "src/tradebot/schemas/options.py"
       - "src/tradebot/risk/**"
       - "conf/options/**"
+      - "tests/fixtures/options/**"
       - ".github/workflows/options-paper-smoke.yml"
 
 permissions:
@@ -35,7 +38,7 @@ concurrency:
 
 jobs:
   replay:
-    name: Options replay (synthetisch, paper)
+    name: Options replay (DoltHub-testmarkt, paper)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -55,11 +58,8 @@ jobs:
           pip install -r requirements.lock
           pip install -e . --no-deps
 
-      - name: Synthetische markt
-        run: python -I -m tradebot.options.data.synthetic --out "${RUNNER_TEMP}/market"
-
       - name: Replay
-        run: python -I -m tradebot.options replay --market "${RUNNER_TEMP}/market" --out "${RUNNER_TEMP}/run"
+        run: python -I -m tradebot.options replay --market tests/fixtures/options/dolthub_mini --out "${RUNNER_TEMP}/run"
 
       - name: Upload journal en samenvatting
         if: always()

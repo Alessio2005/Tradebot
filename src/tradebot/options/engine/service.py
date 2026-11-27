@@ -664,7 +664,7 @@ class Engine:
                     else ExecutionKind.EXERCISE if qty > 0 else ExecutionKind.ASSIGNMENT)
             rest = tuple(leg for leg in p.option_legs if leg.contract.key() != k)  # type: ignore[union-attr]
             stock = tuple(leg for leg in p.legs if leg.contract is None)
-            settle_usd = 0.0
+            settle_usd, spot = 0.0, e.contract.strike
             if kind is not ExecutionKind.EXPIRY:         # waarde van de levering tegen de slotkoers
                 chain = self.chains.get(p.underlying)
                 if chain is None:
@@ -682,8 +682,16 @@ class Engine:
             self.state.positions[i] = (dataclasses.replace(p, legs=rest + stock) if rest
                                        else dataclasses.replace(p,
                                                                 status=PositionStatus.CLOSED))
-            # Een assignment, of een uitoefening van een gehedgede strategie: de geleverde
-            # aandelen horen bij geen aandelen-leg en worden niet automatisch afgebouwd.
+            if kind is not ExecutionKind.EXPIRY and p.strategy != "wheel":
+                # De geleverde aandelen worden een aandelen-leg van de positie, geboekt op de
+                # slotkoers waartegen `settle_usd` al rekent. Is de positie dicht, dan bouwt
+                # `_unwind_shares` ze de volgende ronde af; anders gaan ze mee als de positie
+                # sluit. Zo blijft er geen losse aandelenpositie in het boek staan (gezien in
+                # de DoltHub-replay: een vroege assignment voor ex-dividend liet −100 SPY staan).
+                delivered = qty * MULTIPLIER * (1 if e.contract.right is Right.CALL else -1)
+                self.state.positions[i] = _with_shares(self.state.positions[i], delivered, spot)
+            # Een assignment, of een uitoefening van een gehedgede strategie: alarm, want de
+            # aandelen zijn er onverwacht (ze worden wel afgebouwd, zie hierboven).
             hedged = self.cfg.hedging.enabled and p.strategy in self.cfg.hedging.strategies
             if kind is not ExecutionKind.EXPIRY and p.strategy != "wheel" and (qty < 0 or hedged):
                 self.alert("critical", "options_assignment",

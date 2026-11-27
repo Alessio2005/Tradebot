@@ -5,12 +5,32 @@ Alles draait met **fictief geld**: replay op opgeslagen data, of een IBKR-paper-
 vertraagde marktdata. Live bestaat in de code als schakelaar, maar staat uit en kan vanuit
 deze repository niet aan (zie "Live" onderaan).
 
-## Snel: replay op synthetische data
+## Snel: replay op echte DoltHub-ketens
 
 ```bash
-python -I -m tradebot.options.data.synthetic --out /tmp/markt
+# eenmalig: ketens ophalen (cache), koersen uit Yahoo, earnings uit SEC EDGAR
+python -I -m tradebot.options dolthub --cache /tmp/dolthub --out /tmp/markt \
+    --start 2019-02-11 --end 2026-11-26
 python -I -m tradebot.options replay --market /tmp/markt --out /tmp/run
+# zonder netwerk: de kleine testmarkt (SPY, AAPL, MSFT; jan-feb 2023)
+python -I -m tradebot.options replay --market tests/fixtures/options/dolthub_mini --out /tmp/smoke
 ```
+
+De bron is de openbare database `post-no-preference/options` op DoltHub: einde-dag-ketens
+(bid, ask, IV) vanaf februari 2019. De download is één query per dag (ruim 2.000 data, zo'n
+70 MB cache, ongeveer een half uur) en hervat waar hij stopte; `--offline` bouwt alleen uit de
+cache. Nodig: toegang tot `www.dolthub.com`, `query2.finance.yahoo.com` en `data.sec.gov`.
+
+Wat de data niet kan (en wat de uitkomst daardoor betekent), staat in `data/dolthub.py` en
+in de CHANGELOG. Kort: één snapshot per dag om 15:15 (de scan en het sluiten vóór expiratie
+schuiven mee), ketens niet elke dag (2019 wekelijks, daarna meestal ma/wo/vr), weinig
+expiraties en strikes, geen volume of open interest, QQQ en IWM ontbreken, fills op bid/ask
+zijn optimistisch. Contracten die uit de keten vallen, worden tot 60 handelsdagen aangevuld
+met QuantLib op hun laatste DoltHub-IV; die quotes hebben open interest 0, dus alleen een
+open positie kan erop waarderen en sluiten.
+
+De synthetische markt (TSTA/TSTB) is geen replaybron meer; hij bestaat alleen nog als
+testfixture in `tests/unit/options/synthetic_market.py`.
 
 `/tmp/run` bevat dan:
 
@@ -19,8 +39,11 @@ python -I -m tradebot.options replay --market /tmp/markt --out /tmp/run
 - `summary.json`: begin- en eind-equity, aantal posities, en of er iets misging, plus `stats`
   (zie "Backteststatistiek").
 
+Staat SPY in de markt, dan heeft `summary.json` ook `buy_hold`: hetzelfde kapitaal op de
+eerste dag in SPY, dividenden als kas, met dezelfde statistiek als het boek.
+
 De exit-code is 1 als de engine haltte of als er na de laatste dag nog een short optie open
-staat die al expireerde. De workflow `options-paper-smoke.yml` doet precies dit.
+staat die al expireerde. De workflow `options-paper-smoke.yml` doet dit op de testmarkt.
 
 `replay` en `sweep` weigeren een `--out` die al bestaat en niet leeg is (exit-code 2, met de
 reden op stderr): het journal wordt aangevuld, en een tweede run in dezelfde map zou elke
@@ -76,7 +99,7 @@ verlopen short liet staan.
 
 ### Snelheid
 
-Gemeten op de standaard synthetische markt in een container met **4 cores** (wandkloktijd,
+Gemeten op de (toenmalige) synthetische standaardmarkt in een container met **4 cores** (wandkloktijd,
 `replay` alleen, op dezelfde markt). Elke run: 3 posities, eind-equity 25.303,60 USD.
 
 | Code en instelling | Tijd | Factor |

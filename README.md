@@ -21,8 +21,8 @@ ronde veranderde, staat in `CHANGELOG.md`.
 
 Strategieën: credit spread, iron condor, debit vertical, calendar (IVP of forward-vol), long
 straddle/strangle, gamma scalping met delta-hedger, en een short strangle met harde limieten
-(standaard uit; Alessio beslist). Replay en sweep draaien op synthetische of historische
-markten; zie `docs/runbook-options.md` voor commando's, alle schakelaars en wat voor een
+(standaard uit; Alessio beslist). Replay en sweep draaien op echte einde-dag-ketens van DoltHub
+(2019-2026, `python -I -m tradebot.options dolthub`), met SPY buy & hold ernaast; zie `docs/runbook-options.md` voor commando's, alle schakelaars en wat voor een
 particulier niet haalbaar is. De standaardreplay (4 cores) duurt ongeveer 41 s (vóór deze branch 171 s, zelfde meting) en geeft 3
 posities en eind-equity 25.303,60 USD; de snelheidstabel staat in het runbook.
 
@@ -98,7 +98,8 @@ make type-check    # mypy op schemas/ en utils/
 make test-fast     # alles behalve slow en regression
 make coverage      # idem, met dekking (fail_under = 100)
 make test          # de hele suite
-make options-replay  # synthetische markt + replay naar /tmp/tradebot-replay
+make options-replay  # DoltHub-markt bouwen + replay naar /tmp/tradebot-replay
+make options-smoke   # replay op de kleine DoltHub-testmarkt (geen netwerk)
 ```
 
 ## CI
