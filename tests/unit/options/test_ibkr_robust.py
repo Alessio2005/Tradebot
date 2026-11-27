@@ -125,3 +125,92 @@ def test_a_long_outage_halts_after_the_timeout(tmp_path, monkeypatch):
     (halt,) = [r for r in eng.journal.read() if r["event"] == "halt"]
     assert halt["kind"] == "options_ib_disconnected"
     assert any(a[1] == "options_halt" for a in alerts)
+
+
+# --- gedeeltelijke fills van combo's (oud #13) -----------------------------------------------
+
+def _partial_rig(tmp_path, kind="open", q=4, max_loss=400.0):
+    from tests.unit.options.test_engine_service import C1, C2, Rig
+    from tradebot.options.engine.state import intents_record
+    from tradebot.options.positions import LegIntent
+    rig = Rig(tmp_path)
+    legs = (LegIntent(C1, -1), LegIntent(C2, 1))
+    rig.state.orders["a"] = {"client_id": "a", "position_id": "w1", "purpose": "entry",
+                             "kind": kind, "strategy": "credit_spread", "underlying": "TSTB",
+                             "legs": intents_record(legs), "quantity": q,
+                             "max_loss": max_loss, "variant": "", "urgency": "normal",
+                             "reason": "test", "step": 0, "limit": -0.5,
+                             "status": "submitted", "submitted_at": at(D0, 11, 0).isoformat()}
+    return rig, legs
+
+
+def _fill(rig, legs, n, eid, only=None, ts=None):
+    from tradebot.options.execution.broker import Execution, ExecutionKind
+    ts = ts or at(D0, 11, 0)
+    ex = [Execution(ts, ExecutionKind.FILL, "a", leg.contract, "TSTB", leg.ratio * n, 1.0, 0.65,
+                    f"{eid}{i}") for i, leg in enumerate(legs) if only is None or i == only]
+    rig.e._book_combo_fills("a", rig.state.orders["a"], ex, ts)
+    return ex
+
+
+def test_a_partial_fill_books_only_the_filled_part_and_keeps_the_order_open(tmp_path):
+    rig, legs = _partial_rig(tmp_path)
+    o = rig.state.orders["a"]
+    ex = _fill(rig, legs, 1, "e1")
+    (p,) = rig.state.open_positions()
+    assert p.units == 1 and p.max_loss == 100.0 and p.entry_net == 50.0
+    assert o["status"] == "submitted" and not o.get("booked") and o["filled_units"] == 1
+    assert rig.state.new_positions == {D0.isoformat(): 1}
+    assert len(rig.e._pending_entries()) == 1 and rig.e._pending_entries()[0].units == 3
+    rig.e._book_combo_fills("a", o, ex, at(D0, 11, 0, 5))        # dezelfde fills: niets erbij
+    assert rig.state.open_positions()[0].units == 1
+    _fill(rig, legs, 2, "e2")
+    (p,) = rig.state.open_positions()
+    assert p.units == 3 and p.max_loss == 300.0 and [x.qty for x in p.option_legs] == [-3, 3]
+    assert p.entry_net == 150.0 and o["status"] == "submitted"
+    _fill(rig, legs, 1, "e3")
+    (p,) = rig.state.open_positions()
+    assert p.units == 4 and p.max_loss == 400.0 and o["status"] == "filled" and o["booked"]
+    assert rig.e._pending_entries() == ()
+    fills = [r for r in rig.e.journal.read() if r["event"] == "fill"]
+    assert [f["quantity"] for f in fills] == [1, 2, 1]
+    assert rig.state.new_positions == {D0.isoformat(): 1}
+
+
+def test_a_leg_that_is_not_yet_filled_books_nothing(tmp_path):
+    rig, legs = _partial_rig(tmp_path)
+    _fill(rig, legs, 2, "e1", only=0)                    # alleen de short leg gemeld
+    assert not rig.state.positions
+    _fill(rig, legs, 2, "e2", only=1)
+    assert rig.state.open_positions()[0].units == 2
+
+
+def test_a_partially_filled_close_leaves_the_position_open_for_the_rest(tmp_path):
+    rig, legs = _partial_rig(tmp_path)
+    _fill(rig, legs, 4, "e1")
+    from tradebot.options.engine.state import intents_record
+    from tradebot.options.execution.broker import Execution, ExecutionKind
+    from tradebot.options.positions import LegIntent
+    o = dict(rig.state.orders["a"], client_id="b", kind="close", purpose="exit", quantity=4,
+             legs=intents_record(tuple(LegIntent(x.contract, -x.ratio) for x in legs)),
+             status="submitted", limit=0.2)
+    for k in ("booked", "filled_units", "exec_ids", "leg_fills", "day_trade"):
+        o.pop(k, None)
+    rig.state.orders["b"] = o
+    ex = [Execution(at(D0, 11, 5), ExecutionKind.FILL, "b", leg.contract, "TSTB", -leg.ratio * 1,
+                    1.0, 0.65, f"c{i}") for i, leg in enumerate(legs)]
+    rig.e._book_combo_fills("b", o, ex, at(D0, 11, 5))
+    (p,) = rig.state.open_positions()
+    assert sorted(x.qty for x in p.option_legs) == [-3, 3] and p.units == 3 and p.max_loss == 400.0
+    assert o["status"] == "submitted" and o["filled_units"] == 1
+
+
+def test_a_cancelled_partial_entry_keeps_its_filled_units_and_a_late_fill_is_still_booked(
+        tmp_path):
+    rig, legs = _partial_rig(tmp_path)
+    _fill(rig, legs, 1, "e1")
+    o = rig.state.orders["a"]
+    o["status"] = "expired"                               # EOD-cancel van het restant
+    _fill(rig, legs, 1, "e2")                             # een late fill van vlak voor het annuleren
+    (p,) = rig.state.open_positions()
+    assert p.units == 2 and p.max_loss == 200.0 and not o.get("booked")

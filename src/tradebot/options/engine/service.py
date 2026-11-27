@@ -425,7 +425,8 @@ class Engine:
         terminal = {s.value for s in TERMINAL}
         kinds = {OrderKind.ADJUST.value, OrderKind.ROLL.value}
         return tuple(
-            PendingChange(o["position_id"], intents_from(o["legs"]), o["quantity"],
+            PendingChange(o["position_id"], intents_from(o["legs"]),
+                          o["quantity"] - o.get("filled_units", 0),
                           math.inf if o["max_loss"] is None else o["max_loss"])
             for o in self.state.orders.values()
             if not o.get("stock") and o["kind"] in kinds and o["status"] not in terminal)
@@ -437,7 +438,9 @@ class Engine:
         for o in self.state.orders.values():
             if o.get("stock") or o["kind"] != OrderKind.OPEN.value or o["status"] in terminal:
                 continue
-            q = o["quantity"]
+            q = o["quantity"] - o.get("filled_units", 0)
+            if q <= 0:
+                continue
             out.append(StrategyPosition(
                 o["position_id"], o["strategy"], o["underlying"],
                 tuple(Leg(leg.contract, o["underlying"], leg.ratio * q, 0.0)
@@ -594,7 +597,7 @@ class Engine:
         for e in execs:
             # Aandelenfills ook op `exec_id`: twee deelfills in dezelfde seconde zijn twee fills.
             key = (e.ts, e.kind, e.client_id, e.contract.key() if e.contract else e.symbol,
-                   e.qty, "" if e.contract else e.exec_id)
+                   e.qty, e.exec_id)
             if key in self._seen:
                 continue
             self._seen.add(key)
@@ -609,14 +612,46 @@ class Engine:
                 continue
             if o is None or o.get("booked"):
                 continue
-            o["booked"] = True
-            o["status"] = OrderStatus.FILLED.value
-            self._book_fill(cid, o, fills[cid], now)
+            self._book_combo_fills(cid, o, fills[cid], now)
         if execs:
             self._persist(now)
 
-    def _book_fill(self, cid: str, o: dict[str, Any], execs: list[Execution], now: datetime) -> None:
-        q = o["quantity"]
+    def _book_combo_fills(self, cid: str, o: dict[str, Any], execs: list[Execution],
+                          now: datetime) -> None:
+        """Boek het gevulde deel van een combo-order (review 2026-11-27, #13).
+
+        Per leg telt de order het gevulde aantal contracten (`leg_fills`); het aantal complete
+        eenheden is het minimum over de legs gedeeld door hun ratio. Alleen het nieuwe deel
+        wordt geboekt (`filled_units`); de order blijft open voor het restant, tot hij volledig
+        gevuld is (`booked`, status FILLED) of wordt geannuleerd (de gevulde eenheden blijven
+        geboekt). Fills worden ontdubbeld op `exec_ids`, ook na een herstart."""
+        seen = o.setdefault("exec_ids", [])
+        cum = o.setdefault("leg_fills", {})
+        new = []
+        for e in execs:
+            ident: Any = e.exec_id or [e.ts.isoformat(), e.contract.key(), e.qty, e.price]  # type: ignore[union-attr]
+            if ident in seen:
+                continue
+            seen.append(ident)
+            cum[e.contract.key()] = cum.get(e.contract.key(), 0) + abs(e.qty)  # type: ignore[union-attr]
+            new.append(e)
+        legs = intents_from(o["legs"])
+        units = min(cum.get(leg.contract.key(), 0) // abs(leg.ratio) for leg in legs)
+        units = min(units, o["quantity"])
+        done = o.get("filled_units", 0)
+        if units > done:
+            o["filled_units"] = units
+            if units >= o["quantity"]:
+                o["booked"] = True
+                o["status"] = OrderStatus.FILLED.value
+            self._book_fill(cid, o, new, now, units - done)
+
+    def _book_fill(self, cid: str, o: dict[str, Any], execs: list[Execution], now: datetime,
+                   units: int | None = None) -> None:
+        """Boek `units` eenheden (standaard de hele order) van een gevulde combo-order."""
+        full = o["quantity"]
+        q = full if units is None else units
+        partial = q != full
         limit = o["limit"]
         legs = intents_from(o["legs"])
         fee = sum(e.commission for e in execs)
@@ -624,15 +659,28 @@ class Engine:
         kind = OrderKind(o["kind"])
         self._book_version += 1
         self._event(now, "fill", client_id=cid, position_id=o["position_id"], price=limit,
-                    quantity=q, commission=fee)
+                    quantity=q, commission=fee, **({"order_quantity": full} if partial else {}))
+        grown = next((i for i, p in enumerate(self.state.positions)
+                      if p.position_id == o["position_id"]), None)
+        if kind is OrderKind.OPEN and grown is not None:
+            # Een volgend deel van een gedeeltelijk gevulde entry: de positie groeit.
+            p = self.state.positions[grown]
+            legs_now = tuple(dataclasses.replace(x, qty=x.qty + leg.ratio * q)
+                             for x, leg in zip(p.legs, legs, strict=True))
+            total = p.units + q
+            self.state.positions[grown] = dataclasses.replace(
+                p, legs=legs_now, units=total, entry_net=p.entry_net - limit * MULTIPLIER * q,
+                max_loss=math.inf if o["max_loss"] is None else o["max_loss"] * total / full)
+            self._event(now, "position_changed", position_id=p.position_id, kind="partial_fill")
+            return
         if kind is OrderKind.OPEN:
             pos = StrategyPosition(
                 o["position_id"], o["strategy"], o["underlying"],
                 tuple(Leg(leg.contract, o["underlying"], leg.ratio * q,
                           px.get(leg.contract.key(), 0.0)) for leg in legs),
                 now, q, -limit * MULTIPLIER * q,
-                math.inf if o["max_loss"] is None else o["max_loss"], variant=o["variant"],
-                phase=o["variant"] if o["strategy"] == "wheel" else "")
+                math.inf if o["max_loss"] is None else o["max_loss"] * q / full,
+                variant=o["variant"], phase=o["variant"] if o["strategy"] == "wheel" else "")
             self.state.positions.append(pos)
             day = now.date().isoformat()
             self.state.new_positions[day] = self.state.new_positions.get(day, 0) + 1
@@ -652,9 +700,10 @@ class Engine:
             qty[k] = dataclasses.replace(old, qty=old.qty + leg.ratio * q)
         rest = tuple(v for _, v in sorted(qty.items()) if v.qty)
         stock = tuple(leg for leg in pos.legs if leg.contract is None)
-        if pos.opened_at.date() == now.date():
+        if pos.opened_at.date() == now.date() and not o.get("day_trade"):
+            o["day_trade"] = True
             self.state.day_trades.append(now.date().isoformat())
-        if kind is OrderKind.CLOSE or not rest:
+        if not rest:
             self.state.positions[i] = dataclasses.replace(pos, status=PositionStatus.CLOSED)
             if pos.strategy == "wheel" and pos.phase == "csp":
                 self.state.wheel[pos.underlying] = "idle"
@@ -665,8 +714,12 @@ class Engine:
             self._event(now, "position_closed", position_id=pos.position_id,
                         reason=o["reason"], exit_net=-limit * MULTIPLIER * q, **hedge)
             return
+        closing = kind is OrderKind.CLOSE                  # gedeeltelijke sluiting: positie blijft
         self.state.positions[i] = dataclasses.replace(
-            pos, legs=rest + stock, max_loss=o["max_loss"] if o["max_loss"] is not None else math.inf,
+            pos, legs=rest + stock,
+            max_loss=pos.max_loss if closing else (
+                o["max_loss"] if o["max_loss"] is not None else math.inf),
+            units=_units_after(rest, pos.units) if closing else pos.units,
             adjustments=pos.adjustments + (kind is OrderKind.ADJUST),
             entry_net=pos.entry_net - limit * MULTIPLIER * q)
         self._event(now, "position_changed", position_id=pos.position_id, kind=kind.value)

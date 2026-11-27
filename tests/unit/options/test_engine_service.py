@@ -742,6 +742,9 @@ def test_the_book_carries_pending_entries(tmp_path):
     (pos,) = r.state.open_positions()
     (o,) = [x for x in r.state.orders.values() if x["position_id"] == pos.position_id]
     assert r.e.book().pending_entries == ()                   # gevuld: een positie, geen order
+    # De gevulde order als sjabloon voor lopende orders: zonder zijn boekhouding van fills.
+    o = {k: v for k, v in o.items() if k not in ("filled_units", "booked", "exec_ids",
+                                                  "leg_fills", "day_trade")}
     r.state.orders["w"] = {**o, "client_id": "w", "position_id": "w1", "status": "submitted"}
     r.state.orders["x"] = {**o, "client_id": "x", "position_id": "x1", "status": "cancelled"}
     r.state.orders["y"] = {**o, "client_id": "y", "position_id": "y1", "status": "submitted",
