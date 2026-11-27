@@ -16,6 +16,15 @@ on:
       - "src/tradebot/schemas/options.py"
       - "conf/options/**"
       - ".github/workflows/options-paper-smoke.yml"
+  # Ook op elke PR die de options-code raakt: dit is de primaire setup, en zonder deze
+  # trigger kon een PR de replay breken zonder dat een check rood werd (opruim-PR 2026-11-27).
+  pull_request:
+    paths:
+      - "src/tradebot/options/**"
+      - "src/tradebot/schemas/options.py"
+      - "src/tradebot/risk/**"
+      - "conf/options/**"
+      - ".github/workflows/options-paper-smoke.yml"
 
 permissions:
   contents: read

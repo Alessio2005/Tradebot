@@ -70,7 +70,7 @@ jobs:
           path: |
             artefacts/
             .dvc/cache
-          key: paper-trade-artefacts-${{ runner.os }}-${{ hashFiles('params.yaml') }}
+          key: paper-trade-artefacts-${{ runner.os }}-${{ hashFiles('conf/conf_config.yaml') }}
           restore-keys: |
             paper-trade-artefacts-${{ runner.os }}-
 

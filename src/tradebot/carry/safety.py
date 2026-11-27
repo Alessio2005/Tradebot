@@ -22,16 +22,17 @@ van Kraken en kunnen dubbel handelen.
 """
 from __future__ import annotations
 
-import fcntl
 import math
-import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields
 from pathlib import Path
-from types import TracebackType
 from typing import Any
 
 from ..utils.failfast import ConfigContractError, TradebotContractError, require
+
+# Sinds 2026-11-27 in utils (de options-dienst gebruikt de lock ook); hier opnieuw
+# geëxporteerd zodat de carry-code en de tests ongewijzigd blijven.
+from ..utils.single_instance import Deferred, SingleInstance
 from .orders import LegOrder, unwind_orders
 from .venue import VenueBook
 
@@ -42,10 +43,6 @@ __all__ = ["Deferred", "Limits", "SafetyBreach", "SingleInstance", "check_orders
 
 class SafetyBreach(TradebotContractError):
     """Een harde grens bindt: het boek gaat stil tot een mens het onderzocht heeft."""
-
-
-class Deferred(TradebotContractError):
-    """De stap kan nu niet veilig; later opnieuw proberen (geen stilstand)."""
 
 
 @dataclass(frozen=True)
@@ -172,31 +169,3 @@ def marked_pnl(spot: Mapping[str, float], perp: Mapping[str, float],
         (s0, p0), (s1, p1) = then[sym], now[sym]
         pnl += float(spot.get(sym, 0.0)) * (s1 - s0) - float(perp.get(sym, 0.0)) * (p1 - p0)
     return pnl
-
-
-class SingleInstance:
-    """Een exclusieve lock op een bestand (fcntl): een tweede proces krijgt `Deferred`."""
-
-    def __init__(self, path: Path) -> None:
-        self.path = Path(path)
-        self._fd: int | None = None
-
-    def __enter__(self) -> SingleInstance:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            os.close(fd)
-            raise Deferred(f"Een ander proces houdt {self.path}; deze ronde slaat over.") \
-                from None
-        self._fd = fd
-        return self
-
-    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None,
-                 tb: TracebackType | None) -> None:
-        assert self._fd is not None
-        fcntl.flock(self._fd, fcntl.LOCK_UN)
-        os.close(self._fd)
-        self._fd = None
-

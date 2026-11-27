@@ -4,6 +4,7 @@ from __future__ import annotations
 import dataclasses
 from datetime import date, datetime, time
 
+import pandas as pd
 import pytest
 
 from tradebot.options.calendar import NY, TradingCalendar
@@ -43,7 +44,8 @@ def test_the_market_is_deterministic_and_causal(market):
     assert market.days == (date(2026, 12, 1), date(2026, 12, 2))
     assert [(s.asof.hour, s.underlying) for s in market.snapshots[:2]] == [(10, "TSTA"),
                                                                            (10, "TSTB")]
-    bars = market.bars_until("TSTA", date(2026, 12, 1))
+    bars = market.bars["TSTA"]
+    bars = bars[bars.index <= pd.Timestamp(date(2026, 12, 1))]
     assert len(bars) == SMALL.warmup_days + 1 and bars.index[-1].date() == date(2026, 12, 1)
     ev = market.events["TSTA"]
     assert ev.earnings == (date(2026, 12, 2),) and ev.dividends[0].amount == 0.5

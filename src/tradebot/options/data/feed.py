@@ -42,9 +42,6 @@ class ReplayFeed:
     def underlyings(self) -> tuple[str, ...]:
         return tuple(sorted(self._by))
 
-    def times(self) -> tuple[datetime, ...]:
-        return tuple(sorted({s.asof for s in self.market.snapshots}))
-
     def snapshot(self, underlying: str, now: datetime) -> Snapshot | None:
         times = self._times.get(underlying, [])
         i = bisect_right(times, now)

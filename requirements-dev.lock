@@ -2,7 +2,7 @@
 #
 # Phase 7/8, Stage A-2. Waarom dit bestand bestaat.
 #
-# requirements.lock pint 476 runtime-packages, maar GEEN testketen en GEEN
+# requirements.lock pint de runtime-packages, maar GEEN testketen en GEEN
 # linters. pytest, hypothesis, mypy en ruff stonden uitsluitend in
 # [project.optional-dependencies] met ONDERGRENZEN (pytest>=7.4), en
 # .github/workflows/hygiene.yml installeerde ze met een kale
@@ -26,8 +26,7 @@
 #
 # ruff is bewust op 0.15.12 gepind en niet op de nieuwste. Dat is geen
 # vooruitschuiven van werk maar het vastzetten van EEN oordeel: de 71 PLR0917-
-# bevindingen onder 0.16.4 staan geregistreerd in docs/DEFERRED_ISSUES.md en
-# worden als expliciet besluit opgepakt, niet als bijvangst van een
+# bevindingen onder 0.16.4 worden als expliciet besluit opgepakt, niet als bijvangst van een
 # pip-installatie op een willekeurige dag.
 #
 # GEBRUIK (naast requirements.lock, niet in plaats daarvan):
@@ -37,24 +36,21 @@
 #     D:/venv/tradebot/Scripts/python -m pip install -e . --no-deps
 #
 # Gegenereerd uit de referentie-venv op 2026-08-27, Python 3.13.0.
-# Zie docs/RUNBOOK.md voor welke interpreter de referentie is.
+# 2026-11-27: pytest-asyncio (geen async tests) en de dvc-restanten flufl.lock,
+# ruamel.yaml en zc.lockfile (dvc staat sinds PR #16 in de extra `data`) verwijderd.
 
 ast_serialize==0.8.0
 coverage==7.15.4
-flufl.lock==9.1.0
 hypothesis==6.165.10
 iniconfig==2.3.0
 librt==0.15.0
 mypy==2.3.1
 pluggy==1.6.0
-pytest-asyncio==1.4.0
 pytest-cov==7.1.0
 pytest-randomly==4.1.0
 pytest==9.1.1
-ruamel.yaml==0.19.1
 ruff==0.15.12
 setuptools==84.1.0
 sortedcontainers==2.4.0
 types-PyYAML==6.0.12.20260815
 types-requests==2.33.0.20260712
-zc.lockfile==4.0

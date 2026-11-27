@@ -64,6 +64,7 @@ from ..positions import (
     Leg,
     LegIntent,
     MarketState,
+    PositionStatus,
     StrategyPosition,
     Urgency,
 )
@@ -80,6 +81,11 @@ __all__ = ["ApprovedOrder", "ApprovedStockOrder", "Decision", "GateState", "Orde
 
 _SENTINEL = object()
 
+
+
+def _live(book: Book) -> tuple[StrategyPosition, ...]:
+    """De posities in het boek die nog niet gesloten zijn."""
+    return tuple(x for x in book.positions if x.status is not PositionStatus.CLOSED)
 
 class SafetyBreach(RuntimeError):
     """Een order die nooit gemaakt had mogen worden: de engine gaat in HALT."""
@@ -307,7 +313,7 @@ class RiskGate:
     def _review_open(self, p: OrderProposal, book: Book, market: MarketState,
                      state: GateState) -> Decision:
         r, cap = self.risk, market.capital_usd
-        live = tuple(x for x in book.positions if x.status.value != "closed")
+        live = _live(book)
         gates = [
             (state.halted, "state:halt"),
             (state.daily_loss_frac >= r.daily_loss_stop_entries_frac, "daily_loss:entries"),
@@ -350,7 +356,7 @@ class RiskGate:
         """Het boek na een bijsturing, rol of gedeeltelijke sluiting."""
         out = []
         for x in book.positions:
-            if x.status.value == "closed":
+            if x.status is PositionStatus.CLOSED:
                 continue
             if x.position_id != p.position_id:
                 out.append(x)
@@ -371,7 +377,7 @@ class RiskGate:
     def _review_change(self, p: OrderProposal, book: Book, market: MarketState,
                        state: GateState) -> Decision:
         r, cap = self.risk, market.capital_usd
-        live = tuple(x for x in book.positions if x.status.value != "closed")
+        live = _live(book)
         before = check(self._measure(live, book, market), r, cap)
         after = check(self._measure(self._after(p, book), book, market), r, cap)
         reducing = all(
@@ -413,7 +419,7 @@ class RiskGate:
             return StockDecision(Verdict.REJECT, None, (), "quotes:missing")
         if p.symbol in state.blocked_underlyings:
             return StockDecision(Verdict.REJECT, None, (), "reconcile:diff")
-        live = tuple(x for x in book.positions if x.status.value != "closed")
+        live = _live(book)
         before = aggregate(live, book.shares, market.chains, self.beta)
         shares = dict(book.shares)
         shares[p.symbol] = shares.get(p.symbol, 0) + p.qty

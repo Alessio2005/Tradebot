@@ -5,8 +5,9 @@ US-genoteerde aandelen- en ETF-opties, met prijzen, implied volatility en Greeks
 QuantLib, Greeks-limieten op portefeuilleniveau en een asynchrone engine. Alles draait met
 fictief geld: replay of een IBKR-paper-account. Ontwerp:
 `docs/research/2026-11-24-options-pivot-design.md` en
-`docs/research/2026-11-24-options-pivot-detailontwerp.md`. De bouw gaat in fasen; tot de
-options-dienst er is (fase 7), start er standaard geen dienst.
+`docs/research/2026-11-24-options-pivot-detailontwerp.md`. Alle fasen zijn gebouwd; de
+paper-dienst (`python -I -m tradebot.options paper`, alleen IBKR-paperaccounts) start pas
+als je hem zelf aanzet (`docs/runbook-options.md`). De live-schakelaar staat uit.
 
 De crypto-onderzoeksstack staat sinds 2026-11 in **standby**: alle code, configs en tests
 staan er nog en blijven groen, maar niets ervan draait standaard. Zie
@@ -97,6 +98,7 @@ make type-check    # mypy op schemas/ en utils/
 make test-fast     # alles behalve slow en regression
 make coverage      # idem, met dekking (fail_under = 100)
 make test          # de hele suite
+make options-replay  # synthetische markt + replay naar /tmp/tradebot-replay
 ```
 
 ## CI

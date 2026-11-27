@@ -32,7 +32,7 @@ from tradebot.options.risk.limits import BookMetrics, CheckResult, check, measur
 from tradebot.options.risk.margin import NAKED_FRAC, buying_power, position_buying_power
 from tradebot.options.risk.monitor import assess, degross_plan
 from tradebot.options.risk.pdt import day_trades_in_window, pdt_blocks_entry
-from tradebot.options.risk.scenarios import Scenario, grid, position_values, run_scenarios
+from tradebot.options.risk.scenarios import Scenario, grid, position_values
 from tradebot.options.strategies.common import rules_from_config
 from tradebot.options.strategies.credit import CreditSpread
 from tradebot.utils.failfast import DataContractError
@@ -96,12 +96,18 @@ def test_scenarios_revalue_each_leg(bull_put):
     ch = {"TST": cached_chain()}
     iv = market().iv
     sc = grid((-0.2, 0.2), (0, 10))
-    res = run_scenarios((bull_put,), {}, ch, iv, BETA, NOW, sc, Method.BAW, ENG)
+    def total(s: Scenario) -> float:
+        vals = position_values((bull_put,), {}, ch, iv, BETA, NOW, s, Method.BAW, ENG)
+        assert vals is not None
+        return sum(vals.values())
+
+    base = total(Scenario(0.0, 0.0))
+    losses = {s: base - total(s) for s in sc}
     # Diep ITM: meer vol trekt de spread terug richting het midden, dus vol 0 is het ergst.
-    assert res is not None and res.worst == Scenario(-0.2, 0.0)
-    assert res.worst_loss <= bull_put.max_loss + 1e-6
-    assert dict(res.losses)[Scenario(0.0, 0.0)] == pytest.approx(0.0)
-    up = dict(res.losses)[Scenario(0.2, 0.0)]
+    assert max(losses, key=losses.__getitem__) == Scenario(-0.2, 0.0)
+    assert max(losses.values()) <= bull_put.max_loss + 1e-6
+    assert losses[Scenario(0.0, 0.0)] == pytest.approx(0.0)
+    up = losses[Scenario(0.2, 0.0)]
     assert up < 0                                    # bull put wint als spot stijgt
 
 
@@ -119,8 +125,8 @@ def test_scenarios_use_fd_for_dividend_legs(bull_put):
 
 def test_scenarios_need_a_chain_and_a_vol(bull_put):
     iv = market().iv
-    assert run_scenarios((bull_put,), {}, {}, iv, BETA, NOW, grid((), (0,)), Method.BAW,
-                         ENG) is None
+    assert position_values((bull_put,), {}, {}, iv, BETA, NOW, Scenario(0.0, 0.0),
+                           Method.BAW, ENG) is None
     no_iv = dataclasses.replace(cached_chain(), options=tuple(
         dataclasses.replace(o, iv_mid=dataclasses.replace(o.iv_mid, value=None))
         for o in cached_chain().options))

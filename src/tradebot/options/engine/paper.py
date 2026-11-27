@@ -15,8 +15,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from ...carry.safety import SingleInstance
 from ...schemas.options import OptionsConfig
+from ...utils.single_instance import SingleInstance
 from ..calendar import NY
 from ..data.ibkr_feed import IBKRFeed
 from ..execution.ib_noise import quiet_ib
