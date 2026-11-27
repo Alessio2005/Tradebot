@@ -123,3 +123,30 @@ Kill switches, HALT-bestanden, de greek-limieten op boekniveau en de live-schake
 zoals ze zijn en worden hergebruikt. De crypto-code blijft onaangeroerd. De paper-bot op
 Alessio's pc draait door op de code van PR #29; deze PR verandert daar niets aan tot hij
 gemerged en opnieuw gebouwd is.
+
+## 5. Afwijkingen tijdens de bouw
+
+Wat er anders is uitgekomen dan hierboven beschreven (rulings uit de bouw):
+
+* **Versnelling 4,4× in plaats van ≥5×** (A4: 137 s naar 31 s op 4 cores). Het QuantLib-deel
+  (FD met een discreet dividend) blijft ±23 s en de rest van de engine is serieel. In de
+  eindstand, met alle latere fasen erbij, duurt de standaardreplay 42 s op 4 cores (3,3× ten
+  opzichte van de 137 s van vóór de branch); zie het runbook, hoofdstuk "Snelheid".
+* **De FD-solve met startwaarde (smal Brent-interval)** vindt de IV binnen `iv_accuracy` op een
+  iets ander punt dan het volle interval. Vier `risk_decision`-waarden in het journal
+  verschillen daardoor in het vijfde cijfer; beslissingen, fills en equity zijn identiek.
+  `pricing.vectorized: false` geeft een byte-gelijk journal.
+* **`execution.limit_anchor` staat standaard op `mid`**; `fair` (sectie 3, D1) is opt-in. Een
+  entry waarvan de eerste limiet al voorbij het plafond fair + `max_edge_frac` × spread ligt,
+  wordt niet gestuurd (`entry_skipped`, reden `max_edge`) in plaats van een order met een
+  limiet voorbij het plafond.
+* **Gamma management (D2) staat standaard uit** (`risk.max_gamma_loss_frac_credit: null`,
+  aanbevolen 0,5); de sleutel heet `max_gamma_loss_frac_credit`, niet `max_gamma_frac_credit`.
+* **De drawdown-rem (E1) staat standaard aan**, maar is in de standaardreplay niet actief: de
+  grootste drawdown is daar 0,33 %, ver onder de 5 % waar de rem begint.
+* **Settlement (E2)**: assignment, uitoefening en expiratie sluiten nu ook de positie in het
+  journal (`position_closed`) en een uitvoering rekent elke open positie met dat contract af,
+  niet alleen de eerste. Alle aandelenfills (ook de afbouw van de hedge) tellen mee in de
+  gerealiseerde P&L van de positie (B4), zodat een vlakke ronde gelijk is aan de cashflow.
+* **Short strangle** blijft uit en vraagt `risk.allow_undefined_risk: true`; Alessio beslist.
+

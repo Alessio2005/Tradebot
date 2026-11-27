@@ -16,6 +16,15 @@ Code staat in `src/tradebot/`, configuratie in `conf/`, bevroren onderzoeks- en
 governance-artefacten in `artefacts/`, en de rapporten in `docs/research/`. Wat er per
 ronde veranderde, staat in `CHANGELOG.md`.
 
+## Options-engine
+
+Strategieën: credit spread, iron condor, debit vertical, calendar (IVP of forward-vol), long
+straddle/strangle, gamma scalping met delta-hedger, en een short strangle met harde limieten
+(standaard uit; Alessio beslist). Replay en sweep draaien op synthetische of historische
+markten; zie `docs/runbook-options.md` voor commando's, alle schakelaars en wat voor een
+particulier niet haalbaar is. De standaardreplay (4 cores) duurt ongeveer 42 s en geeft 3
+posities en eind-equity 25.303,60 USD; de snelheidstabel staat in het runbook.
+
 ## Installatie
 
 Python 3.13. De omgeving is de lock: installeer uit de lockfiles, niet uit de

@@ -4,6 +4,21 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: pro-strategieën, afronding en documentatie (2026-11-27)
+- Eindstand van de branch op de standaard synthetische markt (4 cores): 3 posities, eind-equity
+  25.303,60 USD (ongewijzigd), replay in 42 s (gemeten 43,4 / 41,8 / 41,8 s; 137 s vóór de
+  branch, dus 3,3×; direct na de vectorisatie was het 31 s, 4,4×, en het doel was 5×). De latere
+  fasen voegen werk per ronde toe. `stats`: totaalrendement 1,21 %, max drawdown 0,33 %, Sharpe
+  4,31, Sortino 17,05; credit_spread 2 gesloten (+116,40), long_straddle_strangle 1 (+187,20).
+- Alle nieuwe schakelaars staan uit of op een waarde die de standaardreplay niet raakt. Het
+  runbook beschrijft ze per stuk, plus "wat voor een particulier niet haalbaar is". Short
+  strangles blijven uit (`risk.allow_undefined_risk: false`); Alessio beslist.
+- Het ontwerp (`docs/research/2026-11-26-options-pro-strategies-design.md`, sectie 5) noemt de
+  afwijkingen van de bouw: versnelling 4,4× in plaats van ≥5×, vier `risk_decision`-waarden die in
+  het vijfde cijfer verschillen door de FD-startwaarde, `limit_anchor` standaard `mid`,
+  gamma-close standaard uit, drawdown-rem aan maar niet actief, en settlement dat posities in het
+  journal sluit.
+
 ## Options: backteststatistiek en sweep (2026-11-27)
 - `summary.json` en `ReplayResult` krijgen `stats` (`engine/report.py`): per strategie aantal
   gesloten posities, win rate, gemiddelde en totale P&L, grootste verlies (uit de fills en
