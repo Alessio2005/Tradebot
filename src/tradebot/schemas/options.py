@@ -433,6 +433,11 @@ class ExecutionConfig(StrictModel):
     walk_interval_seconds: Annotated[float, Field(gt=0.0, le=600.0)] = 15.0
     max_concession_entry: Fraction = 0.60      # fractie van mid naar de natuurlijke prijs
     max_concession_exit: Fraction = 1.00
+    # Waar de limiet van een ENTRY begint: `mid` (ongewijzigd) of `fair` (QuantLib-waarde bij
+    # de gladde smile). Bij `fair` gelden `max_edge_frac` en `max_spread_frac_fair`.
+    limit_anchor: Literal["mid", "fair"] = "mid"
+    max_edge_frac: Fraction = 0.5              # concessie voorbij fair, in |natural − mid|
+    max_spread_frac_fair: Fraction = 0.25      # spread (2 × |natural − mid|) tegen |fair|
     ticks: TicksConfig = TicksConfig()
     max_order_usd: Annotated[float, Field(gt=0.0)] = 5000.0
 

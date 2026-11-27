@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import math
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -23,14 +24,19 @@ from tradebot.options.execution.orders import (
     ComboOrder,
     OrderStatus,
     Purpose,
+    WalkStep,
     client_id,
+    combo_fair,
     combo_prices,
+    fair_walk_limit,
     position_id,
     walk_limit,
 )
 from tradebot.options.execution.paper import PaperBroker
 from tradebot.options.positions import Book, LegIntent, Trend, Urgency
 from tradebot.options.pricing.engines import Method
+from tradebot.options.pricing.surface import Smile, Surface, SurfaceStatus, build_surface
+from tradebot.options.pricing.vanilla import OptionInputs, price
 from tradebot.options.rates import CashDividend
 from tradebot.options.risk.gate import GateState, OrderProposal, RiskGate, Verdict
 from tradebot.options.strategies.common import rules_from_config
@@ -93,6 +99,70 @@ def test_combo_prices_and_the_walk():
     d0 = walk_limit(1.005, 1.03, 0, 0.01, 1.0)
     assert d0.limit == pytest.approx(1.0)
     assert walk_limit(1.005, 1.03, 2, 0.01, 1.0).limit == pytest.approx(1.02)
+
+
+def test_the_fair_walk_starts_at_fair_and_stops_at_the_edge():
+    # Debit: mid 1.00, natural 1.10, de andere kant 0.90; fair 0.955 rondt omlaag af.
+    assert fair_walk_limit(1.0, 1.1, 0.955, 0, 0.01, 0.5) == WalkStep(0.95, False)
+    assert fair_walk_limit(1.0, 1.1, 0.955, 1, 0.01, 0.5).limit == pytest.approx(0.96)
+    # Plafond 0.955 + 0.5 × 0.10 = 1.005: 1.00 mag, 1.01 niet.
+    assert not fair_walk_limit(1.0, 1.1, 0.955, 5, 0.01, 0.5).done
+    assert fair_walk_limit(1.0, 1.1, 0.955, 6, 0.01, 0.5).done
+    # Fair boven natural: begin op natural, nooit erover.
+    assert fair_walk_limit(1.0, 1.1, 1.3, 0, 0.01, 0.5) == WalkStep(1.1, False)
+    assert fair_walk_limit(1.0, 1.1, 1.3, 1, 0.01, 0.5).done
+    # Fair onder de andere kant: begin op 0.90, het plafond (0.85) laat geen stap toe.
+    assert fair_walk_limit(1.0, 1.1, 0.8, 0, 0.01, 0.5) == WalkStep(0.9, False)
+    assert fair_walk_limit(1.0, 1.1, 0.8, 1, 0.01, 0.5).done
+    # Credit: mid −1.00, natural −0.90, de andere kant −1.10; −1.005 → −1.01 (meer ontvangen).
+    assert fair_walk_limit(-1.0, -0.9, -1.005, 0, 0.01, 0.5) == WalkStep(-1.01, False)
+    assert fair_walk_limit(-1.0, -0.9, -1.3, 0, 0.01, 0.5) == WalkStep(-1.1, False)
+    assert fair_walk_limit(-1.0, -0.9, -0.5, 0, 0.01, 0.5) == WalkStep(-0.9, False)
+    # Plafond −1.005 + 0.05 = −0.955: −0.96 mag (stap 5), −0.95 niet.
+    assert not fair_walk_limit(-1.0, -0.9, -1.005, 5, 0.01, 0.5).done
+    assert fair_walk_limit(-1.0, -0.9, -1.005, 6, 0.01, 0.5).done
+    # Omgekeerde richting (natural < mid, alleen symmetrie): omhoog afronden, omlaag lopen.
+    s = fair_walk_limit(1.0, 0.9, 1.005, 1, 0.01, 0.5)
+    assert s.limit == pytest.approx(1.0) and not s.done
+
+
+def _shifted(chain, shift, *keys):
+    rows = tuple(dataclasses.replace(o, quote=dataclasses.replace(
+        o.quote, bid=o.quote.bid + shift, ask=o.quote.ask + shift))
+        if o.contract.key() in keys else o for o in chain.options)
+    return dataclasses.replace(chain, options=rows)
+
+
+def test_the_combo_fair_value_comes_from_the_smile():
+    ch = cached_chain()
+    surf = build_surface(ch)
+    put95, put90 = (OptionContract("TST", E, k, Right.PUT) for k in (95.0, 90.0))
+    legs = (LegIntent(put95, -1), LegIntent(put90, 1))
+    # De quotes van de 95-put staan 0.10 te hoog; fair volgt de smile, niet de quotes.
+    wide = _shifted(ch, 0.10, put95.key())
+    mid, _ = combo_prices(wide, legs)
+    fair = combo_fair(wide, surf, legs, SETTINGS.engines)
+
+    def ql(c):
+        s = next(x for x in surf.smiles if x.expiry == c.expiry)
+        inp = OptionInputs(ch.spot, c.strike, c.right, c.expiry, ch.asof, ch.carry)
+        return price(inp, s.vol(math.log(c.strike / s.forward)), Method.BAW, SETTINGS.engines)
+
+    assert fair == pytest.approx(-ql(put95) + ql(put90))
+    assert fair == pytest.approx(mid + 0.10, abs=0.01)
+    # Zonder (bruikbaar) oppervlak: de mid per leg.
+    assert combo_fair(wide, None, legs, SETTINGS.engines) == pytest.approx(mid)
+    bad = dataclasses.replace(surf, status=SurfaceStatus.ARBITRAGE)
+    assert combo_fair(wide, bad, legs, SETTINGS.engines) == pytest.approx(mid)
+    none = Surface("TST", SurfaceStatus.OK, tuple(x for x in surf.smiles if x.expiry != E))
+    assert combo_fair(wide, none, legs, SETTINGS.engines) == pytest.approx(mid)
+    s = surf.smiles[1]
+    flat0 = Smile(s.expiry, s.t, s.forward, s.discount, s.k, (0.0,) * len(s.k))
+    zero = Surface("TST", SurfaceStatus.OK, (flat0,))
+    assert combo_fair(wide, zero, legs, SETTINGS.engines) == pytest.approx(mid)
+    # Een leg zonder quote: geen fair value.
+    missing = (LegIntent(OptionContract("TST", E, 80.5, Right.PUT), 1),)
+    assert combo_fair(wide, surf, missing, SETTINGS.engines) is None
 
 
 # --- paper-broker --------------------------------------------------------------------------

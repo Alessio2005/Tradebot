@@ -4,6 +4,20 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: fair-value-limieten voor entries (2026-11-27)
+- `execution.limit_anchor: mid | fair` (standaard `mid`). Bij `fair` begint de limiet van een ENTRY
+  op de combo-fair value Σ ratio × fair_leg, met fair_leg de QuantLib-waarde (scan-engine via
+  `engine_for(Use.SCAN, ...)`) bij de vol van de gladde smile (`pricing.surface`) voor die strike en
+  expiratie, en de mid van de leg zonder bruikbaar smilepunt. Die fair wordt begrensd tot
+  [2·mid − natural, natural] en in ons voordeel op de combo-tick afgerond (`execution/orders.py`).
+- De walk van zo'n entry concedeert nooit voorbij fair + `execution.max_edge_frac` (0,5) ×
+  |natural − mid| richting natural, en nooit voorbij natural; daarna `order_cancelled` met reden
+  `max_edge`. EXIT, STOP, ROLL en ADJUST houden de bestaande concessie.
+- Een entry met 2 × |natural − mid| > `execution.max_spread_frac_fair` (0,25) × |fair| wordt niet
+  gestuurd: journal `entry_skipped`, reden `spread_vs_fair`.
+- Standaard (`mid`) is de synthetische replay ongewijzigd, het journal byte-gelijk (3 posities,
+  eind-equity 25.303,60 USD).
+
 ## Options: aandelenorders en de delta-hedger (2026-11-26)
 - `StockOrder` (purpose `HEDGE`, of `EXIT` bij het sluiten) in de `BrokerAdapter`
   (`submit_stock`): de paper-broker vult op de limiet als die spot ± de halve

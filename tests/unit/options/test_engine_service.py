@@ -17,9 +17,10 @@ from tradebot.options.data.synthetic import SyntheticSpec, SyntheticUnderlying, 
 from tradebot.options.engine import service
 from tradebot.options.engine.replay import replay_config
 from tradebot.options.engine.service import Engine, EngineMode, Paths
-from tradebot.options.engine.state import EngineState, intents_record
+from tradebot.options.engine.state import EngineState, intents_from, intents_record
 from tradebot.options.events import Events
 from tradebot.options.execution.broker import Execution, ExecutionKind
+from tradebot.options.execution.orders import combo_fair, combo_prices, fair_walk_limit
 from tradebot.options.execution.paper import PaperBroker
 from tradebot.options.positions import (
     Action,
@@ -159,6 +160,40 @@ def test_the_walk_gives_up_after_the_maximum_concession(tmp_path):
     (o,) = r.state.orders.values()
     assert o["status"] == "cancelled" and not r.state.positions
     assert r.events("order_cancelled")[0]["reason"] == "max_concession"
+
+
+def fair_cfg(**kw):
+    return cfg_with("execution", limit_anchor="fair", **kw)
+
+
+def test_a_fair_anchored_entry_starts_at_the_fair_value(tmp_path):
+    r = Rig(tmp_path, fair_cfg())
+    r.run(at(D0, 10, 1))
+    (o,) = r.state.orders.values()
+    legs, chain = intents_from(o["legs"]), r.e.chains["TSTB"]
+    mid, natural = combo_prices(chain, legs)
+    fair = combo_fair(chain, r.e._surfaces["TSTB"], legs, r.e.settings.engines)
+    first = fair_walk_limit(mid, natural, fair, 0, BASE.execution.ticks.combo,
+                            BASE.execution.max_edge_frac)
+    assert r.events("order_submitted")[0]["limit"] == first.limit
+    assert len(r.state.open_positions()) == 1
+
+
+def test_the_fair_walk_gives_up_at_the_edge(tmp_path):
+    r = Rig(tmp_path, fair_cfg(), fill=1.0)          # de paper-broker vult pas op natural
+    r.run(at(D0, 10, 3))
+    (o,) = r.state.orders.values()
+    assert o["status"] == "cancelled" and not r.state.positions
+    assert r.events("order_cancelled")[0]["reason"] == "max_edge"
+
+
+def test_a_spread_too_wide_against_fair_skips_the_entry(tmp_path):
+    r = Rig(tmp_path, fair_cfg(max_spread_frac_fair=1e-6))
+    r.run(at(D0, 10, 1))
+    (skip,) = r.events("entry_skipped")
+    assert skip["reason"] == "spread_vs_fair" and skip["strategy"] == "credit_spread"
+    assert r.events("risk_decision")[0]["verdict"] == "approve"
+    assert not r.state.orders and not r.events("order_submitted")
 
 
 def test_open_orders_expire_at_the_end_of_the_day(tmp_path):

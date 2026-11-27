@@ -60,8 +60,11 @@ from ..execution.orders import (
     OrderStatus,
     Purpose,
     StockOrder,
+    WalkStep,
     client_id,
+    combo_fair,
     combo_prices,
+    fair_walk_limit,
     position_id,
     walk_limit,
 )
@@ -86,7 +89,7 @@ from ..positions import (
 )
 from ..pricing.engines import Method, Use
 from ..pricing.settings import pricer_settings
-from ..pricing.surface import SurfaceStatus, build_surface, skew_25d
+from ..pricing.surface import Surface, SurfaceStatus, build_surface, skew_25d
 from ..rates import Carry
 from ..relative_value import rv_adjust, vrp_zscores
 from ..risk.gate import (
@@ -207,6 +210,7 @@ class Engine:
         self.chains: dict[str, Chain] = {}
         self._snap_keys: dict[str, datetime] = {}
         self._iv: dict[str, IVMetrics] = {}
+        self._surfaces: dict[str, Surface] = {}
         self._vol: dict[str, VolState] = {}
         self._trend: dict[str, Trend] = {}
         self._last: dict[str, datetime] = {}
@@ -315,6 +319,7 @@ class Engine:
 
     def _metrics(self, und: str, chain: Chain, today: date) -> IVMetrics:
         surf = build_surface(chain, self.cfg.pricing.surface_min_vega)
+        self._surfaces[und] = surf
         atm = surf.atm_vol(self.cfg.iv_metrics.atm_tenor_days)
         rows = [(date.fromisoformat(d), v) for d, v in self.state.iv_history.get(und, [])]
         bars = self.feed.bars_before(und, today)
@@ -420,6 +425,33 @@ class Engine:
             return e.max_concession_entry
         return e.max_concession_exit if urgency is Urgency.STOP else e.max_concession_entry
 
+    def _fair_anchored(self, purpose: Purpose) -> bool:
+        return purpose is Purpose.ENTRY and self.cfg.execution.limit_anchor == "fair"
+
+    def _limit(self, und: str, legs: tuple[LegIntent, ...], purpose: Purpose, urgency: Urgency,
+               step: int) -> tuple[WalkStep, float | None] | None:
+        """De limiet bij `step` (zie `execution.orders`), met de fair value bij het fair-anker;
+        None zonder keten of quote."""
+        chain = self.chains.get(und)
+        prices = combo_prices(chain, legs) if chain is not None else None
+        if chain is None or prices is None:
+            return None
+        mid, natural = prices
+        e = self.cfg.execution
+        if not self._fair_anchored(purpose):
+            return walk_limit(mid, natural, step, e.ticks.combo,
+                              self._concession(purpose, urgency)), None
+        fair = combo_fair(chain, self._surfaces.get(und), legs, self.settings.engines)
+        assert fair is not None                  # dezelfde quotes als combo_prices
+        return fair_walk_limit(mid, natural, fair, step, e.ticks.combo, e.max_edge_frac), fair
+
+    def _spread_vs_fair(self, und: str, legs: tuple[LegIntent, ...], fair: float) -> bool:
+        """True als de spread te breed is tegen fair: 2 × |natural − mid| > frac × |fair|."""
+        prices = combo_prices(self.chains[und], legs)
+        assert prices is not None
+        mid, natural = prices
+        return abs(natural - mid) * 2.0 > self.cfg.execution.max_spread_frac_fair * abs(fair)
+
     async def _send(self, p: OrderProposal, now: datetime, purpose: Purpose) -> None:
         state = self.gate_state(now, self._daily_loss())
         d = self.gate.review(p, self.book(), self.market_state(now), state)
@@ -431,12 +463,14 @@ class Engine:
         if d.approved is None:
             return
         ap = d.approved.proposal
-        chain = self.chains[p.underlying]
-        prices = combo_prices(chain, ap.legs)
-        assert prices is not None
-        mid, natural = prices
-        step = walk_limit(mid, natural, 0, self.cfg.execution.ticks.combo,
-                          self._concession(purpose, ap.urgency))
+        first = self._limit(ap.underlying, ap.legs, purpose, ap.urgency, 0)
+        assert first is not None
+        step, fair = first
+        if fair is not None and self._spread_vs_fair(ap.underlying, ap.legs, fair):
+            self._event(now, "entry_skipped", position_id=ap.position_id, strategy=ap.strategy,
+                        underlying=ap.underlying, reason="spread_vs_fair",
+                        fair=round(fair, 4))
+            return
         key = f"{ap.position_id}|{purpose.value}|{now.date().isoformat()}"
         attempt = self.state.attempts.get(key, 0)
         self.state.attempts[key] = attempt + 1
@@ -459,22 +493,21 @@ class Engine:
         await self._executions(now)
 
     async def _walk(self, now: datetime) -> None:
-        tick = self.cfg.execution.ticks.combo
         for cid, o in sorted(self.state.orders.items()):
             if o["status"] != OrderStatus.SUBMITTED.value or o.get("stock"):
                 continue
-            chain = self.chains.get(o["underlying"])
-            prices = combo_prices(chain, intents_from(o["legs"])) if chain is not None else None
-            if prices is None:
+            purpose = Purpose(o["purpose"])
+            nxt = self._limit(o["underlying"], intents_from(o["legs"]), purpose,
+                              Urgency(o["urgency"]), o["step"] + 1)
+            if nxt is None:
                 continue
-            mid, natural = prices
-            step = walk_limit(mid, natural, o["step"] + 1, tick,
-                              self._concession(Purpose(o["purpose"]), Urgency(o["urgency"])))
+            step, _ = nxt
             if step.done:
                 await self.broker.cancel(cid)
                 o["status"] = OrderStatus.CANCELLED.value
                 self._event(now, "order_cancelled", client_id=cid, position_id=o["position_id"],
-                            reason="max_concession")
+                            reason="max_edge" if self._fair_anchored(purpose)
+                            else "max_concession")
                 continue
             o["step"], o["limit"] = o["step"] + 1, step.limit
             bo = await self.broker.modify(cid, step.limit)

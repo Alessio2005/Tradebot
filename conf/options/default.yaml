@@ -246,6 +246,11 @@ execution:                       # detailontwerp 10
   walk_interval_seconds: 15
   max_concession_entry: 0.60     # fractie van mid naar de natuurlijke prijs
   max_concession_exit: 1.00
+  limit_anchor: mid              # mid | fair: fair = QuantLib-waarde (scan-engine) bij de IV
+                                 # van de gladde smile; zonder smilepunt de mid. Alleen ENTRY.
+  max_edge_frac: 0.5             # bij fair: de walk concedeert nooit voorbij
+                                 # fair + max_edge_frac × |natural − mid| richting natural
+  max_spread_frac_fair: 0.25     # bij fair: geen entry als 2 × |natural − mid| > dit × |fair|
   ticks: {default: {below_3: 0.01, above_3: 0.05}, combo: 0.01}
   max_order_usd: 5000            # premie per order; daarboven is het een fout (HALT)
 
