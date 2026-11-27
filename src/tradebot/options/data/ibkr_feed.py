@@ -1,7 +1,8 @@
 """Marktdata van IBKR voor de paper-dienst (detailontwerp 12.1), met vertraagde data.
 
-`refresh(now)` haalt per onderliggende de koers, de optieketen (expiraties binnen
-`MAX_DTE` dagen, strikes binnen `strike_range` van spot) en de dagbars op, en bewaart een
+`refresh(now)` haalt per onderliggende de koers, de optieketen (hoogstens `max_expiries`
+expiraties binnen `MAX_DTE` dagen, gespreid over het venster zodat ook de lange legs er zijn;
+strikes binnen `strike_range` van spot) en de dagbars op, en bewaart een
 `Snapshot`. De engine leest die daarna synchroon via het `MarketFeed`-protocol. Een paper-
 login mag maar ongeveer 100 marktdatalijnen tegelijk: de opties gaan in pakketten van
 `BATCH`.
@@ -30,13 +31,26 @@ from ..events import Events
 from ..rates import CashDividend
 from .store import Snapshot
 
-__all__ = ["BATCH", "MAX_DTE", "IBKRFeed", "yfinance_events"]
+__all__ = ["BATCH", "MAX_DTE", "MAX_EXPIRIES", "STRIKE_RANGE", "IBKRFeed", "spread_expiries",
+           "yfinance_events"]
 
 BATCH = 90
 MAX_DTE = 100
 WAIT_SECONDS = 4.0
+MAX_EXPIRIES = 6                  # per onderliggende: begrenst het aantal marktdatalijnen
+STRIKE_RANGE = 0.10
 EventsSource = Callable[[str, date], Events]
 _COLUMNS = ["open", "high", "low", "close"]
+
+
+def spread_expiries(expiries: list[date], n: int) -> list[date]:
+    """Hoogstens `n` expiraties, gelijkmatig over de gesorteerde lijst (eerste en laatste erbij)."""
+    if len(expiries) <= n:
+        return expiries
+    if n <= 1:
+        return expiries[:n]
+    idx = sorted({round(i * (len(expiries) - 1) / (n - 1)) for i in range(n)})
+    return [expiries[i] for i in idx]
 
 
 def _no_bars() -> pd.DataFrame:
@@ -111,10 +125,11 @@ def yfinance_events(symbol: str, today: date) -> Events:
 
 class IBKRFeed:
     def __init__(self, ib: Any, underlyings: tuple[str, ...], rate: float,
-                 strike_range: float = 0.15, events_source: EventsSource = yfinance_events,
-                 wait_seconds: float = WAIT_SECONDS) -> None:
+                 strike_range: float = STRIKE_RANGE, events_source: EventsSource = yfinance_events,
+                 wait_seconds: float = WAIT_SECONDS, max_expiries: int = MAX_EXPIRIES) -> None:
         self.ib, self._names, self.rate = ib, tuple(sorted(underlyings)), rate
         self.strike_range, self.events_source, self.wait = strike_range, events_source, wait_seconds
+        self.max_expiries = max_expiries
         self._snaps: dict[str, Snapshot] = {}
         self._bars: dict[str, pd.DataFrame] = {}
         self._events: dict[str, Events] = {}
@@ -174,8 +189,10 @@ class IBKRFeed:
             if smart is None:
                 continue
             last = today + timedelta(days=MAX_DTE)
-            expiries = sorted(e for e in (datetime.strptime(x, "%Y%m%d").date()
-                                          for x in smart.expirations) if today < e <= last)
+            expiries = spread_expiries(
+                sorted(e for e in (datetime.strptime(x, "%Y%m%d").date()
+                                   for x in smart.expirations) if today < e <= last),
+                self.max_expiries)
             lo, hi = spot * (1 - self.strike_range), spot * (1 + self.strike_range)
             strikes = sorted(k for k in smart.strikes if lo <= k <= hi)
             wanted = [Option(name, e.strftime("%Y%m%d"), k, r, "SMART", multiplier="100",

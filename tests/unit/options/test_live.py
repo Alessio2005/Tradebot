@@ -77,15 +77,20 @@ def test_the_options_service_is_paper_hardened_and_health_checked():
     services = yaml.safe_load((ROOT / "infra/compose/docker-compose.yml").read_text(
         encoding="utf-8"))["services"]
     gw, svc = services["ib-gateway"], services["options-paper"]
-    assert gw["environment"]["TRADING_MODE"] == "paper" and gw["env_file"] == ".env"
+    assert gw["environment"]["TRADING_MODE"] == "paper" and gw["env_file"] == ".env.ib"
+    assert svc["env_file"] == ".env.options"          # least privilege: eigen geheimen per dienst
     assert svc["command"][:4] == ["python", "-I", "-m", "tradebot.options"]
     assert svc["command"][4] == "paper" and "--healthcheck" in svc["healthcheck"]["test"]
     assert svc["read_only"] is True and svc["cap_drop"] == ["ALL"]
     assert svc["restart"] == "unless-stopped" and svc["depends_on"] == ["ib-gateway"]
     assert importlib.util.find_spec("tradebot.options.__main__") is not None
-    env = (ROOT / "infra/compose/.env.example").read_text(encoding="utf-8")
-    for name in ("TWS_USERID=", "TWS_PASSWORD=", "IB_ACCOUNT="):
-        assert re.search(rf"^{name}$", env, flags=re.M), name
+    ib_env = (ROOT / "infra/compose/.env.ib.example").read_text(encoding="utf-8")
+    for name in ("TWS_USERID=", "TWS_PASSWORD="):
+        assert re.search(rf"^{name}$", ib_env, flags=re.M), name
+    opt_env = (ROOT / "infra/compose/.env.options.example").read_text(encoding="utf-8")
+    assert re.search(r"^IB_ACCOUNT=$", opt_env, flags=re.M)
+    assert "TWS_PASSWORD" not in opt_env and "KRAKEN" not in opt_env
+    assert "TWS_" not in (ROOT / "infra/compose/.env.example").read_text(encoding="utf-8")
     unit = (ROOT / "infra/systemd/tradebot-options-paper.service").read_text(encoding="utf-8")
     for line in ("Restart=always", "User=tradebot", "ProtectSystem=strict",
                  "EnvironmentFile=/etc/tradebot/options.env", "NoNewPrivileges=true",

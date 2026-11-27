@@ -1,6 +1,9 @@
-"""De live-schakelaar (detailontwerp 13): gebouwd, getest en uit.
+"""De live-schakelaar (detailontwerp 13): gebouwd en getest, maar niet in het uitvoerpad aangesloten.
 
-Live handelen kan alleen als ALLE vijf voorwaarden tegelijk waar zijn. Elke andere
+Let op: alleen `require_paper` zit echt in het pad (`IBKRBroker.connect` en `submit`);
+`gather` en `live_decision` worden nergens aangeroepen (zie docs/runbook-options.md, "Live").
+
+Live handelen zou alleen mogen als ALLE vijf voorwaarden tegelijk waar zijn. Elke andere
 combinatie (31 van de 32) weigert, met de reden per ontbrekende voorwaarde.
 
 1. `requested`: de dienst is gestart met mode `live` (geen config in deze repository doet

@@ -41,6 +41,7 @@ class EngineState:
     wheel: dict[str, str] = field(default_factory=dict)
     cost_basis: dict[str, float] = field(default_factory=dict)
     new_positions: dict[str, int] = field(default_factory=dict)   # datum → aantal
+    done_today: list[str] = field(default_factory=list)           # "datum|taak", tegen dubbel scannen
 
     def open_positions(self) -> list[StrategyPosition]:
         return [p for p in self.positions if p.status is not PositionStatus.CLOSED]
@@ -108,7 +109,7 @@ def to_record(s: EngineState) -> dict[str, Any]:
             "iv_history": {k: [list(x) for x in v] for k, v in s.iv_history.items()},
             "equity": [list(x) for x in s.equity], "high_water_mark": s.high_water_mark,
             "day_trades": s.day_trades, "wheel": s.wheel, "cost_basis": s.cost_basis,
-            "new_positions": s.new_positions}
+            "new_positions": s.new_positions, "done_today": s.done_today}
 
 
 def save_state(s: EngineState, path: Path) -> None:
@@ -141,7 +142,8 @@ def load_state(path: Path, mode: str, account_hash: str) -> EngineState | None:
                        [(d, float(v)) for d, v in r["equity"]], float(r["high_water_mark"]),
                        list(r["day_trades"]), dict(r["wheel"]),
                        {k: float(v) for k, v in r["cost_basis"].items()},
-                       {k: int(v) for k, v in r["new_positions"].items()})
+                       {k: int(v) for k, v in r["new_positions"].items()},
+                       list(r.get("done_today", [])))             # ouder bestand: leeg
 
 
 class Journal:

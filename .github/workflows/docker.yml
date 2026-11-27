@@ -66,6 +66,8 @@ jobs:
         run: |
           cp conf/live/u1.example.yaml infra/compose/u1.yaml
           cp infra/compose/.env.example infra/compose/.env
+          cp infra/compose/.env.ib.example infra/compose/.env.ib
+          cp infra/compose/.env.options.example infra/compose/.env.options
           docker compose -f infra/compose/docker-compose.yml config --quiet
 
       - name: One dry-run round on live Kraken data, as compose runs it

@@ -258,10 +258,15 @@ Vereisten: een IBKR-paper-login (account-id begint met `DU`) en IB Gateway in pa
 ### Met Docker
 
 ```bash
-cp infra/compose/.env.example infra/compose/.env     # TWS_USERID, TWS_PASSWORD, IB_ACCOUNT
+cp infra/compose/.env.ib.example infra/compose/.env.ib             # TWS_USERID, TWS_PASSWORD
+cp infra/compose/.env.options.example infra/compose/.env.options   # IB_ACCOUNT, alarmen
 docker compose -f infra/compose/docker-compose.yml up -d --build ib-gateway options-paper
 docker compose -f infra/compose/docker-compose.yml logs -f options-paper
 ```
+
+Least privilege: de gateway leest alleen `.env.ib` (de login), de dienst alleen `.env.options`
+(account en alarmkanalen); de Kraken-sleutels staan in `.env` en komen niet in de options-diensten.
+Pin het `ib-gateway`-image op een digest (zie de TODO in `docker-compose.yml`).
 
 De gateway-container staat vast op `TRADING_MODE: paper`. De dienst verbindt via poort 4004.
 
@@ -308,8 +313,25 @@ Een HALT door de dienst zelf (drawdown, drie fouten op rij, `SafetyBreach`) staa
 | `options_short_past_expiry` | Een short optie staat na expiratie nog in de staat | Controleer bij IBKR; dit hoort nooit te gebeuren |
 | `options_task_*` | Een taak faalde | Lees het journal (`task_error`); drie op rij is HALT |
 
-Assignments bij IBKR komen binnen als positiewijziging. De reconcile ziet het verschil,
-blokkeert entries op die onderliggende en alarmeert.
+Assignment, uitoefening en expiratie komen bij IBKR binnen als positiewijziging. De adapter
+leidt er uit het verschil (positie min eigen fills, twee keer achter elkaar gezien) een
+`ASSIGNMENT`-, `EXERCISE`- of `EXPIRY`-executie van af, die de engine boekt; een expiratie terwijl
+de dienst uit stond ziet alleen de reconcile (breuk: entries geblokkeerd op die onderliggende,
+alarm).
+
+### Uitval, herstart en alarmen
+
+- Valt de verbinding met de gateway weg (of herstart hij), dan tickt de dienst niet (de heartbeat
+  blijft stilstaan en de healthcheck wordt rood), verbindt hij opnieuw met backoff (5 s tot 60 s) en
+  reconcilieert daarna opnieuw. Na `IB_RECONNECT_TIMEOUT_SECONDS` (standaard 900) zonder verbinding
+  volgt HALT (`options_ib_disconnected`).
+- Na een crash neemt de dienst bij de start de open orders over op `orderRef`; orders die bij de
+  broker niet meer open staan, gaan in de staat op CANCELLED (`order_orphaned`). De staat wordt na
+  elke order-gebeurtenis bewaard, dus een herstart stuurt dezelfde order niet nog eens.
+- Een gedeeltelijk gevulde combo boekt het gevulde deel; het restant blijft open tot de walk of
+  het einde van de dag het annuleert.
+- Alarmen gaan naar `ALERT_WEBHOOK_URL` en/of Telegram (zie `.env.options.example`) en altijd naar
+  het log; `HEARTBEAT_URL` is de dead man's switch (een GET per minuut zolang de verbinding leeft).
 
 ## Configuratie
 
@@ -323,7 +345,15 @@ blokkeert entries op die onderliggende en alarmeert.
 
 ## Live
 
-Live kan alleen als alle vijf voorwaarden tegelijk waar zijn (`src/tradebot/options/live.py`):
-mode `live`, een bevestigingszin in de omgeving, een `LIVE_APPROVED`-bestand met de
-account-hash, een echt (geen `DU`) account en een geslaagde paper-killgate. Er is geen CLI-
-opdracht voor live, geen config met `mode: live`, en een test bewaakt dat het zo blijft.
+Live bestaat niet in het uitvoerpad. Wat er echt in zit, zijn twee hekken:
+
+1. `require_paper` (`src/tradebot/options/live.py`): `IBKRBroker.connect` en elke `submit` weigeren een
+   account dat niet met `DU` begint (`LiveRefused`).
+2. `TRADING_MODE: paper` in `infra/compose/docker-compose.yml` en geen CLI-opdracht of config met
+   `mode: live` (een test bewaakt dat).
+
+`live.gather` en `live.live_decision` (de vijf voorwaarden: mode `live`, bevestigingszin,
+`LIVE_APPROVED` met de account-hash, echt account, geslaagde paper-killgate) zijn een
+ontwerp-schakelaar die nergens wordt aangeroepen: ze zijn getest maar niet aangesloten. Een
+toekomstige live-stap moet ze eerst in het pad zetten; tot dan beschermen alleen bovenstaande twee
+hekken. Ga er dus niet van uit dat vijf hekken actief zijn.
