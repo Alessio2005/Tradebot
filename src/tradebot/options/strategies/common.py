@@ -175,10 +175,10 @@ def sigma_unit_1d(market: MarketState, underlying: str, legs: Sequence[LegIntent
     ½·Γ·(ΔS)² bij een normale ΔS: Var = 2·(½·Γ·(S·σ_1d)²)².
     """
     chain, vol = market.chains.get(underlying), market.vol.get(underlying)
-    if chain is None or vol is None or vol.rv is None:
+    if not legs or chain is None or vol is None or vol.rv is None:
         return None
     delta, gamma, vega = (position_greek(chain, legs, g) for g in ("delta", "gamma", "vega"))
-    if not legs or delta is None or gamma is None or vega is None:
+    if delta is None or gamma is None or vega is None:
         return None
     s, sig = chain.spot, sigma_1d(vol.rv)
     return math.sqrt((delta * s * sig) ** 2 + 2.0 * (0.5 * gamma * s * s * sig * sig) ** 2
@@ -219,9 +219,18 @@ def size(max_loss_per_unit: float, market: MarketState, book: Book, underlying: 
         if sigma is None:
             return 0
         if sigma > 0:
-            units = min(units, math.floor(rules.daily_risk_frac * market.capital_usd / sigma))
+            units = min(units, _floor(rules.daily_risk_frac * market.capital_usd / sigma))
     factor = drawdown_factor(market, rules.drawdown_brake)
-    return units if factor == 1.0 else max(math.floor(units * factor), 0)
+    return units if factor == 1.0 else max(_floor(units * factor), 0)
+
+
+_FLOOR_EPS = 1e-9
+
+
+def _floor(x: float) -> int:
+    """Naar beneden afronden, maar een getal dat door float-ruis net onder een geheel getal
+    valt (7,9999999999 uit 10 × 0,7999999999) telt als dat gehele getal."""
+    return math.floor(x + _FLOOR_EPS)
 
 
 def expiry_close_due(expiry: date, now: datetime, market: MarketState, rules: Rules) -> bool:

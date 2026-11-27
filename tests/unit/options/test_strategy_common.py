@@ -211,6 +211,12 @@ def test_the_drawdown_brake_scales_the_units_down():
     assert size(100.0, m, Book(), "TST", on, ONE_SHORT) == 2
 
 
+def test_the_drawdown_brake_does_not_lose_a_unit_to_float_noise():
+    m = _risk_market(equity_usd=93_000.0, equity_peak_usd=100_000.0)
+    assert drawdown_factor(m, (0.05, 0.10)) < 0.8                  # 0,7999999999999999
+    assert size(50.0, m, Book(), "TST", RULES, ()) == 8            # 10 × 0,8, niet 7
+
+
 def test_sizing_config_for_e1():
     s = SizingConfig()
     assert s.daily_risk_frac is None and s.vol_of_vol_daily_points == 1.0
