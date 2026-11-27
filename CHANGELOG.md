@@ -838,3 +838,22 @@ oordeel of ledger-entry veranderd; de backtest van v6–v8 is bit-identiek.
 - CPCV + purge/embargo, triple-barrier/TrendScan-labeling, HRP/RP-portfolio,
   TCA-laag, OMS + audit-log (R-8), circuit-breakers (R-7), paper-engine,
   MRM-rapportage, lookahead-testsuite, determinisme-suite (R-5).
+
+### Reviewfixes risicopoort, monitor en PDT (2026-11-27)
+
+- N3: de aandelen-sluitorder (`review_stock`, `closing`) is begrensd op wat de broker echt heeft
+  (`Book.shares`: tegengesteld en niet groter, tenzij de broker precies de aandelen-legs heeft),
+  weigert op een symbool met een reconciliatieverschil, en heeft een verplichte prijsband (zonder
+  keten een weigering). `_share_breaks` laat de modulo-100-marge alleen nog gelden op wheel-,
+  cash-secured-put- en covered-call-symbolen; elders is elk verschil een recon-break. Een
+  crash-herstart die opnieuw +100 SPY zou kopen wordt zo geweigerd en gemeld.
+- N9: `max_order_usd` geldt alleen voor OPEN, ADJUST en ROLL; een sluiting geeft geen HALT meer.
+- N10: ADJUST/ROLL meten het boek met de lopende entries erbij, en een nieuwe entry telt lopende
+  ADJUST/ROLL-orders mee (`Book.pending_changes`, `PendingChange`).
+- Oud 5: ADJUST en ROLL toetsen `blocked_underlyings`, dagverlies en PDT (positie van vandaag);
+  het maximale verlies na een ADJUST komt uit de nieuwe legs (`risk.limits.expiry_max_loss`).
+- N18: `degross_plan` trekt de aandelen-legs van de te sluiten posities af bij het meten van de rest.
+- N23: de PDT-guard telt daytrades plus entries van vandaag (gevuld en lopend) tegen de grens.
+- N30: een CLOSE moet de legs van de positie precies naar nul brengen (anders `SafetyBreach`);
+  `_after` houdt de aandelen-legs; een aandelen-exit wordt pas opnieuw gestuurd nadat de broker de
+  geannuleerde order niet meer open heeft (`order_cancel_pending`).

@@ -26,6 +26,7 @@ from tradebot.options.positions import (
     Book,
     Leg,
     LegIntent,
+    PendingChange,
     PositionStatus,
     Trend,
     Urgency,
@@ -366,3 +367,121 @@ def test_a_change_leaves_other_positions_alone(condor, spread):
     after = GATE._after(leg, Book((condor, other, gone)))
     assert [x.position_id for x in after] == ["ic", "other"]
     assert after[1] is other and len(after[0].legs) == 2
+
+
+# --- reviewfixes: sluiten, lopende wijzigingen en toestandspoorten ---------------------------
+
+def test_a_close_above_max_order_usd_is_not_a_breach(spread):
+    # N9: een sluiting boven de notionele grens geeft geen HALT; ADJUST en ROLL wel.
+    big = open_position(dataclasses.replace(spread, quantity=1000))
+    m = market()
+    p = _close(big, m)
+    assert p.notional_usd > CFG.execution.max_order_usd
+    assert GATE.review(p, Book((big,)), m, OK).verdict is Verdict.APPROVE
+    with pytest.raises(SafetyBreach, match="max_order_usd"):
+        GATE.review(dataclasses.replace(p, kind=OrderKind.ADJUST), Book((big,)), m, OK)
+
+
+def test_a_close_must_flatten_the_position_exactly(spread):
+    # N30a: geen nieuwe legs, en elke leg × aantal is −positie.
+    pos = open_position(spread)
+    m = market()
+    good = _close(pos, m)
+    book = Book((pos,))
+    extra = LegIntent(OptionContract("TST", pos.option_legs[0].contract.expiry, 111.0, Right.CALL),
+                      -1)
+    for bad in (dataclasses.replace(good, legs=good.legs + (extra,)),      # een nieuwe leg
+                dataclasses.replace(good, legs=good.legs[:1]),             # maar één leg dicht
+                dataclasses.replace(good, quantity=good.quantity + 1)):    # te groot aantal
+        with pytest.raises(SafetyBreach, match="naar nul"):
+            GATE.review(bad, book, m, OK)
+    with pytest.raises(SafetyBreach, match="onbekende"):
+        GATE.review(good, Book(), m, OK)
+
+
+def _calls(condor):
+    return tuple(leg for leg in condor.intents() if leg.contract.right is Right.CALL)
+
+
+def _adjust(condor, m):
+    calls = _calls(condor)
+    new = (LegIntent(OptionContract("TST", calls[0].contract.expiry, 104.0, Right.CALL), -1),
+           LegIntent(OptionContract("TST", calls[0].contract.expiry, 109.0, Right.CALL), 1))
+    return _close(condor, m, ActionKind.ADJUST, calls, new)
+
+
+def _tight(frac):
+    cfg = CFG.model_copy(update={"risk": CFG.risk.model_copy(
+        update={"max_loss_per_underlying_frac": frac})})
+    return RiskGate(cfg, SETTINGS.engines, Method.BAW)
+
+
+def test_adjust_sees_pending_entries(condor, spread):
+    # N10: met lopende entries erbij past een bijsturing niet meer.
+    m = market()
+    adj = _adjust(condor, m)
+    room = (condor.max_loss + 0.5 * spread.max_loss) / CFG.account.capital_usd
+    g = _tight(room)
+    assert g.review(adj, Book((condor,)), m, OK).verdict is Verdict.APPROVE
+    pending = Book((condor,), pending_entries=(open_position(spread, position_id="n1"),))
+    d = g.review(adj, pending, m, OK)
+    assert d.verdict is Verdict.REJECT and "max_loss_per_underlying" in d.reason
+
+
+def test_an_entry_sees_pending_adjusts_and_rolls(condor, spread):
+    # N10 / oud 1: een lopende ADJUST/ROLL telt met zijn nieuwe max_loss mee voor een OPEN.
+    m = market()
+    g = _tight((condor.max_loss + 1.5 * spread.max_loss) / CFG.account.capital_usd)
+    one = proposal(spread, quantity=1, max_loss=spread.max_loss / spread.quantity)
+    assert g.review(one, Book((condor,)), m, OK).verdict is Verdict.APPROVE
+    change = PendingChange("ic", _adjust(condor, m).legs, condor.units, condor.max_loss * 5)
+    d = g.review(one, Book((condor,), pending_changes=(change,)), m, OK)
+    assert d.verdict is Verdict.REJECT and "max_loss_per_underlying" in d.reason
+    # De eigen lopende wijziging van de positie telt niet dubbel bij een nieuwe wijziging.
+    own = Book((condor,), pending_changes=(change,))
+    assert g.review(_adjust(condor, m), own, m, OK).verdict is Verdict.APPROVE
+
+
+@pytest.mark.parametrize("kind", [ActionKind.ADJUST, ActionKind.ROLL])
+@pytest.mark.parametrize(("state", "why"), [
+    (GateState(equity=25_000.0, blocked_underlyings=frozenset({"TST"})), "reconcile:diff"),
+    (GateState(equity=25_000.0, daily_loss_frac=0.02), "daily_loss:entries"),
+    (GateState(equity=20_000.0, day_trades=(date(2026, 11, 20), date(2026, 11, 23),
+                                            date(2026, 11, 24))), "pdt"),
+])
+def test_adjust_and_roll_obey_the_state_gates(condor, kind, state, why):
+    # Oud 5: dezelfde toestandspoorten als een entry (PDT: positie van vandaag).
+    late = datetime(2026, 11, 24, 15, 30, tzinfo=NY)
+    m = market(cached_chain(now=late), now=late)
+    today = dataclasses.replace(condor, opened_at=late)
+    calls = _calls(condor)
+    new = (LegIntent(OptionContract("TST", calls[0].contract.expiry, 104.0, Right.CALL), -1),)
+    p = _close(today, m, kind, calls[:1], new)
+    d = GATE.review(p, Book((today,)), m, state)
+    assert d.verdict is Verdict.REJECT and d.reason == why
+    if why == "pdt":       # een positie van gisteren is geen daytrade
+        old = dataclasses.replace(condor, opened_at=datetime(2026, 11, 23, 10, 0, tzinfo=NY))
+        assert GATE.review(p, Book((old,)), m, state).reason != "pdt"
+
+
+def test_after_keeps_the_share_legs(condor):
+    # N30b: de aandelen-leg van de positie valt niet weg uit het boek na een wijziging.
+    stock = Leg(None, "TST", -100, 100.0)
+    hedged = dataclasses.replace(condor, legs=condor.legs + (stock,))
+    leg = _close(hedged, market(), ActionKind.CLOSE_LEG, _calls(condor))
+    (after,) = GATE._after(leg, Book((hedged,)))
+    assert after.shares == -100 and len(after.option_legs) == 2
+
+
+def test_pdt_counts_entries_of_today_too(spread):
+    # N23: 2 daytrades plus 1 entry van vandaag (gevuld of lopend) is al de grens.
+    late = datetime(2026, 11, 24, 15, 30, tzinfo=NY)
+    m = market(cached_chain(now=late), now=late)
+    days = (date(2026, 11, 20), date(2026, 11, 23))
+    state = GateState(equity=20_000.0, day_trades=days)
+    assert GATE.review(proposal(spread), Book(), m, state).verdict is Verdict.APPROVE
+    filled = dataclasses.replace(state, new_positions_today=1)
+    assert GATE.review(proposal(spread), Book(), m, filled).reason == "pdt"
+    today = open_position(spread, opened_at=late, position_id="t1")
+    assert GATE.review(proposal(spread), Book(pending_entries=(today,)), m, state).reason \
+        == "pdt"

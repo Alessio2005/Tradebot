@@ -28,7 +28,13 @@ from tradebot.options.positions import (
 from tradebot.options.pricing.engines import Method
 from tradebot.options.rates import Carry, CashDividend
 from tradebot.options.risk.aggregate import aggregate
-from tradebot.options.risk.limits import BookMetrics, CheckResult, check, measure
+from tradebot.options.risk.limits import (
+    BookMetrics,
+    CheckResult,
+    check,
+    expiry_max_loss,
+    measure,
+)
 from tradebot.options.risk.margin import NAKED_FRAC, buying_power, position_buying_power
 from tradebot.options.risk.monitor import assess, degross_plan
 from tradebot.options.risk.pdt import day_trades_in_window, pdt_blocks_entry
@@ -189,6 +195,9 @@ def test_pdt_counts_the_last_five_trading_days():
     assert pdt_blocks_entry(days, scan, 24_999.0, CAL)
     assert not pdt_blocks_entry(days, late, 25_000.0, CAL)
     assert not pdt_blocks_entry(days[:2], late, 1.0, CAL)
+    # N23: entries van vandaag (gevuld of lopend) tellen mee als toekomstige daytrades.
+    assert pdt_blocks_entry(days[:2], late, 1.0, CAL, entries_today=1)
+    assert not pdt_blocks_entry(days[:2], late, 25_000.0, CAL, entries_today=5)
 
 
 # --- grenzen -------------------------------------------------------------------------------
@@ -248,3 +257,32 @@ def test_degross_closes_the_biggest_contributor_first(bull_put):
     assert plan == ["big"]
     gone = dataclasses.replace(m, chains={})
     assert degross_plan(Book((big,)), gone, BETA, sc, CFG.risk, Method.BAW, ENG) == ["big"]
+
+
+def test_degross_closes_the_share_legs_of_the_positions_it_closes(bull_put):
+    # N18: aandelen-legs die alleen al over de deltagrens gaan, sluiten niet het hele boek.
+    m = market()
+    sc = grid(CFG.risk.scenario_spot, CFG.risk.scenario_vol_points)
+    big = dataclasses.replace(bull_put, position_id="big",
+                              legs=tuple(dataclasses.replace(leg, qty=leg.qty * 10)
+                                         for leg in bull_put.legs) + (Leg(None, "TST", 400, 100.0),),
+                              units=bull_put.units * 10, max_loss=bull_put.max_loss * 10)
+    book = Book((bull_put, big), shares={"TST": 400})
+    assert degross_plan(book, m, BETA, sc, CFG.risk, Method.BAW, ENG) == ["big"]
+
+
+# --- het maximale verlies uit de legs --------------------------------------------------------
+
+def test_expiry_max_loss_from_the_legs():
+    def legs(*specs):
+        return tuple(Leg(OptionContract("TST", E, k, r), "TST", q, 1.0) for k, r, q in specs)
+
+    put_spread = legs((95.0, Right.PUT, -1), (90.0, Right.PUT, 1))
+    assert expiry_max_loss(put_spread, 150.0, 7.0) == pytest.approx(350.0)   # (5 − 1,5) × 100
+    condor = put_spread + legs((105.0, Right.CALL, -1), (110.0, Right.CALL, 1))
+    assert expiry_max_loss(condor, 300.0, 7.0) == pytest.approx(200.0)
+    assert expiry_max_loss(legs((95.0, Right.PUT, -1), (90.0, Right.PUT, 1)), 900.0, 7.0) == 0.0
+    assert expiry_max_loss(legs((105.0, Right.CALL, -1)), 100.0, 7.0) == math.inf
+    other = (Leg(OptionContract("TST", date(2027, 1, 15), 95.0, Right.PUT), "TST", 1, 1.0),)
+    assert expiry_max_loss(put_spread + other, 0.0, 7.0) == 7.0      # twee expiraties: default
+    assert expiry_max_loss((Leg(None, "TST", 100, 1.0),), 0.0, 7.0) == 7.0

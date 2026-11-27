@@ -81,6 +81,7 @@ from ..positions import (
     Leg,
     LegIntent,
     MarketState,
+    PendingChange,
     PositionStatus,
     StrategyPosition,
     Trend,
@@ -101,7 +102,9 @@ from ..risk.gate import (
     RiskGate,
     SafetyBreach,
     StockProposal,
+    apply_changes,
 )
+from ..risk.limits import expiry_max_loss
 from ..risk.monitor import assess, degross_plan
 from ..selection import admit, selection_rules
 from ..strategies.common import Strategy, parse_time
@@ -123,6 +126,7 @@ MAX_TASK_FAILURES = 3
 # Strategieën die de aandelen uit hun eigen assignment als losse aandelen houden (de wheel
 # en haar losse delen: CSP → covered call), niet als aandelen-leg die wordt afgebouwd.
 _OWN_SHARES = frozenset({"wheel", "covered_call", "cash_secured_put"})
+LOT_STRATEGIES = _OWN_SHARES
 Alert = Callable[[str, str, str], None]
 Task = Callable[[datetime], Awaitable[None]]
 
@@ -395,7 +399,18 @@ class Engine:
                     dict(self.state.cost_basis), self._equity, dict(self.state.wheel),
                     self._hedge_shares(), self._pending_entries(),
                     {p.position_id: (p.underlying, p.shares) for p in self.state.positions
-                     if p.status is PositionStatus.CLOSED and p.shares})
+                     if p.status is PositionStatus.CLOSED and p.shares},
+                    self._pending_changes())
+
+    def _pending_changes(self) -> tuple[PendingChange, ...]:
+        """Lopende (nog niet gevulde) ADJUST- en ROLL-orders, voor de poort (review N10)."""
+        terminal = {s.value for s in TERMINAL}
+        kinds = {OrderKind.ADJUST.value, OrderKind.ROLL.value}
+        return tuple(
+            PendingChange(o["position_id"], intents_from(o["legs"]), o["quantity"],
+                          math.inf if o["max_loss"] is None else o["max_loss"])
+            for o in self.state.orders.values()
+            if not o.get("stock") and o["kind"] in kinds and o["status"] not in terminal)
 
     def _pending_entries(self) -> tuple[StrategyPosition, ...]:
         """Lopende (nog niet gevulde) entry-orders, als positie (voor de poort en de sizing)."""
@@ -813,11 +828,20 @@ class Engine:
         await self._executions(now)
         await self._refresh_shares()
 
-    async def _cancel_stock(self, o: dict[str, Any], now: datetime, reason: str) -> None:
+    async def _cancel_stock(self, o: dict[str, Any], now: datetime, reason: str,
+                            confirm: bool = False) -> bool:
+        """Annuleer een aandelenorder. Met `confirm` alleen als de broker hem niet meer open
+        heeft (anders kan hij nog vullen naast een nieuwe order); dan geeft dit False terug."""
         await self.broker.cancel(o["client_id"])
+        if confirm and any(b.order.client_id == o["client_id"]
+                           for b in await self.broker.open_orders()):
+            self._event(now, "order_cancel_pending", client_id=o["client_id"],
+                        position_id=o["position_id"], reason=reason)
+            return False
         o["status"] = OrderStatus.CANCELLED.value
         self._event(now, "order_cancelled", client_id=o["client_id"],
                     position_id=o["position_id"], reason=reason)
+        return True
 
     async def _unwind_shares(self, now: datetime) -> None:
         """Gesloten posities met aandelen: lopende hedge annuleren, dan een order naar nul."""
@@ -833,10 +857,12 @@ class Engine:
                 await self._cancel_stock(o, now, "position_closed")
             elif o["purpose"] == Purpose.EXIT.value and (
                     now - datetime.fromisoformat(o["submitted_at"])).total_seconds() >= retry:
-                await self._cancel_stock(o, now, "replaced")   # de ronde erna opnieuw
+                # De ronde erna opnieuw, en alleen na bevestigde annulering (review N30).
+                await self._cancel_stock(o, now, "replaced", confirm=True)
         self._net_closed_shares(now)
-        for pos in (p for p in self.state.positions
-                    if p.status is PositionStatus.CLOSED and p.shares):
+        closed = [p for p in self.state.positions
+                  if p.status is PositionStatus.CLOSED and p.shares]
+        for pos in closed:
             if pos.position_id in open_stock or pos.underlying not in self.chains:
                 continue
             await self._send_stock(pos, -pos.shares, now, Purpose.EXIT)
@@ -1039,6 +1065,12 @@ class Engine:
         if a.kind is ActionKind.ROLL:
             new = a.new_legs[0].contract
             max_after = new.strike * MULTIPLIER * pos.units
+        elif a.kind is ActionKind.ADJUST:
+            # Het maximale verlies na de bijsturing uit de nieuwe legs (oud 5), niet het oude.
+            (after,) = apply_changes((pos,), (PendingChange(pos.position_id, closing, pos.units,
+                                                            pos.max_loss),))
+            max_after = expiry_max_loss(after.option_legs, pos.entry_net - m * MULTIPLIER * pos.units,
+                                        default=pos.max_loss)
         p = OrderProposal.for_action(a, pos, -m, max_after)
         purpose = {ActionKind.CLOSE: Purpose.EXIT, ActionKind.CLOSE_LEG: Purpose.EXIT,
                    ActionKind.ADJUST: Purpose.ADJUST, ActionKind.ROLL: Purpose.ROLL}[a.kind]
@@ -1096,13 +1128,22 @@ class Engine:
             self._event(now, "recon_ok", mode=self.mode.value)
 
     def _share_breaks(self, broker: Mapping[str, int]) -> list[str]:
-        """Symbolen waarop gehedged is en waar de broker iets anders heeft dan de aandelen-legs
-        plus hele lots van 100 (assignment of uitoefening)."""
+        """Symbolen waarop gehedged is en waar de broker iets anders heeft dan de aandelen-legs.
+
+        Alleen op symbolen waar losse aandelen verwacht worden (wheel, cash-secured put, covered
+        call: assignment en uitoefening geven hele lots van 100) telt een veelvoud van 100 als
+        goed. Elders is elk verschil een break (review 2026-11-27, N3): een crash-herstart kan
+        anders precies een lot te veel of te weinig geven zonder alarm."""
         hedge = self._hedge_shares()
         names = set(hedge) | {o["underlying"] for o in self.state.orders.values()
                               if o.get("stock")}
-        return [f"{n} shares" for n in sorted(names)
-                if (broker.get(n, 0) - hedge.get(n, 0)) % MULTIPLIER]
+        lots = set(self.state.wheel) | {p.underlying for p in self.state.positions
+                                        if p.strategy in LOT_STRATEGIES}
+        def off(n: str) -> bool:
+            d = broker.get(n, 0) - hedge.get(n, 0)
+            return d % MULTIPLIER != 0 if n in lots else d != 0
+
+        return [f"{n} shares" for n in sorted(names) if off(n)]
 
     def _book_dividends(self, paid: list[tuple[str, int, float]],
                         divs: Mapping[str, Any], now: datetime) -> None:
