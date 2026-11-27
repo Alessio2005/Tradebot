@@ -110,6 +110,18 @@ def test_greeks_match_finite_differences(method, right):
     assert (g.rho > 0) == (right is Right.CALL)
 
 
+@pytest.mark.parametrize("rate", [0.0, 0.00004])
+@pytest.mark.parametrize("right", list(Right))
+def test_rho_below_the_bump_is_one_sided_from_zero(rate, right):
+    # BAW weigert een call bij een negatieve rente: de bump omlaag stopt op 0.
+    inp = inputs(right=right, carry=Carry(rate))
+    g = greeks(inp, 0.25, Method.BAW)
+    up = price(inp.with_rate(rate + 0.0001), 0.25, Method.BAW)
+    zero = price(inp.with_rate(0.0), 0.25, Method.BAW)
+    assert g.rho == pytest.approx((up - zero) / (rate + 0.0001) * 0.01, rel=1e-12)
+    assert (g.rho > 0) == (right is Right.CALL)
+
+
 def test_european_greeks_have_the_documented_units():
     # Analytische vega van BS per volpunt: S·φ(d1)·sqrt(T)·0,01; theta per kalenderdag.
     inp = inputs(right=Right.CALL)

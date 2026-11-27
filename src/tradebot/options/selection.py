@@ -4,6 +4,10 @@ Twee vaste regels tussen `Strategy.scan` en de risicopoort, alleen voor NIEUWE p
 
 1. **Regime.** Een strategie mag alleen openen in de regimes waarvoor ze in
    `vol_regime.allowed` staat (`vol_regime`-module). UNKNOWN en STRESS staan standaard leeg.
+   Een kandidaat met undefined risk (`max_loss` oneindig) komt in STRESS nooit binnen, ook niet
+   met `vol_regime.enabled: false` of met de strategie in `allowed.stress`
+   (`regime:stress:undefined_risk`): de engine zou hem anders meteen weer sluiten
+   (`regime_stress`). Beide regels lezen hetzelfde effectieve regime.
 2. **Theta harvesting.** Een kandidaat die premie ontvangt (`net_credit > 0`) moet aan twee
    voorwaarden voldoen:
 
@@ -31,6 +35,7 @@ import dataclasses
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date
 
 from ..schemas.options import OptionsConfig
 from .chain.builder import Chain
@@ -57,7 +62,10 @@ def selection_rules(cfg: OptionsConfig) -> SelectionRules:
 
 
 def theta_cover(theta_day: float, gamma: float, spot: float, rv: float) -> float:
-    """(θ_dag × 365) / (½ · |Γ| · S² · σ²); `inf` zonder short gamma."""
+    """(θ_dag × 365) / (½ · |Γ| · S² · σ²); `inf` zonder short gamma.
+
+    σ is de verwachte RV voor de looptijd: `RVForecast.at_horizon` van de vroegste expiratie.
+    """
     if gamma >= 0:
         return math.inf
     return theta_day * 365.0 / (0.5 * -gamma * spot * spot * rv * rv)
@@ -71,16 +79,18 @@ class Admission:
 
 
 def admit(c: Candidate, chain: Chain, vol: VolState | None, regime: VolRegime,
-          rules: SelectionRules) -> Admission:
+          rules: SelectionRules, today: date) -> Admission:
     """Laat `c` toe of niet, met de spoorregels erbij."""
     trace: list[str] = []
+    if math.isinf(c.max_loss) and regime is VolRegime.STRESS:
+        return Admission(_traced(c, ["regime:stress:undefined_risk"]), False, "regime")
     if rules.regime_enabled:
         ok = c.strategy in rules.allowed.get(regime, frozenset())
         trace.append(f"regime:{regime.value}:{'ok' if ok else 'no'}")
         if not ok:
             return Admission(_traced(c, trace), False, "regime")
     if rules.theta_enabled and c.net_credit > 0:
-        ok, note = _theta_ok(c, chain, vol, rules)
+        ok, note = _theta_ok(c, chain, vol, rules, today)
         trace.append(note)
         if not ok:
             return Admission(_traced(c, trace), False, "theta")
@@ -88,14 +98,15 @@ def admit(c: Candidate, chain: Chain, vol: VolState | None, regime: VolRegime,
 
 
 def _theta_ok(c: Candidate, chain: Chain, vol: VolState | None,
-              rules: SelectionRules) -> tuple[bool, str]:
+              rules: SelectionRules, today: date) -> tuple[bool, str]:
     theta = position_greek(chain, c.legs, "theta")
     gamma = position_greek(chain, c.legs, "gamma")
     if theta is None or gamma is None or vol is None or vol.rv is None:
         return False, "theta:no_data"
     if theta <= 0:
         return False, f"theta:negative:{theta:.2f}"
-    cover = theta_cover(theta, gamma, chain.spot, vol.rv.forecast)
+    days = (min(leg.contract.expiry for leg in c.legs) - today).days
+    cover = theta_cover(theta, gamma, chain.spot, vol.rv.at_horizon(days))
     max_loss_unit = c.max_loss / c.quantity
     eff = theta / max_loss_unit
     ok = cover >= rules.min_theta_gamma_cover and eff >= rules.min_theta_per_max_loss

@@ -4,6 +4,161 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: punten uit de eindreview (2026-11-27)
+- Risicopoort, aandelen (`review_stock`): een sluitorder moet tegengesteld zijn aan de eigen
+  aandelen-leg van de gesloten positie (`Book.closing_shares`, niet het totaal van het symbool)
+  en mag er niet groter dan zijn, anders `SafetyBreach`. Nieuwe check `stock_notional_usd`: |aandelen-legs na de order| × spot ≤
+  `hedging.max_notional_frac` × kapitaal (het plafond van de hedger, nu ook in de poort), tenzij
+  de order de aandelen verkleint. In HALT en UNWIND alleen afbouwen: minder aandelen op die
+  onderliggende én minder delta; een hedge vanaf nul gaat in HALT niet meer door (het ontwerp
+  zegt "bij een HALT alleen afbouwen"). De hedger stuurt zulke orders in HALT/UNWIND niet eens
+  naar de poort, dus geen afgewezen `hedge_order` per ronde.
+- `replay` en `sweep` weigeren een niet-lege `--out` (exit-code 2); `--overwrite` wist dan
+  alleen de bekende bestanden van eerdere replay- of sweep-uitvoer (`state.json` met
+  `mode: replay`, niets onbekends erin), nooit een hele boom, en weigert een map met `HALT`,
+  `UNWIND` of `halt/` of met de markt erin. Een tweede run in dezelfde map verdubbelde de
+  tellingen en de `stats`.
+- Settlement per teken: rekent de broker precies de som van de legs af, dan rekent elke positie
+  haar eigen leg af naar haar eigen teken (long `exercise`, short `assignment`); anders alleen
+  posities met het teken van de afrekening. Tegengestelde posities op één contract die netto nul
+  zijn (de paper-broker ziet ze niet) rekenen na de sluiting van de expiratiedag allebei af
+  (`_settle_netted`). Het alarm `options_assignment` gaat ook af bij een uitoefening van een
+  gehedgede strategie; het runbook zegt dat die aandelen niet automatisch afgebouwd worden.
+- De undefined-risk stresscheck telt ook lopende, nog niet gevulde undefined-risk entries mee
+  (`Book.pending_undefined`).
+- Gamma-regel: zonder keten of met een leg zonder Greeks meldt hij één keer per positie
+  `gamma_unknown` (journal) en `options_gamma_unknown` (alarm) in plaats van stil over te slaan.
+- Calendar: forward-vol geeft `fwd:no_gap` als de verre expiratie niet na de nabije ligt (geen
+  deling door nul meer); het schema eist dat `long_dte` helemaal na `short_dte` ligt.
+- Schema: `short_straddle_strangle.max_per_underlying` hooguit 1 (meer had geen effect);
+  `pricing.risk_free_rate` niet negatief (BAW weigert een call bij een negatieve rente).
+- Rho gaat nooit onder een rente van nul: bij r < bump eenzijdig vanaf 0, in `greeks` en in de
+  kernel gelijk. `greeks(..., BAW)` crashte eerder voor elke call bij r = 0.
+- `stats.strategies.<naam>` krijgt `max_drawdown_usd`: de grootste daling van de cumulatieve
+  gesloten P&L (in de volgorde van sluiten, vanaf 0); `largest_loss` blijft.
+- Standaardreplay: journal byte-gelijk aan dat van `d141c0c` (3 posities, 25.303,60 USD).
+  `summary.json` verschilt alleen door de nieuwe sleutel `max_drawdown_usd` (0,0 voor beide
+  strategieën).
+
+## Options: pro-strategieën, afronding en documentatie (2026-11-27)
+- Eindstand van de branch op de standaard synthetische markt (4 cores): 3 posities, eind-equity
+  25.303,60 USD (ongewijzigd), replay in 41 s tegen 171 s voor de code van vóór de branch,
+  op dezelfde machine en hetzelfde moment gemeten (4,2×; het doel was 5×). De code van na A4 duurt
+  daar ook 41 s: de latere fasen maken de replay niet trager. `stats`: totaalrendement 1,21 %, max drawdown 0,33 %, Sharpe
+  4,31, Sortino 17,05; credit_spread 2 gesloten (+116,40), long_straddle_strangle 1 (+187,20).
+- Alle nieuwe schakelaars staan uit of op een waarde die de standaardreplay niet raakt. Het
+  runbook beschrijft ze per stuk, plus "wat voor een particulier niet haalbaar is". Short
+  strangles blijven uit (`risk.allow_undefined_risk: false`); Alessio beslist.
+- Het ontwerp (`docs/research/2026-11-26-options-pro-strategies-design.md`, sectie 5) noemt de
+  afwijkingen van de bouw: versnelling 4,4× in plaats van ≥5×, vier `risk_decision`-waarden die in
+  het vijfde cijfer verschillen door de FD-startwaarde, `limit_anchor` standaard `mid`,
+  gamma-close standaard uit, drawdown-rem aan maar niet actief, en settlement dat posities in het
+  journal sluit.
+
+## Options: backteststatistiek en sweep (2026-11-27)
+- `summary.json` en `ReplayResult` krijgen `stats` (`engine/report.py`): per strategie aantal
+  gesloten posities, win rate, gemiddelde en totale P&L, grootste verlies (uit de fills en
+  `position_closed` van het journal); voor het boek totaalrendement, max drawdown, Sharpe en
+  Sortino op dagrendementen (√252, risicovrij 0). Randgevallen (geen gesloten posities, één
+  equity-punt, stdev of neerwaartse afwijking 0) geven lege lijsten of `null`, nooit NaN.
+- Nieuw: `python -I -m tradebot.options sweep --markets DIR... --out DIR [--workers N]`: dezelfde
+  config op meerdere markten in een procespool (`forkserver`), `sweep.json` met de stats per markt.
+  Robuustheidscheck, geen parameter-grid.
+- Journal: de events `expiry`, `assignment` en `exercise` krijgen `position_id` en `settle_usd`
+  (waarde van de afrekening: 0 bij expiratie, aantal × intrinsiek × 100 bij levering, tegen de
+  slotkoers); rekent de laatste optieleg van een positie af, dan volgt ook `position_closed`
+  (`reason` = het event, `exit_net` = `settle_usd`). Posities en equity veranderen niet.
+- Een uitvoering van de broker (assignment, uitoefening, expiratie) rekent nu elke open positie met
+  dat contract af (de hoeveelheid wordt in positievolgorde verdeeld; een rest geeft een alert
+  `options_settlement_remainder` en een journal-regel `settlement_alert`), niet alleen de eerste.
+  Zonder keten geeft `options_settlement_no_chain` een alert (settle_usd = 0).
+- `positions_closed` in summary.json en sweep.json telt nu ook posities die door settlement
+  sluiten (die schrijven nu `position_closed`).
+- Alleen toegevoegde sleutels: de standaard-replay verandert niet (journal identiek, 3 posities,
+  eind-equity 25.303,60 USD).
+
+## Options: sizing op risico en drawdown-rem (2026-11-27)
+- `sizing.daily_risk_frac` (standaard `null` = uit): eenheden = min(regel van 7.3,
+  floor(daily_risk_frac × kapitaal / σ_unit)), σ_unit = √((Δ·S·σ_1d)² + 2·(½·Γ·S²·σ_1d²)² +
+  (V·volvol_1d)²) in USD per eenheid (Greeks uit de keten via `position_greek`, σ_1d uit
+  `risk.gamma.sigma_1d`, volvol_1d = `sizing.vol_of_vol_daily_points`, 1,0). Zonder Greeks of
+  RV-verwachting: 0 eenheden (`strategies/common.py`).
+- `sizing.drawdown_brake: [0.05, 0.10]` (standaard aan, `null` = uit): eenheden × een factor die
+  lineair van 1 naar 0,5 loopt tussen die drawdowns van de equity-piek (max van
+  `high_water_mark` en het startkapitaal) en daarna 0,5 blijft; naar beneden afgerond.
+  `MarketState` draagt daarvoor `equity_usd` en `equity_peak_usd`. De standaard-replay verandert
+  niet (grootste drawdown 0,33 %): journal identiek, 3 posities, eind-equity 25.303,60 USD.
+
+## Options: gamma management per positie (2026-11-27)
+- `risk.max_gamma_loss_frac_credit` (standaard `null` = uit, aanbevolen 0,5): een positie met
+  credit waarvan ½·|Γ|·(S·σ_1d)² (short gamma, σ_1d = `RVForecast.at_horizon(1)` × √(1/252)) boven
+  die fractie van de ontvangen credit komt, gaat dicht: CLOSE STOP `gamma_risk`, vóór de regels
+  van de strategie (`risk/gamma.py`, `Engine._manage`). Uit = journal ongewijzigd (3 posities,
+  eind-equity 25.303,60 USD).
+
+## Options: fair-value-limieten voor entries (2026-11-27)
+- `execution.limit_anchor: mid | fair` (standaard `mid`). Bij `fair` begint de limiet van een ENTRY
+  op de combo-fair value Σ ratio × fair_leg, met fair_leg de QuantLib-waarde (scan-engine via
+  `engine_for(Use.SCAN, ...)`) bij de vol van de gladde smile (`pricing.surface`) voor die strike en
+  expiratie, en de mid van de leg zonder bruikbaar smilepunt. Die fair wordt begrensd tot
+  [2·mid − natural, natural] en in ons voordeel op de combo-tick afgerond (`execution/orders.py`).
+- De walk van zo'n entry concedeert nooit voorbij fair + `execution.max_edge_frac` (0,5) ×
+  |natural − mid| richting natural, en nooit voorbij natural; daarna `order_cancelled` met reden
+  `max_edge`. Ligt zelfs `limit_0` al voorbij dat plafond (fair voorbij de andere kant van het
+  boek), dan gaat de entry niet uit: `entry_skipped` met reden `max_edge`. EXIT, STOP, ROLL en
+  ADJUST houden de bestaande concessie.
+- Een entry met 2 × |natural − mid| > `execution.max_spread_frac_fair` (0,25) × |fair| wordt niet
+  gestuurd: journal `entry_skipped`, reden `spread_vs_fair`.
+- Standaard (`mid`) is de synthetische replay ongewijzigd, het journal byte-gelijk (3 posities,
+  eind-equity 25.303,60 USD).
+
+## Options: aandelenorders en de delta-hedger (2026-11-26)
+- `StockOrder` (purpose `HEDGE`, of `EXIT` bij het sluiten) in de `BrokerAdapter`
+  (`submit_stock`): de paper-broker vult op de limiet als die spot ± de halve
+  `paper.stock_spread_bps` (2) raakt, commissie `paper.commission_per_share` (0,005) met minimaal
+  `paper.min_commission_per_order` (1,00); IBKR stuurt `Stock(sym, "SMART", "USD")` als LMT/DAY.
+- `options/hedging.py`: per onderliggende op `universe.share_eligible` de netto delta van de open
+  posities van `hedging.strategies`; boven `hedging.band_shares` (20) een order van −round(delta),
+  begrensd op |aandelen| × spot ≤ `hedging.max_notional_frac` (0,5) × kapitaal, elke
+  `hedging.interval_seconds` (300). De order gaat door `RiskGate.review_stock` (beta-delta; in HALT
+  alleen als de absolute delta daalt). Fills worden de aandelen-leg van de positie; een gesloten
+  positie gaat in dezelfde ronde terug naar nul aandelen. Journal: `hedge_order`, `hedge_fill`.
+- Reconciliatie: op symbolen waarop gehedged is moet het verschil tussen broker en aandelen-legs
+  hele lots van 100 zijn. Een covered call telt de hedge-aandelen niet als dekking.
+- `hedging.enabled` staat standaard uit (en `hedging.strategies` is leeg tot gamma_scalp er met taak
+  B4 bij komt): de standaard synthetische replay is ongewijzigd, het journal byte-gelijk (3 posities,
+  eind-equity 25.303,60 USD).
+
+## Options: horizon-RV, EWMA en VRP per looptijd (2026-11-26)
+- `RVForecast.at_horizon(days)`: σ²(h) = σ_L² + (σ_0² − σ_L²)·(1 − e^{−κh})/(κh), h = kalenderdagen/365,
+  σ_0 de bestaande blend, σ_L de lange RV (de middel-RV zonder lang venster), κ =
+  `vol_regime.mean_reversion_kappa` (4,0 per jaar). `VolState.vrp_at(iv, dte_days)` geeft (ratio,
+  punten) tegen σ(h).
+- `vol_regime.ewma_lambda` (0,94) en `vol_regime.ewma_weight` (standaard 0: regime ongewijzigd). Bij
+  gewicht > 0 telt de EWMA-variantie van de dagrendementen mee, met de andere gewichten herschaald.
+- Gedragswijziging: `theta_cover` (theta-harvest-poort) rekent met σ(h) voor de DTE van de vroegste
+  expiratie van de kandidaat in plaats van met de blend `rv.forecast`. `admit` kreeg daarvoor een
+  `today`-parameter.
+- Standaard synthetische replay na deze wijziging: nog steeds 3 posities en eind-equity 25.303,60 USD
+  (±31 s). De poort laat dezelfde drie kandidaten toe; alleen hun dekking verschoof (1,05 → 1,02 en
+  twee keer 1,12 → 1,14), omdat σ(h) bij de DTE van die kandidaten een paar procent van de blend
+  afwijkt en de dekkingsgrens (1,0) niet wordt overschreden.
+
+## Options: snellere replay (vectorisatie, startwaarde voor FD, procespool) (2026-11-26)
+- `pricing.vectorized` (standaard aan): BAW-contracten in één numpy-kernel die tegen QuantLib
+  is vastgepind, en de FD-solve begint met een startwaarde uit die kernel.
+- `pricing.workers` (standaard `auto`, hooguit 4) en `pricing.pool_min_contracts`: het
+  QuantLib-deel van de keten in een procespool.
+- De heartbeat wordt overschreven en ingekort in plaats van bij het openen afgekapt (dat kostte
+  in de replay ongeveer 5 s), en een smile bouwt zijn spline één keer in plaats van bij elke
+  opvraging. De uitkomst verandert daar niet door.
+- Standaard synthetische replay op 4 cores: 137 s vóór deze reeks, nu 31 s (4,4×; het doel was
+  5×). Met `vectorized: false` en `workers: 1` 131 s; met `vectorized: true` en `workers: 1` 90 s.
+  Alle runs: 3 posities, eind-equity 25.303,60 USD. Met `vectorized: false` is het journal
+  byte-gelijk aan dat van vóór deze reeks. Met de standaard verschillen vier
+  `risk_decision`-regels in de vierde decimaal van de gemeten Greeks, door de IV van de
+  FD-solve met startwaarde (binnen `iv_accuracy`).
+
 ## Options: legs van open posities blijven altijd in de keten (2026-11-26)
 Een leg van een open positie die door het liquiditeitsfilter valt (te weinig volume of open
 interest, brede spread), viel ook uit de keten waarmee de engine waardeert, sluit en (paper)

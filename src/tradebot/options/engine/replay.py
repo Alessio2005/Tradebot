@@ -21,6 +21,7 @@ from ..data.feed import ReplayFeed
 from ..data.store import Market
 from ..execution.paper import PaperBroker
 from ..strategies.common import parse_time
+from .report import ReplayStats, replay_stats
 from .service import Engine, Paths
 from .state import EngineState
 
@@ -40,6 +41,7 @@ class ReplayResult:
     open_short_legs_past_expiry: int
     halted: bool
     journal: Path
+    stats: ReplayStats
 
     def as_record(self) -> dict[str, Any]:
         return {"start_equity": self.start_equity, "end_equity": round(self.end_equity, 2),
@@ -47,7 +49,8 @@ class ReplayResult:
                 "positions_opened": self.positions_opened,
                 "positions_closed": self.positions_closed,
                 "open_short_legs_past_expiry": self.open_short_legs_past_expiry,
-                "halted": self.halted, "journal": str(self.journal)}
+                "halted": self.halted, "journal": str(self.journal),
+                "stats": self.stats.as_record()}
 
 
 def replay_config(cfg: OptionsConfig, market: Market) -> OptionsConfig:
@@ -78,7 +81,8 @@ async def run_replay(cfg: OptionsConfig, market: Market, out: Path) -> ReplayRes
     feed = ReplayFeed(market)
     p = cfg.paper
     broker = PaperBroker(cfg.account.capital_usd, p.fill_at_concession,
-                         p.commission_per_contract, PAPER_HASH)
+                         p.commission_per_contract, PAPER_HASH, p.stock_spread_bps,
+                         p.commission_per_share, p.min_commission_per_order)
     first = market.days[0]
     state = EngineState(REPLAY_MODE, PAPER_HASH,
                         datetime.combine(first, parse_time("00:00"), tzinfo=NY)
@@ -86,12 +90,15 @@ async def run_replay(cfg: OptionsConfig, market: Market, out: Path) -> ReplayRes
     state.iv_history = {k: list(v) for k, v in market.iv_history.items()}
     engine = Engine(cfg, feed, broker, Paths(out), state)
     eod_t = parse_time(cfg.schedule.end_of_day)
-    for day in market.days:
-        eod = datetime.combine(day, eod_t, tzinfo=NY)
-        for now in session_clock(engine.cal, day, cfg.execution.walk_interval_seconds, eod):
-            await engine.tick(now)
-    last = datetime.combine(market.days[-1], eod_t, tzinfo=NY)
-    await engine.stop(last)
+    try:
+        for day in market.days:
+            eod = datetime.combine(day, eod_t, tzinfo=NY)
+            for now in session_clock(engine.cal, day, cfg.execution.walk_interval_seconds, eod):
+                await engine.tick(now)
+        last = datetime.combine(market.days[-1], eod_t, tzinfo=NY)
+        await engine.stop(last)
+    finally:                              # ook bij een fout: de procespool van de keten dicht
+        engine.builder.close()
     past = sum(1 for pos in state.open_positions() for leg in pos.option_legs
                if leg.qty < 0 and leg.contract is not None and leg.contract.expiry <= market.days[-1])
     rows = engine.journal.read()
@@ -100,7 +107,8 @@ async def run_replay(cfg: OptionsConfig, market: Market, out: Path) -> ReplayRes
                        sum(1 for r in rows if r["event"] == "position_opened"),
                        sum(1 for r in rows if r["event"] == "position_closed"),
                        past, engine.halted,
-                       engine.paths.journal)
+                       engine.paths.journal,
+                       replay_stats(rows, cfg.account.capital_usd, state.equity))
     (out / "summary.json").write_text(json.dumps(res.as_record(), indent=1, sort_keys=True),
                                       encoding="utf-8")
     return res

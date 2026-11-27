@@ -20,7 +20,7 @@ from .config import StrictModel
 
 __all__ = ["DEFAULT_OPTIONS_CONFIG", "CalendarSpreadConfig", "CashSecuredPutConfig",
            "CoveredCallConfig", "CreditSpreadConfig", "DebitVerticalConfig", "ExecutionConfig",
-           "FilterConfig",
+           "FilterConfig", "HedgingConfig",
            "IVFallbackConfig", "IVMetricsConfig", "IronCondorConfig", "LongVolConfig",
            "OptionsConfig", "PricingConfig", "RegimeAllowedConfig", "RiskConfig", "ScheduleConfig",
            "ShortVolConfig", "SizingConfig", "StrategiesConfig", "ThetaHarvestConfig",
@@ -71,7 +71,16 @@ class PricingConfig(StrictModel):
     # Een smilepunt telt pas mee vanaf deze vega (USD per volpunt per aandeel), zie
     # `pricing.surface`: bij een kleinere vega is de IV van een op centen afgeronde quote ruis.
     surface_min_vega: Annotated[float, Field(ge=0.0, le=1.0)] = 0.01
-    risk_free_rate: Annotated[float, Field(ge=-0.05, le=0.25)]
+    # Niet negatief: de BAW-engine van QuantLib weigert een call bij een negatieve rente.
+    risk_free_rate: Annotated[float, Field(ge=0.0, le=0.25)]
+    # De keten in batches: BAW met de numpy-kernel (vastgepind tegen QuantLib), FD met een
+    # startwaarde. Uit = elk contract apart door QuantLib.
+    vectorized: bool = True
+    # Het QuantLib-deel van de keten (FD, binomiaal, terugval) over zoveel processen; "auto" =
+    # min(4, aantal cores), 1 = in het eigen proces. De pool pas boven `pool_min_contracts`
+    # contracten: daaronder kost het verdelen meer dan het oplevert.
+    workers: Annotated[int, Field(ge=1, le=64)] | Literal["auto"] = "auto"
+    pool_min_contracts: Annotated[int, Field(ge=0)] = 16
 
     @model_validator(mode="after")
     def _consistent(self) -> PricingConfig:
@@ -173,6 +182,8 @@ class CreditSpreadConfig(_Strategy):
     stop_loss_multiple_credit: Multiple = 2.0
     itm_stop_frac: Fraction = 0.01
     close_dte: Days = 21
+    min_vrp_ratio: Ratio | None = None       # None = uit; aanbevolen 1,10
+    short_delta_exit: Delta | None = None    # None = uit; aanbevolen 0,40
 
 
 class IronCondorConfig(_Strategy):
@@ -186,6 +197,7 @@ class IronCondorConfig(_Strategy):
     close_dte: Days = 21
     adjust_short_delta: Delta = 0.30
     max_adjustments: Annotated[int, Field(ge=0, le=3)] = 1
+    min_vrp_ratio: Ratio | None = None       # None = uit; aanbevolen 1,10
 
 
 class DebitVerticalConfig(_Strategy):
@@ -209,8 +221,20 @@ class CalendarSpreadConfig(_Strategy):
     max_ivp: IVRLevel = 50.0
     # Zonder IV-historie: IV/RV hieronder (vervangende regel, gemarkeerd).
     max_iv_rv_ratio_fallback: Ratio = 1.00
+    # Toelatingsregel: de IVP-regel, de forward-vol-regel of een van beide.
+    entry_rule: Literal["ivp", "forward_vol", "either"] = "ivp"
+    # Forward-vol-regel: σ_f ≤ dit × σ(h₂−h₁) én IV₁ ≥ min_near × σ(h₁).
+    max_fwd_vol_rv_ratio: Ratio = 1.00
+    min_near_iv_rv_ratio: Ratio = 1.05
     take_profit_multiple_debit: Multiple = 1.25
     stop_loss_frac_debit: Fraction = 0.50
+
+    @model_validator(mode="after")
+    def _gap(self) -> CalendarSpreadConfig:
+        # De forward-vol-regel deelt door T₂ − T₁: de verre expiratie moet na de nabije liggen.
+        if not self.short_dte[1] < self.long_dte[0]:
+            raise ValueError("calendar_spread: short_dte moet helemaal vóór long_dte liggen")
+        return self
 
 
 class LongVolConfig(_Strategy):
@@ -228,6 +252,18 @@ class LongVolConfig(_Strategy):
     stop_loss_frac_debit: Fraction = 0.50
     close_dte: Days = 7
     pre_earnings_close_time: ClockTime = "15:00"
+
+
+class GammaScalpConfig(_Strategy):
+    """Long ATM-straddle bij goedkope IV tegenover σ(h), gedelta-hedged met aandelen (vraagt
+    `hedging.enabled`)."""
+
+    enabled: bool = False
+    dte: tuple[Days, Days] = (30, 60)
+    max_iv_rv_ratio: Ratio = 0.90               # entry: IV van de expiratie ≤ dit × σ(h)
+    take_profit_multiple_debit: Multiple = 1.30   # waarde incl. gerealiseerde hedge-P&L
+    stop_loss_frac_debit: Fraction = 0.60
+    close_dte: Days = 14
 
 
 class CashSecuredPutConfig(_Strategy):
@@ -266,6 +302,12 @@ class ShortVolConfig(_Strategy):
     take_profit_frac: Fraction = 0.50
     stop_loss_multiple_credit: Multiple = 2.0
     close_dte: Days = 21
+    underlyings: tuple[Ticker, ...] = ("SPY", "QQQ", "IWM")   # allow-list
+    # Hooguit 1: `size` ziet bij een tweede positie `open_max_loss` = ∞ en geeft 0 eenheden,
+    # dus een grotere waarde zou niets doen (en suggereren dat het wel kan).
+    max_per_underlying: Annotated[int, Field(ge=1, le=1)] = 1
+    short_delta_exit: Delta = 0.30
+    min_vrp_ratio: Ratio | None = None       # None = uit; aanbevolen 1,10
 
 
 class StrategiesConfig(StrictModel):
@@ -276,6 +318,7 @@ class StrategiesConfig(StrictModel):
     debit_vertical: DebitVerticalConfig = DebitVerticalConfig()
     calendar_spread: CalendarSpreadConfig = CalendarSpreadConfig()
     long_straddle_strangle: LongVolConfig = LongVolConfig()
+    gamma_scalp: GammaScalpConfig = GammaScalpConfig()
     cash_secured_put: CashSecuredPutConfig = CashSecuredPutConfig()
     covered_call: CoveredCallConfig = CoveredCallConfig()
     wheel: WheelConfig = WheelConfig()
@@ -283,8 +326,8 @@ class StrategiesConfig(StrictModel):
 
 
 StrategyName = Literal["credit_spread", "iron_condor", "debit_vertical", "calendar_spread",
-                       "long_straddle_strangle", "cash_secured_put", "covered_call", "wheel",
-                       "short_straddle_strangle"]
+                       "long_straddle_strangle", "gamma_scalp", "cash_secured_put",
+                       "covered_call", "wheel", "short_straddle_strangle"]
 _SHORT_PREMIUM: tuple[StrategyName, ...] = (
     "credit_spread", "iron_condor", "cash_secured_put", "covered_call", "wheel",
     "short_straddle_strangle")
@@ -296,9 +339,9 @@ class RegimeAllowedConfig(StrictModel):
     rich: tuple[StrategyName, ...] = _SHORT_PREMIUM
     normal: tuple[StrategyName, ...] = (
         "credit_spread", "debit_vertical", "calendar_spread", "long_straddle_strangle",
-        "cash_secured_put", "covered_call", "wheel")
+        "gamma_scalp", "cash_secured_put", "covered_call", "wheel")
     cheap: tuple[StrategyName, ...] = (
-        "debit_vertical", "calendar_spread", "long_straddle_strangle")
+        "debit_vertical", "calendar_spread", "long_straddle_strangle", "gamma_scalp")
     stress: tuple[StrategyName, ...] = ()
     unknown: tuple[StrategyName, ...] = ()
 
@@ -309,6 +352,9 @@ class VolRegimeConfig(StrictModel):
     enabled: bool = True
     rv_windows: tuple[int, int, int] = (5, 20, 60)        # handelsdagen: kort, middel, lang
     rv_weights: tuple[Fraction, Fraction, Fraction] = (0.2, 0.5, 0.3)   # in variantie, vast
+    ewma_lambda: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.94     # RiskMetrics-verval per dag
+    ewma_weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.0   # aandeel EWMA in de blend; 0 = uit
+    mean_reversion_kappa: Annotated[float, Field(gt=0.0, le=50.0)] = 4.0   # per jaar
     stress_term_slope: Annotated[float, Field(ge=-0.5, le=0.0)] = -0.02
     stress_rv_expansion: Annotated[float, Field(gt=1.0, le=5.0)] = 1.5
     rich_vrp_ratio: Ratio = 1.15
@@ -339,9 +385,28 @@ class ThetaHarvestConfig(StrictModel):
     min_theta_per_max_loss: Annotated[float, Field(ge=0.0, le=0.1)] = 0.0   # θ/dag / max verlies
 
 
+class RelativeValueConfig(StrictModel):
+    """Rangorde op de VRP ten opzichte van het universum (`options.relative_value`)."""
+
+    weight: Annotated[float, Field(ge=0.0, le=1.0)] = 0.0    # 0 = uit; alleen rangorde, geen poort
+
+
 class SizingConfig(StrictModel):
     max_loss_frac_capital: Fraction = 0.02
     ranking: Literal["credit_per_max_loss"] = "credit_per_max_loss"   # vast, detailontwerp 7.3
+    # E1: hoogstens floor(daily_risk_frac × kapitaal / σ_unit) eenheden, σ_unit de verwachte
+    # 1-dags P&L-σ per eenheid uit Δ, Γ en V. None = uit.
+    daily_risk_frac: Fraction | None = None
+    vol_of_vol_daily_points: Annotated[float, Field(ge=0.0, le=20.0)] = 1.0
+    # Eenheden × een factor die lineair van 1 naar 0,5 loopt tussen deze twee drawdowns van de
+    # equity-piek (daarna 0,5). None = uit.
+    drawdown_brake: tuple[Fraction, Fraction] | None = (0.05, 0.10)
+
+    @model_validator(mode="after")
+    def _brake_ordered(self) -> SizingConfig:
+        if self.drawdown_brake is not None and not self.drawdown_brake[0] < self.drawdown_brake[1]:
+            raise ValueError("drawdown_brake: de eerste drawdown moet kleiner zijn dan de tweede")
+        return self
 
 
 class RiskConfig(StrictModel):
@@ -363,6 +428,10 @@ class RiskConfig(StrictModel):
         -10.0, 0.0, 10.0, 20.0)
     max_scenario_loss_frac: Fraction = 0.08
     allow_undefined_risk: bool = False
+    max_undefined_stress_loss_frac: Fraction = 0.06
+    # Per positie met credit: sluit (STOP `gamma_risk`) als het gamma-verlies over één dag (½·|Γ|·
+    # (S·σ_1d)²) deze fractie van de netto credit (`entry_net`, na een ADJUST de lopende) overschrijdt. None = uit; aanbevolen 0,5.
+    max_gamma_loss_frac_credit: Annotated[float, Field(gt=0.0, le=10.0)] | None = None
     pdt_guard: bool = True
 
     @model_validator(mode="after")
@@ -390,6 +459,11 @@ class ExecutionConfig(StrictModel):
     walk_interval_seconds: Annotated[float, Field(gt=0.0, le=600.0)] = 15.0
     max_concession_entry: Fraction = 0.60      # fractie van mid naar de natuurlijke prijs
     max_concession_exit: Fraction = 1.00
+    # Waar de limiet van een ENTRY begint: `mid` (ongewijzigd) of `fair` (QuantLib-waarde bij
+    # de gladde smile). Bij `fair` gelden `max_edge_frac` en `max_spread_frac_fair`.
+    limit_anchor: Literal["mid", "fair"] = "mid"
+    max_edge_frac: Fraction = 0.5              # concessie voorbij fair, in |natural − mid|
+    max_spread_frac_fair: Fraction = 0.25      # spread (2 × |natural − mid|) tegen |fair|
     ticks: TicksConfig = TicksConfig()
     max_order_usd: Annotated[float, Field(gt=0.0)] = 5000.0
 
@@ -426,6 +500,19 @@ class PaperConfig(StrictModel):
 
     fill_at_concession: Fraction = 0.40     # vult zodra de limiet zo ver richting natuurlijk is
     commission_per_contract: Annotated[float, Field(ge=0.0, le=10.0)] = 0.65
+    stock_spread_bps: Annotated[float, Field(ge=0.0, le=100.0)] = 2.0   # bid-ask van een aandeel
+    commission_per_share: Annotated[float, Field(ge=0.0, le=0.1)] = 0.005
+    min_commission_per_order: Annotated[float, Field(ge=0.0, le=10.0)] = 1.0
+
+
+class HedgingConfig(StrictModel):
+    """De delta-hedger met aandelen (`options.hedging`); alleen op `universe.share_eligible`."""
+
+    enabled: bool = False
+    strategies: tuple[StrategyName, ...] = ("gamma_scalp",)
+    band_shares: Annotated[float, Field(ge=0.0, le=10_000.0)] = 20.0
+    max_notional_frac: Fraction = 0.5          # |aandelen| × spot ≤ dit × kapitaal
+    interval_seconds: Annotated[float, Field(gt=0.0, le=86400.0)] = 300.0
 
 
 class OptionsConfig(StrictModel):
@@ -442,6 +529,8 @@ class OptionsConfig(StrictModel):
     paper: PaperConfig = PaperConfig()
     vol_regime: VolRegimeConfig = VolRegimeConfig()
     theta_harvest: ThetaHarvestConfig = ThetaHarvestConfig()
+    relative_value: RelativeValueConfig = RelativeValueConfig()
+    hedging: HedgingConfig = HedgingConfig()
 
     @model_validator(mode="after")
     def _market_underlying(self) -> OptionsConfig:

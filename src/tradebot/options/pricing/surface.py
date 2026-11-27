@@ -19,7 +19,7 @@ Dit is KALIBRATIE AAN DE HUIDIGE MARKT, geen training op historische data (detai
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from enum import StrEnum
 from itertools import pairwise
@@ -56,12 +56,17 @@ class Smile:
     discount: float
     k: tuple[float, ...]
     w: tuple[float, ...]
+    #: de spline door (k, w), één keer gebouwd: de controles vragen hem tientallen keren
+    _spline: CubicSpline = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_spline",
+                           CubicSpline(np.asarray(self.k), np.asarray(self.w), bc_type="natural"))
 
     def total_variance(self, k: float) -> float:
         """Totale variantie bij log-moneyness `k`; buiten de punten vlak (geen extrapolatie)."""
-        ks = np.asarray(self.k)
-        kk = float(np.clip(k, ks[0], ks[-1]))
-        return float(CubicSpline(ks, np.asarray(self.w), bc_type="natural")(kk))
+        kk = float(np.clip(k, self.k[0], self.k[-1]))
+        return float(self._spline(kk))
 
     def vol(self, k: float) -> float:
         return math.sqrt(max(self.total_variance(k), 0.0) / self.t)

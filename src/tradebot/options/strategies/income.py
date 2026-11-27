@@ -87,12 +87,13 @@ class CashSecuredPut:
             if not ok or put is None or put.quote.mid is None:
                 continue
             loss_unit = put.contract.strike * MULTIPLIER
-            units = min(size(loss_unit, market, book, und, self.rules),
+            legs = (LegIntent(put.contract, -1),)
+            units = min(size(loss_unit, market, book, und, self.rules, legs),
                         int(book.cash_usd // loss_unit))
             if units <= 0:
                 continue
             credit = put.quote.mid
-            out.append(Candidate(self.name, und, (LegIntent(put.contract, -1),), units, credit,
+            out.append(Candidate(self.name, und, legs, units, credit,
                                  loss_unit * units, credit * MULTIPLIER / loss_unit,
                                  (trace, f"dte:{dte(expiry, market.today)}",
                                   f"cash_reserved:{loss_unit * units:g}")))
@@ -134,7 +135,8 @@ class CoveredCall:
     def scan(self, market: MarketState, book: Book) -> list[Candidate]:
         cfg, out = self.cfg, []
         for und in sorted(set(market.chains) & self.eligible):
-            free = book.shares.get(und, 0) // MULTIPLIER - self._covered(book, und)
+            held = book.shares.get(und, 0) - book.hedge_shares.get(und, 0)   # zonder de hedge
+            free = held // MULTIPLIER - self._covered(book, und)
             if free <= 0:
                 continue
             chain = market.chains[und]
@@ -148,11 +150,12 @@ class CoveredCall:
             if call is None or call.quote.mid is None:
                 continue
             loss_unit = call.contract.strike * MULTIPLIER
-            units = min(free, size(loss_unit, market, book, und, self.rules))
+            legs = (LegIntent(call.contract, -1),)
+            units = min(free, size(loss_unit, market, book, und, self.rules, legs))
             if units <= 0:
                 continue
             credit = call.quote.mid
-            out.append(Candidate(self.name, und, (LegIntent(call.contract, -1),), units, credit,
+            out.append(Candidate(self.name, und, legs, units, credit,
                                  loss_unit * units, credit * MULTIPLIER / loss_unit,
                                  (f"basis:{basis:g}", f"dte:{dte(expiry, market.today)}")))
         return sorted(out, key=lambda c: (-c.rank_score, c.underlying))

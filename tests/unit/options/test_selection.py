@@ -6,16 +6,23 @@ import math
 
 import pytest
 
+from tests.unit.options.helpers import NOW
 from tests.unit.options.market_helpers import CFG, EXPIRIES, fake, fake_chain
 from tradebot.options.contracts import OptionContract, Right
 from tradebot.options.positions import Candidate, LegIntent
-from tradebot.options.selection import SelectionRules, admit, selection_rules, theta_cover
+from tradebot.options.selection import SelectionRules, selection_rules, theta_cover
+from tradebot.options.selection import admit as _admit
 from tradebot.options.vol_regime import RVForecast, VolRegime, VolState
 
 SHORT = fake(95.0, Right.PUT)            # theta −0,01, gamma 0,01 per aandeel
 LONG = fake(90.0, Right.PUT)
 CHAIN = fake_chain(SHORT, LONG)
 RULES = selection_rules(CFG)
+TODAY = NOW.date()
+
+
+def admit(*args):
+    return _admit(*args, TODAY)
 
 
 def vol(rv: float = 0.20) -> VolState:
@@ -102,3 +109,46 @@ def test_both_gates_can_be_switched_off():
     off = SelectionRules(regime_enabled=False, theta_enabled=False)
     a = admit(cand(), CHAIN, None, VolRegime.UNKNOWN, off)
     assert a.admitted and a.candidate.rule_trace == ("t",)
+
+
+def _cover(note: str) -> float:
+    return float(note.split("cover=")[1].split(":", maxsplit=1)[0])
+
+
+def test_the_cover_uses_the_rv_for_the_nearest_expiry_of_the_candidate():
+    # σ_0 0,40 en σ_L 0,20: σ(h) loopt met de looptijd van 0,40 naar 0,20.
+    state = VolState(VolRegime.RICH, 0.25, RVForecast(0.40, 0.30, 0.20, 0.40), 0.01, "x")
+    one = fake(95.0, Right.PUT, expiry=EXPIRIES[1])
+    sigma = state.rv.at_horizon((EXPIRIES[1] - TODAY).days)
+    assert 0.20 < sigma < 0.40
+    a = admit(cand(legs=(LegIntent(one.contract, -1),)), fake_chain(one), state,
+              VolRegime.RICH, RULES)
+    assert _cover(a.candidate.rule_trace[-1]) == pytest.approx(
+        theta_cover(0.01, -0.01, 100.0, sigma), abs=0.01)
+    # De vroegste expiratie telt: dezelfde greeks op een nabije expiratie geven een lagere dekking.
+    near = fake(95.0, Right.PUT, expiry=EXPIRIES[0])
+    b = admit(cand(legs=(LegIntent(near.contract, -1),)), fake_chain(near), state,
+              VolRegime.RICH, RULES)
+    assert _cover(b.candidate.rule_trace[-1]) < _cover(a.candidate.rule_trace[-1])
+    # Met een verre long-leg erbij blijft de nabije expiratie bepalend voor σ.
+    far = fake(90.0, Right.PUT, expiry=EXPIRIES[-1], delta=0.1)
+    c = admit(cand(legs=(LegIntent(near.contract, -1), LegIntent(far.contract, 1))),
+              fake_chain(near, far), state, VolRegime.RICH, RULES)
+    sigma_near = state.rv.at_horizon((EXPIRIES[0] - TODAY).days)
+    assert sigma_near > sigma and c.candidate.rule_trace[-1].startswith("theta:")
+
+
+@pytest.mark.parametrize("rules", [
+    RULES,
+    SelectionRules(regime_enabled=False, theta_enabled=False),
+    dataclasses.replace(RULES, allowed={**RULES.allowed, VolRegime.STRESS: frozenset(
+        {"short_straddle_strangle"})}),
+])
+def test_undefined_risk_never_opens_in_stress(rules):
+    undefined = cand("short_straddle_strangle", max_loss=math.inf)
+    a = admit(undefined, CHAIN, vol(), VolRegime.STRESS, rules)
+    assert not a.admitted and a.blocker == "regime"
+    assert a.candidate.rule_trace == ("t", "regime:stress:undefined_risk")
+    # Buiten STRESS beslissen de gewone regels; beperkt risico in STRESS ook.
+    assert admit(cand(), CHAIN, vol(), VolRegime.STRESS,
+                 SelectionRules(regime_enabled=False, theta_enabled=False)).admitted

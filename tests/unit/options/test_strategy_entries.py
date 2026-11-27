@@ -6,6 +6,7 @@ import math
 from datetime import date, timedelta
 
 import pytest
+from pydantic import ValidationError
 
 from tests.unit.options.helpers import NOW
 from tests.unit.options.market_helpers import (
@@ -15,18 +16,34 @@ from tests.unit.options.market_helpers import (
     cached_chain,
     make_chain,
     market,
+    open_position,
 )
 from tradebot.options.contracts import Right
 from tradebot.options.events import Events
 from tradebot.options.iv_metrics import IVRStatus
-from tradebot.options.positions import Book, Leg, MarketState, StrategyPosition, Trend
+from tradebot.options.positions import (
+    Book,
+    Leg,
+    MarketState,
+    PositionStatus,
+    StrategyPosition,
+    Trend,
+)
+from tradebot.options.pricing.implied_vol import IVStatus
 from tradebot.options.strategies.common import rules_from_config
 from tradebot.options.strategies.credit import CreditSpread, IronCondor
 from tradebot.options.strategies.debit import CalendarSpread, DebitVertical, LongVol
 from tradebot.options.strategies.income import CashSecuredPut, CoveredCall
 from tradebot.options.strategies.registry import build_strategies
-from tradebot.options.strategies.short_vol import ShortVol
+from tradebot.options.strategies.short_vol import (
+    STRESS_MOVE,
+    ShortVol,
+    position_stress_loss_usd,
+    stress_loss,
+)
 from tradebot.options.strategies.wheel import Wheel
+from tradebot.options.vol_regime import RVForecast, VolRegime, VolState
+from tradebot.schemas.options import CalendarSpreadConfig
 from tradebot.utils.failfast import ConfigContractError
 
 RULES = rules_from_config(CFG)
@@ -170,6 +187,82 @@ def test_calendar_fallback_can_be_off_and_iv_can_be_missing():
     assert cal().scan(dataclasses.replace(m, iv={}), Book()) == []
 
 
+# --- calendar: forward-vol ---------------------------------------------------------------
+
+def _term_chain(near_iv: float, far_iv: float):
+    near = date(2026, 12, 18)
+    return make_chain(vol=lambda k, e: near_iv if e == near else far_iv)
+
+
+def _fv_market(chain, rv: float | None, iv=HIGH_IV):
+    f = RVForecast(rv, rv, rv, rv) if rv is not None else None
+    state = {"TST": VolState(VolRegime.CHEAP, 0.25, f, 0.01, "test")}
+    return dataclasses.replace(market(chain, iv=iv), vol=state)
+
+
+FWD = _term_chain(0.30, 0.25)      # σ_f ≈ 0,228 (near 24 d, far 87 d)
+
+
+@pytest.mark.parametrize(("rv", "expected"), [
+    (0.26, True),       # σ_f ≤ σ(gap) en IV₁ 0,30 ≥ 1,05 × 0,26
+    (0.20, False),      # σ_f 0,228 > 0,20
+    (0.30, False),      # IV₁ 0,30 < 1,05 × 0,30
+    (None, False),      # geen RV-verwachting
+])
+def test_calendar_forward_vol_rule(rv, expected):
+    # HIGH_IV laat de IVP-regel falen: alleen de forward-vol-route kan toelaten
+    cands = cal(entry_rule="forward_vol").scan(_fv_market(FWD, rv), Book())
+    assert bool(cands) is expected
+    if expected:
+        assert "fwd:ok" in cands[0].rule_trace and "ivp:ivr:ok" not in cands[0].rule_trace
+    assert cal().scan(_fv_market(FWD, rv), Book()) == []        # standaard: alleen IVP
+
+
+def test_calendar_forward_vol_needs_vol_state_and_iv():
+    assert cal(entry_rule="forward_vol").scan(market(FWD), Book()) == []
+    no_put = dataclasses.replace(FWD, options=tuple(
+        o for o in FWD.options
+        if not (o.contract.expiry == date(2027, 2, 19) and o.contract.right is Right.PUT)))
+    assert cal(entry_rule="forward_vol").scan(_fv_market(no_put, 0.26), Book()) == []
+    no_iv = dataclasses.replace(FWD, options=tuple(
+        dataclasses.replace(o, iv_mid=dataclasses.replace(o.iv_mid, status=IVStatus.NO_QUOTE))
+        if o.contract.expiry == date(2026, 12, 18) else o for o in FWD.options))
+    strat = cal(entry_rule="forward_vol")
+    assert strat._fwd_trace(_fv_market(no_iv, 0.26), no_iv, "TST", date(2026, 12, 18),
+                            date(2027, 2, 19)) == "fwd:no_iv"
+    assert strat.scan(_fv_market(no_iv, 0.26), Book()) == []
+
+
+def test_calendar_forward_vol_negative_forward_variance_is_refused():
+    inverted = _term_chain(0.50, 0.20)          # σ₂²T₂ < σ₁²T₁
+    strat = cal(entry_rule="forward_vol")
+    m = _fv_market(inverted, 0.60)
+    assert strat._fwd_trace(m, inverted, "TST", date(2026, 12, 18),
+                            date(2027, 2, 19)) == "fwd:neg_var"
+    assert strat.scan(m, Book()) == []
+
+
+def test_calendar_forward_vol_without_a_gap_between_the_expiries():
+    strat = cal(entry_rule="forward_vol")
+    m = _fv_market(FWD, 0.26)
+    near = date(2026, 12, 18)
+    assert strat._fwd_trace(m, FWD, "TST", near, near) == "fwd:no_gap"        # geen deling door 0
+    assert strat._fwd_trace(m, FWD, "TST", date(2027, 2, 19), near) == "fwd:no_gap"
+    with pytest.raises(ValidationError, match="helemaal vóór long_dte"):
+        CalendarSpreadConfig(long_dte=(30, 90))                 # short_dte (20, 35) overlapt
+
+
+def test_calendar_either_rule_traces_which_route_holds():
+    either = cal(entry_rule="either")
+    (fwd_only,) = either.scan(_fv_market(FWD, 0.26), Book())                 # IVP faalt
+    assert "fwd:ok" in fwd_only.rule_trace and "ivp:ivr:ok" not in fwd_only.rule_trace
+    (ivp_only,) = either.scan(_fv_market(FWD, None, iv=LOW_IV), Book())      # geen RV
+    assert "ivp:ivr:ok" in ivp_only.rule_trace and "fwd:ok" not in ivp_only.rule_trace
+    (both,) = either.scan(_fv_market(FWD, 0.26, iv=LOW_IV), Book())
+    assert {"ivp:ivr:ok", "fwd:ok"} <= set(both.rule_trace)
+    assert either.scan(_fv_market(FWD, 0.20), Book()) == []                  # geen van beide
+
+
 def test_calendar_skips():
     ch = cached_chain()
     no_far = dataclasses.replace(ch, options=tuple(
@@ -294,7 +387,8 @@ def test_wheel_scans_by_phase():
 # --- short straddle / strangle en de registry ------------------------------------------------
 
 def sv(**kw):
-    return ShortVol(S.short_straddle_strangle.model_copy(update=kw), RULES)
+    return ShortVol(S.short_straddle_strangle.model_copy(update={"underlyings": ("TST",), **kw}),
+                    RULES)
 
 
 def test_short_vol_has_undefined_risk_and_a_stress_size():
@@ -306,6 +400,61 @@ def test_short_vol_has_undefined_risk_and_a_stress_size():
     assert sv().scan(market(capital=1_000.0), Book()) == []
     assert sv(iv_condition="low").scan(market(), Book()) == []
     assert sv(dte=(300, 400)).scan(market(), Book()) == []
+
+
+def test_short_vol_stress_loss_is_the_move_minus_the_credit():
+    (c,) = sv().scan(market(capital=RICH), Book())
+    put_k, call_k = (leg.contract.strike for leg in c.legs)
+    want = max(put_k - 100.0 * (1 - STRESS_MOVE), 100.0 * (1 + STRESS_MOVE) - call_k) - c.net_credit
+    assert stress_loss(put_k, call_k, 100.0, c.net_credit) == pytest.approx(want)
+    assert f"stress_loss_unit:{want * 100:.2f}" in c.rule_trace
+    pos = open_position(c)
+    assert position_stress_loss_usd(pos, 100.0) == pytest.approx(want * 100 * c.quantity)
+    # Bij een andere spot telt de nieuwe spot, met het credit van de entry.
+    assert position_stress_loss_usd(pos, 110.0) == pytest.approx(
+        (max(put_k - 88.0, 132.0 - call_k) - c.net_credit) * 100 * c.quantity)
+
+
+def test_position_stress_loss_uses_the_legs_that_are_present():
+    (c,) = sv().scan(market(capital=RICH), Book())
+    pos = open_position(c)
+    put, call = pos.legs
+    credit, n = c.net_credit, c.quantity
+    # Na een vroege assignment van de put: alleen de call en de aandelen (+100 per contract).
+    assigned = dataclasses.replace(pos, legs=(call, Leg(None, "TST", 100 * n, put.contract.strike)))
+    want = (max(120.0 - call.contract.strike - credit, 0.0) * 100 * n + 100 * n * 100.0 * 0.20)
+    assert position_stress_loss_usd(assigned, 100.0) == pytest.approx(want)
+    only_put = dataclasses.replace(pos, legs=(put,))
+    assert position_stress_loss_usd(only_put, 100.0) == pytest.approx(
+        max(put.contract.strike - 80.0 - credit, 0.0) * 100 * n)
+    short_shares = dataclasses.replace(pos, legs=(Leg(None, "TST", -50, 100.0),))
+    assert position_stress_loss_usd(short_shares, 100.0) == pytest.approx(50 * 100.0 * 0.20)
+    # Geen legs: 0; een credit groter dan de beweging: niet onder 0.
+    assert position_stress_loss_usd(dataclasses.replace(pos, legs=()), 100.0) == 0.0
+    rich = dataclasses.replace(pos, entry_net=1e9)
+    assert position_stress_loss_usd(rich, 100.0) == 0.0
+
+
+def test_short_vol_only_opens_on_the_allow_list():
+    assert S.short_straddle_strangle.underlyings == ("SPY", "QQQ", "IWM")
+    assert ShortVol(S.short_straddle_strangle, RULES).scan(market(capital=RICH), Book()) == []
+    assert sv(underlyings=("SPY", "TST")).scan(market(capital=RICH), Book()) != []
+
+
+def test_short_vol_opens_at_most_max_per_underlying():
+    (c,) = sv().scan(market(capital=RICH), Book())
+    held = Book(positions=(open_position(c),))
+    assert sv().scan(market(capital=RICH), held) == []
+    # Een tweede mag met max_per_underlying 2 (max_loss 0: los van de sizing op de ruimte).
+    held_zero = Book(positions=(dataclasses.replace(open_position(c), max_loss=0.0),))
+    assert len(sv(max_per_underlying=2).scan(market(capital=RICH), held_zero)) == 1
+    assert sv().scan(market(capital=RICH), held_zero) == []
+    pos = open_position(c)
+    closed = Book(positions=(dataclasses.replace(pos, status=PositionStatus.CLOSED),))
+    other = Book(positions=(dataclasses.replace(pos, underlying="TSTB", max_loss=0.0),
+                            dataclasses.replace(pos, strategy="iron_condor", max_loss=0.0)))
+    assert len(sv().scan(market(capital=RICH), closed)) == 1
+    assert len(sv().scan(market(capital=RICH), other)) == 1
 
 
 def test_short_vol_skips_without_quotes():
@@ -327,9 +476,10 @@ def test_registry_order_and_the_undefined_risk_refusal():
         k: getattr(S, k).model_copy(update=v) for k, v in on.items()})})
     with pytest.raises(ConfigContractError, match="undefined risk"):
         build_strategies(everything)
-    allowed = everything.model_copy(update={"risk": CFG.risk.model_copy(
-        update={"allow_undefined_risk": True})})
-    assert len(build_strategies(allowed)) == 9
+    allowed = everything.model_copy(update={
+        "risk": CFG.risk.model_copy(update={"allow_undefined_risk": True}),
+        "hedging": CFG.hedging.model_copy(update={"enabled": True})})
+    assert len(build_strategies(allowed)) == 10
 
 
 def test_scans_are_pure():
@@ -342,3 +492,51 @@ def test_market_today():
     m = market()
     assert isinstance(m, MarketState) and m.today == NOW.date()
     assert (m.today - timedelta(days=1)) < m.today
+
+
+# --- VRP-poort per looptijd voor premie verkopen -----------------------------------------------
+
+def _vrp_market(rv: float | None, **kw):
+    f = RVForecast(rv, rv, rv, rv) if rv is not None else None
+    state = {"TST": VolState(VolRegime.RICH, 0.25, f, 0.01, "test")}
+    return dataclasses.replace(market(**kw), vol=state)
+
+
+VRP_CASES = [(cs, dict(trend=Trend.UP)), (ic, {}), (sv, dict(capital=RICH))]
+
+
+@pytest.mark.parametrize(("make", "kw"), VRP_CASES)
+def test_vrp_gate_is_off_by_default(make, kw):
+    (c,) = make().scan(market(**kw), Book())
+    assert not any(t.startswith("vrp_h:") for t in c.rule_trace)
+
+
+@pytest.mark.parametrize(("make", "kw"), VRP_CASES)
+def test_vrp_gate_admits_a_rich_term_and_traces_the_ratio(make, kw):
+    # short-IV 0,25 tegenover σ(h) 0,20: ratio 1,25
+    (c,) = make(min_vrp_ratio=1.10).scan(_vrp_market(0.20, **kw), Book())
+    assert "vrp_h:1.250" in c.rule_trace
+
+
+@pytest.mark.parametrize(("make", "kw"), VRP_CASES)
+def test_vrp_gate_refuses_a_cheap_term(make, kw):
+    assert make(min_vrp_ratio=1.10).scan(_vrp_market(0.25, **kw), Book()) == []   # ratio 1,00
+
+
+@pytest.mark.parametrize(("make", "kw"), VRP_CASES)
+def test_vrp_gate_refuses_without_vol_state_or_rv(make, kw):
+    strat = make(min_vrp_ratio=1.10)
+    assert strat.scan(market(**kw), Book()) == []                  # geen VolState
+    assert strat.scan(_vrp_market(None, **kw), Book()) == []       # geen RV-verwachting
+
+
+def test_vrp_gate_refuses_a_short_leg_without_iv():
+    m = _vrp_market(0.20, trend=Trend.UP)
+    (c,) = cs().scan(m, Book())
+    short = c.legs[0].contract
+    chain = m.chains["TST"]
+    blind = dataclasses.replace(chain, options=tuple(
+        dataclasses.replace(o, iv_mid=dataclasses.replace(o.iv_mid, status=IVStatus.NO_QUOTE))
+        if o.contract == short else o for o in chain.options))
+    blind_m = dataclasses.replace(m, chains={"TST": blind})
+    assert cs(min_vrp_ratio=1.10).scan(blind_m, Book()) == []

@@ -4,7 +4,8 @@
 |----------------|-------------------------------------------------------------------|
 | delta, gamma   | uit de engine (analytisch, binomiaal, FD); bij BAW met spotbumps    |
 | vega           | centraal verschil in σ, per volpunt                               |
-| rho            | centraal verschil in r, per procentpunt                           |
+| rho            | centraal verschil in r, per procentpunt; eenzijdig vanaf r = 0     |
+|                | als r < de bump (BAW weigert een call bij een negatieve rente)     |
 | theta          | herwaardering één kalenderdag later, per kalenderdag              |
 
 Vega, rho en theta gaan voor elke engine met bump-and-reprice. Zo betekenen ze bij een
@@ -51,9 +52,12 @@ def greeks(inp: OptionInputs, vol: float, method: Method,
     b = min(bumps.vol, 0.5 * vol)
     vega = (npv(inp, vol + b) - npv(inp, vol - b)) / (2 * b) * 0.01
 
+    # Nooit een rente onder nul: bij r < bump gaat de bump omlaag maar tot 0 (eenzijdiger
+    # verschil), want BAW weigert een call bij een negatieve rente.
     r = inp.carry.rate
-    rho = (npv(inp.with_rate(r + bumps.rate)) - npv(inp.with_rate(r - bumps.rate))) \
-        / (2 * bumps.rate) * 0.01
+    lo = max(r - bumps.rate, 0.0)
+    width = 2 * bumps.rate if lo == r - bumps.rate else r + bumps.rate - lo
+    rho = (npv(inp.with_rate(r + bumps.rate)) - npv(inp.with_rate(lo))) / width * 0.01
 
     remaining = expiry_moment(inp.expiry) - inp.now
     step = min(timedelta(days=1), remaining / 2)

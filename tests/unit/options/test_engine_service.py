@@ -11,6 +11,7 @@ import pytest
 
 from tests.unit.options.market_helpers import CFG
 from tradebot.options.calendar import NY
+from tradebot.options.chain.builder import Chain
 from tradebot.options.contracts import OptionContract, Right
 from tradebot.options.data.feed import ReplayFeed
 from tradebot.options.data.synthetic import SyntheticSpec, SyntheticUnderlying, generate
@@ -30,8 +31,11 @@ from tradebot.options.positions import (
     StrategyPosition,
     Urgency,
 )
-from tradebot.options.rates import CashDividend
+from tradebot.options.pricing.surface import Smile
+from tradebot.options.rates import Carry, CashDividend
 from tradebot.options.risk.gate import SafetyBreach
+from tradebot.options.vol_regime import VolRegime
+from tradebot.schemas.options import RegimeAllowedConfig
 
 SPEC = SyntheticSpec(underlyings=(SyntheticUnderlying("TSTB", 50.0, strike_step=1.0),),
                      start=date(2026, 12, 14), n_days=2,
@@ -159,6 +163,73 @@ def test_the_walk_gives_up_after_the_maximum_concession(tmp_path):
     assert r.events("order_cancelled")[0]["reason"] == "max_concession"
 
 
+def fair_cfg(**kw):
+    return cfg_with("execution", limit_anchor="fair", **kw)
+
+
+def richer_smile(rig, f):
+    """Het oppervlak dat de engine voor fair gebruikt, met de vol × `f`: fair ≠ mid. De
+    IV-metingen (regime, toelating) blijven die van de markt."""
+    metrics = rig.e._metrics
+
+    def scaled(und, chain, today):
+        out = metrics(und, chain, today)
+        s = rig.e._surfaces[und]
+        rig.e._surfaces[und] = dataclasses.replace(s, smiles=tuple(
+            Smile(x.expiry, x.t, x.forward, x.discount, x.k, tuple(w * f * f for w in x.w))
+            for x in s.smiles))
+        return out
+
+    rig.e._metrics = scaled
+
+
+def test_a_fair_anchored_entry_starts_at_the_fair_value(tmp_path):
+    # Credit spread: mid −0.24, natural −0.22, de andere kant −0.26. Mid-anker: −0.24.
+    m = Rig(tmp_path / "mid")
+    m.run(at(D0, 10, 0, 1), step=1)
+    assert [o["limit"] for o in m.events("order_submitted")] == [-0.24]
+    # Bij 1,1 × de smile-vol is fair ≈ −0.262: begrensd op de andere kant, −0.26.
+    r = Rig(tmp_path / "fair", fair_cfg())
+    richer_smile(r, 1.1)
+    r.run(at(D0, 10, 0, 1), step=1)
+    assert [o["limit"] for o in r.events("order_submitted")] == [-0.26]
+
+
+def test_a_first_limit_past_the_edge_skips_the_entry(tmp_path):
+    # Bij 1,5 × de vol ligt fair zo ver voorbij −0.26 dat het plafond (fair + 0,5 × 0,02)
+    # al vóór limit_0 ligt: geen order.
+    r = Rig(tmp_path, fair_cfg())
+    richer_smile(r, 1.5)
+    r.run(at(D0, 10, 1))
+    (skip,) = r.events("entry_skipped")
+    assert skip["reason"] == "max_edge" and not r.state.orders
+
+
+def test_an_entry_without_a_fair_value_is_skipped(tmp_path, monkeypatch):
+    monkeypatch.setattr(service, "combo_fair", lambda *a: None)
+    r = Rig(tmp_path, fair_cfg())
+    r.run(at(D0, 10, 1))
+    (skip,) = r.events("order_skipped")
+    assert skip["reason"] == "no_quote" and skip["purpose"] == "entry" and not r.state.orders
+
+
+def test_the_fair_walk_gives_up_at_the_edge(tmp_path):
+    r = Rig(tmp_path, fair_cfg(), fill=1.0)          # de paper-broker vult pas op natural
+    r.run(at(D0, 10, 3))
+    (o,) = r.state.orders.values()
+    assert o["status"] == "cancelled" and not r.state.positions
+    assert r.events("order_cancelled")[0]["reason"] == "max_edge"
+
+
+def test_a_spread_too_wide_against_fair_skips_the_entry(tmp_path):
+    r = Rig(tmp_path, fair_cfg(max_spread_frac_fair=1e-6))
+    r.run(at(D0, 10, 1))
+    (skip,) = r.events("entry_skipped")
+    assert skip["reason"] == "spread_vs_fair" and skip["strategy"] == "credit_spread"
+    assert r.events("risk_decision")[0]["verdict"] == "approve"
+    assert not r.state.orders and not r.events("order_submitted")
+
+
 def test_open_orders_expire_at_the_end_of_the_day(tmp_path):
     r = Rig(tmp_path, cfg_with("schedule", scan_times=("15:50",), no_entry_last_minutes=0),
             fill=1.0)
@@ -170,9 +241,11 @@ def test_open_orders_expire_at_the_end_of_the_day(tmp_path):
 def test_stop_cancels_and_a_stopped_engine_does_nothing(tmp_path):
     r = Rig(tmp_path, fill=1.0)
     r.run(at(D0, 10, 0))
+    closed = []
+    r.e.builder.close = lambda: closed.append(True)        # de procespool van de keten
     asyncio.run(r.e.stop(at(D0, 10, 0, 5)))
     (o,) = r.state.orders.values()
-    assert o["status"] == "cancelled" and r.e.mode is EngineMode.STOPPED
+    assert o["status"] == "cancelled" and r.e.mode is EngineMode.STOPPED and closed
     n = len(r.e.journal.read())
     asyncio.run(r.e.tick(at(D0, 10, 1)))
     assert len(r.e.journal.read()) == n
@@ -293,8 +366,8 @@ def test_booking_follows_the_wheel(rig, phase, after_open, after_close):
     assert rig.state.wheel["TSTB"] == after_close
 
 
-def _assign(rig, contract, kind=ExecutionKind.ASSIGNMENT):
-    rig.e._assignment(Execution(at(D0, 16, 30), kind, "", contract, "TSTB", 1, contract.strike),
+def _assign(rig, contract, kind=ExecutionKind.ASSIGNMENT, qty=1):
+    rig.e._assignment(Execution(at(D0, 16, 30), kind, "", contract, "TSTB", qty, contract.strike),
                       at(D0, 16, 30))
 
 
@@ -305,6 +378,7 @@ def _pos(pid, strategy, legs, phase="", status=PositionStatus.OPEN):
 
 
 def test_assignments_close_legs_and_alert(rig):
+    _spot(rig, 45.0)
     rig.state.positions += [_pos("gone", "credit_spread", [(C1, -1)],
                                  status=PositionStatus.CLOSED),
                             _pos("s", "credit_spread", [(C1, -1), (C2, 1)])]
@@ -312,13 +386,136 @@ def test_assignments_close_legs_and_alert(rig):
     (p,) = rig.state.open_positions()
     assert [leg.contract for leg in p.option_legs] == [C2]
     assert rig.alerts[-1][1] == "options_assignment"
-    _assign(rig, C2, ExecutionKind.EXPIRY)
+    _assign(rig, C2, ExecutionKind.EXPIRY, qty=-1)      # de long vervalt
     assert not rig.state.open_positions() and len(rig.alerts) == 1
     _assign(rig, OptionContract("TSTB", date(2027, 1, 15), 10.0, Right.PUT))
-    assert [r["event"] for r in rig.e.journal.read()] == ["assignment", "expiry", "assignment"]
+    assert [r["event"] for r in rig.e.journal.read()] == [
+        "assignment", "expiry", "position_closed", "assignment", "settlement_alert"]
+
+
+def _spot(rig, spot):
+    rig.e.chains["TSTB"] = Chain("TSTB", spot, at(D0, 16, 0), Carry(0.04), ())
+
+
+def test_settlement_events_carry_position_and_value(rig):
+    _spot(rig, 45.0)                                    # put 48: 3 in the money
+    rig.state.positions += [_pos("cal", "credit_spread", [(C1, -1), (C2, 1)]),
+                            _pos("solo", "credit_spread", [(C2, -1)])]
+    _assign(rig, C1)                                    # voorste leg: positie blijft open
+    assert not rig.events("position_closed")
+    (a,) = rig.events("assignment")
+    assert a["position_id"] == "cal" and a["settle_usd"] == -300.0
+    # C2: +1 in "cal", −1 in "solo", netto 0 bij de broker; elke leg naar haar eigen teken.
+    _assign(rig, C2, qty=0)
+    closed = {c["position_id"]: c for c in rig.events("position_closed")}
+    assert set(closed) == {"cal", "solo"} and not rig.state.open_positions()
+    assert closed["cal"]["reason"] == "exercise" and "hedge_realized_usd" not in closed["cal"]
+    assert closed["solo"]["reason"] == "assignment"
+    assert closed["cal"]["exit_net"] == 100.0 * 1 * 2.0       # long put 47, 2 in the money
+    assert closed["solo"]["exit_net"] == -100.0 * 1 * 2.0     # short put 47
+
+
+def test_one_execution_settles_every_position_on_the_contract(rig):
+    _spot(rig, 45.0)
+    rig.state.positions += [_pos("a", "credit_spread", [(C1, -1)]),
+                            _pos("b", "credit_spread", [(C1, -1)]),
+                            _pos("c", "credit_spread", [(C1, -1)])]
+    _assign(rig, C1, qty=2)                  # de broker rekent 2 af; "c" blijft over
+    assert [p.position_id for p in rig.state.open_positions()] == ["c"]
+    ev = rig.events("assignment")
+    assert [(x["position_id"], x["qty"], x["settle_usd"]) for x in ev] == [
+        ("a", 1, -300.0), ("b", 1, -300.0)]
+    assert [c["position_id"] for c in rig.events("position_closed")] == ["a", "b"]
+    assert not rig.events("settlement_alert")
+    _assign(rig, C1, qty=3)                  # meer dan de posities hebben: rest meldt een alert
+    (al,) = rig.events("settlement_alert")
+    assert al["code"] == "options_settlement_remainder" and "2 contract" in al["detail"]
+    assert rig.alerts[-1][1] == "options_settlement_remainder" and not rig.state.open_positions()
+
+
+def test_settlement_is_sign_aware(rig):
+    _spot(rig, 45.0)
+    rig.state.positions += [_pos("short", "credit_spread", [(C1, -3)]),
+                            _pos("long", "credit_spread", [(C1, 1)])]
+    _assign(rig, C1, qty=2)                  # de broker had netto −2: beide rekenen af
+    ev = {x["position_id"]: x for x in rig.events("assignment") + rig.events("exercise")}
+    assert (ev["short"]["event"], ev["short"]["qty"], ev["short"]["settle_usd"]) == (
+        "assignment", 3, -900.0)
+    assert (ev["long"]["event"], ev["long"]["qty"], ev["long"]["settle_usd"]) == (
+        "exercise", -1, 300.0)
+    assert not rig.state.open_positions() and not rig.events("settlement_alert")
+    # Klopt de som niet, dan alleen posities met het teken van de afrekening.
+    rig.state.positions += [_pos("l2", "credit_spread", [(C1, 1)]),
+                            _pos("s2", "credit_spread", [(C1, -1)])]
+    _assign(rig, C1, qty=3)                  # de broker had −3: alleen de short, rest 2
+    assert [p.position_id for p in rig.state.open_positions()] == ["l2"]
+    (al,) = rig.events("settlement_alert")
+    assert "2 contract" in al["detail"]
+
+
+def test_offsetting_positions_on_one_contract_both_settle_at_expiry(rig):
+    put = OptionContract("TSTB", D0, 48.0, Right.PUT)
+    call = OptionContract("TSTB", D0, 60.0, Right.CALL)
+    other = OptionContract("TSTB", D0, 40.0, Right.PUT)
+    _spot(rig, 45.0)                          # put 48 ITM, call 60 OTM
+    rig.state.positions += [_pos("a", "credit_spread", [(put, -1), (call, 1)]),
+                            _pos("b", "gamma_scalp", [(put, 1), (call, -1)]),
+                            _pos("c", "credit_spread", [(other, -1)])]
+    assert asyncio.run(rig.broker.positions()) == []   # netto nul: de broker ziet niets
+    asyncio.run(rig.e._end_of_day(at(D0, 16, 30)))
+    assert {c["position_id"] for c in rig.events("position_closed")} == {"a", "b"}
+    by = {(x["position_id"], x["contract"]): (x["event"], x["settle_usd"]) for x in
+          rig.events("assignment") + rig.events("exercise") + rig.events("expiry")}
+    assert by == {("a", put.key()): ("assignment", -300.0), ("a", call.key()): ("expiry", 0.0),
+                  ("b", put.key()): ("exercise", 300.0), ("b", call.key()): ("expiry", 0.0)}
+    # "c" is netto −1 zonder broker-positie: geen afrekening, de reconciliatie ziet het.
+    assert [p.position_id for p in rig.state.open_positions()] == ["c"]
+    # Zonder slotkoers voor de onderliggende: niets.
+    rig.state.positions.append(_pos("d", "credit_spread", [(put, 1)]))
+    rig.state.positions.append(_pos("e", "credit_spread", [(put, -1)]))
+    rig.e._settle_netted(D0, {}, at(D0, 16, 31))
+    assert {"d", "e"} <= {p.position_id for p in rig.state.open_positions()}
+
+
+def test_an_exercise_of_a_hedged_strategy_alerts(tmp_path):
+    cfg = BASE.model_copy(update={"hedging": BASE.hedging.model_copy(update={"enabled": True})})
+    r = Rig(tmp_path, cfg)
+    _spot(r, 45.0)
+    r.state.positions += [_pos("g", "gamma_scalp", [(C1, 1)]),
+                          _pos("l", "long_straddle_strangle", [(C2, 1)])]
+    _assign(r, C1, ExecutionKind.EXERCISE, qty=-1)
+    _assign(r, C2, ExecutionKind.EXERCISE, qty=-1)    # niet gehedged: geen alert
+    assert [(a[1], a[2]) for a in r.alerts] == [
+        ("options_assignment", f"long {C1.key()} van g exercise")]
+
+
+def test_expiry_and_hedged_settlement_close_the_position(rig):
+    _spot(rig, 45.0)
+    base = _pos("h", "gamma_scalp", [(C1, -1)])
+    hedged = dataclasses.replace(base, legs=(*base.legs, Leg(None, "TSTB", 100, 45.0)),
+                                 hedge_realized_usd=5.0)
+    rig.state.positions.append(hedged)
+    _assign(rig, C1, ExecutionKind.EXPIRY)
+    (ev,) = rig.events("expiry")
+    assert ev["position_id"] == "h" and ev["settle_usd"] == 0.0
+    (closed,) = rig.events("position_closed")
+    assert closed["reason"] == "expiry" and closed["exit_net"] == 0.0
+    assert closed["hedge_realized_usd"] == 5.0
+
+
+def test_settlement_without_a_chain_or_position_is_defined(rig):
+    rig.state.positions.append(_pos("s", "credit_spread", [(C1, -1)]))
+    _assign(rig, C1)                                    # geen keten: spot = strike, waarde 0
+    (a,) = rig.events("assignment")
+    assert a["position_id"] == "s" and a["settle_usd"] == 0.0
+    (al,) = rig.events("settlement_alert")              # de nul is niet stil
+    assert al["code"] == "options_settlement_no_chain" and al["code"] in [a[1] for a in rig.alerts]
+    _assign(rig, C2)                                    # geen positie
+    assert rig.events("assignment")[-1]["position_id"] is None
 
 
 def test_wheel_assignments_move_the_phase(rig):
+    _spot(rig, 45.0)
     rig.state.positions.append(_pos("w", "wheel", [(C1, -1)], phase="csp"))
     _assign(rig, C1)
     assert rig.state.wheel["TSTB"] == "shares"
@@ -400,6 +597,17 @@ def test_the_regime_and_theta_cover_are_journaled(rig):
     assert summary["regimes"] == {"TSTB": ev["regime"]} and summary["blocked"] == {}
 
 
+def test_the_market_state_carries_the_vol_state(rig):
+    opened(rig)
+    m = rig.e.market_state(at(D0, 10, 2))
+    assert m.vol == rig.e._vol and m.vol["TSTB"].rv is not None
+    # E1: de lopende equity en de piek (minstens het startkapitaal) voor de drawdown-rem
+    assert m.equity_usd == rig.e._equity
+    assert m.equity_peak_usd == max(rig.e.state.high_water_mark, rig.e.cfg.account.capital_usd)
+    rig.e.state.high_water_mark = 1e9
+    assert rig.e.market_state(at(D0, 10, 2)).equity_peak_usd == 1e9
+
+
 def test_a_regime_without_the_strategy_blocks_the_entry(tmp_path):
     from tradebot.schemas.options import RegimeAllowedConfig
     none = RegimeAllowedConfig(rich=(), normal=(), cheap=())
@@ -414,3 +622,233 @@ def test_too_little_theta_blocks_the_entry(tmp_path):
     r.run(at(D0, 10, 1))
     assert r.state.open_positions() == []
     assert r.events("scan_summary")[0]["blocked"] == {"credit_spread:theta": 1}
+
+
+def test_the_heartbeat_holds_exactly_the_last_tick(tmp_path):
+    beat = tmp_path / "heartbeat"
+    service._write_heartbeat(beat, "2026-12-14T10:00:00.123456-05:00")
+    service._write_heartbeat(beat, "2026-12-14T10:00:15-05:00")    # korter: rest weg
+    assert beat.read_text(encoding="utf-8") == "2026-12-14T10:00:15-05:00"
+    rig = Rig(tmp_path / "run")
+    rig.run(at(D0, 9, 31), start=at(D0, 9, 30))
+    assert rig.e.paths.heartbeat.read_text(encoding="utf-8") == at(D0, 9, 31).isoformat()
+
+
+# --- short strangle met harde limieten (aangezet door de eigenaar) ---------------------------
+
+SV_SPEC = dataclasses.replace(SPEC, underlyings=(SyntheticUnderlying("TSTA", 50.0, strike_step=1.0),
+                                                 SyntheticUnderlying("TSTB", 50.0, strike_step=1.0)))
+SV_MKT = generate(SV_SPEC)
+
+
+def undefined_cfg(stress_frac=0.06):
+    """Alleen de short strangle, op TSTA en TSTB, met undefined risk toegestaan."""
+    base = replay_config(CFG, SV_MKT)
+    s = base.strategies
+    off = {k: getattr(s, k).model_copy(update={"enabled": False}) for k in type(s).model_fields}
+    off["short_straddle_strangle"] = s.short_straddle_strangle.model_copy(update={
+        "enabled": True, "underlyings": ("TSTA", "TSTB")})
+    every = ("short_straddle_strangle",)
+    fb = base.iv_metrics.fallback.model_copy(update={"high_iv_ratio": 1.05})
+    return base.model_copy(update={
+        "strategies": s.model_copy(update=off),
+        "risk": base.risk.model_copy(update={
+            "allow_undefined_risk": True, "max_undefined_stress_loss_frac": stress_frac,
+            "max_scenario_loss_frac": 0.5}),
+        "sizing": base.sizing.model_copy(update={"max_loss_frac_capital": 0.05}),
+        "iv_metrics": base.iv_metrics.model_copy(update={"fallback": fb}),
+        "vol_regime": base.vol_regime.model_copy(update={
+            "allowed": RegimeAllowedConfig(rich=every, normal=every, cheap=every)})})
+
+
+def test_the_book_stress_cap_blocks_a_second_undefined_entry(tmp_path):
+    r = Rig(tmp_path / "a", undefined_cfg(), market=SV_MKT)
+    r.run(at(D0, 13, 31))
+    (pos,) = r.state.open_positions()
+    assert pos.strategy == "short_straddle_strangle" and math.isinf(pos.max_loss)
+    first, second = r.events("risk_decision")
+    assert first["verdict"] == "approve" and second["underlying"] != pos.underlying
+    assert second["verdict"] == "reject" and second["reason"] == "limits:undefined_stress_loss"
+    (name, measured, threshold) = second["checks"][-1]
+    assert name == "undefined_stress_loss" and measured > threshold == 1500.0
+    # Met een ruimere grens gaat dezelfde tweede entry wel door: de grens blokkeerde hem.
+    wide = Rig(tmp_path / "b", undefined_cfg(0.5), market=SV_MKT)
+    wide.run(at(D0, 13, 31))
+    assert len(wide.state.open_positions()) == 2
+
+
+def test_the_book_carries_pending_undefined_entries(tmp_path):
+    r = Rig(tmp_path, undefined_cfg(), market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    (pos,) = r.state.open_positions()
+    (o,) = [x for x in r.state.orders.values() if x["position_id"] == pos.position_id]
+    assert r.e.book().pending_undefined == ()                 # gevuld: een positie, geen order
+    r.state.orders["w"] = {**o, "client_id": "w", "position_id": "w1", "status": "submitted"}
+    r.state.orders["x"] = {**o, "client_id": "x", "position_id": "x1", "status": "cancelled"}
+    r.state.orders["y"] = {**o, "client_id": "y", "position_id": "y1", "status": "submitted",
+                           "max_loss": 300.0}
+    r.state.orders["z"] = {**o, "client_id": "z", "position_id": "z1", "status": "submitted",
+                           "kind": "close"}
+    r.state.orders["s"] = {"client_id": "s", "stock": True, "position_id": "s1",
+                           "status": "submitted"}
+    (w,) = r.e.book().pending_undefined
+    assert (w.position_id, w.strategy, w.underlying, w.units) == (
+        "w1", pos.strategy, pos.underlying, o["quantity"])
+    assert math.isinf(w.max_loss) and w.variant == o["variant"]
+    assert [(leg.contract, leg.qty) for leg in w.legs] == [
+        (leg.contract, leg.qty) for leg in pos.legs]
+    assert w.entry_net == -o["limit"] * 100 * o["quantity"]
+
+
+@pytest.fixture
+def strangle_rig(tmp_path):
+    r = Rig(tmp_path, undefined_cfg(), market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    return r
+
+
+def _stress(rig, und):
+    rig.e._vol[und] = dataclasses.replace(rig.e._vol["TSTB"], regime=VolRegime.STRESS)
+
+
+def _stress_closes(rig, now):
+    return [a for a in rig.events("action") if a["reason"] == "regime_stress"
+            and a["ts"] == now.isoformat()]
+
+
+def test_stress_on_the_underlying_closes_undefined_risk(strangle_rig):
+    r = strangle_rig
+    (pos,) = r.state.open_positions()
+    now = at(D0, 10, 2)
+    asyncio.run(r.e._manage(now))
+    assert _stress_closes(r, now) == []
+    _stress(r, pos.underlying)
+    now = at(D0, 10, 3)
+    asyncio.run(r.e._manage(now))
+    (a,) = _stress_closes(r, now)
+    assert a["position_id"] == pos.position_id and a["urgency"] == "stop"
+    (d,) = [x for x in r.events("risk_decision") if x["kind"] == "close"]
+    assert d["verdict"] == "approve"
+
+
+def test_stress_closes_also_while_halted_and_only_undefined_risk(strangle_rig):
+    r = strangle_rig
+    (pos,) = r.state.open_positions()
+    r.e.paths.halt_file.touch()
+    asyncio.run(r.e.tick(at(D0, 10, 2)))
+    assert r.e.mode is EngineMode.HALTED
+    _stress(r, "SPY")                       # STRESS op de marktonderliggende: het hele boek
+    finite = dataclasses.replace(pos, max_loss=500.0)
+    r.state.positions = [finite]
+    now = at(D0, 10, 3)
+    asyncio.run(r.e._manage(now))
+    assert _stress_closes(r, now) == []
+    r.state.positions = [pos]
+    now = at(D0, 10, 4)
+    asyncio.run(r.e._manage(now))
+    (a,) = _stress_closes(r, now)
+    assert a["position_id"] == pos.position_id
+    assert [x["verdict"] for x in r.events("risk_decision") if x["kind"] == "close"] == [
+        "approve"]
+
+
+def test_stress_blocks_undefined_entries_even_with_the_regime_layer_off(tmp_path):
+    cfg = undefined_cfg()
+    cfg = cfg.model_copy(update={
+        "vol_regime": cfg.vol_regime.model_copy(update={"enabled": False}),
+        "schedule": cfg.schedule.model_copy(update={"scan_times": ("14:00",)})})
+    r = Rig(tmp_path, cfg, market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    # Het regime wordt ook zonder de regimelaag berekend: toelating en sluiting lezen het.
+    assert set(r.e._vol) == {"TSTA", "TSTB"}
+    cands = r.e.strategies[0].scan(r.e.market_state(at(D0, 10, 1)), r.e.book())
+    assert cands
+    blocked: dict[str, int] = {}
+    stress = dict.fromkeys(r.e._vol, VolRegime.STRESS)
+    assert r.e._admitted(cands, stress, blocked, D0) == []
+    assert blocked == {"short_straddle_strangle:regime": len(cands)}
+    normal = dict.fromkeys(r.e._vol, VolRegime.NORMAL)
+    assert len(r.e._admitted(cands, normal, {}, D0)) == len(cands)
+
+
+# --- gamma management per positie (D2) --------------------------------------------------------
+
+def _gamma_cfg(frac):
+    cfg = undefined_cfg()
+    return cfg.model_copy(update={"risk": cfg.risk.model_copy(
+        update={"max_gamma_loss_frac_credit": frac})})
+
+
+def test_gamma_loss_1d_is_half_gamma_times_the_daily_move_squared(strangle_rig):
+    from tradebot.options.risk.gamma import gamma_loss_1d, sigma_1d
+    r = strangle_rig
+    (pos,) = r.state.open_positions()
+    rv = r.e._vol[pos.underlying].rv
+    assert rv is not None
+    sig = sigma_1d(rv)
+    assert sig == pytest.approx(rv.at_horizon(1) * math.sqrt(1 / 252))
+    chain = r.e.chains[pos.underlying]
+    loss = gamma_loss_1d(pos, chain, sig)
+    assert loss > 0.0 and gamma_loss_1d(pos, chain, 2 * sig) == pytest.approx(4 * loss)
+    assert gamma_loss_1d(pos, None, sig) is None
+    # Long gamma (omgekeerde legs): geen verlies; ontbrekende Greeks: onbekend.
+    long = dataclasses.replace(pos, legs=tuple(
+        dataclasses.replace(leg, qty=-leg.qty) for leg in pos.legs))
+    assert gamma_loss_1d(long, chain, sig) == 0.0
+    gone = dataclasses.replace(chain, options=())
+    assert gamma_loss_1d(pos, gone, sig) is None
+
+
+NOW_G = at(D0, 10, 2)
+
+
+def test_gamma_risk_with_unknown_greeks_is_journaled_once(tmp_path):
+    r = Rig(tmp_path, _gamma_cfg(1e-6), market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    (pos,) = r.state.open_positions()
+    chain = r.e.chains[pos.underlying]
+    first = pos.legs[0].contract
+    r.e.chains[pos.underlying] = dataclasses.replace(chain, options=tuple(
+        dataclasses.replace(o, greeks=None) if o.contract == first else o
+        for o in chain.options))
+    assert not r.e._gamma_breach(pos, NOW_G)
+    assert not r.e._gamma_breach(pos, NOW_G)                   # niet nog eens gemeld
+    del r.e.chains[pos.underlying]
+    assert not r.e._gamma_breach(pos, NOW_G)
+    (ev,) = r.events("gamma_unknown")
+    assert (ev["position_id"], ev["strategy"], ev["underlying"]) == (
+        pos.position_id, pos.strategy, pos.underlying)
+    assert [a[1] for a in r.alerts].count("options_gamma_unknown") == 1
+    other = dataclasses.replace(pos, position_id="other")
+    assert not r.e._gamma_breach(other, NOW_G)
+    assert len(r.events("gamma_unknown")) == 2
+
+
+def test_gamma_risk_closes_a_short_gamma_position_over_the_limit(tmp_path):
+    r = Rig(tmp_path, _gamma_cfg(1e-6), market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    # De positie gaat bij de eerste beheerronde na de entry dicht, vóór de strategie-regels.
+    (a,) = [x for x in r.events("action") if x["reason"] == "gamma_risk"]
+    assert a["urgency"] == "stop" and a["kind"] == "close"
+    assert [x["verdict"] for x in r.events("risk_decision") if x["kind"] == "close"] == [
+        "approve"]
+
+
+def test_gamma_risk_is_off_by_default_and_with_a_wide_limit_or_no_rv_or_no_credit(tmp_path):
+    for i, frac in enumerate((None, 1e6)):
+        r = Rig(tmp_path / str(i), _gamma_cfg(frac), market=SV_MKT)
+        r.run(at(D0, 10, 1))
+        (pos,) = r.state.open_positions()
+        assert not r.e._gamma_breach(pos, NOW_G)
+        now = at(D0, 10, 3)
+        asyncio.run(r.e._manage(now))
+        assert [a for a in r.events("action") if a["reason"] == "gamma_risk"] == []
+    r = Rig(tmp_path / "x", _gamma_cfg(1e-6), market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    (pos,) = r.state.open_positions()
+    assert r.e._gamma_breach(pos, NOW_G)
+    assert not r.e._gamma_breach(dataclasses.replace(pos, entry_net=-100.0), NOW_G)
+    r.e._vol[pos.underlying] = dataclasses.replace(r.e._vol[pos.underlying], rv=None)
+    assert not r.e._gamma_breach(pos, NOW_G)
+    del r.e._vol[pos.underlying]
+    assert not r.e._gamma_breach(pos, NOW_G)

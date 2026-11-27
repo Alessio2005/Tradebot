@@ -4,8 +4,11 @@
   geen paper-account is (`live.require_paper`). Live staat uit.
 * Een order is altijd een combo (`BAG`), ook met één leg, met `orderRef` = de client-id. De
   limiet heeft het teken van de broker: + betalen, − ontvangen. Actie is altijd `BUY`.
+* Een aandelenorder (de delta-hedger) is `Stock(symbool, "SMART", "USD")` met een gewone
+  `LMT`-order (`BUY` of `SELL`, DAY), ook met `orderRef` = de client-id.
 * `modify` verandert alleen `lmtPrice`; legs en aantal liggen vast.
-* Executies komen per leg; de `BAG`-regel zelf wordt overgeslagen.
+* Executies komen per leg, en per aandelenfill (zonder contract); de `BAG`-regel zelf wordt
+  overgeslagen.
 * Equity, cash en buying power zijn altijd in USD. Een account met een andere basisvaluta
   (bv. EUR) wordt omgerekend met de IDEALPRO-koers van die valuta tegen USD.
 
@@ -21,12 +24,12 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
-from ib_async import ComboLeg, Contract, ExecutionFilter, Forex, LimitOrder, Option
+from ib_async import ComboLeg, Contract, ExecutionFilter, Forex, LimitOrder, Option, Stock
 
 from ...utils.failfast import DataContractError, require
 from ..contracts import OptionContract, Right
 from ..live import account_hash, require_paper
-from ..risk.gate import ApprovedOrder
+from ..risk.gate import ApprovedOrder, ApprovedStockOrder
 from .broker import (
     AccountSnapshot,
     BrokerOrder,
@@ -35,7 +38,7 @@ from .broker import (
     ExecutionKind,
     MarginImpact,
 )
-from .orders import ComboOrder, OrderStatus
+from .orders import ComboOrder, OrderStatus, StockOrder
 
 __all__ = ["IBKRBroker", "contract_of", "option_of"]
 
@@ -204,6 +207,27 @@ class IBKRBroker:
         self._orders[order.client_id] = BrokerOrder(order, OrderStatus.SUBMITTED)
         return self._refresh(order.client_id)
 
+    async def submit_stock(self, approved: ApprovedStockOrder,
+                           order: StockOrder) -> BrokerOrder:
+        if not isinstance(approved, ApprovedStockOrder):
+            raise TypeError("IBKR neemt alleen een ApprovedStockOrder van de risicopoort aan")
+        p = approved.proposal
+        require(order.symbol == p.symbol and order.qty == p.qty and order.limit == p.limit,
+                "order wijkt af van de goedgekeurde order", DataContractError,
+                client_id=order.client_id)
+        require(order.client_id not in self._orders, "client-id al gebruikt",
+                DataContractError, client_id=order.client_id)
+        require_paper(self.account_id)
+        (stk,) = await self.ib.qualifyContractsAsync(Stock(order.symbol, "SMART", "USD"))
+        require(stk is not None and bool(getattr(stk, "conId", 0)), "IBKR kent het aandeel niet",
+                DataContractError, client_id=order.client_id)
+        lmt = LimitOrder("BUY" if order.qty > 0 else "SELL", abs(order.qty),
+                         round(order.limit, 2), orderRef=order.client_id, tif=order.tif,
+                         account=self.account_id)
+        self._trades[order.client_id] = self.ib.placeOrder(stk, lmt)
+        self._orders[order.client_id] = BrokerOrder(order, OrderStatus.SUBMITTED)
+        return self._refresh(order.client_id)
+
     async def modify(self, client_id: str, new_limit: float) -> BrokerOrder:
         bo = self._refresh(client_id)
         require(bo.status is OrderStatus.SUBMITTED, "alleen een open order wijzigen",
@@ -234,11 +258,14 @@ class IBKRBroker:
         out = []
         for f in await self.ib.reqExecutionsAsync(flt):
             c, ex = f.contract, f.execution
-            if c.secType != "OPT":
+            if c.secType not in ("OPT", "STK"):
                 continue
             qty = int(ex.shares) * (1 if ex.side == "BOT" else -1)
             fee = _num(getattr(f.commissionReport, "commission", 0.0))
-            out.append(Execution(f.time, ExecutionKind.FILL, ex.orderRef or "", contract_of(c),
+            out.append(Execution(f.time, ExecutionKind.FILL, ex.orderRef or "",
+                                 contract_of(c) if c.secType == "OPT" else None,
                                  c.symbol, qty, float(ex.price),
-                                 fee if math.isfinite(fee) else 0.0))
-        return sorted(out, key=lambda e: (e.ts, e.client_id, e.contract.key()))  # type: ignore[union-attr]
+                                 fee if math.isfinite(fee) else 0.0,
+                                 str(getattr(ex, "execId", "") or "")))
+        return sorted(out, key=lambda e: (e.ts, e.client_id,
+                                          e.contract.key() if e.contract else e.symbol))

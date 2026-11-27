@@ -49,13 +49,16 @@ async def run_paper(cfg: OptionsConfig, ib: Any, run_dir: Path, stop: asyncio.Ev
                  or EngineState(PAPER_MODE, broker.account_hash, clock().isoformat()))
         engine = Engine(cfg, feed, broker, paths, state, alert)
         last: datetime | None = None
-        while not stop.is_set():
-            now = clock()
-            if engine.cal.is_open(now) and (last is None
-                                            or (now - last).total_seconds() >= refresh_seconds):
-                last = now
-                await engine._run("feed", now, feed.refresh)
-            await engine.tick(now)
-            await sleep(tick_seconds)
-        await engine.stop(clock())
+        try:
+            while not stop.is_set():
+                now = clock()
+                if engine.cal.is_open(now) and (
+                        last is None or (now - last).total_seconds() >= refresh_seconds):
+                    last = now
+                    await engine._run("feed", now, feed.refresh)
+                await engine.tick(now)
+                await sleep(tick_seconds)
+            await engine.stop(clock())
+        finally:                          # ook bij een fout: de procespool van de keten dicht
+            engine.builder.close()
         return engine
