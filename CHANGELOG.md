@@ -6,9 +6,9 @@
 
 ## Options: pro-strategieën, afronding en documentatie (2026-11-27)
 - Eindstand van de branch op de standaard synthetische markt (4 cores): 3 posities, eind-equity
-  25.303,60 USD (ongewijzigd), replay in 42 s (gemeten 43,4 / 41,8 / 41,8 s; 137 s vóór de
-  branch, dus 3,3×; direct na de vectorisatie was het 31 s, 4,4×, en het doel was 5×). De latere
-  fasen voegen werk per ronde toe. `stats`: totaalrendement 1,21 %, max drawdown 0,33 %, Sharpe
+  25.303,60 USD (ongewijzigd), replay in 41 s tegen 171 s voor de code van vóór de branch,
+  op dezelfde machine en hetzelfde moment gemeten (4,2×; het doel was 5×). De code van na A4 duurt
+  daar ook 41 s: de latere fasen maken de replay niet trager. `stats`: totaalrendement 1,21 %, max drawdown 0,33 %, Sharpe
   4,31, Sortino 17,05; credit_spread 2 gesloten (+116,40), long_straddle_strangle 1 (+187,20).
 - Alle nieuwe schakelaars staan uit of op een waarde die de standaardreplay niet raakt. Het
   runbook beschrijft ze per stuk, plus "wat voor een particulier niet haalbaar is". Short

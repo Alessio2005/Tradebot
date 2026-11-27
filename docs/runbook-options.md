@@ -70,13 +70,16 @@ Gemeten op de standaard synthetische markt in een container met **4 cores** (wan
 | `pricing.vectorized: false`, `workers: 1` | 131 s | 1,05× |
 | `pricing.vectorized: true`, `workers: 1` | 90 s | 1,5× |
 | standaard (`vectorized: true`, `workers: auto` = 4), na taak A4 | 31 s | 4,4× |
-| standaard, eindstand van de branch (alle fasen, nieuwe schakelaars uit) | 42 s | 3,3× |
+| eindstand, vergelijkingsmeting 2026-11-27: vóór de branch (`a589399`) | 171 s | 1× |
+| eindstand, vergelijkingsmeting 2026-11-27: code na A4 (`970b4cb`) | 41 s | 4,2× |
+| eindstand, vergelijkingsmeting 2026-11-27: eindstand van de branch | 41 s | 4,2× |
 
 Het doel was 5×; dat is niet gehaald. Bij 4 workers gaat ongeveer 23 s naar het QuantLib-deel
 (FD met een discreet dividend: IV-solve en Greeks, ±84 s rekenwerk in één proces), de rest is
-het serieel werk van de engine. De eindstand is trager dan de 31 s van na A4 omdat de latere
-fasen werk toevoegen per ronde (horizon-RV, risicocontroles, stats); gemeten drie keer: 43,4 s,
-41,8 s en 41,8 s op 4 cores (`nproc` = 4). Met `vectorized: false` is het journal byte-gelijk
+het serieel werk van de engine. De latere fasen maken de replay niet trager: op
+dezelfde machine en hetzelfde moment gemeten duren de code van na A4 en de eindstand allebei 41 s,
+en de code van vóór de branch 171 s (4,2×). Absolute tijden verschillen per meetmoment op deze
+gedeelde cloudmachine (eerder 137 s en 31 s); vergelijk daarom alleen metingen van hetzelfde moment. Met `vectorized: false` is het journal byte-gelijk
 aan dat van vóór de vectorisatie. Met `vectorized: true` zijn de beslissingen en de equity
 gelijk, maar verschillen vier `risk_decision`-regels in het vijfde cijfer van de gemeten
 Greeks: de FD-solve met startwaarde (smal Brent-interval) vindt de IV binnen `iv_accuracy`

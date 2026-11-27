@@ -129,9 +129,9 @@ gemerged en opnieuw gebouwd is.
 Wat er anders is uitgekomen dan hierboven beschreven (rulings uit de bouw):
 
 * **Versnelling 4,4× in plaats van ≥5×** (A4: 137 s naar 31 s op 4 cores). Het QuantLib-deel
-  (FD met een discreet dividend) blijft ±23 s en de rest van de engine is serieel. In de
-  eindstand, met alle latere fasen erbij, duurt de standaardreplay 42 s op 4 cores (3,3× ten
-  opzichte van de 137 s van vóór de branch); zie het runbook, hoofdstuk "Snelheid".
+  (FD met een discreet dividend) blijft ±23 s en de rest van de engine is serieel. Een
+  vergelijkingsmeting op één moment geeft voor de eindstand 41 s tegen 171 s vóór de branch
+  (4,2×), en 41 s ook voor de code van na A4; zie het runbook, hoofdstuk "Snelheid".
 * **De FD-solve met startwaarde (smal Brent-interval)** vindt de IV binnen `iv_accuracy` op een
   iets ander punt dan het volle interval. Vier `risk_decision`-waarden in het journal
   verschillen daardoor in het vijfde cijfer; beslissingen, fills en equity zijn identiek.

@@ -22,7 +22,7 @@ Strategieën: credit spread, iron condor, debit vertical, calendar (IVP of forwa
 straddle/strangle, gamma scalping met delta-hedger, en een short strangle met harde limieten
 (standaard uit; Alessio beslist). Replay en sweep draaien op synthetische of historische
 markten; zie `docs/runbook-options.md` voor commando's, alle schakelaars en wat voor een
-particulier niet haalbaar is. De standaardreplay (4 cores) duurt ongeveer 42 s en geeft 3
+particulier niet haalbaar is. De standaardreplay (4 cores) duurt ongeveer 41 s (vóór deze branch 171 s, zelfde meting) en geeft 3
 posities en eind-equity 25.303,60 USD; de snelheidstabel staat in het runbook.
 
 ## Installatie
