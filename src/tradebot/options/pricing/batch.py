@@ -85,7 +85,7 @@ from scipy.special import ndtr
 
 from ..calendar import expiry_moment
 from ..contracts import Right
-from .greeks import Bumps
+from .greeks import Bumps, spot_bump_fraction
 from .implied_vol import IVSettings
 from .ql_env import scaled_time
 from .vanilla import OptionInputs
@@ -464,7 +464,7 @@ class BatchGreeks:
 def baw_greeks(inp: BatchInputs, vol: FloatArray, bumps: Bumps = Bumps()) -> BatchGreeks:
     """De BAW-Greeks van `greeks(..., Method.BAW)` bij volatiliteit `vol`, per contract."""
     base = baw_price(inp, vol)
-    h = bumps.spot_frac * inp.spot
+    h = spot_bump_fraction(vol, inp.t_model * inp.factor, bumps) * inp.spot
     up = baw_price(replace(inp, spot=inp.spot + h), vol)
     down = baw_price(replace(inp, spot=inp.spot - h), vol)
     delta = (up - down) / (2 * h)

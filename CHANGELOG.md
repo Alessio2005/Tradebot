@@ -810,3 +810,25 @@ oordeel of ledger-entry veranderd; de backtest van v6–v8 is bit-identiek.
 - CPCV + purge/embargo, triple-barrier/TrendScan-labeling, HRP/RP-portfolio,
   TCA-laag, OMS + audit-log (R-8), circuit-breakers (R-7), paper-engine,
   MRM-rapportage, lookahead-testsuite, determinisme-suite (R-5).
+
+### Reviewfixes pricing, oppervlak, dividendinput en orderlimieten
+
+- N4: `Surface.atm_vol` extrapoleert alleen nog binnen `min(14 dagen, 30 % van de looptijd)` van
+  de dichtstbijzijnde smile, anders `None`; `term_slope` is `None` tenzij 30 én 60 dagen door
+  smiles aan twee kanten omsloten zijn (was: vlak, dus helling 0,0). Aanroepers (service,
+  `debit.min_term_slope`, `classify`) verwerkten `None` al: geen helling = geen debit-entry,
+  geen backwardation-STRESS. Gedragswijziging in de replay: een ketting met maar tot ~45 dagen
+  aan expiraties geeft geen ATM-IV-30/60-helling meer.
+- N11: theta de dag vóór een ex-datum laat het dividend niet meer uit het venster vallen: de
+  spot van het herwaarderingstijdstip zakt met het dividend dat in de stap ex gaat.
+- N5: de spotbump voor BAW-delta/gamma schaalt met 0,25·σ√T, geklemd op [0,05 %, 0,5 %] (was
+  vast 0,5 %); bij langere looptijden ongewijzigd. Ook in de batch-kernel.
+- N26: de forward uit put-call-pariteit corrigeert de Amerikaanse mids voor de
+  vroege-uitoefenpremie (BAW min Europees bij de IV van de optie).
+- N27: `combo_fair` gebruikt voor alle legs de mid zodra één expiratie geen smile heeft.
+- N24: `execution.orders.tick_for` leest `execution.ticks` (nieuw: `penny`, `penny_symbols`);
+  `ticks.default` is niet langer dode config.
+- N5 (live): `ibkr_feed.project_dividends` projecteert het dividendschema (laatste bedrag, vaste
+  cadans uit de historie, tot 365 dagen) met `CashDividend.estimated`.
+- Oud #34: een dividend met ex-datum op de expiratiedag telt niet meer dubbel (zit al in de
+  spot); de docstring van `pricing.engines` zegt nu waar `Use.DECISION` wel en niet gebruikt wordt.

@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import asyncio
 import math
+import statistics
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
+from itertools import pairwise
 from typing import Any
 
 import pandas as pd
@@ -54,15 +56,56 @@ def _int(v: Any) -> int:
     return int(x) if x is not None else 0
 
 
+#: Standaardcadans (dagen) zonder bruikbare historie: kwartaaldividend.
+DIVIDEND_CADENCE_DAYS = 91
+#: Hoe ver vooruit het dividendschema geprojecteerd wordt (de looptijden zijn hooguit `MAX_DTE`).
+DIVIDEND_HORIZON_DAYS = 365
+
+
+def project_dividends(announced: date | None, history: list[tuple[date, float]],
+                      today: date, horizon_days: int = DIVIDEND_HORIZON_DAYS
+                      ) -> tuple[CashDividend, ...]:
+    """Het dividendschema tot `today + horizon_days`: het aangekondigde dividend (als er een
+    is) en daarna het laatste bedrag op de vaste cadans uit de historie (mediaan van de laatste
+    vier tussenpozen, anders kwartaal), met `estimated=True` voor alles wat geprojecteerd is.
+
+    Alleen het eerstvolgende dividend meenemen laat bij looptijden over meerdere ex-datums de
+    latere dividenden uit de prijs, en daarmee de put te duur en de call te goedkoop. Zonder
+    historie is er geen betaler en dus geen schema.
+    """
+    if not history:
+        return ()
+    hist = sorted(history)
+    amount = hist[-1][1]
+    recent = [d for d, _ in hist[-5:]]
+    gaps = [(b - a).days for a, b in pairwise(recent)]
+    cadence = max(int(statistics.median(gaps)), 25) if gaps else DIVIDEND_CADENCE_DAYS
+    until = today + timedelta(days=horizon_days)
+    out: list[CashDividend] = []
+    if announced is not None and announced >= today:
+        out.append(CashDividend(announced, amount))
+        nxt = announced + timedelta(days=cadence)
+    else:
+        nxt = hist[-1][0] + timedelta(days=cadence)
+        while nxt < today:
+            nxt += timedelta(days=cadence)
+    while nxt <= until:
+        out.append(CashDividend(nxt, amount, estimated=True))
+        nxt += timedelta(days=cadence)
+    return tuple(out)
+
+
 def yfinance_events(symbol: str, today: date) -> Events:
     t = yf.Ticker(symbol)
     cal = t.calendar or {}
     earnings = tuple(sorted(d for d in cal.get("Earnings Date", []) if isinstance(d, date)))
     ex = cal.get("Ex-Dividend Date")
-    divs: tuple[CashDividend, ...] = ()
     hist = t.dividends
-    if isinstance(ex, date) and ex >= today and len(hist):
-        divs = (CashDividend(ex, float(hist.iloc[-1])),)
+    history = ([(pd.Timestamp(d).date(), float(a)) for d, a in hist.items()]
+               if isinstance(hist.index, pd.DatetimeIndex) else [])
+    if len(hist) and not history:                  # zonder datums: alleen het bedrag bekend
+        history = [(today - timedelta(days=DIVIDEND_CADENCE_DAYS), float(hist.iloc[-1]))]
+    divs = project_dividends(ex if isinstance(ex, date) else None, history, today)
     return Events(symbol, today, earnings, divs)
 
 

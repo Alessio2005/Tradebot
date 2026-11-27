@@ -14,7 +14,14 @@ from tests.unit.options.market_helpers import CFG, EXPIRIES, market
 from tests.unit.options.test_execution import approved, order_for
 from tradebot.options.calendar import NY
 from tradebot.options.contracts import OptionContract, Right
-from tradebot.options.data.ibkr_feed import BATCH, IBKRFeed, _int, _px, yfinance_events
+from tradebot.options.data.ibkr_feed import (
+    BATCH,
+    IBKRFeed,
+    _int,
+    _px,
+    project_dividends,
+    yfinance_events,
+)
 from tradebot.options.engine import paper as paper_mod
 from tradebot.options.engine.paper import now_ny, run_paper
 from tradebot.options.events import Events
@@ -22,6 +29,7 @@ from tradebot.options.execution.ibkr import IBKRBroker, contract_of, option_of
 from tradebot.options.execution.orders import OrderStatus
 from tradebot.options.live import LiveRefused, account_hash
 from tradebot.options.positions import Book, Trend
+from tradebot.options.rates import CashDividend
 from tradebot.options.strategies.common import rules_from_config
 from tradebot.options.strategies.credit import CreditSpread
 from tradebot.utils.failfast import DataContractError
@@ -262,6 +270,45 @@ def test_yfinance_events_are_read(monkeypatch):
 
     monkeypatch.setattr("tradebot.options.data.ibkr_feed.yf.Ticker", Empty)
     assert yfinance_events("SPY", today) == Events("SPY", today)
+
+
+def test_the_dividend_schedule_is_projected_on_the_historic_cadence():
+    # N5: alleen het eerstvolgende dividend meenemen liet de latere uit de prijs.
+    today = date(2026, 11, 24)
+    hist = [(date(2026, 3, 20), 1.50), (date(2026, 6, 19), 1.55), (date(2026, 9, 18), 1.60)]
+    out = project_dividends(date(2026, 12, 18), hist, today)
+    assert out[0] == CashDividend(date(2026, 12, 18), 1.60) and not out[0].estimated
+    assert [d.ex_date for d in out[1:]] == [date(2026, 12, 18) + timedelta(days=91 * i)
+                                            for i in (1, 2, 3)]
+    assert all(d.estimated and d.amount == 1.60 for d in out[1:])
+    assert out[-1].ex_date <= today + timedelta(days=365)
+    # Geen aankondiging: rol vanaf de laatste ex-datum door tot de toekomst.
+    rolled = project_dividends(None, hist, today)
+    assert rolled[0].ex_date == date(2026, 9, 18) + timedelta(days=91) and rolled[0].estimated
+    # Maandelijks (mediaan 30 dagen) en zonder historie.
+    monthly = [(date(2026, 8, 31), 0.2), (date(2026, 9, 30), 0.2), (date(2026, 10, 30), 0.2)]
+    assert project_dividends(None, monthly, today)[0].ex_date == date(2026, 11, 29)
+    assert project_dividends(date(2026, 12, 1), [], today) == ()
+    stale = project_dividends(None, [(date(2026, 6, 19), 1.5)], today)   # twee kwartalen over
+    assert stale[0].ex_date == date(2026, 6, 19) + timedelta(days=182)
+    # Een enkel historisch dividend: standaardcadans (kwartaal).
+    one = project_dividends(None, [(date(2026, 11, 1), 0.3)], today)
+    assert one[0].ex_date == date(2026, 11, 1) + timedelta(days=91)
+
+
+def test_yfinance_events_project_the_dividend_schedule(monkeypatch):
+    import pandas as pd
+    today = date(2026, 11, 24)
+    idx = pd.DatetimeIndex(["2026-03-20", "2026-06-19", "2026-09-18"], tz="America/New_York")
+
+    class T:
+        def __init__(self, sym):
+            self.calendar = {"Earnings Date": [], "Ex-Dividend Date": date(2026, 12, 18)}
+            self.dividends = pd.Series([1.5, 1.55, 1.6], index=idx)
+
+    monkeypatch.setattr("tradebot.options.data.ibkr_feed.yf.Ticker", T)
+    divs = yfinance_events("SPY", today).dividends
+    assert len(divs) == 4 and divs[0].ex_date == date(2026, 12, 18) and divs[1].estimated
 
 
 # --- de paper-dienst -----------------------------------------------------------------------

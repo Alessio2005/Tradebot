@@ -17,7 +17,7 @@ from datetime import date, datetime
 import QuantLib as ql
 
 from ...utils.failfast import DataContractError, require
-from ..calendar import expiry_moment
+from ..calendar import NY, expiry_moment
 from ..contracts import Right
 from ..rates import Carry, CashDividend
 from .engines import EngineSettings, Method
@@ -65,13 +65,14 @@ class OptionInputs:
 
     @property
     def discrete_dividends(self) -> tuple[CashDividend, ...]:
-        """De dividenden die de pricer meeneemt: ex-datum in `(eval_date, expiry]`.
+        """De dividenden die de pricer meeneemt: ex-datum in `(vandaag, expiry]` (NY-datum).
 
-        Dit is HET venster voor de keuze van de engine. `eval_date` is vandaag, behalve op de
-        expiratiedag zelf (dan gisteren); een dividend met ex-datum vandaag telt dan mee.
+        Dit is HET venster voor de keuze van de engine. Een dividend met ex-datum vandaag zit al
+        in de spot. Op de expiratiedag zelf is `eval_date` van QuantLib gisteren
+        (`scaled_time`); het venster blijft toch bij vandaag, anders telde een dividend met
+        ex-datum op de expiratiedag twee keer mee: in de spot én als dividend.
         """
-        return self.carry.dividends_in(scaled_time(self.now, self.expiry).eval_date,
-                                       self.expiry)
+        return self.carry.dividends_in(self.now.astimezone(NY).date(), self.expiry)
 
     def with_spot(self, spot: float) -> OptionInputs:
         return replace(self, spot=spot)
@@ -107,7 +108,7 @@ def _engine(method: Method, process: ql.BlackScholesMertonProcess, settings: Eng
 
 
 def _dividends(inp: OptionInputs, st: ScaledTime) -> ql.DividendVector | None:
-    divs = inp.carry.dividends_in(st.eval_date, inp.expiry)    # == inp.discrete_dividends
+    divs = inp.discrete_dividends
     if not divs:
         return None
     return ql.DividendVector([to_ql_date(d.ex_date) for d in divs], [d.amount for d in divs])

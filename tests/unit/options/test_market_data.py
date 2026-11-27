@@ -74,7 +74,9 @@ def test_the_synthetic_chain_gives_a_clean_surface_at_the_smile_base(market):
     chain, _ = filtered(chain, FilterSettings())
     surf = build_surface(chain)
     assert surf.status is SurfaceStatus.OK
-    assert surf.atm_vol(30) == pytest.approx(SMALL.smile_base, abs=0.005)
+    # 30 dagen ligt ver buiten de smiles (tot ~17 dagen): geen vlakke extrapolatie meer
+    assert surf.atm_vol(30) is None
+    assert surf.atm_vol(15) == pytest.approx(SMALL.smile_base, abs=0.005)
 
 
 def test_expiries_skip_to_thursday_on_a_friday_holiday():
