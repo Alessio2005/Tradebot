@@ -84,6 +84,13 @@ Beperkingen van de data (keuzes van mij, die Alessio kan terugdraaien):
   `options_assignment` blijft. De risicopoort (`risk/gate.py`) laat daarom een sluitorder op
   aandelen toe op elk symbool, ook buiten `share_eligible` (zoals SPY). Opbouwen blijft
   beperkt tot `share_eligible`, en de sluitorder moet nog steeds precies de eigen leg afbouwen.
+- **Profiel `conf/options/inzet5.yaml`** (besluit van Alessio): maximaal verlies per positie
+  5 % in plaats van 2 %. De vega-, gamma-, per-onderliggende-, scenario- en dagverlieslimieten
+  en `max_order_usd` gaan ×2,5 mee, de drawdown-rem naar 10-20 % en de HALT naar 20 %.
+  De standaardconfig blijft 2 %. Sweep per jaar op DoltHub 2019-2026 met dit profiel: zes van
+  de acht jaren negatief (2023 −12 %, 2025 −19 % met HALT), alleen 2026 duidelijk positief
+  (+20 %). Meer inzet laat vooral de duurdere calendars door, en die verliezen. Analyse:
+  `/mnt/project-files/options-dolthub/replay-2026-11-27/waarom-achter-op-buy-hold.md`.
 - **Netwerk**: de cloudomgeving moest `www.dolthub.com`, `query2.finance.yahoo.com` en
   `data.sec.gov` toelaten (met akkoord van Alessio).
 
