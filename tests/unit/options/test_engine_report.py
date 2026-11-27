@@ -90,13 +90,13 @@ def test_settled_positions_count_with_their_settlement_value():
 
 
 def test_the_final_hedge_unwind_after_the_options_close_is_counted():
-    rows = [_opened("g", "gamma_scalp"),
+    rows = [_opened("g", "long_straddle_strangle"),
             {"event": "hedge_fill", "position_id": "g", "hedge_realized_usd": 3.0},
             {"event": "fill", "position_id": "g", "price": 1.0, "quantity": 1, "commission": 0.0},
             {"event": "position_closed", "position_id": "g", "reason": "x", "exit_net": 120.0,
              "hedge_realized_usd": 3.0},               # aandelen nog open
             {"event": "hedge_fill", "position_id": "g", "hedge_realized_usd": 40.0}]   # afbouw
-    assert strategy_stats(rows)["gamma_scalp"].total_pnl == -100.0 + 40.0
+    assert strategy_stats(rows)["long_straddle_strangle"].total_pnl == -100.0 + 40.0
 
 
 def test_a_close_without_its_open_is_skipped():

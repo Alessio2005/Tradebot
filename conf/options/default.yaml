@@ -140,13 +140,6 @@ strategies:
     stop_loss_frac_debit: 0.50
     close_dte: 7
     pre_earnings_close_time: "15:00"
-  gamma_scalp:                   # long ATM-straddle, gedelta-hedged; vraagt hedging.enabled
-    enabled: false
-    dte: [30, 60]
-    max_iv_rv_ratio: 0.90        # entry: IV (gem. call/put) <= 0,90 × σ(h), h = de DTE
-    take_profit_multiple_debit: 1.30   # waarde = mark + gerealiseerde hedge-P&L per aandeel
-    stop_loss_frac_debit: 0.60
-    close_dte: 14                # en eerder dicht zodra IV >= σ(h) (iv_normalized)
   cash_secured_put:              # open vraag C: slaapt bij 25k
     enabled: false
     dte: [30, 45]
@@ -201,8 +194,8 @@ vol_regime:
     rich: [credit_spread, iron_condor, cash_secured_put, covered_call, wheel,
            short_straddle_strangle]
     normal: [credit_spread, debit_vertical, calendar_spread, long_straddle_strangle,
-             gamma_scalp, cash_secured_put, covered_call, wheel]
-    cheap: [debit_vertical, calendar_spread, long_straddle_strangle, gamma_scalp]
+             cash_secured_put, covered_call, wheel]
+    cheap: [debit_vertical, calendar_spread, long_straddle_strangle]
     stress: []
     unknown: []
 
@@ -293,7 +286,7 @@ paper:
 # terug naar nul aandelen.
 hedging:
   enabled: false
-  strategies: [gamma_scalp]        # wiens posities de hedger delta-neutraal houdt
+  strategies: []                   # wiens posities de hedger delta-neutraal houdt (leeg: niemand)
   band_shares: 20
   max_notional_frac: 0.5
   interval_seconds: 300

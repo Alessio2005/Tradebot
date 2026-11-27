@@ -155,8 +155,7 @@ te zetten.
 | Sleutel | Standaard | Wat het doet | Aanzetten |
 |---|---|---|---|
 | `strategies.calendar_spread.entry_rule` | `ivp` | toelating van de calendar: `ivp` (oude IVP-regel), `forward_vol` of `either`. Forward-vol: σ_f² = (σ₂²T₂ − σ₁²T₁)/(T₂ − T₁) ≤ `max_fwd_vol_rv_ratio` (1,00) × σ(h₂−h₁) en IV near ≥ `min_near_iv_rv_ratio` (1,05) × σ(h₁). `long_dte` moet helemaal na `short_dte` liggen (het schema eist dat) | `forward_vol` of `either` |
-| `strategies.gamma_scalp.enabled` | `false` | long ATM-straddle (30 tot 60 DTE) als IV ≤ `max_iv_rv_ratio` (0,90) × σ(h), gedelta-hedged. Exits: winstdoel (1,30 × debit, met de gerealiseerde hedge-P&L), stop (60 %), 14 DTE of IV terug op σ(h) | `enabled: true` én `hedging.enabled: true` |
-| `hedging.enabled` | `false` | de delta-hedger: per onderliggende de netto delta van de posities van `hedging.strategies` (standaard `[gamma_scalp]`) terug in aandelen zodra \|delta\| > `band_shares` (20); plafond `max_notional_frac` (0,5) × kapitaal; elke `interval_seconds` (300). Alleen op `universe.share_eligible` (AAPL, MSFT): US-ETF's kunnen vanuit de EU niet als aandeel. Een hedge gaat door de risicopoort; die houdt hetzelfde plafond aan (`stock_notional_usd`) en controleert dat een sluitorder de aandelen-leg echt naar nul brengt. In HALT en UNWIND alleen afbouwen: de order moet de aandelen op die onderliggende in absolute waarde verkleinen én de delta van het boek verlagen; nieuwe aandelen (ook een hedge vanaf nul) niet | `true`, samen met `gamma_scalp` |
+| `hedging.enabled` | `false` | de delta-hedger: per onderliggende de netto delta van de posities van `hedging.strategies` (standaard leeg: dan doet de hedger niets) terug in aandelen zodra \|delta\| > `band_shares` (20); plafond `max_notional_frac` (0,5) × kapitaal; elke `interval_seconds` (300). Alleen op `universe.share_eligible` (AAPL, MSFT): US-ETF's kunnen vanuit de EU niet als aandeel. Een hedge gaat door de risicopoort; die houdt hetzelfde plafond aan (`stock_notional_usd`) en controleert dat een sluitorder de aandelen-leg echt naar nul brengt. In HALT en UNWIND alleen afbouwen: de order moet de aandelen op die onderliggende in absolute waarde verkleinen én de delta van het boek verlagen; nieuwe aandelen (ook een hedge vanaf nul) niet | `true`, plus de strategieën in `hedging.strategies` (bijvoorbeeld `[long_straddle_strangle]`) |
 | `paper.stock_spread_bps`, `commission_per_share`, `min_commission_per_order` | `2`, `0.005`, `1.0` | kosten van aandelenorders in de paper-broker | alleen relevant met hedging |
 
 ### Executie en gamma management
@@ -191,9 +190,9 @@ te zetten.
   synthetische aandelen of futures is bij 25k te grof (100 delta per stap tegen ±12 delta
   beweging per dag per straddle). ETF-posities sturen daarom bij met opties.
 * **Aandelen uit assignment of uitoefening** van een gehedgede positie (bijvoorbeeld een
-  gamma_scalp-leg die ITM expireert) horen bij geen aandelen-leg en worden **niet automatisch
+  gehedgede straddle-leg die ITM expireert) horen bij geen aandelen-leg en worden **niet automatisch
   afgebouwd**: de reconciliatie accepteert hele lots van 100, dus ze blijven bij de broker
-  staan, ongehedged. De exits (14 DTE, sluiten vóór expiratie) maken dit zeldzaam. Het alarm
+  staan, ongehedged. De exits (`close_dte`, sluiten vóór expiratie) maken dit zeldzaam. Het alarm
   `options_assignment` gaat ook af bij een uitoefening van een strategie uit
   `hedging.strategies` (met hedging aan); sluit de aandelen dan met de hand.
 * **Short strangles** hebben onbeperkt risico en blijven standaard uit
