@@ -67,6 +67,7 @@ from ..execution.orders import (
     combo_prices,
     fair_walk_limit,
     position_id,
+    tick_for,
     walk_limit,
 )
 from ..execution.paper import PaperBroker, settlement_kind
@@ -478,12 +479,13 @@ class Engine:
         mid, natural = prices
         e = self.cfg.execution
         if not self._fair_anchored(purpose):
-            return walk_limit(mid, natural, step, e.ticks.combo,
+            return walk_limit(mid, natural, step, tick_for(e.ticks, mid, legs),
                               self._concession(purpose, urgency)), None
         fair = combo_fair(chain, self._surfaces.get(und), legs, self.settings.engines)
         if fair is None:                         # zelfde quotes als combo_prices: kan niet
             return None
-        s = fair_walk_limit(mid, natural, fair, step, e.ticks.combo, e.max_edge_frac)
+        s = fair_walk_limit(mid, natural, fair, step, tick_for(e.ticks, mid, legs),
+                            e.max_edge_frac)
         if abs(natural - mid) * 2.0 > e.max_spread_frac_fair * abs(fair):
             return s, "spread_vs_fair"
         return s, "max_edge" if s.done else None

@@ -64,6 +64,7 @@ from enum import StrEnum
 from ...schemas.options import OptionsConfig
 from ..calendar import expiry_moment
 from ..chain.builder import Chain
+from ..execution.orders import tick_for
 from ..positions import (
     MULTIPLIER,
     Action,
@@ -297,8 +298,8 @@ class RiskGate:
         bounds = _combo_bounds(p, chain) if chain is not None else None
         if bounds is None:
             return "quotes:missing"
-        tick = self.cfg.execution.ticks.combo
         debit = -p.limit_net
+        tick = tick_for(self.cfg.execution.ticks, abs(debit), p.legs)
         best, natural = bounds
         if debit < best - tick - 1e-9 or debit > natural + tick + 1e-9:
             raise SafetyBreach(f"limiet {debit:.4f} buiten [{best:.4f}, {natural:.4f}]"
