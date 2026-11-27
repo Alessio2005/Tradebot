@@ -28,15 +28,18 @@ staat die al expireerde. De workflow `options-paper-smoke.yml` doet precies dit.
 
 - `strategies.<naam>`: aantal gesloten posities (`closed`), `win_rate` (P&L > 0), `avg_pnl`,
   `total_pnl` en `largest_loss` (0 als er geen verlies was), in USD. De P&L van een positie is de
-  som van haar fills (ook bijsturingen) min commissie, plus de gerealiseerde aandelenhedge.
-  Alleen posities met een `position_closed` in het journal tellen; wat vervalt of wordt
-  toegewezen niet (dat zit wel in de equity).
+  som van haar fills (ook bijsturingen) min commissie, plus de afrekening van vervallen,
+  toegewezen of uitgeoefende legs (`settle_usd`), plus de laatste cumulatieve hedge-P&L
+  (`hedge_realized_usd`, dus inclusief het afbouwen van de aandelen na het sluiten van de
+  opties). Een positie telt als gesloten bij `position_closed`; de engine schrijft dat ook als
+  de laatste leg door expiratie, assignment of uitoefening afrekent.
 - `book`: `total_return`, `max_drawdown` (fractie van de equity-piek), `sharpe` en `sortino` op
   dagrendementen uit de equity per dag (met het startkapitaal als eerste punt), jaarfactor
   √252, risicovrij 0. Sortino gebruikt de neerwaartse afwijking t.o.v. 0.
 - Randgevallen: zonder gesloten posities is `strategies` leeg; bij minder dan drie equity-punten
-  (inclusief het startpunt) of een spreiding van 0 zijn `sharpe` en `sortino` `null` (Sortino
-  ook bij nul neerwaartse afwijking). Nooit NaN.
+  (inclusief het startpunt), een equity ≤ 0 vóór het laatste punt of een spreiding van 0 zijn
+  `sharpe` en `sortino` `null` (Sortino ook bij nul neerwaartse afwijking). Rendement en drawdown
+  blijven gewoon berekend (een leeggelopen rekening geeft -100 %). Nooit NaN.
 
 Op korte runs zijn dit kleine steekproeven: lees ze als een gezondheidscheck van de regels,
 niet als bewijs van een edge.

@@ -11,6 +11,7 @@ import pytest
 
 from tests.unit.options.market_helpers import CFG
 from tradebot.options.calendar import NY
+from tradebot.options.chain.builder import Chain
 from tradebot.options.contracts import OptionContract, Right
 from tradebot.options.data.feed import ReplayFeed
 from tradebot.options.data.synthetic import SyntheticSpec, SyntheticUnderlying, generate
@@ -31,7 +32,7 @@ from tradebot.options.positions import (
     Urgency,
 )
 from tradebot.options.pricing.surface import Smile
-from tradebot.options.rates import CashDividend
+from tradebot.options.rates import Carry, CashDividend
 from tradebot.options.risk.gate import SafetyBreach
 from tradebot.options.vol_regime import VolRegime
 from tradebot.schemas.options import RegimeAllowedConfig
@@ -387,7 +388,49 @@ def test_assignments_close_legs_and_alert(rig):
     _assign(rig, C2, ExecutionKind.EXPIRY)
     assert not rig.state.open_positions() and len(rig.alerts) == 1
     _assign(rig, OptionContract("TSTB", date(2027, 1, 15), 10.0, Right.PUT))
-    assert [r["event"] for r in rig.e.journal.read()] == ["assignment", "expiry", "assignment"]
+    assert [r["event"] for r in rig.e.journal.read()] == [
+        "assignment", "expiry", "position_closed", "assignment"]
+
+
+def _spot(rig, spot):
+    rig.e.chains["TSTB"] = Chain("TSTB", spot, at(D0, 16, 0), Carry(0.04), ())
+
+
+def test_settlement_events_carry_position_and_value(rig):
+    _spot(rig, 45.0)                                    # put 48: 3 in the money
+    rig.state.positions += [_pos("cal", "credit_spread", [(C1, -1), (C2, 1)]),
+                            _pos("solo", "credit_spread", [(C2, -1)])]
+    _assign(rig, C1)                                    # voorste leg: positie blijft open
+    assert not rig.events("position_closed")
+    (a,) = rig.events("assignment")
+    assert a["position_id"] == "cal" and a["settle_usd"] == -300.0
+    _assign(rig, C2)                                    # laatste leg van "solo"... en van "cal"
+    (closed,) = rig.events("position_closed")
+    assert closed["position_id"] == "cal" and closed["reason"] == "assignment"
+    assert closed["exit_net"] == 100.0 * 1 * 2.0 and "hedge_realized_usd" not in closed
+
+
+def test_expiry_and_hedged_settlement_close_the_position(rig):
+    _spot(rig, 45.0)
+    base = _pos("h", "gamma_scalp", [(C1, -1)])
+    hedged = dataclasses.replace(base, legs=(*base.legs, Leg(None, "TSTB", 100, 45.0)),
+                                 hedge_realized_usd=5.0)
+    rig.state.positions.append(hedged)
+    _assign(rig, C1, ExecutionKind.EXPIRY)
+    (ev,) = rig.events("expiry")
+    assert ev["position_id"] == "h" and ev["settle_usd"] == 0.0
+    (closed,) = rig.events("position_closed")
+    assert closed["reason"] == "expiry" and closed["exit_net"] == 0.0
+    assert closed["hedge_realized_usd"] == 5.0
+
+
+def test_settlement_without_a_chain_or_position_is_defined(rig):
+    rig.state.positions.append(_pos("s", "credit_spread", [(C1, -1)]))
+    _assign(rig, C1)                                    # geen keten: spot = strike, waarde 0
+    (a,) = rig.events("assignment")
+    assert a["position_id"] == "s" and a["settle_usd"] == 0.0
+    _assign(rig, C2)                                    # geen positie
+    assert rig.events("assignment")[-1]["position_id"] is None
 
 
 def test_wheel_assignments_move_the_phase(rig):

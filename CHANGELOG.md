@@ -13,6 +13,10 @@
 - Nieuw: `python -I -m tradebot.options sweep --markets DIR... --out DIR [--workers N]`: dezelfde
   config op meerdere markten in een procespool (`forkserver`), `sweep.json` met de stats per markt.
   Robuustheidscheck, geen parameter-grid.
+- Journal: de events `expiry`, `assignment` en `exercise` krijgen `position_id` en `settle_usd`
+  (waarde van de afrekening: 0 bij expiratie, aantal × intrinsiek × 100 bij levering, tegen de
+  slotkoers); rekent de laatste optieleg van een positie af, dan volgt ook `position_closed`
+  (`reason` = het event, `exit_net` = `settle_usd`). Posities en equity veranderen niet.
 - Alleen toegevoegde sleutels: de standaard-replay verandert niet (journal identiek, 3 posities,
   eind-equity 25.303,60 USD).
 

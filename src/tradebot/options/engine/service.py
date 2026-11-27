@@ -52,6 +52,7 @@ from ...schemas.options import OptionsConfig
 from ..calendar import NY, TradingCalendar, expiry_moment
 from ..chain.builder import Chain, ChainBuilder
 from ..chain.filters import build_filtered, filter_settings
+from ..contracts import Right
 from ..data.feed import MarketFeed
 from ..execution.broker import BrokerAdapter, Execution, ExecutionKind
 from ..execution.orders import (
@@ -603,6 +604,9 @@ class Engine:
     def _assignment(self, e: Execution, now: datetime) -> None:
         self._book_version += 1
         k = e.contract.key()
+        pid: str | None = None
+        settle_usd = 0.0
+        closed: StrategyPosition | None = None
         for i, p in enumerate(self.state.positions):
             if p.status is PositionStatus.CLOSED:
                 continue
@@ -612,6 +616,13 @@ class Engine:
             rest = tuple(leg for leg in p.option_legs if leg.contract.key() != k)  # type: ignore[union-attr]
             stock = tuple(leg for leg in p.legs if leg.contract is None)
             short = legs[0].qty < 0
+            pid = p.position_id
+            if e.kind is not ExecutionKind.EXPIRY:       # waarde van de levering tegen de slotkoers
+                chain = self.chains.get(p.underlying)         # zonder keten: geen waarde (spot = strike)
+                spot = chain.spot if chain is not None else e.contract.strike
+                itm = spot - e.contract.strike if e.contract.right is Right.CALL \
+                    else e.contract.strike - spot
+                settle_usd = legs[0].qty * itm * MULTIPLIER
             if p.strategy == "wheel" and e.kind is ExecutionKind.ASSIGNMENT:
                 self.state.wheel[p.underlying] = "shares" if p.phase == "csp" else "idle"
                 self.state.cost_basis[p.underlying] = (
@@ -623,8 +634,15 @@ class Engine:
             if e.kind is not ExecutionKind.EXPIRY and short and p.strategy != "wheel":
                 self.alert("critical", "options_assignment",
                            f"short {k} van {p.position_id} {e.kind.value}")
+            closed = p if not rest else None
             break
-        self._event(now, e.kind.value, contract=k, qty=e.qty, price=e.price)
+        self._event(now, e.kind.value, contract=k, qty=e.qty, price=e.price,
+                    position_id=pid, settle_usd=round(settle_usd, 2))
+        if closed is not None:
+            hedge = ({"hedge_realized_usd": round(closed.hedge_realized_usd, 2)}
+                     if closed.hedge_realized_usd or closed.shares else {})
+            self._event(now, "position_closed", position_id=closed.position_id,
+                        reason=e.kind.value, exit_net=round(settle_usd, 2), **hedge)
 
     # --- aandelen (delta-hedger) ----------------------------------------------------------
 

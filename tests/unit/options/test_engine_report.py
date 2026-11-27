@@ -46,6 +46,49 @@ def test_strategy_stats_per_strategy():
     assert (ic.closed, ic.win_rate, ic.total_pnl, ic.largest_loss) == (1, 1.0, 148.0, 0.0)
 
 
+def _opened(pid: str, strategy: str) -> dict:
+    return {"event": "position_opened", "position_id": pid, "strategy": strategy}
+
+
+def test_settled_positions_count_with_their_settlement_value():
+    rows = [
+        _opened("exp", "wheel"), {"event": "fill", "position_id": "exp", "price": -1.0,
+                                  "quantity": 1, "commission": 1.0},        # +100 - 1
+        {"event": "expiry", "position_id": "exp", "settle_usd": 0.0},
+        {"event": "position_closed", "position_id": "exp", "reason": "expiry", "exit_net": 0.0},
+        _opened("itm", "wheel"), {"event": "fill", "position_id": "itm", "price": -1.0,
+                                  "quantity": 1, "commission": 1.0},
+        {"event": "assignment", "position_id": "itm", "settle_usd": -300.0},
+        {"event": "position_closed", "position_id": "itm", "reason": "assignment",
+         "exit_net": -300.0},
+        _opened("cal", "calendar"),                 # voorste leg toegewezen, later gesloten
+        {"event": "fill", "position_id": "cal", "price": 1.0, "quantity": 1, "commission": 0.0},
+        {"event": "assignment", "position_id": "cal", "settle_usd": -50.0},
+        {"event": "fill", "position_id": "cal", "price": -0.5, "quantity": 1, "commission": 0.0},
+        {"event": "position_closed", "position_id": "cal", "reason": "x", "exit_net": 50.0},
+        {"event": "expiry", "position_id": None, "settle_usd": 0.0},      # zonder positie
+    ]
+    st = strategy_stats(rows)
+    assert st["wheel"].closed == 2 and st["wheel"].total_pnl == 99.0 - 201.0
+    assert st["wheel"].win_rate == 0.5 and st["wheel"].largest_loss == -201.0
+    assert st["calendar"].total_pnl == -100.0 - 50.0 + 50.0
+
+
+def test_the_final_hedge_unwind_after_the_options_close_is_counted():
+    rows = [_opened("g", "gamma_scalp"),
+            {"event": "hedge_fill", "position_id": "g", "hedge_realized_usd": 3.0},
+            {"event": "fill", "position_id": "g", "price": 1.0, "quantity": 1, "commission": 0.0},
+            {"event": "position_closed", "position_id": "g", "reason": "x", "exit_net": 120.0,
+             "hedge_realized_usd": 3.0},               # aandelen nog open
+            {"event": "hedge_fill", "position_id": "g", "hedge_realized_usd": 40.0}]   # afbouw
+    assert strategy_stats(rows)["gamma_scalp"].total_pnl == -100.0 + 40.0
+
+
+def test_a_close_without_its_open_is_skipped():
+    rows = [{"event": "position_closed", "position_id": "x", "reason": "r", "exit_net": 1.0}]
+    assert strategy_stats(rows) == {}
+
+
 def test_no_closed_positions_gives_empty_strategies():
     assert strategy_stats([]) == {}
     assert strategy_stats(_trade("a", "csp", -1.0, 0.0)[:2]) == {}
@@ -84,7 +127,11 @@ def test_book_stats_zero_stdev_and_zero_downside():
 
 def test_book_stats_empty_account_is_defined():
     b = book_stats([100.0, 50.0, 0.0])
-    assert (b.total_return, b.max_drawdown, b.sharpe, b.sortino) == (0.0, 0.0, None, None)
+    assert (b.total_return, b.max_drawdown) == (-1.0, 1.0)
+    assert b.sharpe is not None and b.sortino is not None   # rendementen -0,5 en -1,0
+    c = book_stats([100.0, 0.0, -20.0, 10.0])            # ook daarna door nul heen: geen NaN
+    assert (c.total_return, c.max_drawdown, c.sharpe, c.sortino) == (-0.9, 1.2, None, None)
+    json.dumps(c.as_record(), allow_nan=False)
 
 
 def test_replay_stats_record_is_strict_json():
