@@ -99,17 +99,31 @@ class UnderlyingData:
 
 # --- ophalen (netwerk) ---------------------------------------------------------------------
 
-def _http_get(url: str) -> Mapping[str, Any]:  # pragma: no cover - echt netwerk
-    with urllib.request.urlopen(url, timeout=120) as r:
+def _https_json(url: str, user_agent: str, timeout: float) -> Mapping[str, Any]:
+    """GET op een vaste https-URL en de JSON terug. Alleen https: geen file:// of andere
+    schema's (daarom mag `urlopen` hier, zie de nosec)."""
+    require(url.startswith("https://"), "alleen https-URL's", DataContractError, url=url)
+    return _open_json(urllib.request.Request(url, headers={"User-Agent": user_agent}), timeout)
+
+
+def _open_json(req: urllib.request.Request,
+               timeout: float) -> Mapping[str, Any]:  # pragma: no cover - echt netwerk
+    with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310 - https afgedwongen
         out: Mapping[str, Any] = json.load(r)
     return out
+
+
+def _http_get(url: str) -> Mapping[str, Any]:  # pragma: no cover - echt netwerk
+    return _https_json(url, "tradebot-research", 120)
 
 
 def _sql(day: date, symbols: Sequence[str]) -> str:
     for s in symbols:
         require(s.isalnum(), "ongeldig symbool", DataContractError, symbol=s)
     names = ",".join(f"'{s}'" for s in symbols)
-    return (f"SELECT * FROM option_chain WHERE date='{day.isoformat()}' "
+    # Alleen een datum en alfanumerieke symbolen (hierboven gecontroleerd) in de query, en de
+    # API is alleen-lezen op een openbare database.
+    return (f"SELECT * FROM option_chain WHERE date='{day.isoformat()}' "  # nosec B608
             f"AND act_symbol IN ({names})")
 
 
@@ -194,10 +208,7 @@ EarningsSource = Callable[[str, date, date], tuple[date, ...]]
 
 
 def _yahoo_get(url: str) -> Mapping[str, Any]:  # pragma: no cover - echt netwerk
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        out: Mapping[str, Any] = json.load(r)
-    return out
+    return _https_json(url, "Mozilla/5.0", 60)
 
 
 SEC = "https://data.sec.gov/submissions/"
@@ -207,10 +218,7 @@ ETFS = frozenset({"SPY", "QQQ", "IWM", "DIA", "XLF"})
 
 
 def _sec_get(url: str) -> Mapping[str, Any]:  # pragma: no cover - echt netwerk
-    req = urllib.request.Request(url, headers={"User-Agent": "tradebot-research"})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        out: Mapping[str, Any] = json.load(r)
-    return out
+    return _https_json(url, "tradebot-research", 60)
 
 
 def sec_earnings(symbol: str, start: date, end: date, get: HttpGet = _sec_get,

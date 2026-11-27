@@ -96,6 +96,15 @@ def test_a_symbol_that_is_not_alphanumeric_never_reaches_the_query():
         fetch_day(date(2023, 1, 9), ["SPY'; DROP"], lambda u: {})
 
 
+def test_only_https_urls_are_opened(monkeypatch):
+    with pytest.raises(DataContractError, match="alleen https"):
+        dh._https_json("file:///etc/passwd", "x", 1)
+    seen = []
+    monkeypatch.setattr(dh, "_open_json", lambda req, t: seen.append((req, t)) or {"ok": 1})
+    assert dh._https_json("https://example.invalid/x", "agent", 7) == {"ok": 1}
+    assert seen[0][0].get_header("User-agent") == "agent" and seen[0][1] == 7
+
+
 def test_download_writes_rows_and_empty_markers_and_resumes(tmp_path):
     calls = []
 
