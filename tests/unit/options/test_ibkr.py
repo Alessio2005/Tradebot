@@ -318,7 +318,7 @@ def test_the_paper_service_runs_until_stopped(tmp_path, monkeypatch):
     uni = CFG.universe.model_copy(update={"underlyings": ("TST",), "share_eligible": ()})
     cfg = CFG.model_copy(update={"universe": uni})
     monkeypatch.setattr(paper_mod, "IBKRFeed",
-                        lambda ib, names, rate: IBKRFeed(ib, names, rate, events_source=_events,
+                        lambda ib, names, rate, **kw: IBKRFeed(ib, names, rate, events_source=_events,
                                                          wait_seconds=0))
     t = [datetime.combine(date(2026, 11, 24), time(9, 59), tzinfo=NY)]
     stop = asyncio.Event()
@@ -430,12 +430,13 @@ def test_a_restarted_broker_adopts_an_open_order_by_its_order_ref(ap):
     first = broker(ib)
     order = order_for(ap, -0.5)
     run(first.submit(ap, order))
+    run(first.submit(ap, order_for(ap, -0.6, "c0")))    # een andere order staat er ook open
     fresh = broker(ib)                                  # nieuw proces, zelfde gateway
     assert run(fresh.open_orders()) == []
     bo = run(fresh.adopt(order))
     assert bo is not None and bo.status is OrderStatus.SUBMITTED
     assert run(fresh.adopt(order)) == bo                # al overgenomen: dezelfde
-    assert [o.order.client_id for o in run(fresh.open_orders())] == ["c1"]
+    assert [o.order.client_id for o in run(fresh.open_orders())] == ["c1"]   # c0 niet geadopteerd
     run(fresh.cancel("c1"))
     assert ib.cancelled and run(fresh.adopt(dataclasses.replace(order, client_id="c2"))) is None
 
@@ -521,3 +522,33 @@ def test_own_fills_and_lagging_positions_are_no_settlement():
     _derived(b)
     ib.held = _held({}, stock=0)
     assert _derived(b) == []
+
+
+# --- de keten begrenzen (oud #12) ----------------------------------------------------------
+
+def test_the_chain_is_capped_to_a_spread_of_expiries_and_a_strike_range():
+    from tradebot.options.data.ibkr_feed import MAX_EXPIRIES, STRIKE_RANGE, spread_expiries
+    days = [date(2026, 12, 1) + timedelta(days=i) for i in range(10)]
+    assert spread_expiries(days, 20) == days and spread_expiries(days, 1) == days[:1]
+    pick = spread_expiries(days, 4)
+    assert len(pick) == 4 and pick[0] == days[0] and pick[-1] == days[-1]
+    assert (MAX_EXPIRIES, STRIKE_RANGE) == (6, 0.10)
+    ib = FakeIB()
+    f = IBKRFeed(ib, ("TST",), 0.04, events_source=_events, wait_seconds=0, max_expiries=2)
+    run(f.refresh(NOW))
+    s = f.snapshot("TST", NOW)
+    assert {r.contract.expiry for r in s.options} == {EXPIRIES[0], EXPIRIES[-1]}
+    assert {r.contract.strike for r in s.options} == {float(k) for k in range(90, 111)}
+
+
+def test_the_dead_mans_switch_default_ping_is_a_get(monkeypatch):
+    from tradebot.options import cli
+    calls = []
+
+    class R:
+        def raise_for_status(self):
+            calls.append("ok")
+
+    monkeypatch.setattr(cli.requests, "get", lambda url, timeout: calls.append(url) or R())
+    cli._ping("http://hc")
+    assert calls == ["http://hc", "ok"]

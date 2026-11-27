@@ -22,7 +22,8 @@ elke andere map, een map met HALT/UNWIND/`halt/` en een map met de markt erin bl
   een paper-account (id begint met `DU`). `--healthcheck` controleert alleen de heartbeat.
   Alarmen: `ALERT_WEBHOOK_URL` en/of `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (altijd ook het
   log); `HEARTBEAT_URL` is de dead man's switch; `IB_RECONNECT_TIMEOUT_SECONDS` (900) is de
-  tijd zonder verbinding met de gateway waarna HALT volgt.
+  tijd zonder verbinding met de gateway waarna HALT volgt. `IB_MAX_EXPIRIES` (6) en
+  `IB_STRIKE_RANGE` (0,10) begrenzen de keten (aantal marktdatalijnen) van de feed.
 
 Er is geen live-opdracht: live staat uit en kan hier niet aangezet worden.
 """
@@ -48,6 +49,7 @@ from ..schemas.options import DEFAULT_OPTIONS_CONFIG, OptionsConfig, load_option
 from .calendar import NY
 from .data.dolthub import DEFAULT_RATE, DEFAULT_SYMBOLS, DoltSpec, make_market
 from .data.historical import HistoricalSeries, HistoricalSpec, build_market, fetch_history
+from .data.ibkr_feed import MAX_EXPIRIES, STRIKE_RANGE
 from .data.store import read_market, write_market
 from .engine.paper import run_paper
 from .engine.replay import REPLAY_MODE, run_replay
@@ -183,7 +185,9 @@ async def _paper(cfg: OptionsConfig, run_dir: Path, env: Mapping[str, str]) -> N
                     env.get("IB_HOST", "127.0.0.1"), int(env.get("IB_PORT", "4002")),
                     int(env.get("IB_CLIENT_ID", "17")), alert=alerter.send,
                     reconnect_timeout=float(env.get("IB_RECONNECT_TIMEOUT_SECONDS", "900")),
-                    pulse=make_pulse(env.get("HEARTBEAT_URL")))
+                    pulse=make_pulse(env.get("HEARTBEAT_URL")),
+                    max_expiries=int(env.get("IB_MAX_EXPIRIES", str(MAX_EXPIRIES))),
+                    strike_range=float(env.get("IB_STRIKE_RANGE", str(STRIKE_RANGE))))
 
 
 async def _history(cfg: OptionsConfig, spec: HistoricalSpec,

@@ -129,7 +129,7 @@ MAX_TASK_FAILURES = 3
 # en haar losse delen: CSP → covered call), niet als aandelen-leg die wordt afgebouwd.
 _OWN_SHARES = frozenset({"wheel", "covered_call", "cash_secured_put"})
 LOT_STRATEGIES = _OWN_SHARES
-Alert = Callable[[str, str, str], None]
+Alert = Callable[[str, str, str], object]      # de terugkeerwaarde (bv. `Alerter.send`) telt niet
 Task = Callable[[datetime], Awaitable[None]]
 
 

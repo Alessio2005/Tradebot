@@ -10,14 +10,14 @@ from tests.unit.options.market_helpers import CFG
 from tests.unit.options.test_engine_service import BASE, D0, MKT, at
 from tests.unit.options.test_ibkr import _events
 from tradebot.options.calendar import NY
+from tradebot.options.data.feed import ReplayFeed
 from tradebot.options.data.ibkr_feed import IBKRFeed
 from tradebot.options.engine import paper as paper_mod
 from tradebot.options.engine.paper import run_paper
-from tradebot.options.data.feed import ReplayFeed
 from tradebot.options.engine.service import Engine, EngineMode, Paths
 from tradebot.options.engine.state import EngineState, load_state
-from tradebot.options.execution.paper import PaperBroker
 from tradebot.options.execution.orders import OrderStatus
+from tradebot.options.execution.paper import PaperBroker
 
 
 def ticks(engine, start, until, step=15):
@@ -51,9 +51,10 @@ def test_a_restart_after_a_crash_adopts_the_open_order_and_places_no_second_one(
     assert any(k.endswith("|scan") or "scan" in k for k in saved["done_today"])
     # Crash: geen stop(), geen EOD. Nieuw proces, dezelfde broker (de order staat daar open).
     state = load_state(tmp_path / "state.json", "paper", "t0")
+    state.orders["old"] = {"client_id": "old", "status": "filled"}     # klaar: niet adopteren
     b = engine_on(tmp_path, broker, state)
     ticks(b, t, t + timedelta(seconds=30))
-    assert list(b.state.orders) == [cid] and list(broker._orders) == [cid]
+    assert sorted(b.state.orders) == sorted([cid, "old"]) and list(broker._orders) == [cid]
     assert [r["event"] for r in b.journal.read()].count("order_adopted") == 1
 
 
@@ -76,7 +77,7 @@ def _service(tmp_path, monkeypatch, ib, outage_at, stop_at, failures, **kw):
     uni = CFG.universe.model_copy(update={"underlyings": ("TST",), "share_eligible": ()})
     cfg = CFG.model_copy(update={"universe": uni})
     monkeypatch.setattr(paper_mod, "IBKRFeed",
-                        lambda ib, names, rate: IBKRFeed(ib, names, rate, events_source=_events,
+                        lambda ib, names, rate, **kw: IBKRFeed(ib, names, rate, events_source=_events,
                                                          wait_seconds=0))
     day = date(2026, 11, 24)
     t = [datetime.combine(day, time(9, 59), tzinfo=NY)]
@@ -172,6 +173,8 @@ def test_a_partial_fill_books_only_the_filled_part_and_keeps_the_order_open(tmp_
     (p,) = rig.state.open_positions()
     assert p.units == 4 and p.max_loss == 400.0 and o["status"] == "filled" and o["booked"]
     assert rig.e._pending_entries() == ()
+    o["status"], o["booked"] = "submitted", False        # nog open, maar niets meer te vullen
+    assert rig.e._pending_entries() == ()
     fills = [r for r in rig.e.journal.read() if r["event"] == "fill"]
     assert [f["quantity"] for f in fills] == [1, 2, 1]
     assert rig.state.new_positions == {D0.isoformat(): 1}
@@ -214,3 +217,13 @@ def test_a_cancelled_partial_entry_keeps_its_filled_units_and_a_late_fill_is_sti
     _fill(rig, legs, 1, "e2")                             # een late fill van vlak voor het annuleren
     (p,) = rig.state.open_positions()
     assert p.units == 2 and p.max_loss == 200.0 and not o.get("booked")
+
+
+def test_an_order_record_becomes_a_broker_order_again(tmp_path):
+    from tradebot.options.engine.service import _order_of
+    from tradebot.options.execution.orders import ComboOrder, Purpose, StockOrder
+    stock = {"client_id": "s", "stock": True, "position_id": "p", "underlying": "TSTB",
+             "qty": -100, "limit": 49.9, "purpose": "hedge"}
+    assert _order_of(stock) == StockOrder("s", "p", "TSTB", -100, 49.9, Purpose.HEDGE)
+    rig, _ = _partial_rig(tmp_path)
+    assert isinstance(_order_of(rig.state.orders["a"]), ComboOrder)

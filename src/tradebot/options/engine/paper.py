@@ -20,7 +20,7 @@ from typing import Any
 from ...schemas.options import OptionsConfig
 from ...utils.single_instance import SingleInstance
 from ..calendar import NY
-from ..data.ibkr_feed import IBKRFeed
+from ..data.ibkr_feed import MAX_EXPIRIES, STRIKE_RANGE, IBKRFeed
 from ..execution.ib_noise import quiet_ib
 from ..execution.ibkr import IBKRBroker
 from .service import Alert, Engine, EngineMode, Paths, _no_alert
@@ -42,13 +42,16 @@ async def run_paper(cfg: OptionsConfig, ib: Any, run_dir: Path, stop: asyncio.Ev
                     tick_seconds: float = 15.0, refresh_seconds: float = 300.0,
                     alert: Alert = _no_alert, reconnect_timeout: float = 900.0,
                     reconnect_base: float = 5.0, reconnect_cap: float = 60.0,
-                    pulse: Callable[[], None] | None = None) -> Engine:
+                    pulse: Callable[[], None] | None = None,
+                    max_expiries: int = MAX_EXPIRIES,
+                    strike_range: float = STRIKE_RANGE) -> Engine:
     quiet_ib()
     paths = Paths(run_dir)
     with SingleInstance(run_dir / "lock"):
         broker = IBKRBroker(ib, host, port, client_id, account)
         await broker.connect()
-        feed = IBKRFeed(ib, cfg.universe.underlyings, cfg.pricing.risk_free_rate)
+        feed = IBKRFeed(ib, cfg.universe.underlyings, cfg.pricing.risk_free_rate,
+                        strike_range=strike_range, max_expiries=max_expiries)
         state = (load_state(paths.state, PAPER_MODE, broker.account_hash)
                  or EngineState(PAPER_MODE, broker.account_hash, clock().isoformat()))
         engine = Engine(cfg, feed, broker, paths, state, alert, persist=True)
