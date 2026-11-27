@@ -208,7 +208,7 @@ class Engine:
         self.halts = HaltStore(paths.halt_store)
         self.journal = Journal(paths.journal)
         self.iv_rules = iv_rule_settings(cfg.iv_metrics)
-        self.regime_rules = regime_settings(cfg.vol_regime)
+        self.regime_rules = regime_settings(cfg.vol_regime, cfg.iv_metrics.atm_tenor_days)
         self.selection = selection_rules(cfg)
         self.hedge_rules = hedge_rules(cfg)
         sch = cfg.schedule
