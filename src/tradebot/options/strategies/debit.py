@@ -103,7 +103,7 @@ class DebitVertical:
             if found is None:
                 continue
             legs, debit, width = found
-            units = size(debit * MULTIPLIER, market, book, und, self.rules)
+            units = size(debit * MULTIPLIER, market, book, und, self.rules, legs)
             if units == 0:
                 continue
             kind = "bull_call" if right is Right.CALL else "bear_put"
@@ -202,7 +202,7 @@ class CalendarSpread:
             theta = position_greek(chain, legs, "theta")
             if debit is None or debit <= 0 or theta is None:
                 continue
-            units = size(debit * MULTIPLIER, market, book, und, self.rules)
+            units = size(debit * MULTIPLIER, market, book, und, self.rules, legs)
             if units == 0:
                 continue
             out.append(Candidate(self.name, und, legs, units, -debit,
@@ -274,7 +274,7 @@ class LongVol:
             vega = position_greek(chain, legs, "vega") if legs is not None else None
             if legs is None or debit is None or debit <= 0 or vega is None:
                 continue
-            units = size(debit * MULTIPLIER, market, book, und, self.rules)
+            units = size(debit * MULTIPLIER, market, book, und, self.rules, legs)
             if units == 0:
                 continue
             out.append(Candidate(self.name, und, legs, units, -debit,

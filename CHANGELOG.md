@@ -4,6 +4,18 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: sizing op risico en drawdown-rem (2026-11-27)
+- `sizing.daily_risk_frac` (standaard `null` = uit): eenheden = min(regel van 7.3,
+  floor(daily_risk_frac × kapitaal / σ_unit)), σ_unit = √((Δ·S·σ_1d)² + 2·(½·Γ·S²·σ_1d²)² +
+  (V·volvol_1d)²) in USD per eenheid (Greeks uit de keten via `position_greek`, σ_1d uit
+  `risk.gamma.sigma_1d`, volvol_1d = `sizing.vol_of_vol_daily_points`, 1,0). Zonder Greeks of
+  RV-verwachting: 0 eenheden (`strategies/common.py`).
+- `sizing.drawdown_brake: [0.05, 0.10]` (standaard aan, `null` = uit): eenheden × een factor die
+  lineair van 1 naar 0,5 loopt tussen die drawdowns van de equity-piek (max van
+  `high_water_mark` en het startkapitaal) en daarna 0,5 blijft; naar beneden afgerond.
+  `MarketState` draagt daarvoor `equity_usd` en `equity_peak_usd`. De standaard-replay verandert
+  niet (grootste drawdown 0,33 %): journal identiek, 3 posities, eind-equity 25.303,60 USD.
+
 ## Options: gamma management per positie (2026-11-27)
 - `risk.max_gamma_loss_frac_credit` (standaard `null` = uit, aanbevolen 0,5): een positie met
   credit waarvan ½·|Γ|·(S·σ_1d)² (short gamma, σ_1d = `RVForecast.at_horizon(1)` × √(1/252)) boven

@@ -382,8 +382,10 @@ class Engine:
 
     def market_state(self, now: datetime) -> MarketState:
         events = {u: e for u in self.chains if (e := self.feed.events(u)) is not None}
+        peak = max(self.state.high_water_mark, self.cfg.account.capital_usd)
         return MarketState(now, self.cal, dict(self.chains), dict(self._iv), dict(self._trend),
-                           events, self.cfg.account.capital_usd, dict(self._vol))
+                           events, self.cfg.account.capital_usd, dict(self._vol),
+                           self._equity, peak)
 
     def book(self) -> Book:
         return Book(tuple(self.state.open_positions()), dict(self._shares),

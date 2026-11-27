@@ -476,6 +476,11 @@ def test_the_market_state_carries_the_vol_state(rig):
     opened(rig)
     m = rig.e.market_state(at(D0, 10, 2))
     assert m.vol == rig.e._vol and m.vol["TSTB"].rv is not None
+    # E1: de lopende equity en de piek (minstens het startkapitaal) voor de drawdown-rem
+    assert m.equity_usd == rig.e._equity
+    assert m.equity_peak_usd == max(rig.e.state.high_water_mark, rig.e.cfg.account.capital_usd)
+    rig.e.state.high_water_mark = 1e9
+    assert rig.e.market_state(at(D0, 10, 2)).equity_peak_usd == 1e9
 
 
 def test_a_regime_without_the_strategy_blocks_the_entry(tmp_path):

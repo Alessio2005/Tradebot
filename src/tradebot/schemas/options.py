@@ -384,6 +384,19 @@ class RelativeValueConfig(StrictModel):
 class SizingConfig(StrictModel):
     max_loss_frac_capital: Fraction = 0.02
     ranking: Literal["credit_per_max_loss"] = "credit_per_max_loss"   # vast, detailontwerp 7.3
+    # E1: hoogstens floor(daily_risk_frac × kapitaal / σ_unit) eenheden, σ_unit de verwachte
+    # 1-dags P&L-σ per eenheid uit Δ, Γ en V. None = uit.
+    daily_risk_frac: Fraction | None = None
+    vol_of_vol_daily_points: Annotated[float, Field(ge=0.0, le=20.0)] = 1.0
+    # Eenheden × een factor die lineair van 1 naar 0,5 loopt tussen deze twee drawdowns van de
+    # equity-piek (daarna 0,5). None = uit.
+    drawdown_brake: tuple[Fraction, Fraction] | None = (0.05, 0.10)
+
+    @model_validator(mode="after")
+    def _brake_ordered(self) -> SizingConfig:
+        if self.drawdown_brake is not None and not self.drawdown_brake[0] < self.drawdown_brake[1]:
+            raise ValueError("drawdown_brake: de eerste drawdown moet kleiner zijn dan de tweede")
+        return self
 
 
 class RiskConfig(StrictModel):

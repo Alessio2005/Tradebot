@@ -222,6 +222,11 @@ relative_value:
 sizing:
   max_loss_frac_capital: 0.02    # per nieuwe positie
   ranking: credit_per_max_loss   # vast
+  daily_risk_frac: null          # aan (bv. 0.005): eenheden ≤ floor(frac × kapitaal / σ_unit), σ_unit
+                                 # de verwachte 1-dags P&L-σ per eenheid uit Δ, Γ, V (geen Greeks: 0)
+  vol_of_vol_daily_points: 1.0   # verwachte dagbeweging van de IV in volpunten (vega-term van σ_unit)
+  drawdown_brake: [0.05, 0.10]   # eenheden × factor 1 → 0,5 lineair tussen deze drawdowns van de
+                                 # equity-piek, daarna 0,5; null = uit
 
 risk:                            # detailontwerp 8; fracties van het kapitaal
   max_abs_beta_delta_frac: 0.30  # |beta-gewogen dollar-delta|

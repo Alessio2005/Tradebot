@@ -25,11 +25,14 @@ from ..positions import (
     MarketState,
     StrategyPosition,
     Urgency,
+    position_greek,
 )
+from ..risk.gamma import sigma_1d
 
-__all__ = ["Rules", "Strategy", "close", "dte", "entry_blockers", "expiry_close_due",
-           "iv_ok", "otm_step", "parse_time", "pick_expiry", "rules_from_config", "size",
-           "strike_at_delta", "strike_nearest", "vrp_gate"]
+__all__ = ["Rules", "Strategy", "close", "drawdown_factor", "dte", "entry_blockers",
+           "expiry_close_due", "iv_ok", "otm_step", "parse_time", "pick_expiry",
+           "rules_from_config", "sigma_unit_1d", "size", "strike_at_delta", "strike_nearest",
+           "vrp_gate"]
 
 
 class Strategy(Protocol):
@@ -55,13 +58,18 @@ class Rules:
     max_calendar_data_age_days: int = 1
     max_loss_frac_capital: float = 0.02
     max_loss_per_underlying_frac: float = 0.05
+    daily_risk_frac: float | None = None              # None: geen sizing op dag-σ
+    vol_of_vol_daily_points: float = 1.0
+    drawdown_brake: tuple[float, float] | None = (0.05, 0.10)
 
 
 def rules_from_config(cfg: OptionsConfig) -> Rules:
+    s = cfg.sizing
     return Rules(iv_rule_settings(cfg.iv_metrics),
                  parse_time(cfg.schedule.close_before_expiry_time),
                  cfg.filters.earnings_blackout, cfg.filters.max_calendar_data_age_days,
-                 cfg.sizing.max_loss_frac_capital, cfg.risk.max_loss_per_underlying_frac)
+                 s.max_loss_frac_capital, cfg.risk.max_loss_per_underlying_frac,
+                 s.daily_risk_frac, s.vol_of_vol_daily_points, s.drawdown_brake)
 
 
 def dte(expiry: date, today: date) -> int:
@@ -154,15 +162,66 @@ def entry_blockers(market: MarketState, underlying: str, until: date, rules: Rul
     return []
 
 
+def sigma_unit_1d(market: MarketState, underlying: str, legs: Sequence[LegIntent],
+                  vol_of_vol_points: float) -> float | None:
+    """De verwachte 1-dags P&L-σ van één eenheid in USD; None zonder Greeks of RV-verwachting.
+
+    ```text
+    σ_unit = √( (Δ·S·σ_1d)² + 2·(½·Γ·S²·σ_1d²)² + (V·volvol_1d)² )
+    ```
+
+    Δ, Γ en V per eenheid uit de keten (`position_greek`, × 100; V in USD per volpunt),
+    σ_1d uit `risk.gamma.sigma_1d` en volvol_1d in volpunten per dag. De gamma-term is de σ van
+    ½·Γ·(ΔS)² bij een normale ΔS: Var = 2·(½·Γ·(S·σ_1d)²)².
+    """
+    chain, vol = market.chains.get(underlying), market.vol.get(underlying)
+    if chain is None or vol is None or vol.rv is None:
+        return None
+    delta, gamma, vega = (position_greek(chain, legs, g) for g in ("delta", "gamma", "vega"))
+    if not legs or delta is None or gamma is None or vega is None:
+        return None
+    s, sig = chain.spot, sigma_1d(vol.rv)
+    return math.sqrt((delta * s * sig) ** 2 + 2.0 * (0.5 * gamma * s * s * sig * sig) ** 2
+                     + (vega * vol_of_vol_points) ** 2)
+
+
+def drawdown_factor(market: MarketState, brake: tuple[float, float] | None) -> float:
+    """De factor op het aantal eenheden: 1 tot drawdown `brake[0]`, dan lineair naar 0,5 bij
+    `brake[1]` en daarna 0,5. Zonder rem of zonder equity-gegevens: 1.
+
+    Drawdown = (piek − equity) / piek, met de piek uit `EngineState.equity` (de engine geeft
+    die en de lopende equity mee in `MarketState`)."""
+    peak, equity = market.equity_peak_usd, market.equity_usd
+    if brake is None or peak is None or equity is None or not peak > 0:
+        return 1.0
+    lo, hi = brake
+    dd = (peak - equity) / peak
+    return 1.0 - 0.5 * min(max((dd - lo) / (hi - lo), 0.0), 1.0)
+
+
 def size(max_loss_per_unit: float, market: MarketState, book: Book, underlying: str,
-         rules: Rules) -> int:
+         rules: Rules, legs: Sequence[LegIntent]) -> int:
     """Eenheden volgens 7.3: het kleinste van het budget per positie en de ruimte op de
-    onderliggende, gedeeld door het maximale verlies per eenheid."""
+    onderliggende, gedeeld door het maximale verlies per eenheid.
+
+    Met `daily_risk_frac` (E1) ook hoogstens `floor(daily_risk_frac × kapitaal / σ_unit)`
+    (`sigma_unit_1d` van `legs`); ontbreken de Greeks of de RV-verwachting, dan 0. Daarna maal
+    de drawdown-rem (`drawdown_factor`), naar beneden afgerond en minimaal 0. Zonder
+    `daily_risk_frac` en zonder drawdown is de uitkomst die van de regel van 7.3 alleen.
+    """
     if not max_loss_per_unit > 0 or math.isinf(max_loss_per_unit):
         return 0
     room = rules.max_loss_per_underlying_frac * market.capital_usd - book.open_max_loss(underlying)
     budget = min(rules.max_loss_frac_capital * market.capital_usd, room)
-    return max(math.floor(budget / max_loss_per_unit), 0)
+    units = max(math.floor(budget / max_loss_per_unit), 0)
+    if rules.daily_risk_frac is not None:
+        sigma = sigma_unit_1d(market, underlying, legs, rules.vol_of_vol_daily_points)
+        if sigma is None:
+            return 0
+        if sigma > 0:
+            units = min(units, math.floor(rules.daily_risk_frac * market.capital_usd / sigma))
+    factor = drawdown_factor(market, rules.drawdown_brake)
+    return units if factor == 1.0 else max(math.floor(units * factor), 0)
 
 
 def expiry_close_due(expiry: date, now: datetime, market: MarketState, rules: Rules) -> bool:

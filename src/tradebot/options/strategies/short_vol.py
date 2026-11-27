@@ -126,7 +126,7 @@ class ShortVol:
             credit = -m
             put_k, call_k = (leg.contract.strike for leg in legs)
             stress = stress_loss(put_k, call_k, chain.spot, credit)
-            units = size(stress * MULTIPLIER, market, book, und, self.rules)
+            units = size(stress * MULTIPLIER, market, book, und, self.rules, legs)
             if units == 0:
                 continue
             out.append(Candidate(self.name, und, legs, units, credit, math.inf,

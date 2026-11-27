@@ -133,7 +133,7 @@ class CreditSpread:
             if not vrp_ok:
                 continue
             loss_unit = (width - credit) * MULTIPLIER
-            units = size(loss_unit, market, book, und, self.rules)
+            units = size(loss_unit, market, book, und, self.rules, legs)
             if units == 0:
                 continue
             kind = "bull_put" if right is Right.PUT else "bear_call"
@@ -193,7 +193,7 @@ class IronCondor:
             if not vrp_ok:
                 continue
             loss_unit = (width - credit) * MULTIPLIER
-            units = size(loss_unit, market, book, und, self.rules)
+            units = size(loss_unit, market, book, und, self.rules, legs)
             if units == 0:
                 continue
             out.append(Candidate(self.name, und, legs, units, credit, loss_unit * units,

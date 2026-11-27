@@ -165,6 +165,10 @@ class MarketState:
     events: Mapping[str, Events]
     capital_usd: float
     vol: Mapping[str, VolState] = field(default_factory=dict)   # regime en RV-verwachting
+    # Voor de drawdown-rem in de sizing (E1): de lopende equity en de piek uit
+    # `EngineState.equity`. None (bijvoorbeeld in tests zonder engine): geen rem.
+    equity_usd: float | None = None
+    equity_peak_usd: float | None = None
 
     @property
     def today(self) -> date:

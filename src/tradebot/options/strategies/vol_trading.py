@@ -113,7 +113,7 @@ class GammaScalp:
             ratio = vrp[0]
             if ratio > cfg.max_iv_rv_ratio:
                 continue
-            units = size(debit * MULTIPLIER, market, book, und, self.rules)
+            units = size(debit * MULTIPLIER, market, book, und, self.rules, legs)
             if units == 0:
                 continue
             out.append(Candidate(self.name, und, legs, units, -debit,
