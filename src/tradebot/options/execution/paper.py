@@ -9,6 +9,8 @@
   `min_commission` per order.
 * Expiratie (`settle`, na de sluiting van de expiratiedag): een optie die ≥ 0,01 ITM sluit,
   wordt uitgeoefend (long) of assigned (short), en wordt aandelen; de rest vervalt.
+* Dividend (`pay_dividends`, op de dag vóór de ex-datum, na de vroege assignment): aandelen
+  die dan gehouden worden ontvangen (long) of betalen (short) `aantal × bedrag` in kas.
 * Vroege assignment (`early_assign`, bij de opening van een ex-dividenddag): een short call die
   ITM is en waarvan de extrinsieke waarde kleiner is dan het dividend.
 """
@@ -193,6 +195,25 @@ class PaperBroker:
                 out.append(Execution(ts, ExecutionKind.ASSIGNMENT, "", c, c.underlying, -qty,
                                      c.strike))
         self._executions.extend(out)
+        return out
+
+    def pay_dividends(self, dividends: Mapping[str, CashDividend],
+                      ts: datetime) -> list[tuple[str, int, float]]:
+        """Boek het dividend op de aandelen die bij de ex-datum gehouden worden: kas
+        `+= aantal × bedrag` (short betaalt). Per symbool `(symbool, aantal, USD)`.
+
+        Wordt aan het eind van de dag vóór de ex-datum aangeroepen, na `early_assign`: een
+        aandelenpositie die dan staat (ook een net geleverde short uit een assignment) heeft
+        de ex-datum open meegemaakt. De koers daalt de dag erna met het dividend; zonder deze
+        boeking was een short over de ex-datum fictieve winst (review 2026-11-27, N6)."""
+        out = []
+        for sym, (qty, _) in sorted(self._shares.items()):
+            div = dividends.get(sym)
+            if div is None:
+                continue
+            usd = qty * div.amount
+            self.cash += usd
+            out.append((sym, qty, usd))
         return out
 
     # --- BrokerAdapter --------------------------------------------------------------------

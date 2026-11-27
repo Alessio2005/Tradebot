@@ -101,6 +101,9 @@ class StrategyPosition:
     # Gerealiseerde P&L van de aandelen-legs (USD totaal): wat afbouwen of omdraaien van de
     # hedge vastlegde, min de commissie van elke aandelenfill. Het open deel zit in de leg.
     hedge_realized_usd: float = 0.0
+    # Een assignment of uitoefening leverde aandelen in een aandelen-leg: de engine sluit de rest
+    # van de positie meteen (reden `assigned`), welke strategie het ook is.
+    assigned: bool = False
 
     def __post_init__(self) -> None:
         require(self.units > 0, "units moet positief zijn", DataContractError, units=self.units)

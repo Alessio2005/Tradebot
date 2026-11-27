@@ -77,12 +77,40 @@ Beperkingen van de data (keuzes van mij, die Alessio kan terugdraaien):
   rekent. Is de positie dicht, dan sluit `_unwind_shares` ze de volgende ronde; anders gaan
   ze mee als de positie sluit. Eerder bleven ze los in het boek staan. In de DoltHub-replay liet
   een vroege assignment van een short SPY-call vóór ex-dividend daardoor −100 SPY open van 2020
-  tot 2026 (eind-equity −11.000 USD). Dit geldt ook voor IBKR-paper; het alarm
+  tot 2026 (eind-equity −11.000 USD). Dit geldt alleen voor de paper-broker van de
+  replay: `execution/ibkr.py` geeft alleen FILL-uitvoeringen door, dus assignment en uitoefening
+  via IBKR-paper zijn nog niet gebouwd en daar gebeurt dit (nog) niet (review 2026-11-27, N31).
+  Het alarm
   `options_assignment` blijft. De risicopoort (`risk/gate.py`) laat daarom een sluitorder op
   aandelen toe op elk symbool, ook buiten `share_eligible` (zoals SPY). Opbouwen blijft
   beperkt tot `share_eligible`, en de sluitorder moet nog steeds precies de eigen leg afbouwen.
 - **Netwerk**: de cloudomgeving moest `www.dolthub.com`, `query2.finance.yahoo.com` en
   `data.sec.gov` toelaten (met akkoord van Alessio).
+
+### Reviewfixes engine, assignment en paper-broker (review 2026-11-27, strategieën N2-N31)
+
+- **N2**: de aandelen uit een assignment worden alleen voor `wheel`, `covered_call` en
+  `cash_secured_put` niet als aandelen-leg geboekt en niet teruggekocht: ze blijven losse aandelen
+  (CSP → covered call; `CoveredCall.scan` ziet geen extra lot, geen naakte call) en geven geen
+  `options_assignment`-alarm. Een geassignde CSP zet de kostprijs (`cost_basis`) als die er nog
+  niet is.
+- **N7**: een gedeeltelijke assignment of uitoefening rekent per positie `min(|q|, rest)` af en
+  verkleint de leg (aandelen-leg voor het geleverde deel). Passen de legs daarna niet meer bij
+  `units`, dan wordt `units` de grootste gemene deler, zodat een sluitorder klopt.
+- **N8**: `position_closed` na een assignment leest `hedge_realized_usd` uit de bijgewerkte
+  positie (na het boeken van de geleverde aandelen).
+- **N6**: de paper-broker boekt dividend op aandelenposities (`PaperBroker.pay_dividends`, aan het
+  einde van de dag vóór de ex-datum, na `early_assign`; long ontvangt, short betaalt). De engine
+  boekt hetzelfde bedrag op de aandelen-legs (`hedge_realized_usd`) en journaalt `dividend_paid`
+  en `dividend` (per positie); losse aandelen (wheel) raken alleen de equity. Buy-and-hold in
+  `report.py` blijft ongewijzigd (kas op de ex-datum).
+- **N29**: `_unwind_shares` verrekent eerst tegengestelde aandelen-legs van gesloten posities
+  op hetzelfde symbool tegen de spot (`hedge_netted`, zonder commissie), zodat alleen het netto
+  aantal verhandeld wordt.
+- **N17** (engine-deel): `StrategyPosition.assigned` (bewaard in de staat) markeert een positie
+  waarvan een assignment of uitoefening aandelen leverde; `_manage` sluit zo'n positie met rest
+  meteen (STOP, reden `assigned`), voor elke strategie.
+- **N31**: de claim "geldt ook voor IBKR-paper" hierboven is gecorrigeerd.
 
 ## Opruimen en optimaliseren, plus de risicogaten uit de review (2026-11-27)
 

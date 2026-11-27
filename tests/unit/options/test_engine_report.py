@@ -99,6 +99,14 @@ def test_the_final_hedge_unwind_after_the_options_close_is_counted():
     assert strategy_stats(rows)["gamma_scalp"].total_pnl == -100.0 + 40.0
 
 
+def test_netted_hedge_legs_and_dividends_count_in_the_pnl():
+    rows = [_opened("g", "gamma_scalp"),
+            {"event": "hedge_netted", "position_id": "g", "hedge_realized_usd": 200.0},
+            {"event": "dividend", "position_id": "g", "hedge_realized_usd": 180.0},
+            {"event": "position_closed", "position_id": "g", "reason": "x", "exit_net": 0.0}]
+    assert strategy_stats(rows)["gamma_scalp"].total_pnl == 180.0
+
+
 def test_a_close_without_its_open_is_skipped():
     rows = [{"event": "position_closed", "position_id": "x", "reason": "r", "exit_net": 1.0}]
     assert strategy_stats(rows) == {}

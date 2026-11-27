@@ -875,3 +875,172 @@ def test_gamma_risk_is_off_by_default_and_with_a_wide_limit_or_no_rv_or_no_credi
     assert not r.e._gamma_breach(pos, NOW_G)
     del r.e._vol[pos.underlying]
     assert not r.e._gamma_breach(pos, NOW_G)
+
+
+# --- reviewfixes engine/assignment/paper (N2, N6, N7, N8, N17, N29) ---------------------------
+
+CALL48 = OptionContract("TSTB", date(2027, 1, 15), 48.0, Right.CALL)
+
+
+@pytest.mark.parametrize("strategy,contract", [("covered_call", CALL48),
+                                               ("cash_secured_put", C1)])
+def test_own_shares_strategies_keep_their_assigned_shares_loose(rig, strategy, contract):
+    _spot(rig, 45.0 if contract is C1 else 55.0)
+    rig.state.positions.append(_pos("p", strategy, [(contract, -1)]))
+    _assign(rig, contract)
+    (p,) = rig.state.positions
+    assert p.status is PositionStatus.CLOSED and p.shares == 0 and not p.assigned
+    assert rig.e.book().hedge_shares == {} and not rig.alerts
+    asyncio.run(rig.e._unwind_shares(at(D0, 16, 31)))       # geen EXIT-order, niets terugkopen
+    assert not [o for o in rig.state.orders.values() if o.get("stock")]
+
+
+def test_an_assigned_csp_sets_the_cost_basis_once(rig):
+    _spot(rig, 45.0)
+    rig.state.positions.append(_pos("p", "cash_secured_put", [(C1, -1)]))
+    _assign(rig, C1)
+    assert rig.state.cost_basis["TSTB"] == pytest.approx(48.0 - 1.0)
+    rig.state.positions.append(_pos("q", "cash_secured_put", [(C2, -1)]))
+    _assign(rig, C2)
+    assert rig.state.cost_basis["TSTB"] == pytest.approx(47.0)   # de bestaande basis blijft
+
+
+def test_a_partial_assignment_settles_only_the_assigned_contracts(rig):
+    _spot(rig, 45.0)
+    p = StrategyPosition("s", "credit_spread", "TSTB",
+                         (Leg(C1, "TSTB", -2, 1.0), Leg(C2, "TSTB", 2, 0.5)),
+                         at(D0, 10, 0), 2, 200.0, 500.0)
+    rig.state.positions.append(p)
+    _assign(rig, C1, qty=1)                                  # 1 van de 2 geassigned
+    (p,) = rig.state.open_positions()
+    legs = {leg.contract: leg.qty for leg in p.option_legs}
+    assert legs == {C1: -1, C2: 2}
+    assert p.shares == 100 and p.assigned and p.units == 1   # 100 aandelen voor het geleverde deel
+    assert p.intents() == (LegIntent(C1, -1), LegIntent(C2, 2))
+    (ev,) = rig.events("assignment")
+    assert ev["qty"] == 1 and ev["settle_usd"] == pytest.approx(-1 * 3.0 * 100)
+    assert not rig.events("settlement_alert")
+
+
+def test_a_partial_assignment_keeps_the_units_when_the_legs_still_fit(rig):
+    _spot(rig, 45.0)
+    p = StrategyPosition("s", "credit_spread", "TSTB",
+                         (Leg(C1, "TSTB", -4, 1.0), Leg(C2, "TSTB", 4, 0.5)),
+                         at(D0, 10, 0), 2, 200.0, 500.0)
+    rig.state.positions.append(p)
+    _assign(rig, C1, qty=2)
+    (p,) = rig.state.open_positions()
+    assert p.units == 2 and {leg.qty for leg in p.option_legs} == {-2, 4}
+
+
+def test_a_position_closes_with_reason_assigned_after_an_assignment(rig):
+    pos = opened(rig)
+    short = next(leg.contract for leg in pos.option_legs if leg.qty < 0)
+    rig.e._assignment(Execution(at(D0, 10, 2), ExecutionKind.ASSIGNMENT, "", short, "TSTB", 1,
+                                short.strike), at(D0, 10, 2))
+    assert rig.state.positions[0].assigned and rig.state.positions[0].shares != 0
+    asyncio.run(rig.e._manage(at(D0, 10, 3)))
+    (act,) = [r for r in rig.e.journal.read() if r["event"] == "action"]
+    assert act["reason"] == "assigned" and act["kind"] == "close" and act["urgency"] == "stop"
+
+
+def test_assigned_survives_a_state_round_trip(rig, tmp_path):
+    from tradebot.options.engine.state import load_state, save_state
+    _spot(rig, 45.0)
+    rig.state.positions.append(_pos("s", "credit_spread", [(C1, -1), (C2, 1)]))
+    _assign(rig, C1)
+    save_state(rig.state, tmp_path / "s.json")
+    back = load_state(tmp_path / "s.json", "replay", rig.state.account_hash)
+    assert back is not None and back.positions[0].assigned
+
+
+def test_position_closed_after_an_assignment_carries_the_updated_hedge_pnl(rig):
+    _spot(rig, 45.0)
+    base = _pos("h", "credit_spread", [(C1, -1)])
+    rig.state.positions.append(dataclasses.replace(
+        base, legs=(*base.legs, Leg(None, "TSTB", -100, 50.0))))
+    _assign(rig, C1)                       # +100 aandelen tegen 45 sluit de short van 50 af
+    (closed,) = rig.events("position_closed")
+    assert closed["hedge_realized_usd"] == 500.0
+    assert rig.state.positions[0].hedge_realized_usd == 500.0
+
+
+def test_the_paper_broker_pays_dividends_on_shares(rig):
+    b = PaperBroker(1_000.0)
+    b._book_shares("A", 100, 10.0)
+    b._book_shares("B", -50, 10.0)
+    b._book_shares("C", 10, 10.0)
+    cash = b.cash
+    div = {"A": CashDividend(D1, 0.5), "B": CashDividend(D1, 1.0), "Z": CashDividend(D1, 2.0)}
+    out = b.pay_dividends(div, at(D0, 16, 0))
+    assert out == [("A", 100, 50.0), ("B", -50, -50.0)]
+    assert b.cash == cash and b.pay_dividends({}, at(D0, 16, 0)) == []
+
+
+def test_end_of_day_books_the_dividend_on_the_position_and_in_equity(tmp_path):
+    m = dataclasses.replace(MKT, events=dict(MKT.events))
+    r = Rig(tmp_path, market=m)
+    r.run(at(D0, 15, 1), step=60)
+    m.events["TSTB"] = Events("TSTB", D0, dividends=(CashDividend(D1, 0.2),))
+    base = _pos("h", "credit_spread", [(C1, -1)])
+    r.state.positions.append(dataclasses.replace(
+        base, legs=(*base.legs, Leg(None, "TSTB", -100, 50.0))))
+    r.broker._book_shares("TSTB", -100, 50.0)
+    before = r.broker.cash
+    asyncio.run(r.e._end_of_day(at(D0, 16, 15)))
+    assert r.broker.cash == pytest.approx(before - 20.0)    # short betaalt 100 × 0,20
+    (paid,) = r.events("dividend_paid")
+    assert paid["usd"] == -20.0 and paid["shares"] == -100
+    (d,) = r.events("dividend")
+    assert d["position_id"] == "h" and d["usd"] == -20.0 and d["hedge_realized_usd"] == -20.0
+    assert r.state.positions[-1].hedge_realized_usd == -20.0
+
+
+def test_a_dividend_on_loose_shares_only_reaches_the_equity(tmp_path):
+    m = dataclasses.replace(MKT, events=dict(MKT.events))
+    r = Rig(tmp_path, market=m)
+    r.run(at(D0, 15, 1), step=60)
+    m.events["TSTB"] = Events("TSTB", D0, dividends=(CashDividend(D1, 0.2),))
+    r.broker._book_shares("TSTB", 100, 50.0)
+    asyncio.run(r.e._end_of_day(at(D0, 16, 15)))
+    assert len(r.events("dividend_paid")) == 1 and not r.events("dividend")
+
+
+def test_opposite_share_legs_of_closed_positions_are_netted_without_orders(rig):
+    _spot(rig, 52.0)
+    for pid, n, px in (("a", 100, 50.0), ("b", -100, 53.0)):
+        base = _pos(pid, "credit_spread", [(C1, -1)], status=PositionStatus.CLOSED)
+        rig.state.positions.append(dataclasses.replace(
+            base, legs=(*base.legs, Leg(None, "TSTB", n, px))))
+    asyncio.run(rig.e._unwind_shares(at(D0, 10, 1)))
+    a, b = rig.state.positions
+    assert a.shares == 0 and b.shares == 0 and not rig.state.orders
+    assert a.hedge_realized_usd == pytest.approx(100 * (52.0 - 50.0))
+    assert b.hedge_realized_usd == pytest.approx(100 * (53.0 - 52.0))
+    assert [e["position_id"] for e in rig.events("hedge_netted")] == ["a", "b"]
+
+
+def test_only_the_net_share_amount_goes_to_the_market(rig):
+    _spot(rig, 52.0)
+    for pid, n in (("a", 100), ("b", -60), ("c", 10)):
+        base = _pos(pid, "credit_spread", [(C1, -1)], status=PositionStatus.CLOSED)
+        rig.state.positions.append(dataclasses.replace(
+            base, legs=(*base.legs, Leg(None, "TSTB", n, 50.0))))
+    rig.e._net_closed_shares(at(D0, 10, 1))
+    left = {p.position_id: p.shares for p in rig.state.positions}
+    assert left == {"a": 40, "b": 0, "c": 10}                # netto 50 gaat naar de markt
+
+
+def test_netting_waits_for_a_chain_and_an_open_exit_order(rig):
+    for pid, n in (("a", 100), ("b", -100)):
+        base = _pos(pid, "credit_spread", [(C1, -1)], status=PositionStatus.CLOSED)
+        rig.state.positions.append(dataclasses.replace(
+            base, legs=(*base.legs, Leg(None, "TSTB", n, 50.0))))
+    rig.e._net_closed_shares(at(D0, 10, 1))                  # geen keten: niets
+    assert [p.shares for p in rig.state.positions] == [100, -100]
+    _spot(rig, 52.0)
+    rig.state.orders["x"] = {"client_id": "x", "stock": True, "position_id": "a",
+                             "purpose": "exit", "underlying": "TSTB", "status": "submitted",
+                             "submitted_at": at(D0, 10, 1).isoformat()}
+    rig.e._net_closed_shares(at(D0, 10, 1))                  # a heeft een open order
+    assert [p.shares for p in rig.state.positions] == [100, -100]

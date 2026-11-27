@@ -120,6 +120,9 @@ __all__ = ["Engine", "EngineMode", "Paths"]
 
 log = logging.getLogger(__name__)
 MAX_TASK_FAILURES = 3
+# Strategieën die de aandelen uit hun eigen assignment als losse aandelen houden (de wheel
+# en haar losse delen: CSP → covered call), niet als aandelen-leg die wordt afgebouwd.
+_OWN_SHARES = frozenset({"wheel", "covered_call", "cash_secured_put"})
 Alert = Callable[[str, str, str], None]
 Task = Callable[[datetime], Awaitable[None]]
 
@@ -651,18 +654,21 @@ class Engine:
             leg = next((x for x in p.option_legs if x.contract.key() == k), None)  # type: ignore[union-attr]
             if p.status is not PositionStatus.CLOSED and leg is not None:
                 holders.append((i, leg.qty))
-        chosen, remaining = holders, 0
+        chosen, remaining = list(holders), 0
         if sum(q for _, q in holders) != net:
             chosen, remaining = [], abs(net)
             for i, q in holders:
-                if net and (q > 0) == (net > 0) and abs(q) <= remaining:
-                    chosen.append((i, q))
-                    remaining -= abs(q)
+                if net and (q > 0) == (net > 0) and remaining:
+                    take = min(abs(q), remaining)      # gedeeltelijk: alleen dat deel (N7)
+                    chosen.append((i, take if q > 0 else -take))
+                    remaining -= take
         for i, qty in chosen:
             p = self.state.positions[i]
             kind = (e.kind if e.kind is ExecutionKind.EXPIRY
                     else ExecutionKind.EXERCISE if qty > 0 else ExecutionKind.ASSIGNMENT)
-            rest = tuple(leg for leg in p.option_legs if leg.contract.key() != k)  # type: ignore[union-attr]
+            left = tuple(dataclasses.replace(x, qty=x.qty - qty) if x.contract.key() == k else x  # type: ignore[union-attr]
+                         for x in p.option_legs)
+            rest = tuple(x for x in left if x.qty)
             stock = tuple(leg for leg in p.legs if leg.contract is None)
             settle_usd, spot = 0.0, e.contract.strike
             if kind is not ExecutionKind.EXPIRY:         # waarde van de levering tegen de slotkoers
@@ -674,34 +680,42 @@ class Engine:
                 itm = spot - e.contract.strike if e.contract.right is Right.CALL \
                     else e.contract.strike - spot
                 settle_usd = qty * itm * MULTIPLIER
+            own = p.strategy in _OWN_SHARES
             if p.strategy == "wheel" and kind is ExecutionKind.ASSIGNMENT:
                 self.state.wheel[p.underlying] = "shares" if p.phase == "csp" else "idle"
                 self.state.cost_basis[p.underlying] = (
                     e.contract.strike - p.entry_credit if p.phase == "csp"
                     else self.state.cost_basis.get(p.underlying, 0.0))
-            self.state.positions[i] = (dataclasses.replace(p, legs=rest + stock) if rest
-                                       else dataclasses.replace(p,
-                                                                status=PositionStatus.CLOSED))
-            if kind is not ExecutionKind.EXPIRY and p.strategy != "wheel":
+            elif (p.strategy == "cash_secured_put" and kind is ExecutionKind.ASSIGNMENT
+                  and p.underlying not in self.state.cost_basis):
+                self.state.cost_basis[p.underlying] = e.contract.strike - p.entry_credit
+            cur = (dataclasses.replace(p, legs=rest + stock,
+                                       units=_units_after(rest, p.units)) if rest
+                   else dataclasses.replace(p, status=PositionStatus.CLOSED))
+            if kind is not ExecutionKind.EXPIRY and not own:
                 # De geleverde aandelen worden een aandelen-leg van de positie, geboekt op de
                 # slotkoers waartegen `settle_usd` al rekent. Is de positie dicht, dan bouwt
-                # `_unwind_shares` ze de volgende ronde af; anders gaan ze mee als de positie
-                # sluit. Zo blijft er geen losse aandelenpositie in het boek staan (gezien in
-                # de DoltHub-replay: een vroege assignment voor ex-dividend liet −100 SPY staan).
+                # `_unwind_shares` ze de volgende ronde af; anders sluit `_manage` de positie
+                # (reden `assigned`) en gaan ze mee. Zo blijft er geen losse aandelenpositie in
+                # het boek staan (gezien in de DoltHub-replay: een vroege assignment voor
+                # ex-dividend liet −100 SPY staan). De wheel, covered call en cash-secured put
+                # houden hun aandelen juist als losse aandelen (ontwerp: CSP → covered call).
                 delivered = qty * MULTIPLIER * (1 if e.contract.right is Right.CALL else -1)
-                self.state.positions[i] = _with_shares(self.state.positions[i], delivered, spot)
+                cur = _with_shares(cur, delivered, spot)
+                cur = dataclasses.replace(cur, assigned=True)
+            self.state.positions[i] = cur
             # Een assignment, of een uitoefening van een gehedgede strategie: alarm, want de
             # aandelen zijn er onverwacht (ze worden wel afgebouwd, zie hierboven).
             hedged = self.cfg.hedging.enabled and p.strategy in self.cfg.hedging.strategies
-            if kind is not ExecutionKind.EXPIRY and p.strategy != "wheel" and (qty < 0 or hedged):
+            if kind is not ExecutionKind.EXPIRY and not own and (qty < 0 or hedged):
                 self.alert("critical", "options_assignment",
                            f"{'short' if qty < 0 else 'long'} {k} van {p.position_id}"
                            f" {kind.value}")
             self._event(now, kind.value, contract=k, qty=-qty, price=e.price,
                         position_id=p.position_id, settle_usd=round(settle_usd, 2))
             if not rest:
-                hedge = ({"hedge_realized_usd": round(p.hedge_realized_usd, 2)}
-                         if p.hedge_realized_usd or p.shares else {})
+                hedge = ({"hedge_realized_usd": round(cur.hedge_realized_usd, 2)}
+                         if cur.hedge_realized_usd or cur.shares or p.shares else {})
                 self._event(now, "position_closed", position_id=p.position_id,
                             reason=kind.value, exit_net=round(settle_usd, 2), **hedge)
         if not chosen:
@@ -820,10 +834,40 @@ class Engine:
             elif o["purpose"] == Purpose.EXIT.value and (
                     now - datetime.fromisoformat(o["submitted_at"])).total_seconds() >= retry:
                 await self._cancel_stock(o, now, "replaced")   # de ronde erna opnieuw
-        for pos in closed:
+        self._net_closed_shares(now)
+        for pos in (p for p in self.state.positions
+                    if p.status is PositionStatus.CLOSED and p.shares):
             if pos.position_id in open_stock or pos.underlying not in self.chains:
                 continue
             await self._send_stock(pos, -pos.shares, now, Purpose.EXIT)
+
+    def _net_closed_shares(self, now: datetime) -> None:
+        """Tegengestelde aandelen-legs van gesloten posities op één symbool verrekenen tegen
+        de spot, zonder order: de broker houdt toch al het netto aantal. Zo gaat alleen het
+        netto aantal naar de markt en komt er geen koop én verkoop van hetzelfde aantal (dubbele
+        kosten). Elke leg realiseert haar P&L tegen de spot, zonder commissie (N29)."""
+        busy = {o["position_id"] for o in self._open_stock().values()}
+        by_und: dict[str, list[int]] = {}
+        for i, p in enumerate(self.state.positions):
+            if (p.status is PositionStatus.CLOSED and p.shares and p.position_id not in busy
+                    and p.underlying in self.chains):
+                by_und.setdefault(p.underlying, []).append(i)
+        for und, idx in sorted(by_und.items()):
+            spot = self.chains[und].spot
+            longs = [i for i in idx if self.state.positions[i].shares > 0]
+            shorts = [i for i in idx if self.state.positions[i].shares < 0]
+            for a in longs:
+                for b in shorts:
+                    n = min(self.state.positions[a].shares, -self.state.positions[b].shares)
+                    if n <= 0:
+                        continue
+                    for j, q in ((a, -n), (b, n)):
+                        pos = self.state.positions[j] = _with_shares(self.state.positions[j], q,
+                                                                     spot)
+                        self._event(now, "hedge_netted", position_id=pos.position_id,
+                                    underlying=und, qty=q, price=spot, shares=pos.shares,
+                                    hedge_realized_usd=round(pos.hedge_realized_usd, 2))
+                    self._book_version += 1
 
     async def _hedge(self, now: datetime) -> None:
         """Eén hedge-ronde: oude hedge-orders annuleren, dan per onderliggende de band."""
@@ -946,6 +990,11 @@ class Engine:
             elif math.isinf(pos.max_loss) and regimes.get(pos.underlying) is VolRegime.STRESS:
                 acts = [Action(ActionKind.CLOSE, pos.position_id, pos.intents(), Urgency.STOP,
                                "regime_stress")]
+            elif pos.assigned:
+                # Na een assignment of uitoefening is de positie niet meer wat de strategie
+                # opende (aandelen-leg tegen de rest): meteen sluiten, voor elke strategie.
+                acts = [Action(ActionKind.CLOSE, pos.position_id, pos.intents(), Urgency.STOP,
+                               "assigned")]
             elif self._gamma_breach(pos, now):
                 acts = [Action(ActionKind.CLOSE, pos.position_id, pos.intents(), Urgency.STOP,
                                "gamma_risk")]
@@ -1055,6 +1104,24 @@ class Engine:
         return [f"{n} shares" for n in sorted(names)
                 if (broker.get(n, 0) - hedge.get(n, 0)) % MULTIPLIER]
 
+    def _book_dividends(self, paid: list[tuple[str, int, float]],
+                        divs: Mapping[str, Any], now: datetime) -> None:
+        """Het dividend dat de paper-broker op aandelen boekte, ook op de aandelen-legs van de
+        posities (`hedge_realized_usd`), zodat de rapport-P&L en de broker-equity gelijk blijven.
+        Losse aandelen (wheel, covered call) hebben geen positie-leg: alleen de equity (N6)."""
+        for und, shares, usd in paid:
+            self._event(now, "dividend_paid", underlying=und, shares=shares,
+                        amount=divs[und].amount, usd=round(usd, 2))
+            for i, p in enumerate(self.state.positions):
+                if p.underlying != und or not p.shares:
+                    continue
+                gain = p.shares * divs[und].amount
+                pos = self.state.positions[i] = dataclasses.replace(
+                    p, hedge_realized_usd=p.hedge_realized_usd + gain)
+                self._event(now, "dividend", position_id=p.position_id, underlying=und,
+                            shares=p.shares, amount=divs[und].amount, usd=round(gain, 2),
+                            hedge_realized_usd=round(pos.hedge_realized_usd, 2))
+
     async def _end_of_day(self, now: datetime) -> None:
         today = now.date()
         for und, m in sorted(self._iv.items()):
@@ -1075,6 +1142,7 @@ class Engine:
                         divs[und] = d
             self.broker.early_assign(divs, now)
             await self._executions(now)
+            self._book_dividends(self.broker.pay_dividends(divs, now), divs, now)
             self._settle_netted(today, closes, now)
         for p in self.state.open_positions():
             for leg in p.option_legs:
@@ -1102,6 +1170,15 @@ class Engine:
         self.builder.close()
         self._event(now, "stopped")
         self.mode = EngineMode.STOPPED
+
+
+def _units_after(rest: tuple[Leg, ...], units: int) -> int:
+    """Het aantal eenheden na een gedeeltelijke afrekening: blijven de legs veelvouden van
+    `units`, dan ongewijzigd, anders de grootste gemene deler van de legs (verhoudingen per
+    eenheid blijven dan gehele getallen, zodat een sluitorder klopt)."""
+    if all(x.qty % units == 0 for x in rest):
+        return units
+    return math.gcd(*(abs(x.qty) for x in rest))
 
 
 def _with_shares(pos: StrategyPosition, qty: int, price: float,
