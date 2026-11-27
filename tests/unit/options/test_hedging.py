@@ -177,9 +177,39 @@ def test_hard_errors_in_a_stock_order():
 
 
 def test_a_closing_stock_order_is_always_approved():
-    d = review(stock(-10, closing=True), state=GateState(halted=True, unwind=True))
+    d = review(stock(-10, closing=True), Book(hedge_shares={"TST": 10}),
+               GateState(halted=True, unwind=True))
     assert d.verdict is Verdict.APPROVE and d.reason == "close"
     assert d.approved.proposal.qty == -10
+    assert review(stock(4, closing=True), Book(hedge_shares={"TST": -10})).reason == "close"
+
+
+def test_a_closing_stock_order_must_flatten_the_share_legs():
+    for qty, held in ((-10, 0), (10, 10), (-11, 10), (-10, -10), (11, -10)):
+        with pytest.raises(SafetyBreach, match="sluitorder"):
+            review(stock(qty, closing=True), Book(hedge_shares={"TST": held} if held else {}))
+
+
+def test_the_notional_cap_on_the_share_legs():
+    # Plafond 0,5 × 25 000 = 12 500 USD: 125 aandelen bij spot 100. Leeg boek, beta-grens ruim.
+    loose = RiskGate(GCFG.model_copy(update={"risk": GCFG.risk.model_copy(
+        update={"max_abs_beta_delta_frac": 10.0})}), SETTINGS.engines, Method.BAW)
+
+    def rev(p, held=0):
+        book = Book(shares={"TST": held} if held else {},
+                    hedge_shares={"TST": held} if held else {})
+        return loose.review_stock(p, book, market(), GateState())
+
+    d = rev(stock(125))
+    assert d.verdict is Verdict.APPROVE
+    assert (d.checks[1].name, d.checks[1].measured, d.checks[1].threshold) == \
+        ("stock_notional_usd", 12_500.0, 12_500.0)
+    d = rev(stock(126))
+    assert d.verdict is Verdict.REJECT and d.reason == "limits:stock_notional_usd"
+    assert rev(stock(10_000)).reason == "limits:stock_notional_usd"      # een fout in de hedger
+    assert rev(stock(10), held=200).reason == "limits:stock_notional_usd"
+    # Afbouwen mag altijd, ook als het plafond na een koersstijging overschreden blijft.
+    assert rev(stock(-50), held=200).verdict is Verdict.APPROVE
 
 
 def test_a_stock_order_needs_a_chain_greeks_and_no_reconcile_break():
@@ -193,14 +223,26 @@ def test_a_stock_order_needs_a_chain_greeks_and_no_reconcile_break():
     assert d.verdict is Verdict.REJECT and d.reason == "greeks_incomplete"
 
 
-def test_in_halt_a_stock_order_must_reduce_the_delta():
-    book = Book((pos(),))                               # ≈ +50 delta
+def test_in_halt_a_stock_order_must_reduce_the_delta_and_the_shares():
+    book = Book((pos(),))                               # ≈ +50 delta, geen aandelen
     halt = GateState(halted=True)
-    d = review(stock(-50), book, halt)
+    d = review(stock(-50), book)
     assert d.verdict is Verdict.APPROVE and d.reason == "risk_reducing"
     assert d.checks[0].name == "beta_delta_usd"
+    # In HALT geen nieuwe aandelen, ook niet als de delta daalt.
+    assert review(stock(-50), book, halt).reason == "state:halt"
     assert review(stock(50), book, halt).reason == "state:halt"
     assert review(stock(50), book, GateState(unwind=True)).reason == "state:unwind"
+    # Te veel short aandelen (−120 tegen +50 delta): terug naar −50 verkleint beide.
+    over = Book((pos(shares=-120),), {"TST": -120}, hedge_shares={"TST": -120})
+    d = review(stock(70), over, halt)
+    assert d.verdict is Verdict.APPROVE and d.reason == "risk_reducing"
+    assert review(stock(70), over, GateState(unwind=True)).verdict is Verdict.APPROVE
+    # Voorbij nul (−120 → +30) verkleint de aandelen; de delta stijgt dan wel: geweigerd.
+    assert review(stock(150), over, halt).reason == "state:halt"
+    # Minder aandelen maar meer delta: geweigerd.
+    under = Book((pos(shares=-30),), {"TST": -30}, hedge_shares={"TST": -30})
+    assert review(stock(20), under, halt).reason == "state:halt"
 
 
 def test_a_stock_order_within_the_beta_delta_limit():
@@ -218,8 +260,8 @@ def test_only_the_gate_makes_an_approved_stock_order():
 
 # --- de paper-broker ------------------------------------------------------------------------
 
-def approved_stock(qty, limit=None, book=None):
-    d = review(stock(qty, limit), book)
+def approved_stock(qty, limit=None, book=None, mkt=None):
+    d = review(stock(qty, limit), book, mkt=mkt)
     assert d.approved is not None
     return d.approved
 
@@ -242,7 +284,8 @@ def test_paper_fills_a_stock_order_at_its_limit_with_commission():
     assert (ex.contract, ex.symbol, ex.qty, ex.price, ex.commission) == (
         None, "TST", 10, 100.01, 1.0)
     assert [(p.contract, p.qty) for p in run(b.positions())] == [(None, 10)]
-    big = approved_stock(-400, 99.99, Book((pos(legs=((100.0, "call", 8),)),)))
+    big = approved_stock(-400, 99.99, Book((pos(legs=((100.0, "call", 8),)),)),
+                         dataclasses.replace(market(), capital_usd=100_000.0))  # plafond 500
     run(b.submit_stock(big, StockOrder("s2", "p1", "TST", -400, 99.99, Purpose.HEDGE)))
     assert run(b.executions(NOW))[-1].commission == pytest.approx(2.0)   # 0,005 × 400
 
@@ -404,14 +447,29 @@ def test_without_hedging_nothing_happens(tmp_path):
     assert not r.events("hedge_order")
 
 
-def test_a_halted_engine_only_hedges_towards_less_delta(tmp_path):
+def test_a_halted_engine_only_reduces_its_shares(tmp_path):
     r = HedgeRig(tmp_path)
     r.add()
     r.e.paths.halt_file.touch()
     r.tick(at(D0, 10, 0, 15))
     assert r.e.mode is EngineMode.HALTED
+    (o,) = r.events("hedge_order")                    # zonder aandelen: niets af te bouwen
+    assert o["verdict"] == "reject" and o["reason"] == "state:halt"
+    assert not r.events("hedge_fill")
+
+
+def test_a_halted_engine_trims_too_many_shares(tmp_path):
+    r = HedgeRig(tmp_path)
+    p, atm = r.add()
+    want = -round(atm.greeks.delta * 100 * 2)
+    over = 2 * want                                   # dubbel gehedged
+    r.state.positions[0] = dataclasses.replace(p, legs=p.legs + (Leg(None, "TSTB", over, 100.0),))
+    r.broker._book_shares("TSTB", over, 100.0)
+    r.e.paths.halt_file.touch()
+    r.tick(at(D0, 10, 0, 15))
     (o,) = r.events("hedge_order")
     assert o["verdict"] == "approve" and o["reason"] == "risk_reducing"
+    assert abs(r.pos().shares) < abs(over)
 
 
 def test_a_rejected_hedge_is_journaled_and_not_sent(tmp_path, monkeypatch):
@@ -467,6 +525,24 @@ def test_a_close_cancels_an_open_hedge_order_first(tmp_path):
     assert o["status"] == "cancelled"
     assert r.events("order_cancelled")[0]["reason"] == "position_closed"
     assert len(r.events("hedge_order")) == 1          # geen aandelen: niets terug te draaien
+
+
+def test_a_status_set_while_submitting_a_stock_order_is_kept(tmp_path):
+    cfg = HCFG.model_copy(update={"paper": HCFG.paper.model_copy(
+        update={"stock_spread_bps": 0.0})})             # limiet op spot: de paper vult niet
+    r = HedgeRig(tmp_path, cfg)
+    r.add()
+    real = r.broker.submit_stock
+
+    async def submit(approved, order):
+        bo = await real(approved, order)
+        r.state.orders[order.client_id]["status"] = "cancelled"   # intussen afgehandeld
+        return bo
+
+    r.broker.submit_stock = submit
+    r.tick(at(D0, 10, 0, 15))
+    (o,) = [x for x in r.state.orders.values() if x.get("stock")]
+    assert o["status"] == "cancelled"                  # niet terug naar "submitted"
 
 
 def test_an_open_hedge_order_is_replaced_one_round_later(tmp_path):

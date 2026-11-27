@@ -4,6 +4,39 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Options: punten uit de eindreview (2026-11-27)
+- Risicopoort, aandelen (`review_stock`): een sluitorder moet tegengesteld zijn aan de
+  aandelen-legs op dat symbool (`Book.hedge_shares`) en mag er niet groter dan zijn, anders
+  `SafetyBreach`. Nieuwe check `stock_notional_usd`: |aandelen-legs na de order| × spot ≤
+  `hedging.max_notional_frac` × kapitaal (het plafond van de hedger, nu ook in de poort), tenzij
+  de order de aandelen verkleint. In HALT en UNWIND alleen afbouwen: minder aandelen op die
+  onderliggende én minder delta; een hedge vanaf nul gaat in HALT niet meer door (het ontwerp
+  zegt "bij een HALT alleen afbouwen").
+- `replay` en `sweep` weigeren een niet-lege `--out` (exit-code 2); `--overwrite` maakt hem eerst
+  leeg, alleen als het eerdere uitvoer is. Een tweede run in dezelfde map verdubbelde de
+  tellingen en de `stats`.
+- Settlement per teken: rekent de broker precies de som van de legs af, dan rekent elke positie
+  haar eigen leg af naar haar eigen teken (long `exercise`, short `assignment`); anders alleen
+  posities met het teken van de afrekening. Tegengestelde posities op één contract die netto nul
+  zijn (de paper-broker ziet ze niet) rekenen na de sluiting van de expiratiedag allebei af
+  (`_settle_netted`). Het alarm `options_assignment` gaat ook af bij een uitoefening van een
+  gehedgede strategie; het runbook zegt dat die aandelen niet automatisch afgebouwd worden.
+- De undefined-risk stresscheck telt ook lopende, nog niet gevulde undefined-risk entries mee
+  (`Book.pending_undefined`).
+- Gamma-regel: zonder keten of met een leg zonder Greeks meldt hij één keer per positie
+  `gamma_unknown` (journal) en `options_gamma_unknown` (alarm) in plaats van stil over te slaan.
+- Calendar: forward-vol geeft `fwd:no_gap` als de verre expiratie niet na de nabije ligt (geen
+  deling door nul meer); het schema eist dat `long_dte` helemaal na `short_dte` ligt.
+- Schema: `short_straddle_strangle.max_per_underlying` hooguit 1 (meer had geen effect);
+  `pricing.risk_free_rate` niet negatief (BAW weigert een call bij een negatieve rente).
+- Rho gaat nooit onder een rente van nul: bij r < bump eenzijdig vanaf 0, in `greeks` en in de
+  kernel gelijk. `greeks(..., BAW)` crashte eerder voor elke call bij r = 0.
+- `stats.strategies.<naam>` krijgt `max_drawdown_usd`: de grootste daling van de cumulatieve
+  gesloten P&L (in de volgorde van sluiten, vanaf 0); `largest_loss` blijft.
+- Standaardreplay: journal byte-gelijk aan dat van `d141c0c` (3 posities, 25.303,60 USD).
+  `summary.json` verschilt alleen door de nieuwe sleutel `max_drawdown_usd` (0,0 voor beide
+  strategieën).
+
 ## Options: pro-strategieën, afronding en documentatie (2026-11-27)
 - Eindstand van de branch op de standaard synthetische markt (4 cores): 3 posities, eind-equity
   25.303,60 USD (ongewijzigd), replay in 41 s tegen 171 s voor de code van vóór de branch,

@@ -25,7 +25,7 @@ BAW (`BaroneAdesiWhaleyApproximationEngine`)
 * een call met `dD >= 1` en een put met `rD >= 1` worden nooit vroeg uitgeoefend: de Europese
   prijs. Een call bij een negatieve rente (`rD > 1`) weigert QuantLib 1.44 ("not applicable
   with negative interest rates"); de kernel geeft daar NaN. Beide regels staan niet in de
-  oudere bron; de pariteitstest met `r = 0` (en de rho-bump eronder) pint ze vast;
+  oudere bron; de pariteitstests met `r = 0` en met een negatieve rente pinnen ze vast;
 * anders de kritieke prijs `Sk`: de seed van Barone-Adesi-Whaley, daarna de Newton-iteratie
   van QuantLib tot `|LHS − RHS| / K <= 1e-6`;
 * `Q` uit `n = 2·ln(dD/rD)/var` en `K = 2/var` als `rD` binnen 1000 ulps van 1 ligt, anders
@@ -450,8 +450,8 @@ class BatchGreeks:
     """Greeks per aandeel, in de eenheden van `tradebot.options.units` (zie `greeks`).
 
     NaN waar een van de herwaarderingen NaN is (zie `baw_price`); dan rekent de aanroeper
-    die Greeks met QuantLib. Bij `r = 0` geldt dat voor de rho van een call: de bump omlaag
-    geeft een negatieve rente, en daar weigert QuantLib ook.
+    die Greeks met QuantLib. Rho gaat zoals in `greeks` nooit onder een rente van nul
+    (eenzijdig vanaf 0 als `r` kleiner is dan de bump).
     """
 
     delta: FloatArray
@@ -474,9 +474,11 @@ def baw_greeks(inp: BatchInputs, vol: FloatArray, bumps: Bumps = Bumps()) -> Bat
     with np.errstate(divide="ignore", invalid="ignore"):     # vol 0: b = 0, vega NaN
         vega = (baw_price(inp, vol + b) - baw_price(inp, vol - b)) / (2 * b) * 0.01
 
-    r = inp.rate
+    r = inp.rate                                  # zoals `greeks`: nooit onder nul
+    lo = np.maximum(r - bumps.rate, 0.0)
+    width = np.where(lo == r - bumps.rate, 2 * bumps.rate, r + bumps.rate - lo)
     rho = (baw_price(replace(inp, rate=r + bumps.rate), vol)
-           - baw_price(replace(inp, rate=r - bumps.rate), vol)) / (2 * bumps.rate) * 0.01
+           - baw_price(replace(inp, rate=lo), vol)) / width * 0.01
 
     theta = (baw_price(inp.shifted_in_time(), vol) - base) / inp.theta_days
     return BatchGreeks(delta=delta, gamma=gamma, vega=vega, theta=theta, rho=rho)

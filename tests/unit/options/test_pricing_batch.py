@@ -255,15 +255,11 @@ def test_kernel_statuses_carry_the_values_of_iv_status():
 def test_baw_greeks_match_quantlib(small_grid):
     opts, vols = small_grid
     ours = baw_greeks(BatchInputs.from_options(opts), vols)
+    # Ook bij r = 0: de rho-bump gaat daar niet onder nul (eenzijdig), dus QuantLib rekent ook
+    # een call, en de kernel geeft dezelfde rho.
+    assert any(o.carry.rate == 0.0 and o.right is Right.CALL for o in opts)
     for i, (o, v) in enumerate(zip(opts, vols)):
-        try:
-            ref = greeks(o, float(v), Method.BAW)
-        except RuntimeError:
-            # r = 0: de rho-bump omlaag geeft een call bij een negatieve rente, en die weigert
-            # QuantLib. De kernel geeft daar geen rho.
-            assert o.right is Right.CALL and o.carry.rate == 0.0
-            assert np.isnan(ours.rho[i]) and not np.isnan(ours.delta[i])
-            continue
+        ref = greeks(o, float(v), Method.BAW)
         for name in ("delta", "gamma", "vega", "theta", "rho"):
             mine, theirs = float(getattr(ours, name)[i]), getattr(ref, name)
             assert abs(mine - theirs) <= 1e-6 * max(1.0, abs(theirs)), (name, o, v)

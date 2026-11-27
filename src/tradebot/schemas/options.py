@@ -71,7 +71,8 @@ class PricingConfig(StrictModel):
     # Een smilepunt telt pas mee vanaf deze vega (USD per volpunt per aandeel), zie
     # `pricing.surface`: bij een kleinere vega is de IV van een op centen afgeronde quote ruis.
     surface_min_vega: Annotated[float, Field(ge=0.0, le=1.0)] = 0.01
-    risk_free_rate: Annotated[float, Field(ge=-0.05, le=0.25)]
+    # Niet negatief: de BAW-engine van QuantLib weigert een call bij een negatieve rente.
+    risk_free_rate: Annotated[float, Field(ge=0.0, le=0.25)]
     # De keten in batches: BAW met de numpy-kernel (vastgepind tegen QuantLib), FD met een
     # startwaarde. Uit = elk contract apart door QuantLib.
     vectorized: bool = True
@@ -228,6 +229,13 @@ class CalendarSpreadConfig(_Strategy):
     take_profit_multiple_debit: Multiple = 1.25
     stop_loss_frac_debit: Fraction = 0.50
 
+    @model_validator(mode="after")
+    def _gap(self) -> CalendarSpreadConfig:
+        # De forward-vol-regel deelt door T₂ − T₁: de verre expiratie moet na de nabije liggen.
+        if not self.short_dte[1] < self.long_dte[0]:
+            raise ValueError("calendar_spread: short_dte moet helemaal vóór long_dte liggen")
+        return self
+
 
 class LongVolConfig(_Strategy):
     """Long straddle of strangle, twee varianten die elk apart aan of uit staan."""
@@ -295,7 +303,9 @@ class ShortVolConfig(_Strategy):
     stop_loss_multiple_credit: Multiple = 2.0
     close_dte: Days = 21
     underlyings: tuple[Ticker, ...] = ("SPY", "QQQ", "IWM")   # allow-list
-    max_per_underlying: Annotated[int, Field(ge=1, le=10)] = 1
+    # Hooguit 1: `size` ziet bij een tweede positie `open_max_loss` = ∞ en geeft 0 eenheden,
+    # dus een grotere waarde zou niets doen (en suggereren dat het wel kan).
+    max_per_underlying: Annotated[int, Field(ge=1, le=1)] = 1
     short_delta_exit: Delta = 0.30
     min_vrp_ratio: Ratio | None = None       # None = uit; aanbevolen 1,10
 

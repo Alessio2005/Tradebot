@@ -22,12 +22,21 @@ python -I -m tradebot.options replay --market /tmp/markt --out /tmp/run
 De exit-code is 1 als de engine haltte of als er na de laatste dag nog een short optie open
 staat die al expireerde. De workflow `options-paper-smoke.yml` doet precies dit.
 
+`replay` en `sweep` weigeren een `--out` die al bestaat en niet leeg is (exit-code 2, met de
+reden op stderr): het journal wordt aangevuld, en een tweede run in dezelfde map zou elke
+telling in `summary.json`/`sweep.json` verdubbelen. Kies een nieuwe map, of geef
+`--overwrite`: die maakt de map eerst helemaal leeg, maar alleen als hij eruitziet als eerdere
+uitvoer (een `journal.jsonl` of `sweep.json` erin, of een `journal.jsonl` in een submap).
+Elke andere map blijft staan, ook met `--overwrite`.
+
 ### Backteststatistiek
 
 `summary.json` bevat onder `stats` de statistiek van de run (`engine/report.py`):
 
 - `strategies.<naam>`: aantal gesloten posities (`closed`), `win_rate` (P&L > 0), `avg_pnl`,
-  `total_pnl` en `largest_loss` (0 als er geen verlies was), in USD. De P&L van een positie is de
+  `total_pnl`, `largest_loss` (0 als er geen verlies was) en `max_drawdown_usd` (de grootste
+  daling vanaf de top van de cumulatieve gesloten P&L, in de volgorde van sluiten, vanaf 0),
+  in USD. De P&L van een positie is de
   som van haar fills (ook bijsturingen) min commissie, plus de afrekening van vervallen,
   toegewezen of uitgeoefende legs (`settle_usd`), plus de laatste cumulatieve hedge-P&L
   (`hedge_realized_usd`, dus inclusief het afbouwen van de aandelen na het sluiten van de
@@ -47,7 +56,7 @@ niet als bewijs van een edge.
 ### Sweep: dezelfde config op meerdere markten
 
 ```bash
-python -I -m tradebot.options sweep --markets /tmp/markt1 /tmp/markt2 --out /tmp/sweep [--workers N]
+python -I -m tradebot.options sweep --markets /tmp/markt1 /tmp/markt2 --out /tmp/sweep [--workers N] [--overwrite]
 ```
 
 Dit is een robuustheidscheck, geen optimalisatie: er is geen parameter-grid, alleen dezelfde
@@ -123,12 +132,13 @@ schakelaar aan door de sleutel in je eigen config te overschrijven (of in
 | `strategies.credit_spread.min_vrp_ratio`, `iron_condor.min_vrp_ratio`, `short_straddle_strangle.min_vrp_ratio` | `null` (uit) | VRP-poort per looptijd: gemiddelde IV van de short legs ≥ ratio × σ(h), h = de DTE | `1.10` aanbevolen |
 | `strategies.credit_spread.short_delta_exit` | `null` (uit) | short leg met \|delta\| boven deze waarde: sluiten (STOP, `delta_breach`), vóór de ITM-stop | `0.40` aanbevolen |
 | `strategies.short_straddle_strangle.*` | `enabled: false` | zie "Short strangle" hieronder | zie daar |
-| `risk.max_undefined_stress_loss_frac` | `0.06` | grens op de som van het stressverlies (±20 % spot, min credit) van alle undefined-risk posities plus de nieuwe; werkt alleen als undefined risk aan staat | getal aanpassen |
+| `risk.max_undefined_stress_loss_frac` | `0.06` | grens op de som van het stressverlies (±20 % spot, min credit) van alle undefined-risk posities, de lopende (nog niet gevulde) undefined-risk entries en de nieuwe; werkt alleen als undefined risk aan staat | getal aanpassen |
 
 **Short strangle: blijft uit.** Een short straddle of strangle heeft onbeperkt risico. Hij is
 alleen mogelijk als zowel `strategies.short_straddle_strangle.enabled: true` als
 `risk.allow_undefined_risk: true` staat (standaard allebei uit). Daarbovenop gelden de harde
-limieten: allow-list `underlyings` (SPY, QQQ, IWM), `max_per_underlying: 1`, alleen in het
+limieten: allow-list `underlyings` (SPY, QQQ, IWM), `max_per_underlying: 1` (het schema
+staat niet meer toe: een tweede positie zou toch 0 eenheden krijgen), alleen in het
 regime RICH, het stressverlies-plafond hierboven, stop op 2 × credit,
 `short_delta_exit: 0.30`, sluiten bij 21 DTE, en bij STRESS op SPY gaat alles met onbeperkt
 risico direct dicht. **Alessio beslist of dit aan gaat**; dit is geen aanbeveling om het aan
@@ -138,9 +148,9 @@ te zetten.
 
 | Sleutel | Standaard | Wat het doet | Aanzetten |
 |---|---|---|---|
-| `strategies.calendar_spread.entry_rule` | `ivp` | toelating van de calendar: `ivp` (oude IVP-regel), `forward_vol` of `either`. Forward-vol: σ_f² = (σ₂²T₂ − σ₁²T₁)/(T₂ − T₁) ≤ `max_fwd_vol_rv_ratio` (1,00) × σ(h₂−h₁) en IV near ≥ `min_near_iv_rv_ratio` (1,05) × σ(h₁) | `forward_vol` of `either` |
+| `strategies.calendar_spread.entry_rule` | `ivp` | toelating van de calendar: `ivp` (oude IVP-regel), `forward_vol` of `either`. Forward-vol: σ_f² = (σ₂²T₂ − σ₁²T₁)/(T₂ − T₁) ≤ `max_fwd_vol_rv_ratio` (1,00) × σ(h₂−h₁) en IV near ≥ `min_near_iv_rv_ratio` (1,05) × σ(h₁). `long_dte` moet helemaal na `short_dte` liggen (het schema eist dat) | `forward_vol` of `either` |
 | `strategies.gamma_scalp.enabled` | `false` | long ATM-straddle (30 tot 60 DTE) als IV ≤ `max_iv_rv_ratio` (0,90) × σ(h), gedelta-hedged. Exits: winstdoel (1,30 × debit, met de gerealiseerde hedge-P&L), stop (60 %), 14 DTE of IV terug op σ(h) | `enabled: true` én `hedging.enabled: true` |
-| `hedging.enabled` | `false` | de delta-hedger: per onderliggende de netto delta van de posities van `hedging.strategies` (standaard `[gamma_scalp]`) terug in aandelen zodra \|delta\| > `band_shares` (20); plafond `max_notional_frac` (0,5) × kapitaal; elke `interval_seconds` (300). Alleen op `universe.share_eligible` (AAPL, MSFT): US-ETF's kunnen vanuit de EU niet als aandeel. Een hedge gaat door de risicopoort, in HALT alleen als hij de delta verkleint | `true`, samen met `gamma_scalp` |
+| `hedging.enabled` | `false` | de delta-hedger: per onderliggende de netto delta van de posities van `hedging.strategies` (standaard `[gamma_scalp]`) terug in aandelen zodra \|delta\| > `band_shares` (20); plafond `max_notional_frac` (0,5) × kapitaal; elke `interval_seconds` (300). Alleen op `universe.share_eligible` (AAPL, MSFT): US-ETF's kunnen vanuit de EU niet als aandeel. Een hedge gaat door de risicopoort; die houdt hetzelfde plafond aan (`stock_notional_usd`) en controleert dat een sluitorder de aandelen-leg echt naar nul brengt. In HALT en UNWIND alleen afbouwen: de order moet de aandelen op die onderliggende in absolute waarde verkleinen én de delta van het boek verlagen; nieuwe aandelen (ook een hedge vanaf nul) niet | `true`, samen met `gamma_scalp` |
 | `paper.stock_spread_bps`, `commission_per_share`, `min_commission_per_order` | `2`, `0.005`, `1.0` | kosten van aandelenorders in de paper-broker | alleen relevant met hedging |
 
 ### Executie en gamma management
@@ -150,7 +160,7 @@ te zetten.
 | `execution.limit_anchor` | `mid` | `fair` laat een entry beginnen op de QuantLib-waarde op de gladde smile in plaats van op de mid (alleen ENTRY) | `fair` |
 | `execution.max_edge_frac` | `0.5` | bij `fair`: de walk concedeert nooit voorbij fair + frac × \|natural − mid\|. Ligt zelfs de eerste limiet al voorbij dat plafond, dan wordt de entry overgeslagen (`entry_skipped`, reden `max_edge`) | getal aanpassen |
 | `execution.max_spread_frac_fair` | `0.25` | bij `fair`: geen entry als 2 × \|natural − mid\| > frac × \|fair\| (`entry_skipped`, reden `spread_vs_fair`) | getal aanpassen |
-| `risk.max_gamma_loss_frac_credit` | `null` (uit) | positie met credit gaat dicht (STOP `gamma_risk`) als ½·\|Γ\|·(S·σ_1d)² > frac × credit | `0.5` aanbevolen |
+| `risk.max_gamma_loss_frac_credit` | `null` (uit) | positie met credit gaat dicht (STOP `gamma_risk`) als ½·\|Γ\|·(S·σ_1d)² > frac × credit. Zonder keten of met een leg zonder Greeks is het verlies onbekend: de regel sluit dan niet, maar meldt het één keer per positie (journal `gamma_unknown`, alarm `options_gamma_unknown`) | `0.5` aanbevolen |
 
 ### Sizing op risico
 
@@ -174,6 +184,12 @@ te zetten.
   QQQ, IWM) mogen vanuit de EU niet als aandeel gekocht worden (geen KID). Hedgen met
   synthetische aandelen of futures is bij 25k te grof (100 delta per stap tegen ±12 delta
   beweging per dag per straddle). ETF-posities sturen daarom bij met opties.
+* **Aandelen uit assignment of uitoefening** van een gehedgede positie (bijvoorbeeld een
+  gamma_scalp-leg die ITM expireert) horen bij geen aandelen-leg en worden **niet automatisch
+  afgebouwd**: de reconciliatie accepteert hele lots van 100, dus ze blijven bij de broker
+  staan, ongehedged. De exits (14 DTE, sluiten vóór expiratie) maken dit zeldzaam. Het alarm
+  `options_assignment` gaat ook af bij een uitoefening van een strategie uit
+  `hedging.strategies` (met hedging aan); sluit de aandelen dan met de hand.
 * **Short strangles** hebben onbeperkt risico en blijven standaard uit
   (`risk.allow_undefined_risk: false`). Alessio beslist of ze aan gaan.
 
@@ -247,7 +263,8 @@ Een HALT door de dienst zelf (drawdown, drie fouten op rij, `SafetyBreach`) staa
 |---|---|---|
 | `options_halt` | De dienst haltte | Lees `halt/halt.json` en het journal; geef pas vrij als de oorzaak weg is |
 | `options_recon_break` | Broker en staat verschillen | Vergelijk posities in TWS met `state.json`; entries op die onderliggende staan stil tot het weer klopt |
-| `options_assignment` | Een short leg is assigned | Controleer de aandelenpositie; sluit of laat de strategie verder beheren |
+| `options_assignment` | Een short leg is assigned, of een long leg van een gehedgede strategie uitgeoefend | Controleer de aandelenpositie; sluit of laat de strategie verder beheren. Aandelen uit een gehedgede positie worden niet automatisch afgebouwd: sluit ze met de hand |
+| `options_gamma_unknown` | Het gamma-verlies van een positie met credit is onbekend (geen keten of Greeks) | De gamma-regel sluit die positie niet; de stops van de strategie blijven gelden. Kijk waarom de Greeks ontbreken |
 | `options_short_past_expiry` | Een short optie staat na expiratie nog in de staat | Controleer bij IBKR; dit hoort nooit te gebeuren |
 | `options_task_*` | Een taak faalde | Lees het journal (`task_error`); drie op rij is HALT |
 

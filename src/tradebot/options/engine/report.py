@@ -1,8 +1,10 @@
 """Backteststatistiek uit het journal en de equity-reeks van een replay.
 
 PER STRATEGIE (alleen posities met een `position_closed`-regel)
-  aantal gesloten posities, win rate (P&L > 0), gemiddelde en totale P&L en het grootste
-  verlies (de laagste P&L, 0,0 als geen enkele positie verlies maakte).
+  aantal gesloten posities, win rate (P&L > 0), gemiddelde en totale P&L, het grootste
+  verlies (de laagste P&L, 0,0 als geen enkele positie verlies maakte) en de maximale
+  drawdown in USD (`max_drawdown_usd`): de grootste daling vanaf de top van de cumulatieve
+  gesloten P&L, in de volgorde van sluiten en vanaf 0 (dus ≥ 0, en 0,0 zonder daling).
   De P&L van een positie is de som van haar fills (`fill`: -prijs × 100 × aantal, ook de
   bijsturingen) min de commissie, plus de afrekening van vervallen, toegewezen of uitgeoefende
   legs (`settle_usd` op `expiry`/`assignment`/`exercise`), plus de laatste cumulatieve
@@ -48,10 +50,18 @@ class StrategyStats:
     avg_pnl: float
     total_pnl: float
     largest_loss: float
+    max_drawdown_usd: float
 
     def as_record(self) -> dict[str, Any]:
         return {"closed": self.closed, "win_rate": self.win_rate, "avg_pnl": self.avg_pnl,
-                "total_pnl": self.total_pnl, "largest_loss": self.largest_loss}
+                "total_pnl": self.total_pnl, "largest_loss": self.largest_loss,
+                "max_drawdown_usd": self.max_drawdown_usd}
+
+
+def _max_drawdown_usd(pnl: Sequence[float]) -> float:
+    """Grootste daling vanaf de top van de cumulatieve P&L (start 0), in USD."""
+    curve = np.concatenate(([0.0], np.cumsum(pnl)))
+    return round(float((np.maximum.accumulate(curve) - curve).max()), 2)
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,7 +109,7 @@ def strategy_stats(rows: Sequence[Mapping[str, Any]]) -> dict[str, StrategyStats
         by_strategy[strategy[pid]].append(pnl[pid] + hedge.get(pid, 0.0))
     return {name: StrategyStats(len(v), round(sum(x > 0 for x in v) / len(v), 4),
                                 round(sum(v) / len(v), 2), round(sum(v), 2),
-                                round(min(0.0, *v), 2))
+                                round(min(0.0, *v), 2), _max_drawdown_usd(v))
             for name, v in by_strategy.items()}
 
 

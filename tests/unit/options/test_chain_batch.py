@@ -217,6 +217,14 @@ def test_the_escrowed_seed_inputs():
     assert _escrowed(inputs(carry=big)) is None
 
 
+def test_fd_brackets_without_any_seed_are_empty():
+    # Een dividend groter dan de spot: geen escrowed startwaarde, dus het volle Brent-interval.
+    big = Carry(0.04, dividends=(CashDividend(date(2026, 12, 4), 150.0),))
+    job = builder_mod._QuantLibJob(inputs(carry=big), Method.FD, (1.0, 1.1), (None, None),
+                                   (None, None), True)
+    assert ChainBuilder(ON, 10.0)._fd_brackets([job]) == [(None, None)]
+
+
 def _count(monkeypatch) -> Counter[str]:
     calls: Counter[str] = Counter()
     real = iv_mod.vol_pricer

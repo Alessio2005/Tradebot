@@ -16,7 +16,8 @@ Volgorde:
 4. **Pro forma**: de maten van het boek na de order, tegen elke grens.
    - Een entry met undefined risk (`max_loss` oneindig) krijgt er één check bij,
      `undefined_stress_loss`: de som van het stressverlies (`short_vol.STRESS_MOVE`, in USD, bij
-     de huidige spot) van alle open undefined-risk posities plus de nieuwe, tegen
+     de huidige spot) van alle open undefined-risk posities, de lopende undefined-risk entries
+     (`Book.pending_undefined`, nog niet gevuld) en de nieuwe, tegen
      `max_undefined_stress_loss_frac` × kapitaal. Zonder keten voor een open undefined-risk
      positie is die som onbekend en dus te groot.
    - Een entry wordt per eenheid verkleind tot hij past (RESIZE), of geweigerd.
@@ -32,10 +33,15 @@ Een aandelenorder van de delta-hedger (`review_stock`) heeft zijn eigen, kortere
    limiet die verder dan de volledige spread (`paper.stock_spread_bps`) plus één cent van de spot
    ligt.
 2. Een order die de aandelen van een gesloten positie naar nul brengt (`closing`), wordt altijd
-   goedgekeurd: zonder opties eromheen is het alleen nog delta.
+   goedgekeurd: zonder opties eromheen is het alleen nog delta. De poort controleert dat hij
+   echt afbouwt: tegengesteld aan de aandelen-legs op dat symbool (`Book.hedge_shares`) en
+   niet groter dan die; anders is het een `SafetyBreach`.
 3. Anders: geen keten of geen volledige Greeks is weigeren; op een onderliggende met een
-   reconciliatieverschil ook. In HALT of UNWIND alleen als de absolute beta-delta van het boek
-   daalt. Normaal: goed als de beta-delta daarna binnen de grens ligt of daalt.
+   reconciliatieverschil ook. In HALT of UNWIND alleen als de order de aandelen-legs op dat
+   symbool in absolute waarde verkleint én de absolute beta-delta van het boek daalt.
+   Plafond `stock_notional_usd`: |aandelen-legs na de order| × spot ≤ `hedging.max_notional_frac`
+   × kapitaal (hetzelfde plafond als de hedger), tenzij de order de aandelen-legs verkleint.
+   Normaal: goed als de beta-delta daarna binnen de grens ligt of daalt.
 """
 from __future__ import annotations
 
@@ -322,7 +328,8 @@ class RiskGate:
         base = self._measure(live, book, market)
         per_unit = self._measure((unit,), Book(), market)
         undefined = math.isinf(p.max_loss)
-        stress_base = self._stress_usd(live, market) if undefined else 0.0
+        pending = tuple(x for x in book.pending_undefined if x.position_id != p.position_id)
+        stress_base = self._stress_usd(live + pending, market) if undefined else 0.0
         stress_unit = self._stress_usd((unit,), market) if undefined else 0.0
         checks: tuple[CheckResult, ...] = ()
         for q in range(p.quantity, 0, -1):
@@ -392,7 +399,12 @@ class RiskGate:
             if not math.isfinite(p.limit) or abs(p.limit - chain.spot) > band + 1e-9:
                 raise SafetyBreach(f"aandelenlimiet {p.limit:.4f} te ver van spot"
                                    f" {chain.spot:.4f} voor {p.position_id}")
+        held = book.hedge_shares.get(p.symbol, 0)
         if p.closing:
+            # Alleen afbouwen: tegengesteld aan de aandelen-legs en niet voorbij nul.
+            if held == 0 or (held > 0) == (p.qty > 0) or abs(p.qty) > abs(held):
+                raise SafetyBreach(f"sluitorder {p.qty} voor {p.position_id} past niet bij"
+                                   f" {held} aandelen in de legs op {p.symbol}")
             return self._stock(p, Verdict.APPROVE, (), market, "close")
         if chain is None:
             return StockDecision(Verdict.REJECT, None, (), "quotes:missing")
@@ -403,14 +415,20 @@ class RiskGate:
         shares = dict(book.shares)
         shares[p.symbol] = shares.get(p.symbol, 0) + p.qty
         after = aggregate(live, shares, market.chains, self.beta)
+        shrinks = abs(held + p.qty) < abs(held)
         checks = (CheckResult("beta_delta_usd", abs(after.beta_delta_usd),
-                              self.risk.max_abs_beta_delta_frac * market.capital_usd),)
+                              self.risk.max_abs_beta_delta_frac * market.capital_usd),
+                  CheckResult("stock_notional_usd", abs(held + p.qty) * chain.spot,
+                              self.cfg.hedging.max_notional_frac * market.capital_usd))
         if not (before.complete and after.complete):
             return StockDecision(Verdict.REJECT, None, checks, "greeks_incomplete")
         reducing = abs(after.beta_delta_usd) < abs(before.beta_delta_usd)
-        if (state.halted or state.unwind) and not reducing:
+        # In HALT of UNWIND alleen afbouwen: minder aandelen én minder delta.
+        if (state.halted or state.unwind) and not (reducing and shrinks):
             return StockDecision(Verdict.REJECT, None, checks,
                                  "state:halt" if state.halted else "state:unwind")
+        if not (checks[1].ok or shrinks):
+            return StockDecision(Verdict.REJECT, None, checks, "limits:stock_notional_usd")
         if reducing:
             return self._stock(p, Verdict.APPROVE, checks, market, "risk_reducing")
         if checks[0].ok:

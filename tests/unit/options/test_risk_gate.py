@@ -199,6 +199,21 @@ def test_the_book_stress_cap_resizes_or_blocks_a_second_entry(strangle):
     assert math.isinf(stress_check(d).measured)
 
 
+def test_a_pending_undefined_entry_counts_in_the_stress_loss(strangle):
+    m = market(capital=1e6)
+    held = dataclasses.replace(open_position(strangle, position_id="o1"), max_loss=math.inf)
+    filled = undefined_gate(0.02).review(proposal(strangle), Book((held,)), m, OK)
+    pending = undefined_gate(0.02).review(proposal(strangle), Book(pending_undefined=(held,)),
+                                          m, OK)
+    assert pending.reason == filled.reason == "limits:undefined_stress_loss"
+    assert stress_check(pending).measured == pytest.approx(stress_check(filled).measured)
+    # De eigen lopende order (zelfde position-id) telt niet dubbel.
+    own = dataclasses.replace(held, position_id="p1")
+    alone = undefined_gate().review(proposal(strangle), Book(), m, OK)
+    d = undefined_gate().review(proposal(strangle), Book(pending_undefined=(own,)), m, OK)
+    assert stress_check(d).measured == pytest.approx(stress_check(alone).measured)
+
+
 # --- harde fouten --------------------------------------------------------------------------
 
 def test_hard_errors_are_safety_breaches(spread):

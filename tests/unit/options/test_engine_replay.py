@@ -65,6 +65,18 @@ def test_the_cli_runs_a_replay(mkt, tmp_path, capsys):
     write_market(mkt, tmp_path / "m")
     code = cli.main(["replay", "--market", str(tmp_path / "m"), "--out", str(tmp_path / "o")])
     assert code == 0
-    assert json.loads(capsys.readouterr().out)["open_short_legs_past_expiry"] == 0
+    first = json.loads(capsys.readouterr().out)
+    assert first["open_short_legs_past_expiry"] == 0
     import tradebot.options.__main__ as entry  # de module-ingang laadt zonder te draaien
     assert entry.main is cli.main
+    # Nog een keer in dezelfde map: geweigerd (het journal zou aangevuld worden).
+    journal = (tmp_path / "o" / "journal.jsonl").read_bytes()
+    again = ["replay", "--market", str(tmp_path / "m"), "--out", str(tmp_path / "o")]
+    assert cli.main(again) == 2
+    assert "--overwrite" in capsys.readouterr().err
+    assert (tmp_path / "o" / "journal.jsonl").read_bytes() == journal
+    # Met --overwrite: eerst leeg, dan dezelfde uitkomst (geen verdubbelde tellingen).
+    assert cli.main([*again, "--overwrite"]) == 0
+    second = json.loads(capsys.readouterr().out)
+    assert second == first
+    assert (tmp_path / "o" / "journal.jsonl").read_bytes() == journal

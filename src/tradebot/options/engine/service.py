@@ -52,7 +52,7 @@ from ...schemas.options import OptionsConfig
 from ..calendar import NY, TradingCalendar, expiry_moment
 from ..chain.builder import Chain, ChainBuilder
 from ..chain.filters import build_filtered, filter_settings
-from ..contracts import Right
+from ..contracts import OptionContract, Right
 from ..data.feed import MarketFeed
 from ..execution.broker import BrokerAdapter, Execution, ExecutionKind
 from ..execution.orders import (
@@ -69,7 +69,7 @@ from ..execution.orders import (
     position_id,
     walk_limit,
 )
-from ..execution.paper import PaperBroker
+from ..execution.paper import PaperBroker, settlement_kind
 from ..hedging import hedge_orders, hedge_rules, stock_limit
 from ..iv_metrics import IVHistory, IVMetrics, iv_rule_settings, realized_vol
 from ..positions import (
@@ -228,6 +228,7 @@ class Engine:
         self._entries_blocked_day: date | None = None
         self._blocked: frozenset[str] = frozenset()
         self._seen: set[tuple[datetime, ExecutionKind, str, str, int, str]] = set()
+        self._gamma_unknown: set[str] = set()      # posities waarvoor `gamma_unknown` al kwam
 
     # --- toestand -------------------------------------------------------------------------
 
@@ -391,7 +392,24 @@ class Engine:
     def book(self) -> Book:
         return Book(tuple(self.state.open_positions()), dict(self._shares),
                     dict(self.state.cost_basis), self._equity, dict(self.state.wheel),
-                    self._hedge_shares())
+                    self._hedge_shares(), self._pending_undefined())
+
+    def _pending_undefined(self) -> tuple[StrategyPosition, ...]:
+        """Lopende entry-orders met undefined risk, als positie (voor de stresscheck)."""
+        terminal = {s.value for s in TERMINAL}
+        out = []
+        for o in self.state.orders.values():
+            if (o.get("stock") or o["kind"] != OrderKind.OPEN.value or o["max_loss"] is not None
+                    or o["status"] in terminal):
+                continue
+            q = o["quantity"]
+            out.append(StrategyPosition(
+                o["position_id"], o["strategy"], o["underlying"],
+                tuple(Leg(leg.contract, o["underlying"], leg.ratio * q, 0.0)
+                      for leg in intents_from(o["legs"])),
+                datetime.fromisoformat(o["submitted_at"]), q, -o["limit"] * MULTIPLIER * q,
+                math.inf, variant=o["variant"]))
+        return tuple(out)
 
     def _hedge_shares(self) -> dict[str, int]:
         """Aandelen-legs per symbool, ook van gesloten posities die nog naar nul gaan."""
@@ -606,27 +624,40 @@ class Engine:
         self._event(now, "settlement_alert", code=code, detail=detail)
 
     def _assignment(self, e: Execution, now: datetime) -> None:
-        """Reken `e` af op elke open positie met dit contract (de broker doet het gecombineerd).
+        """Reken `e` af op de open posities met dit contract (de broker doet het netto per
+        contract).
 
-        De hoeveelheid van de uitvoering wordt in positievolgorde over de posities verdeeld (elke
-        positie krijgt haar hele leg of niets); blijft er iets over, dan volgt een alert.
+        De broker rekent zijn hele netto positie in het contract af (`−e.qty`). Is dat precies de
+        som van de legs van de open posities op dit contract, dan rekent elke positie haar eigen
+        leg af, naar haar eigen teken: long uitgeoefend, short assigned (of allebei vervallen).
+        Zo rekenen ook tegengestelde posities op één contract af, ook als ze netto nul zijn (die
+        uitvoering komt van `_settle_netted`). Klopt de som niet, dan per teken: alleen posities
+        met het teken van de afrekening, in positievolgorde, elk haar hele leg of niets; blijft
+        er iets over, dan volgt een alert.
         """
         self._book_version += 1
         k = e.contract.key()
-        remaining = abs(e.qty)
-        settled = False
+        net = -e.qty
+        holders = []
         for i, p in enumerate(self.state.positions):
-            if p.status is PositionStatus.CLOSED:
-                continue
-            legs = [leg for leg in p.option_legs if leg.contract.key() == k]  # type: ignore[union-attr]
-            if not legs or abs(legs[0].qty) > remaining:
-                continue
-            settled = True
-            remaining -= abs(legs[0].qty)
+            leg = next((x for x in p.option_legs if x.contract.key() == k), None)  # type: ignore[union-attr]
+            if p.status is not PositionStatus.CLOSED and leg is not None:
+                holders.append((i, leg.qty))
+        chosen, remaining = holders, 0
+        if sum(q for _, q in holders) != net:
+            chosen, remaining = [], abs(net)
+            for i, q in holders:
+                if net and (q > 0) == (net > 0) and abs(q) <= remaining:
+                    chosen.append((i, q))
+                    remaining -= abs(q)
+        for i, qty in chosen:
+            p = self.state.positions[i]
+            kind = (e.kind if e.kind is ExecutionKind.EXPIRY
+                    else ExecutionKind.EXERCISE if qty > 0 else ExecutionKind.ASSIGNMENT)
             rest = tuple(leg for leg in p.option_legs if leg.contract.key() != k)  # type: ignore[union-attr]
             stock = tuple(leg for leg in p.legs if leg.contract is None)
             settle_usd = 0.0
-            if e.kind is not ExecutionKind.EXPIRY:       # waarde van de levering tegen de slotkoers
+            if kind is not ExecutionKind.EXPIRY:         # waarde van de levering tegen de slotkoers
                 chain = self.chains.get(p.underlying)
                 if chain is None:
                     self._warn_settlement(now, "options_settlement_no_chain",
@@ -634,8 +665,8 @@ class Engine:
                 spot = chain.spot if chain is not None else e.contract.strike
                 itm = spot - e.contract.strike if e.contract.right is Right.CALL \
                     else e.contract.strike - spot
-                settle_usd = legs[0].qty * itm * MULTIPLIER
-            if p.strategy == "wheel" and e.kind is ExecutionKind.ASSIGNMENT:
+                settle_usd = qty * itm * MULTIPLIER
+            if p.strategy == "wheel" and kind is ExecutionKind.ASSIGNMENT:
                 self.state.wheel[p.underlying] = "shares" if p.phase == "csp" else "idle"
                 self.state.cost_basis[p.underlying] = (
                     e.contract.strike - p.entry_credit if p.phase == "csp"
@@ -643,22 +674,47 @@ class Engine:
             self.state.positions[i] = (dataclasses.replace(p, legs=rest + stock) if rest
                                        else dataclasses.replace(p,
                                                                 status=PositionStatus.CLOSED))
-            if e.kind is not ExecutionKind.EXPIRY and legs[0].qty < 0 and p.strategy != "wheel":
+            # Een assignment, of een uitoefening van een gehedgede strategie: de geleverde
+            # aandelen horen bij geen aandelen-leg en worden niet automatisch afgebouwd.
+            hedged = self.cfg.hedging.enabled and p.strategy in self.cfg.hedging.strategies
+            if kind is not ExecutionKind.EXPIRY and p.strategy != "wheel" and (qty < 0 or hedged):
                 self.alert("critical", "options_assignment",
-                           f"short {k} van {p.position_id} {e.kind.value}")
-            self._event(now, e.kind.value, contract=k, qty=-legs[0].qty, price=e.price,
+                           f"{'short' if qty < 0 else 'long'} {k} van {p.position_id}"
+                           f" {kind.value}")
+            self._event(now, kind.value, contract=k, qty=-qty, price=e.price,
                         position_id=p.position_id, settle_usd=round(settle_usd, 2))
             if not rest:
                 hedge = ({"hedge_realized_usd": round(p.hedge_realized_usd, 2)}
                          if p.hedge_realized_usd or p.shares else {})
                 self._event(now, "position_closed", position_id=p.position_id,
-                            reason=e.kind.value, exit_net=round(settle_usd, 2), **hedge)
-        if not settled:
+                            reason=kind.value, exit_net=round(settle_usd, 2), **hedge)
+        if not chosen:
             self._event(now, e.kind.value, contract=k, qty=e.qty, price=e.price,
                         position_id=None, settle_usd=0.0)
         if remaining:
             self._warn_settlement(now, "options_settlement_remainder",
                                   f"{k}: {remaining} contract(en) van {e.kind.value} zonder positie")
+
+    def _settle_netted(self, day: date, closes: Mapping[str, float], now: datetime) -> None:
+        """Legs die op `day` expireren op een contract waarop de open posities netto nul zijn.
+
+        De paper-broker houdt per contract alleen het netto aantal; bij nul heeft hij niets meer
+        om af te rekenen en komt er geen uitvoering. Elke positie rekent dan haar eigen leg af
+        tegen de slotkoers (`settlement_kind`), via `_assignment` met netto 0."""
+        net: dict[str, tuple[OptionContract, int]] = {}
+        for p in self.state.open_positions():
+            for leg in p.option_legs:
+                c = leg.contract
+                if c.expiry == day:  # type: ignore[union-attr]
+                    k = c.key()  # type: ignore[union-attr]
+                    net[k] = (c, net.get(k, (c, 0))[1] + leg.qty)  # type: ignore[assignment]
+        for _, (c, n) in sorted(net.items()):
+            spot = closes.get(c.underlying)
+            if n or spot is None:      # niet netto nul: de reconciliatie ziet het verschil
+                continue
+            kind = settlement_kind(c, spot, 1)
+            price = 0.0 if kind is ExecutionKind.EXPIRY else c.strike
+            self._assignment(Execution(now, kind, "", c, c.underlying, 0, price), now)
 
     # --- aandelen (delta-hedger) ----------------------------------------------------------
 
@@ -867,7 +923,7 @@ class Engine:
             elif math.isinf(pos.max_loss) and regimes.get(pos.underlying) is VolRegime.STRESS:
                 acts = [Action(ActionKind.CLOSE, pos.position_id, pos.intents(), Urgency.STOP,
                                "regime_stress")]
-            elif self._gamma_breach(pos):
+            elif self._gamma_breach(pos, now):
                 acts = [Action(ActionKind.CLOSE, pos.position_id, pos.intents(), Urgency.STOP,
                                "gamma_risk")]
             else:
@@ -876,15 +932,25 @@ class Engine:
             for a in acts[:1]:
                 await self._act(a, pos, now)
 
-    def _gamma_breach(self, pos: StrategyPosition) -> bool:
+    def _gamma_breach(self, pos: StrategyPosition, now: datetime) -> bool:
         """Gamma-verlies over één dag boven `risk.max_gamma_loss_frac_credit` × de netto credit
         (`entry_net`; na een ADJUST de lopende netto credit, niet de oorspronkelijke ontvangst)
-        (D2); uit bij `None`, zonder credit of zonder RV-voorspelling."""
+        (D2); uit bij `None`, zonder credit of zonder RV-voorspelling. Is het verlies onbekend
+        (geen keten of een leg zonder Greeks), dan sluit de regel niet, maar meldt hij dat één
+        keer per positie (`gamma_unknown`): de stops van de strategie blijven gelden."""
         limit = self.cfg.risk.max_gamma_loss_frac_credit
         st = self._vol.get(pos.underlying)
         if limit is None or pos.entry_net <= 0.0 or st is None or st.rv is None:
             return False
         loss = gamma_loss_1d(pos, self.chains.get(pos.underlying), sigma_1d(st.rv))
+        if loss is None:
+            if pos.position_id not in self._gamma_unknown:
+                self._gamma_unknown.add(pos.position_id)
+                self._event(now, "gamma_unknown", position_id=pos.position_id,
+                            strategy=pos.strategy, underlying=pos.underlying)
+                self.alert("warning", "options_gamma_unknown",
+                           f"{pos.position_id}: gamma-verlies onbekend (geen keten of Greeks)")
+            return False
         return loss > limit * pos.entry_net
 
     async def _act(self, a: Action, pos: StrategyPosition, now: datetime) -> None:
@@ -986,6 +1052,7 @@ class Engine:
                         divs[und] = d
             self.broker.early_assign(divs, now)
             await self._executions(now)
+            self._settle_netted(today, closes, now)
         for p in self.state.open_positions():
             for leg in p.option_legs:
                 if leg.qty < 0 and now >= expiry_moment(leg.contract.expiry):  # type: ignore[union-attr]

@@ -186,6 +186,9 @@ class Book:
     # een gesloten positie waarvan de aandelen nog terug naar nul gaan. De rest van `shares`
     # komt uit assignment of uitoefening (de wheel).
     hedge_shares: Mapping[str, int] = field(default_factory=dict)
+    # Lopende (nog niet gevulde) entries met undefined risk, als positie met `max_loss`
+    # oneindig: de risicopoort telt hun stressverlies mee in `undefined_stress_loss`.
+    pending_undefined: tuple[StrategyPosition, ...] = ()
 
     def open_max_loss(self, underlying: str) -> float:
         return sum(p.max_loss for p in self.positions

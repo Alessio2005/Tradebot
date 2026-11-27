@@ -35,9 +35,18 @@ from .broker import (
 )
 from .orders import TERMINAL, ComboOrder, OrderStatus, StockOrder, combo_prices
 
-__all__ = ["PaperBroker"]
+__all__ = ["PaperBroker", "settlement_kind"]
 
 ITM_MIN = 0.01
+
+
+def settlement_kind(c: OptionContract, spot: float, qty: int) -> ExecutionKind:
+    """Hoe een leg van `qty` op `c` na de sluiting van de expiratiedag afrekent bij slotkoers
+    `spot`: ≥ 0,01 ITM uitgeoefend (long) of assigned (short), anders vervallen."""
+    itm = spot - c.strike if c.right is Right.CALL else c.strike - spot
+    if itm < ITM_MIN:
+        return ExecutionKind.EXPIRY
+    return ExecutionKind.EXERCISE if qty > 0 else ExecutionKind.ASSIGNMENT
 
 
 class PaperBroker:
@@ -156,13 +165,11 @@ class PaperBroker:
         for k, (c, qty, _) in sorted(self._options.items()):
             if c.expiry != day:
                 continue
-            spot = closes[c.underlying]
-            itm = spot - c.strike if c.right is Right.CALL else c.strike - spot
+            kind = settlement_kind(c, closes[c.underlying], qty)
             del self._options[k]
-            if itm < ITM_MIN:
+            if kind is ExecutionKind.EXPIRY:
                 out.append(Execution(ts, ExecutionKind.EXPIRY, "", c, c.underlying, -qty, 0.0))
                 continue
-            kind = ExecutionKind.EXERCISE if qty > 0 else ExecutionKind.ASSIGNMENT
             shares = qty * MULTIPLIER * (1 if c.right is Right.CALL else -1)
             self._book_shares(c.underlying, shares, c.strike)
             out.append(Execution(ts, kind, "", c, c.underlying, -qty, c.strike))

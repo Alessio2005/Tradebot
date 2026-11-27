@@ -386,7 +386,7 @@ def test_assignments_close_legs_and_alert(rig):
     (p,) = rig.state.open_positions()
     assert [leg.contract for leg in p.option_legs] == [C2]
     assert rig.alerts[-1][1] == "options_assignment"
-    _assign(rig, C2, ExecutionKind.EXPIRY)
+    _assign(rig, C2, ExecutionKind.EXPIRY, qty=-1)      # de long vervalt
     assert not rig.state.open_positions() and len(rig.alerts) == 1
     _assign(rig, OptionContract("TSTB", date(2027, 1, 15), 10.0, Right.PUT))
     assert [r["event"] for r in rig.e.journal.read()] == [
@@ -405,10 +405,12 @@ def test_settlement_events_carry_position_and_value(rig):
     assert not rig.events("position_closed")
     (a,) = rig.events("assignment")
     assert a["position_id"] == "cal" and a["settle_usd"] == -300.0
-    _assign(rig, C2, qty=2)             # gecombineerd: laatste leg van "cal" en van "solo"
+    # C2: +1 in "cal", −1 in "solo", netto 0 bij de broker; elke leg naar haar eigen teken.
+    _assign(rig, C2, qty=0)
     closed = {c["position_id"]: c for c in rig.events("position_closed")}
     assert set(closed) == {"cal", "solo"} and not rig.state.open_positions()
-    assert closed["cal"]["reason"] == "assignment" and "hedge_realized_usd" not in closed["cal"]
+    assert closed["cal"]["reason"] == "exercise" and "hedge_realized_usd" not in closed["cal"]
+    assert closed["solo"]["reason"] == "assignment"
     assert closed["cal"]["exit_net"] == 100.0 * 1 * 2.0       # long put 47, 2 in the money
     assert closed["solo"]["exit_net"] == -100.0 * 1 * 2.0     # short put 47
 
@@ -429,6 +431,62 @@ def test_one_execution_settles_every_position_on_the_contract(rig):
     (al,) = rig.events("settlement_alert")
     assert al["code"] == "options_settlement_remainder" and "2 contract" in al["detail"]
     assert rig.alerts[-1][1] == "options_settlement_remainder" and not rig.state.open_positions()
+
+
+def test_settlement_is_sign_aware(rig):
+    _spot(rig, 45.0)
+    rig.state.positions += [_pos("short", "credit_spread", [(C1, -3)]),
+                            _pos("long", "credit_spread", [(C1, 1)])]
+    _assign(rig, C1, qty=2)                  # de broker had netto −2: beide rekenen af
+    ev = {x["position_id"]: x for x in rig.events("assignment") + rig.events("exercise")}
+    assert (ev["short"]["event"], ev["short"]["qty"], ev["short"]["settle_usd"]) == (
+        "assignment", 3, -900.0)
+    assert (ev["long"]["event"], ev["long"]["qty"], ev["long"]["settle_usd"]) == (
+        "exercise", -1, 300.0)
+    assert not rig.state.open_positions() and not rig.events("settlement_alert")
+    # Klopt de som niet, dan alleen posities met het teken van de afrekening.
+    rig.state.positions += [_pos("l2", "credit_spread", [(C1, 1)]),
+                            _pos("s2", "credit_spread", [(C1, -1)])]
+    _assign(rig, C1, qty=3)                  # de broker had −3: alleen de short, rest 2
+    assert [p.position_id for p in rig.state.open_positions()] == ["l2"]
+    (al,) = rig.events("settlement_alert")
+    assert "2 contract" in al["detail"]
+
+
+def test_offsetting_positions_on_one_contract_both_settle_at_expiry(rig):
+    put = OptionContract("TSTB", D0, 48.0, Right.PUT)
+    call = OptionContract("TSTB", D0, 60.0, Right.CALL)
+    other = OptionContract("TSTB", D0, 40.0, Right.PUT)
+    _spot(rig, 45.0)                          # put 48 ITM, call 60 OTM
+    rig.state.positions += [_pos("a", "credit_spread", [(put, -1), (call, 1)]),
+                            _pos("b", "gamma_scalp", [(put, 1), (call, -1)]),
+                            _pos("c", "credit_spread", [(other, -1)])]
+    assert asyncio.run(rig.broker.positions()) == []   # netto nul: de broker ziet niets
+    asyncio.run(rig.e._end_of_day(at(D0, 16, 30)))
+    assert {c["position_id"] for c in rig.events("position_closed")} == {"a", "b"}
+    by = {(x["position_id"], x["contract"]): (x["event"], x["settle_usd"]) for x in
+          rig.events("assignment") + rig.events("exercise") + rig.events("expiry")}
+    assert by == {("a", put.key()): ("assignment", -300.0), ("a", call.key()): ("expiry", 0.0),
+                  ("b", put.key()): ("exercise", 300.0), ("b", call.key()): ("expiry", 0.0)}
+    # "c" is netto −1 zonder broker-positie: geen afrekening, de reconciliatie ziet het.
+    assert [p.position_id for p in rig.state.open_positions()] == ["c"]
+    # Zonder slotkoers voor de onderliggende: niets.
+    rig.state.positions.append(_pos("d", "credit_spread", [(put, 1)]))
+    rig.state.positions.append(_pos("e", "credit_spread", [(put, -1)]))
+    rig.e._settle_netted(D0, {}, at(D0, 16, 31))
+    assert {"d", "e"} <= {p.position_id for p in rig.state.open_positions()}
+
+
+def test_an_exercise_of_a_hedged_strategy_alerts(tmp_path):
+    cfg = BASE.model_copy(update={"hedging": BASE.hedging.model_copy(update={"enabled": True})})
+    r = Rig(tmp_path, cfg)
+    _spot(r, 45.0)
+    r.state.positions += [_pos("g", "gamma_scalp", [(C1, 1)]),
+                          _pos("l", "long_straddle_strangle", [(C2, 1)])]
+    _assign(r, C1, ExecutionKind.EXERCISE, qty=-1)
+    _assign(r, C2, ExecutionKind.EXERCISE, qty=-1)    # niet gehedged: geen alert
+    assert [(a[1], a[2]) for a in r.alerts] == [
+        ("options_assignment", f"long {C1.key()} van g exercise")]
 
 
 def test_expiry_and_hedged_settlement_close_the_position(rig):
@@ -619,6 +677,29 @@ def test_the_book_stress_cap_blocks_a_second_undefined_entry(tmp_path):
     assert len(wide.state.open_positions()) == 2
 
 
+def test_the_book_carries_pending_undefined_entries(tmp_path):
+    r = Rig(tmp_path, undefined_cfg(), market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    (pos,) = r.state.open_positions()
+    (o,) = [x for x in r.state.orders.values() if x["position_id"] == pos.position_id]
+    assert r.e.book().pending_undefined == ()                 # gevuld: een positie, geen order
+    r.state.orders["w"] = {**o, "client_id": "w", "position_id": "w1", "status": "submitted"}
+    r.state.orders["x"] = {**o, "client_id": "x", "position_id": "x1", "status": "cancelled"}
+    r.state.orders["y"] = {**o, "client_id": "y", "position_id": "y1", "status": "submitted",
+                           "max_loss": 300.0}
+    r.state.orders["z"] = {**o, "client_id": "z", "position_id": "z1", "status": "submitted",
+                           "kind": "close"}
+    r.state.orders["s"] = {"client_id": "s", "stock": True, "position_id": "s1",
+                           "status": "submitted"}
+    (w,) = r.e.book().pending_undefined
+    assert (w.position_id, w.strategy, w.underlying, w.units) == (
+        "w1", pos.strategy, pos.underlying, o["quantity"])
+    assert math.isinf(w.max_loss) and w.variant == o["variant"]
+    assert [(leg.contract, leg.qty) for leg in w.legs] == [
+        (leg.contract, leg.qty) for leg in pos.legs]
+    assert w.entry_net == -o["limit"] * 100 * o["quantity"]
+
+
 @pytest.fixture
 def strangle_rig(tmp_path):
     r = Rig(tmp_path, undefined_cfg(), market=SV_MKT)
@@ -709,13 +790,38 @@ def test_gamma_loss_1d_is_half_gamma_times_the_daily_move_squared(strangle_rig):
     chain = r.e.chains[pos.underlying]
     loss = gamma_loss_1d(pos, chain, sig)
     assert loss > 0.0 and gamma_loss_1d(pos, chain, 2 * sig) == pytest.approx(4 * loss)
-    assert gamma_loss_1d(pos, None, sig) == 0.0
-    # Long gamma (omgekeerde legs): geen verlies; ontbrekende Greeks: ook 0.
+    assert gamma_loss_1d(pos, None, sig) is None
+    # Long gamma (omgekeerde legs): geen verlies; ontbrekende Greeks: onbekend.
     long = dataclasses.replace(pos, legs=tuple(
         dataclasses.replace(leg, qty=-leg.qty) for leg in pos.legs))
     assert gamma_loss_1d(long, chain, sig) == 0.0
     gone = dataclasses.replace(chain, options=())
-    assert gamma_loss_1d(pos, gone, sig) == 0.0
+    assert gamma_loss_1d(pos, gone, sig) is None
+
+
+NOW_G = at(D0, 10, 2)
+
+
+def test_gamma_risk_with_unknown_greeks_is_journaled_once(tmp_path):
+    r = Rig(tmp_path, _gamma_cfg(1e-6), market=SV_MKT)
+    r.run(at(D0, 10, 1))
+    (pos,) = r.state.open_positions()
+    chain = r.e.chains[pos.underlying]
+    first = pos.legs[0].contract
+    r.e.chains[pos.underlying] = dataclasses.replace(chain, options=tuple(
+        dataclasses.replace(o, greeks=None) if o.contract == first else o
+        for o in chain.options))
+    assert not r.e._gamma_breach(pos, NOW_G)
+    assert not r.e._gamma_breach(pos, NOW_G)                   # niet nog eens gemeld
+    del r.e.chains[pos.underlying]
+    assert not r.e._gamma_breach(pos, NOW_G)
+    (ev,) = r.events("gamma_unknown")
+    assert (ev["position_id"], ev["strategy"], ev["underlying"]) == (
+        pos.position_id, pos.strategy, pos.underlying)
+    assert [a[1] for a in r.alerts].count("options_gamma_unknown") == 1
+    other = dataclasses.replace(pos, position_id="other")
+    assert not r.e._gamma_breach(other, NOW_G)
+    assert len(r.events("gamma_unknown")) == 2
 
 
 def test_gamma_risk_closes_a_short_gamma_position_over_the_limit(tmp_path):
@@ -733,16 +839,16 @@ def test_gamma_risk_is_off_by_default_and_with_a_wide_limit_or_no_rv_or_no_credi
         r = Rig(tmp_path / str(i), _gamma_cfg(frac), market=SV_MKT)
         r.run(at(D0, 10, 1))
         (pos,) = r.state.open_positions()
-        assert not r.e._gamma_breach(pos)
+        assert not r.e._gamma_breach(pos, NOW_G)
         now = at(D0, 10, 3)
         asyncio.run(r.e._manage(now))
         assert [a for a in r.events("action") if a["reason"] == "gamma_risk"] == []
     r = Rig(tmp_path / "x", _gamma_cfg(1e-6), market=SV_MKT)
     r.run(at(D0, 10, 1))
     (pos,) = r.state.open_positions()
-    assert r.e._gamma_breach(pos)
-    assert not r.e._gamma_breach(dataclasses.replace(pos, entry_net=-100.0))
+    assert r.e._gamma_breach(pos, NOW_G)
+    assert not r.e._gamma_breach(dataclasses.replace(pos, entry_net=-100.0), NOW_G)
     r.e._vol[pos.underlying] = dataclasses.replace(r.e._vol[pos.underlying], rv=None)
-    assert not r.e._gamma_breach(pos)
+    assert not r.e._gamma_breach(pos, NOW_G)
     del r.e._vol[pos.underlying]
-    assert not r.e._gamma_breach(pos)
+    assert not r.e._gamma_breach(pos, NOW_G)

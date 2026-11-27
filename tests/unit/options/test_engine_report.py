@@ -42,8 +42,23 @@ def test_strategy_stats_per_strategy():
     csp = st["csp"]
     assert (csp.closed, csp.win_rate, csp.avg_pnl, csp.total_pnl, csp.largest_loss) == (
         2, 0.5, -69.5, -139.0, -197.0)
+    assert csp.max_drawdown_usd == 197.0                   # top +58 → −139
     ic = st["ic"]
     assert (ic.closed, ic.win_rate, ic.total_pnl, ic.largest_loss) == (1, 1.0, 148.0, 0.0)
+    assert ic.max_drawdown_usd == 0.0
+
+
+def test_the_strategy_drawdown_runs_on_the_cumulative_closed_pnl():
+    # P&L in volgorde van sluiten: −10, +50, −30, −25, +100 → curve 0, −10, 40, 10, −15, 85.
+    rows = [r for i, (o, c) in enumerate(((-1.0, 1.1), (-1.0, 0.5), (-1.0, 1.3), (-1.0, 1.25),
+                                           (-2.0, 1.0)))
+            for r in _trade(f"t{i}", "x", o, c, fee=0.0)]
+    x = strategy_stats(rows)["x"]
+    assert x.total_pnl == 85.0 and x.largest_loss == -30.0
+    assert x.max_drawdown_usd == 55.0                      # 40 → −15
+    assert x.as_record()["max_drawdown_usd"] == 55.0
+    first_loss = strategy_stats(_trade("a", "y", -1.0, 1.2, fee=0.0))["y"]
+    assert first_loss.max_drawdown_usd == 20.0             # vanaf 0
 
 
 def _opened(pid: str, strategy: str) -> dict:
@@ -182,6 +197,44 @@ def test_the_cli_runs_a_sweep(markets, tmp_path, capsys):
     assert code == 0
     assert set(json.loads(capsys.readouterr().out)["markets"]) == {"m1", "m2"}
     assert (tmp_path / "o" / "sweep.json").is_file()
+
+
+def test_the_cli_sweep_refuses_a_used_out_unless_overwrite(markets, tmp_path, monkeypatch,
+                                                           capsys):
+    calls = []
+    monkeypatch.setattr(cli, "run_sweep", lambda *a: calls.append(a) or {"markets": {}})
+    out = tmp_path / "o"
+    (out / "m1").mkdir(parents=True)
+    (out / "m1" / "journal.jsonl").write_text("{}\n", encoding="utf-8")   # een eerdere sweep
+    argv = ["sweep", "--markets", str(markets[0]), "--out", str(out)]
+    assert cli.main(argv) == 2 and calls == []
+    assert "niet leeg" in capsys.readouterr().err
+    assert cli.main([*argv, "--overwrite"]) == 0 and len(calls) == 1
+    assert not out.exists()                                     # leeggemaakt vóór de sweep
+
+
+def test_prepare_out(tmp_path):
+    assert cli.prepare_out(tmp_path / "nieuw", False) is None
+    empty = tmp_path / "leeg"
+    empty.mkdir()
+    assert cli.prepare_out(empty, False) is None and empty.is_dir()
+    for marker in ("journal.jsonl", "sweep.json"):
+        d = tmp_path / marker
+        d.mkdir()
+        (d / marker).write_text("x", encoding="utf-8")
+        (d / "sub").mkdir()
+        assert "bestaat al" in cli.prepare_out(d, False)
+        assert cli.prepare_out(d, True) is None and not d.exists()
+    # Iets anders dan eerdere uitvoer wordt nooit gewist, ook niet met --overwrite.
+    other = tmp_path / "anders"
+    other.mkdir()
+    (other / "bars.parquet").write_text("x", encoding="utf-8")
+    (other / "sub").mkdir()
+    assert "geen eerdere" in cli.prepare_out(other, True) and (other / "bars.parquet").exists()
+    a_file = tmp_path / "bestand"
+    a_file.write_text("x", encoding="utf-8")
+    assert "bestaat al" in cli.prepare_out(a_file, False)
+    assert "geen eerdere" in cli.prepare_out(a_file, True) and a_file.exists()
 
 
 def test_the_cli_sweep_fails_when_a_market_halts(markets, tmp_path, monkeypatch, capsys):

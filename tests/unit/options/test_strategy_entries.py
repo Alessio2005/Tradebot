@@ -6,6 +6,7 @@ import math
 from datetime import date, timedelta
 
 import pytest
+from pydantic import ValidationError
 
 from tests.unit.options.helpers import NOW
 from tests.unit.options.market_helpers import (
@@ -42,6 +43,7 @@ from tradebot.options.strategies.short_vol import (
 )
 from tradebot.options.strategies.wheel import Wheel
 from tradebot.options.vol_regime import RVForecast, VolRegime, VolState
+from tradebot.schemas.options import CalendarSpreadConfig
 from tradebot.utils.failfast import ConfigContractError
 
 RULES = rules_from_config(CFG)
@@ -238,6 +240,16 @@ def test_calendar_forward_vol_negative_forward_variance_is_refused():
     assert strat._fwd_trace(m, inverted, "TST", date(2026, 12, 18),
                             date(2027, 2, 19)) == "fwd:neg_var"
     assert strat.scan(m, Book()) == []
+
+
+def test_calendar_forward_vol_without_a_gap_between_the_expiries():
+    strat = cal(entry_rule="forward_vol")
+    m = _fv_market(FWD, 0.26)
+    near = date(2026, 12, 18)
+    assert strat._fwd_trace(m, FWD, "TST", near, near) == "fwd:no_gap"        # geen deling door 0
+    assert strat._fwd_trace(m, FWD, "TST", date(2027, 2, 19), near) == "fwd:no_gap"
+    with pytest.raises(ValidationError, match="helemaal vóór long_dte"):
+        CalendarSpreadConfig(long_dte=(30, 90))                 # short_dte (20, 35) overlapt
 
 
 def test_calendar_either_rule_traces_which_route_holds():

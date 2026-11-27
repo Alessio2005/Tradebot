@@ -39,7 +39,8 @@ pricing:
   iv_min: 1.0e-2                 # onder 1 % is QuantLib numeriek onbetrouwbaar
   iv_max: 5.0
   surface_min_vega: 0.01         # USD per volpunt; daaronder is de IV afrondingsruis
-  # Vlak, handmatig bijgewerkt (3-maands T-bill, als fractie).
+  # Vlak, handmatig bijgewerkt (3-maands T-bill, als fractie). Niet negatief: BAW weigert een
+  # call bij een negatieve rente.
   risk_free_rate: 0.04
   # Keten in batches: BAW-contracten in één numpy-kernel (pariteit met QuantLib vastgepind),
   # FD-contracten met een startwaarde uit die kernel. Uit = elk contract apart door QuantLib.
@@ -111,7 +112,7 @@ strategies:
   calendar_spread:
     enabled: true
     short_dte: [20, 35]
-    long_dte: [50, 90]
+    long_dte: [50, 90]             # moet helemaal na short_dte liggen (forward-vol deelt door T₂ − T₁)
     min_term_slope: 0.0
     max_ivp: 50
     max_iv_rv_ratio_fallback: 1.00
@@ -173,7 +174,7 @@ strategies:
     stop_loss_multiple_credit: 2.0
     close_dte: 21
     underlyings: [SPY, QQQ, IWM]   # allow-list: alleen deze onderliggenden
-    max_per_underlying: 1          # open posities van deze strategie per onderliggende
+    max_per_underlying: 1          # open posities per onderliggende; hooguit 1 (een tweede krijgt 0 eenheden)
     short_delta_exit: 0.30         # een short leg met |delta| > 0,30 → CLOSE, STOP
     min_vrp_ratio: null            # null = uit (aanbevolen 1.10); zie credit_spread
 

@@ -148,7 +148,12 @@ class CalendarSpread:
 
     def _fwd_trace(self, market: MarketState, chain: Chain, und: str,
                    near: date, far: date) -> str:
-        """Spoorregel van de forward-vol-regel; `fwd:ok` als die geldt, anders de reden."""
+        """Spoorregel van de forward-vol-regel; `fwd:ok` als die geldt, anders de reden.
+
+        Zonder looptijd tussen de twee expiraties (`far <= near`) bestaat er geen forward-vol:
+        `fwd:no_gap` (de config sluit dat al uit, zie `CalendarSpreadConfig`)."""
+        if far <= near:
+            return "fwd:no_gap"
         vs = market.vol.get(und)
         if vs is None or vs.rv is None:
             return "fwd:no_rv"
