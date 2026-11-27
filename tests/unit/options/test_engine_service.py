@@ -17,10 +17,9 @@ from tradebot.options.data.synthetic import SyntheticSpec, SyntheticUnderlying, 
 from tradebot.options.engine import service
 from tradebot.options.engine.replay import replay_config
 from tradebot.options.engine.service import Engine, EngineMode, Paths
-from tradebot.options.engine.state import EngineState, intents_from, intents_record
+from tradebot.options.engine.state import EngineState, intents_record
 from tradebot.options.events import Events
 from tradebot.options.execution.broker import Execution, ExecutionKind
-from tradebot.options.execution.orders import combo_fair, combo_prices, fair_walk_limit
 from tradebot.options.execution.paper import PaperBroker
 from tradebot.options.positions import (
     Action,
@@ -31,6 +30,7 @@ from tradebot.options.positions import (
     StrategyPosition,
     Urgency,
 )
+from tradebot.options.pricing.surface import Smile
 from tradebot.options.rates import CashDividend
 from tradebot.options.risk.gate import SafetyBreach
 from tradebot.options.vol_regime import VolRegime
@@ -166,17 +166,50 @@ def fair_cfg(**kw):
     return cfg_with("execution", limit_anchor="fair", **kw)
 
 
+def richer_smile(rig, f):
+    """Het oppervlak dat de engine voor fair gebruikt, met de vol × `f`: fair ≠ mid. De
+    IV-metingen (regime, toelating) blijven die van de markt."""
+    metrics = rig.e._metrics
+
+    def scaled(und, chain, today):
+        out = metrics(und, chain, today)
+        s = rig.e._surfaces[und]
+        rig.e._surfaces[und] = dataclasses.replace(s, smiles=tuple(
+            Smile(x.expiry, x.t, x.forward, x.discount, x.k, tuple(w * f * f for w in x.w))
+            for x in s.smiles))
+        return out
+
+    rig.e._metrics = scaled
+
+
 def test_a_fair_anchored_entry_starts_at_the_fair_value(tmp_path):
+    # Credit spread: mid −0.24, natural −0.22, de andere kant −0.26. Mid-anker: −0.24.
+    m = Rig(tmp_path / "mid")
+    m.run(at(D0, 10, 0, 1), step=1)
+    assert [o["limit"] for o in m.events("order_submitted")] == [-0.24]
+    # Bij 1,1 × de smile-vol is fair ≈ −0.262: begrensd op de andere kant, −0.26.
+    r = Rig(tmp_path / "fair", fair_cfg())
+    richer_smile(r, 1.1)
+    r.run(at(D0, 10, 0, 1), step=1)
+    assert [o["limit"] for o in r.events("order_submitted")] == [-0.26]
+
+
+def test_a_first_limit_past_the_edge_skips_the_entry(tmp_path):
+    # Bij 1,5 × de vol ligt fair zo ver voorbij −0.26 dat het plafond (fair + 0,5 × 0,02)
+    # al vóór limit_0 ligt: geen order.
+    r = Rig(tmp_path, fair_cfg())
+    richer_smile(r, 1.5)
+    r.run(at(D0, 10, 1))
+    (skip,) = r.events("entry_skipped")
+    assert skip["reason"] == "max_edge" and not r.state.orders
+
+
+def test_an_entry_without_a_fair_value_is_skipped(tmp_path, monkeypatch):
+    monkeypatch.setattr(service, "combo_fair", lambda *a: None)
     r = Rig(tmp_path, fair_cfg())
     r.run(at(D0, 10, 1))
-    (o,) = r.state.orders.values()
-    legs, chain = intents_from(o["legs"]), r.e.chains["TSTB"]
-    mid, natural = combo_prices(chain, legs)
-    fair = combo_fair(chain, r.e._surfaces["TSTB"], legs, r.e.settings.engines)
-    first = fair_walk_limit(mid, natural, fair, 0, BASE.execution.ticks.combo,
-                            BASE.execution.max_edge_frac)
-    assert r.events("order_submitted")[0]["limit"] == first.limit
-    assert len(r.state.open_positions()) == 1
+    (skip,) = r.events("order_skipped")
+    assert skip["reason"] == "no_quote" and skip["purpose"] == "entry" and not r.state.orders
 
 
 def test_the_fair_walk_gives_up_at_the_edge(tmp_path):

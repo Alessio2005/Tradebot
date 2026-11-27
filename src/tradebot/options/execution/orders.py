@@ -33,7 +33,9 @@ limit_0  = anker afgerond op de combo-tick in ons voordeel, weg van natural: bij
            betalen we minder (1.005 → 1.00), bij een credit ontvangen we meer (−1.005 → −1.01)
 limit_k  = limit_0 + k × tick × richting
 plafond  = fair + max_edge_frac × |natural − mid| × richting, maar nooit voorbij natural
-stop als (limit_k − plafond) × richting > 0   (k > 0)
+stop als (limit_k − plafond) × richting > 0   (ook bij k = 0: ligt fair zo ver voorbij de
+                                               andere kant dat zelfs limit_0 al voorbij het
+                                               plafond ligt, dan gaat de entry niet uit)
 ```
 
 Zo is de limiet nooit slechter dan natural en nooit beter dan de andere kant van het boek
@@ -188,4 +190,4 @@ def fair_walk_limit(mid: float, natural: float, fair: float, step: int, tick: fl
     limit = round((_favourable(anchor, tick, direction) + step * direction) * tick, 10)
     cap = fair + direction * max_edge_frac * abs(natural - mid)
     cap = min(cap, natural) if direction > 0 else max(cap, natural)
-    return WalkStep(limit, (limit - cap) * direction > 1e-9 and step > 0)
+    return WalkStep(limit, (limit - cap) * direction > 1e-9)

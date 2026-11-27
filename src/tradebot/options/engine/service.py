@@ -429,9 +429,9 @@ class Engine:
         return purpose is Purpose.ENTRY and self.cfg.execution.limit_anchor == "fair"
 
     def _limit(self, und: str, legs: tuple[LegIntent, ...], purpose: Purpose, urgency: Urgency,
-               step: int) -> tuple[WalkStep, float | None] | None:
-        """De limiet bij `step` (zie `execution.orders`), met de fair value bij het fair-anker;
-        None zonder keten of quote."""
+               step: int) -> tuple[WalkStep, str | None] | None:
+        """De limiet bij `step` (zie `execution.orders`) en, bij het fair-anker, de reden om een
+        entry niet te sturen (`spread_vs_fair`, `max_edge`) of None; None zonder keten of quote."""
         chain = self.chains.get(und)
         prices = combo_prices(chain, legs) if chain is not None else None
         if chain is None or prices is None:
@@ -442,15 +442,12 @@ class Engine:
             return walk_limit(mid, natural, step, e.ticks.combo,
                               self._concession(purpose, urgency)), None
         fair = combo_fair(chain, self._surfaces.get(und), legs, self.settings.engines)
-        assert fair is not None                  # dezelfde quotes als combo_prices
-        return fair_walk_limit(mid, natural, fair, step, e.ticks.combo, e.max_edge_frac), fair
-
-    def _spread_vs_fair(self, und: str, legs: tuple[LegIntent, ...], fair: float) -> bool:
-        """True als de spread te breed is tegen fair: 2 × |natural − mid| > frac × |fair|."""
-        prices = combo_prices(self.chains[und], legs)
-        assert prices is not None
-        mid, natural = prices
-        return abs(natural - mid) * 2.0 > self.cfg.execution.max_spread_frac_fair * abs(fair)
+        if fair is None:                         # zelfde quotes als combo_prices: kan niet
+            return None
+        s = fair_walk_limit(mid, natural, fair, step, e.ticks.combo, e.max_edge_frac)
+        if abs(natural - mid) * 2.0 > e.max_spread_frac_fair * abs(fair):
+            return s, "spread_vs_fair"
+        return s, "max_edge" if s.done else None
 
     async def _send(self, p: OrderProposal, now: datetime, purpose: Purpose) -> None:
         state = self.gate_state(now, self._daily_loss())
@@ -464,12 +461,14 @@ class Engine:
             return
         ap = d.approved.proposal
         first = self._limit(ap.underlying, ap.legs, purpose, ap.urgency, 0)
-        assert first is not None
-        step, fair = first
-        if fair is not None and self._spread_vs_fair(ap.underlying, ap.legs, fair):
+        if first is None:
+            self._event(now, "order_skipped", position_id=ap.position_id, purpose=purpose.value,
+                        strategy=ap.strategy, underlying=ap.underlying, reason="no_quote")
+            return
+        step, skip = first
+        if skip is not None:
             self._event(now, "entry_skipped", position_id=ap.position_id, strategy=ap.strategy,
-                        underlying=ap.underlying, reason="spread_vs_fair",
-                        fair=round(fair, 4))
+                        underlying=ap.underlying, reason=skip)
             return
         key = f"{ap.position_id}|{purpose.value}|{now.date().isoformat()}"
         attempt = self.state.attempts.get(key, 0)

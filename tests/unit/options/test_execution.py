@@ -111,12 +111,15 @@ def test_the_fair_walk_starts_at_fair_and_stops_at_the_edge():
     # Fair boven natural: begin op natural, nooit erover.
     assert fair_walk_limit(1.0, 1.1, 1.3, 0, 0.01, 0.5) == WalkStep(1.1, False)
     assert fair_walk_limit(1.0, 1.1, 1.3, 1, 0.01, 0.5).done
-    # Fair onder de andere kant: begin op 0.90, het plafond (0.85) laat geen stap toe.
-    assert fair_walk_limit(1.0, 1.1, 0.8, 0, 0.01, 0.5) == WalkStep(0.9, False)
-    assert fair_walk_limit(1.0, 1.1, 0.8, 1, 0.01, 0.5).done
+    # Fair onder de andere kant: limit_0 (0.90) ligt al voorbij het plafond (0.85): klaar.
+    assert fair_walk_limit(1.0, 1.1, 0.8, 0, 0.01, 0.5) == WalkStep(0.9, True)
+    # Wel binnen het plafond: fair 0.88, plafond 0.93, limit_0 0.90 mag.
+    assert fair_walk_limit(1.0, 1.1, 0.88, 0, 0.01, 0.5) == WalkStep(0.9, False)
     # Credit: mid −1.00, natural −0.90, de andere kant −1.10; −1.005 → −1.01 (meer ontvangen).
     assert fair_walk_limit(-1.0, -0.9, -1.005, 0, 0.01, 0.5) == WalkStep(-1.01, False)
-    assert fair_walk_limit(-1.0, -0.9, -1.3, 0, 0.01, 0.5) == WalkStep(-1.1, False)
+    # Fair voorbij de andere kant (−1.3): plafond −1.25 ligt vóór limit_0 −1.10: klaar.
+    assert fair_walk_limit(-1.0, -0.9, -1.3, 0, 0.01, 0.5) == WalkStep(-1.1, True)
+    assert fair_walk_limit(-1.0, -0.9, -1.12, 0, 0.01, 0.5) == WalkStep(-1.1, False)
     assert fair_walk_limit(-1.0, -0.9, -0.5, 0, 0.01, 0.5) == WalkStep(-0.9, False)
     # Plafond −1.005 + 0.05 = −0.955: −0.96 mag (stap 5), −0.95 niet.
     assert not fair_walk_limit(-1.0, -0.9, -1.005, 5, 0.01, 0.5).done

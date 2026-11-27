@@ -12,7 +12,9 @@
   [2·mid − natural, natural] en in ons voordeel op de combo-tick afgerond (`execution/orders.py`).
 - De walk van zo'n entry concedeert nooit voorbij fair + `execution.max_edge_frac` (0,5) ×
   |natural − mid| richting natural, en nooit voorbij natural; daarna `order_cancelled` met reden
-  `max_edge`. EXIT, STOP, ROLL en ADJUST houden de bestaande concessie.
+  `max_edge`. Ligt zelfs `limit_0` al voorbij dat plafond (fair voorbij de andere kant van het
+  boek), dan gaat de entry niet uit: `entry_skipped` met reden `max_edge`. EXIT, STOP, ROLL en
+  ADJUST houden de bestaande concessie.
 - Een entry met 2 × |natural − mid| > `execution.max_spread_frac_fair` (0,25) × |fair| wordt niet
   gestuurd: journal `entry_skipped`, reden `spread_vs_fair`.
 - Standaard (`mid`) is de synthetische replay ongewijzigd, het journal byte-gelijk (3 posities,
