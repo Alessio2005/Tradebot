@@ -189,6 +189,18 @@ def test_a_closing_stock_order_is_always_approved():
     assert review(stock(4, closing=True), closing_book(-10)).reason == "close"
 
 
+def test_shares_from_an_assignment_may_be_unwound_on_any_symbol():
+    # Na een assignment kan een positie aandelen hebben op een symbool dat niet als aandeel
+    # gehouden mag worden: afbouwen mag, opbouwen niet.
+    strict = RiskGate(GCFG.model_copy(update={"universe": GCFG.universe.model_copy(
+        update={"share_eligible": ()})}), SETTINGS.engines, Method.BAW)
+    d = strict.review_stock(stock(-10, closing=True), closing_book(10), market(),
+                            GateState(equity=25_000.0))
+    assert d.verdict is Verdict.APPROVE and d.reason == "close"
+    with pytest.raises(SafetyBreach, match="niet als aandeel"):
+        strict.review_stock(stock(10), Book(), market(), GateState(equity=25_000.0))
+
+
 def test_a_closing_stock_order_must_flatten_the_share_legs():
     for qty, own in ((-10, 0), (10, 10), (-11, 10), (-10, -10), (11, -10)):
         with pytest.raises(SafetyBreach, match="sluitorder"):

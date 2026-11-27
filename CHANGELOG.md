@@ -78,7 +78,9 @@ Beperkingen van de data (keuzes van mij, die Alessio kan terugdraaien):
   ze mee als de positie sluit. Eerder bleven ze los in het boek staan. In de DoltHub-replay liet
   een vroege assignment van een short SPY-call vóór ex-dividend daardoor −100 SPY open van 2020
   tot 2026 (eind-equity −11.000 USD). Dit geldt ook voor IBKR-paper; het alarm
-  `options_assignment` blijft.
+  `options_assignment` blijft. De risicopoort (`risk/gate.py`) laat daarom een sluitorder op
+  aandelen toe op elk symbool, ook buiten `share_eligible` (zoals SPY). Opbouwen blijft
+  beperkt tot `share_eligible`, en de sluitorder moet nog steeds precies de eigen leg afbouwen.
 - **Netwerk**: de cloudomgeving moest `www.dolthub.com`, `query2.finance.yahoo.com` en
   `data.sec.gov` toelaten (met akkoord van Alessio).
 
