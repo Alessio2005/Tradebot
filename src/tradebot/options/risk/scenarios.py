@@ -25,7 +25,7 @@ from ..positions import MULTIPLIER, Leg, PositionStatus, StrategyPosition
 from ..pricing.engines import EngineSettings, Method
 from ..pricing.vanilla import OptionInputs, price
 
-__all__ = ["Scenario", "ScenarioResult", "grid", "position_values", "run_scenarios"]
+__all__ = ["Scenario", "grid", "position_values"]
 
 MIN_VOL = 0.01
 RISK_FD_TIME_STEPS = 50
@@ -36,13 +36,6 @@ RISK_FD_GRID_POINTS = 100
 class Scenario:
     spot_move: float          # fractie, voor beta 1
     vol_points: float         # volpunten (10 = +0,10)
-
-
-@dataclass(frozen=True, slots=True)
-class ScenarioResult:
-    worst: Scenario
-    worst_loss: float                     # USD, + is verlies
-    losses: tuple[tuple[Scenario, float], ...]
 
 
 def grid(spot_moves: Iterable[float], vol_points: Iterable[float]) -> tuple[Scenario, ...]:
@@ -97,20 +90,3 @@ def position_values(positions: Sequence[StrategyPosition], shares: Mapping[str, 
             return None
         out[f"shares:{und}"] = n * chain.spot * (1 + scenario.spot_move * beta[und])
     return out
-
-
-def run_scenarios(positions: Sequence[StrategyPosition], shares: Mapping[str, int],
-                  chains: Mapping[str, Chain], iv: Mapping[str, IVMetrics],
-                  beta: Mapping[str, float], now: datetime, scenarios: Sequence[Scenario],
-                  method: Method, engines: EngineSettings) -> ScenarioResult | None:
-    base = position_values(positions, shares, chains, iv, beta, now, Scenario(0.0, 0.0),
-                           method, engines)
-    if base is None:
-        return None
-    b = sum(base.values())
-    losses = []
-    for s in scenarios:
-        vals = position_values(positions, shares, chains, iv, beta, now, s, method, engines)
-        losses.append((s, b - sum(vals.values())))  # type: ignore[union-attr]
-    worst = max(losses, key=lambda x: (x[1], -abs(x[0].spot_move), -abs(x[0].vol_points)))
-    return ScenarioResult(worst[0], worst[1], tuple(losses))

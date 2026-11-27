@@ -11,6 +11,7 @@ Tekenafspraken, overal gelijk:
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -186,16 +187,25 @@ class Book:
     # een gesloten positie waarvan de aandelen nog terug naar nul gaan. De rest van `shares`
     # komt uit assignment of uitoefening (de wheel).
     hedge_shares: Mapping[str, int] = field(default_factory=dict)
-    # Lopende (nog niet gevulde) entries met undefined risk, als positie met `max_loss`
-    # oneindig: de risicopoort telt hun stressverlies mee in `undefined_stress_loss`.
-    pending_undefined: tuple[StrategyPosition, ...] = ()
+    # Lopende (nog niet gevulde) entry-orders, als positie met hun `max_loss` (oneindig bij
+    # undefined risk). De risicopoort telt ze mee als open positie (aantallen, Greeks,
+    # scenario's, stress) en `open_max_loss` ook: anders toetst elke entry van dezelfde
+    # scanronde tegen hetzelfde boek en samen gaan ze over de grenzen (review 2026-11-27, 1).
+    pending_entries: tuple[StrategyPosition, ...] = ()
     # Per gesloten positie die nog aandelen heeft: (onderliggende, aandelen). Daartegen toetst
     # de risicopoort een sluitorder, niet tegen het totaal van het symbool (`hedge_shares`).
     closing_shares: Mapping[str, tuple[str, int]] = field(default_factory=dict)
 
+    @property
+    def pending_undefined(self) -> tuple[StrategyPosition, ...]:
+        """De lopende entries met undefined risk (`max_loss` oneindig)."""
+        return tuple(p for p in self.pending_entries if math.isinf(p.max_loss))
+
     def open_max_loss(self, underlying: str) -> float:
-        return sum(p.max_loss for p in self.positions
+        """Het maximale verlies op `underlying`: open posities plus lopende entries."""
+        held = sum(p.max_loss for p in self.positions
                    if p.underlying == underlying and p.status is not PositionStatus.CLOSED)
+        return held + sum(p.max_loss for p in self.pending_entries if p.underlying == underlying)
 
 
 def mark(chain: Chain, legs: Iterable[LegIntent]) -> float | None:

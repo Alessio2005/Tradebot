@@ -38,8 +38,13 @@ def build_strategies(cfg: OptionsConfig) -> tuple[Strategy, ...]:
         (s.iron_condor.enabled, IronCondor(s.iron_condor, rules)),
         (s.debit_vertical.enabled, DebitVertical(s.debit_vertical, rules)),
         (s.calendar_spread.enabled, CalendarSpread(s.calendar_spread, rules)),
-        (s.long_straddle_strangle.enabled, LongVol(s.long_straddle_strangle, rules)),
+        # Gamma scalp vóór de long straddle: de scan geeft per onderliggende per dag één
+        # entry, in deze volgorde. Erna kwam hij nooit aan bod, want op een hedgebare naam vond
+        # LongVol (dezelfde ATM-straddle, zonder hedge) altijd eerst een kandidaat (replay
+        # 2026-11-27). Op namen buiten `share_eligible` scant gamma scalp niet, dus daar houdt
+        # LongVol de plek. Staat gamma scalp uit, dan verandert er niets.
         (s.gamma_scalp.enabled, GammaScalp(s.gamma_scalp, rules, eligible)),
+        (s.long_straddle_strangle.enabled, LongVol(s.long_straddle_strangle, rules)),
         (s.cash_secured_put.enabled, csp),
         (s.covered_call.enabled, cc),
         (s.wheel.enabled, Wheel(csp, cc)),

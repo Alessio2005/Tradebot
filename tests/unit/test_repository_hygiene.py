@@ -73,7 +73,6 @@ _ALLOWED_ROOT_FILES = frozenset({
     "MANIFEST.in",
     "Makefile",
     "README.md",
-    "params.yaml",
     "pyproject.toml",
     "pytest.ini",
     "requirements-dev.lock",

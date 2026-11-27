@@ -16,13 +16,14 @@ license         = { text = "Proprietary" }
 authors         = [{ name = "Tradebot Quant Team" }]
 
 # ---------------------------------------------------------------------------
-# HARDE afhankelijkheden. Zie docs/DEPENDENCY_CONTRACT.md.
+# HARDE afhankelijkheden. De CI controleert ze in .github/workflows/hygiene.yml
+# (stap "Verify dependency contract is closed").
 #
 # DOCTRINE (Phase 0, audit sectie 5.2 / 26-AC5): elke dependency hieronder is
 # HARD. Ontbreekt er een, dan crasht het platform bij import. Er bestaat geen
 # codepad waarin een ontbrekende dependency leidt tot een naievere benadering.
-# `try/except ImportError` is verboden in src/ en wordt door
-# scripts/audit_fallbacks.py --strict afgedwongen.
+# `try/except ImportError` is verboden in src/; optionele modules lopen via
+# `tradebot.utils.failfast.require_dependency`/`has_module`.
 # ---------------------------------------------------------------------------
 dependencies = [
     # Core numerics
@@ -44,7 +45,6 @@ dependencies = [
     "joblib>=1.3",
     "pandera[pandas]>=0.18",
     # Config + orchestration
-    "hydra-core>=1.3",
     "omegaconf>=2.3",
     "pydantic>=2.6",       # config-contracten (Phase 0, deliverable 4)
     "PyYAML>=6.0",
@@ -62,15 +62,13 @@ dependencies = [
     "QuantLib>=1.44",
     # IBKR (2026-11, open vraag D): TWS/IB Gateway-API voor de paper-dienst. Exact gepind.
     "ib_async==2.0.1",
-    # Utility
-    "python-dateutil>=2.8",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4",
-    "pytest-asyncio>=0.21",
     "pytest-cov>=4.1",
+    "pytest-randomly>=3.15",
     "hypothesis>=6.100",
     "mypy>=1.7",
     "ruff>=0.1.8",
@@ -212,7 +210,7 @@ strict = true
 # ongebruikt, en dat klopt -- ccxt is een optionele venue-adapter die door
 # geen enkel getypeerd pad wordt geimporteerd (pyproject.toml regel 76).
 # Een override voor een module die niemand importeert, onderdrukt niets.
-module = ["catboost.*", "optuna.*", "joblib.*", "numba.*", "hydra.*", "pandera.*",
+module = ["catboost.*", "optuna.*", "joblib.*", "numba.*", "pandera.*",
           "QuantLib.*"]
 ignore_missing_imports = true
 

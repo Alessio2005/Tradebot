@@ -213,7 +213,12 @@ def size(max_loss_per_unit: float, market: MarketState, book: Book, underlying: 
         return 0
     room = rules.max_loss_per_underlying_frac * market.capital_usd - book.open_max_loss(underlying)
     budget = min(rules.max_loss_frac_capital * market.capital_usd, room)
-    units = max(math.floor(budget / max_loss_per_unit), 0)
+    # Een open undefined-risk positie (short strangle) heeft max_loss = inf: dan is er geen
+    # ruimte op die onderliggende, en `math.floor(-inf)` zou een OverflowError geven die de
+    # scantaak laat falen (review 2026-11-27, punt 3).
+    if not math.isfinite(budget) or budget <= 0:
+        return 0
+    units = math.floor(budget / max_loss_per_unit)
     if rules.daily_risk_frac is not None:
         sigma = sigma_unit_1d(market, underlying, legs, rules.vol_of_vol_daily_points)
         if sigma is None:

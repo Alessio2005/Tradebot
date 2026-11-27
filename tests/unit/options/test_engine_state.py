@@ -106,7 +106,7 @@ def test_the_replay_feed_is_causal():
     m = generate(SPEC)
     f = ReplayFeed(m)
     assert f.underlyings() == ("TSTB",) and f.rate == m.rate
-    assert len(f.times()) == 4
+    assert len({s.asof for s in m.snapshots}) == 4
     d1 = date(2026, 12, 1)
     assert f.snapshot("TSTB", datetime.combine(d1, time(9, 59), tzinfo=NY)) is None
     s = f.snapshot("TSTB", datetime.combine(d1, time(14, 0), tzinfo=NY))

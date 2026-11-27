@@ -148,7 +148,7 @@ def test_vega_bump_shrinks_for_a_tiny_vol():
 def test_pricer_settings_follow_the_config():
     s = pricer_settings(load_options_config().pricing)
     assert s.engines.binomial_steps == 401 and s.engines.scan is Method.BAW
-    assert s.iv.accuracy == 1e-6 and s.bumps.vol == 0.01 and s.risk_free_rate == 0.04
+    assert s.iv.accuracy == 1e-6 and s.bumps.vol == 0.01
 
 
 def _fragile_pricer(monkeypatch, breaks):

@@ -45,11 +45,6 @@ class Market:
     # een synthetische markt; de historische markt zet hier de IV-historie van IBKR in.
     iv_history: dict[str, tuple[tuple[str, float], ...]] = field(default_factory=dict)
 
-    def bars_until(self, underlying: str, day: date) -> pd.DataFrame:
-        """Dagbars tot en met `day` (causaal: niets van na `day`)."""
-        b = self.bars[underlying]
-        return b[b.index <= pd.Timestamp(day)]
-
 
 def write_market(m: Market, out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)

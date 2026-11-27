@@ -195,7 +195,6 @@ class Engine:
         self.builder = ChainBuilder(self.settings, cfg.filters.max_quote_age_seconds, Use.SCAN)
         self.filters = filter_settings(cfg.filters)
         self.gate = RiskGate(cfg, self.settings.engines, Method(cfg.pricing.decision_engine))
-        self.risk_gate = RiskGate(cfg, self.settings.engines, Method.BAW)
         self.strategies = strategies if strategies is not None else build_strategies(cfg)
         self.by_name = {s.name: s for s in self.strategies}
         self.halts = HaltStore(paths.halt_store)
@@ -355,9 +354,8 @@ class Engine:
             jobs.append((und, snap))
         held = frozenset(leg.contract for pos in self.state.open_positions()
                          for leg in pos.option_legs if leg.contract is not None)
-        args = [(self.builder, self.filters, und, snap.spot, snap.options, snap.asof,
-                 self._carry(und), held) for und, snap in jobs]
-        built = [build_filtered(*a) for a in args]
+        built = [build_filtered(self.builder, self.filters, und, snap.spot, snap.options,
+                                snap.asof, self._carry(und), held) for und, snap in jobs]
         for (und, snap), (chain, res) in zip(jobs, built, strict=True):
             self.chains[und] = chain
             self._snap_keys[und] = snap.asof
@@ -392,17 +390,16 @@ class Engine:
     def book(self) -> Book:
         return Book(tuple(self.state.open_positions()), dict(self._shares),
                     dict(self.state.cost_basis), self._equity, dict(self.state.wheel),
-                    self._hedge_shares(), self._pending_undefined(),
+                    self._hedge_shares(), self._pending_entries(),
                     {p.position_id: (p.underlying, p.shares) for p in self.state.positions
                      if p.status is PositionStatus.CLOSED and p.shares})
 
-    def _pending_undefined(self) -> tuple[StrategyPosition, ...]:
-        """Lopende entry-orders met undefined risk, als positie (voor de stresscheck)."""
+    def _pending_entries(self) -> tuple[StrategyPosition, ...]:
+        """Lopende (nog niet gevulde) entry-orders, als positie (voor de poort en de sizing)."""
         terminal = {s.value for s in TERMINAL}
         out = []
         for o in self.state.orders.values():
-            if (o.get("stock") or o["kind"] != OrderKind.OPEN.value or o["max_loss"] is not None
-                    or o["status"] in terminal):
+            if o.get("stock") or o["kind"] != OrderKind.OPEN.value or o["status"] in terminal:
                 continue
             q = o["quantity"]
             out.append(StrategyPosition(
@@ -410,7 +407,7 @@ class Engine:
                 tuple(Leg(leg.contract, o["underlying"], leg.ratio * q, 0.0)
                       for leg in intents_from(o["legs"])),
                 datetime.fromisoformat(o["submitted_at"]), q, -o["limit"] * MULTIPLIER * q,
-                math.inf, variant=o["variant"]))
+                math.inf if o["max_loss"] is None else o["max_loss"], variant=o["variant"]))
         return tuple(out)
 
     def _hedge_shares(self) -> dict[str, int]:
@@ -516,10 +513,19 @@ class Engine:
         await self._executions(now)
 
     async def _walk(self, now: datetime) -> None:
+        # In HALT of UNWIND geen nieuw risico: een lopende entry wordt geannuleerd in plaats
+        # van doorgeschoven richting natural (review 2026-11-27, punt 2).
+        stop_entries = self.halted or self.unwinding
         for cid, o in sorted(self.state.orders.items()):
             if o["status"] != OrderStatus.SUBMITTED.value or o.get("stock"):
                 continue
             purpose = Purpose(o["purpose"])
+            if stop_entries and purpose is Purpose.ENTRY:
+                await self.broker.cancel(cid)
+                o["status"] = OrderStatus.CANCELLED.value
+                self._event(now, "order_cancelled", client_id=cid, position_id=o["position_id"],
+                            reason="halt")
+                continue
             nxt = self._limit(o["underlying"], intents_from(o["legs"]), purpose,
                               Urgency(o["urgency"]), o["step"] + 1)
             if nxt is None:
@@ -1000,7 +1006,7 @@ class Engine:
             self._entries_blocked_day = now.date()
             self._event(now, "daily_loss_stop", loss_frac=round(st.daily_loss_frac, 4))
         if st.degross:
-            g = self.risk_gate
+            g = self.gate
             plan = degross_plan(self.book(), self.market_state(now), g.beta, g.scenarios,
                                 self.cfg.risk, Method.BAW, self.settings.engines)
             for pid in plan:

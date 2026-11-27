@@ -1,5 +1,6 @@
 .PHONY: help install install-dev lint format type-check
 .PHONY: test test-fast test-slow test-regression benchmark coverage clean
+.PHONY: options-replay
 
 PYTHON  ?= python
 PYTEST  ?= pytest
@@ -10,11 +11,13 @@ help:  ## Show this help message
 
 # ── Installation ──────────────────────────────────────────────────────────────
 
-install:  ## Install package (editable)
-	$(PIP) install -e .
+install:  ## Install package (editable) uit de lockfile
+	$(PIP) install -r requirements.lock
+	$(PIP) install -e . --no-deps
 
-install-dev:  ## Install package + dev extras
-	$(PIP) install -e ".[dev]"
+install-dev:  ## Install package + testketen en linters uit de lockfiles
+	$(PIP) install -r requirements.lock -r requirements-dev.lock
+	$(PIP) install -e . --no-deps
 	pre-commit install
 
 # ── Code quality ──────────────────────────────────────────────────────────────
@@ -47,6 +50,14 @@ benchmark:  ## Run benchmark tests
 
 coverage:  ## Run fast tests + coverage report
 	$(PYTEST) -m "not slow and not regression" --cov=src/tradebot --cov-report=term-missing -q
+
+# ── Options ───────────────────────────────────────────────────────────────────
+
+REPLAY_DIR ?= /tmp/tradebot-replay
+
+options-replay:  ## Synthetische markt + replay (fictief geld) naar $(REPLAY_DIR)
+	$(PYTHON) -I -m tradebot.options.data.synthetic --out $(REPLAY_DIR)/markt
+	$(PYTHON) -I -m tradebot.options replay --market $(REPLAY_DIR)/markt --out $(REPLAY_DIR)/run --overwrite
 
 # ── Maintenance ───────────────────────────────────────────────────────────────
 

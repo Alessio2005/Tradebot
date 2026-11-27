@@ -4,6 +4,66 @@
 > Bronnen: docs/TRUE_ALPHA_AUDIT_2026-06-08.md, docs/data_dictionary.md,
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
+## Opruimen en optimaliseren, plus de risicogaten uit de review (2026-11-27)
+
+Opruimen (geen gedragsverandering):
+- Dependencies: `hydra-core` en `python-dateutil` uit de harde lijst (nergens geïmporteerd;
+  dateutil komt via pandas), `pytest-asyncio` uit `[dev]` (geen async tests).
+  `pytest-randomly` staat nu ook in `[dev]` (hij stond al in de lock, dus `.[dev]` gaf een
+  andere testvolgorde dan CI). Uit `requirements-dev.lock`: pytest-asyncio en de dvc-restanten
+  flufl.lock, ruamel.yaml en zc.lockfile. Locks met de hand bijgewerkt, geen andere pins
+  verschoven. Verwijzingen naar ontbrekende docs (DEPENDENCY_CONTRACT, DEFERRED_ISSUES,
+  RUNBOOK, `scripts/audit_fallbacks.py`) uit pyproject en de dev-lock gehaald.
+- `params.yaml` weg: een DVC-shim zonder `dvc.yaml` en zonder lezer. De cache-sleutel van
+  `paper-trade-ci.yml` hangt nu aan `conf/conf_config.yaml`.
+- Dode options-code weg: `risk.scenarios.run_scenarios`/`ScenarioResult`, `Market.bars_until`,
+  `ReplayFeed.times`, `PricerSettings.risk_free_rate`, de ongebruikte parameter `t` van
+  `surface._forward`, de tweede `RiskGate` in de engine (`risk_gate`, alleen gebruikt voor
+  `beta` en `scenarios`, die gelijk zijn aan die van `gate`). De tests rekenen hetzelfde na
+  via `position_values`.
+- Crypto niet meer in het options-importpad: `SingleInstance`/`Deferred` verhuisd naar
+  `utils/single_instance.py` (`carry.safety` exporteert ze opnieuw, carry-code ongewijzigd);
+  `tradebot.risk` en `tradebot.schemas` laden hun submodules lui (PEP 562). Gevolg:
+  `import tradebot.options.cli` van 2,3 s naar 1,2 s, en de options-dienst laadt geen
+  sklearn, hmmlearn of het carry-pakket meer.
+- Risicopoort: de stringvergelijking `status.value != "closed"` vervangen door de enum.
+- `options-paper-smoke.yml` draait nu ook op pull requests die options, `risk/` of de config
+  raken: tot nu toe kon een PR de replay breken zonder rode check.
+- Makefile: `install`/`install-dev` uit de lockfiles (waren ongepind), nieuw `make options-replay`.
+  README: de fase-7-tekst bijgewerkt.
+
+Risicogaten uit de review van 2026-11-27 (P1, punten 1-4); keuzes van mij:
+- **Lopende entries tellen mee** (`Book.pending_entries`, alle niet-gevulde entry-orders,
+  ook met beperkt risico). De poort telt ze als open positie voor `max_open_positions`,
+  `max_new_positions_per_day` (die van vandaag), de Greeks, de scenario's en de stress; en
+  `Book.open_max_loss` telt ze mee voor de sizing per onderliggende. `pending_undefined` is nu
+  een afgeleide (de oneindige onder `pending_entries`).
+- **HALT/UNWIND annuleert lopende entries** in de walk (`order_cancelled`, reden `halt`), in
+  plaats van ze door te schuiven naar natural. Sluit-, rol- en bijstuurorders lopen door.
+- **`size()` naast een open undefined-risk positie** geeft 0 eenheden in plaats van een
+  OverflowError (`math.floor(-inf)`).
+- **PDT-guard op elk uur**: onder 25.000 USD en met 3 daytrades in 5 handelsdagen geen entry
+  meer, ook om 10:00 en 13:30. De 15:00-grens uit detailontwerp 8.5 greep nooit in omdat de
+  scans eerder liggen. Afwijking van het ontwerp.
+- **Gamma scalp vóór de long straddle** in de strategievolgorde. De scan neemt per
+  onderliggende per dag één entry, in registervolgorde; LongVol (dezelfde ATM-straddle zonder
+  hedge) pakte elke hedgebare naam eerst, dus gamma scalp kwam nooit aan bod en de hedger deed
+  niets. Alleen van belang met `gamma_scalp.enabled`.
+
+Gemeten, niet veranderd (beslissing voor Alessio):
+- De replay is QuantLib-gebonden: in een profiel (1 worker) gaat 117 van de 140 s naar
+  `Instrument.NPV` van de FD-engine (contracten met een dividend in de looptijd: IV-solve en
+  bump-Greeks). De rest van de engine samen is minder dan 15 %, dus Python-optimalisaties
+  geven hooguit een paar procent. Wat wel scheelt: het FD-rooster. 100×200 in plaats van
+  200×400 is 3,3× sneller per prijs met een fout van hooguit 0,27 cent per aandeel (tegen een
+  referentie van 800×1600), kleiner dan één tick. De standaard blijft 200×400.
+- `limit_anchor: fair` annuleert entries op `max_edge` omdat de grens tussen twee ticks valt:
+  op de synthetische spreads (halve spread 3 cent) is fair = mid, de grens ligt op
+  0,5 × 3 = 1,5 cent en de walk stopt na 1 tick, terwijl de paper-broker pas vult bij
+  0,40 × 3 = 1,2 cent, dus 2 ticks. Het anker werkt zoals ontworpen; het is de combinatie
+  van `max_edge_frac`, de tick en het fill-model. Zelfde effect met het mid-anker op
+  `max_concession` (0,6 × 3 = 1,8 cent).
+
 ## Options: punten uit de eindreview (2026-11-27)
 - Risicopoort, aandelen (`review_stock`): een sluitorder moet tegengesteld zijn aan de eigen
   aandelen-leg van de gesloten positie (`Book.closing_shares`, niet het totaal van het symbool)

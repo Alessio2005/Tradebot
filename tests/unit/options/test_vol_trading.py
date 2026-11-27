@@ -222,7 +222,8 @@ def test_gamma_scalp_needs_hedging():
     with pytest.raises(ConfigContractError, match=r"hedging\.strategies"):
         build_strategies(unlisted)
     names = [s.name for s in build_strategies(_with_gamma(True))]
-    assert names[names.index("long_straddle_strangle") + 1] == "gamma_scalp"
+    # Vóór de long straddle: anders pakt LongVol elke hedgebare naam eerst.
+    assert names[names.index("gamma_scalp") + 1] == "long_straddle_strangle"
 
 
 def test_gamma_scalp_is_hedged_and_allowed_when_vol_is_cheap_or_normal():

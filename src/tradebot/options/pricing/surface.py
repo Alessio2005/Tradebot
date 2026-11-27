@@ -105,7 +105,7 @@ class Surface:
         return None if lo is None or hi is None else hi - lo
 
 
-def _forward(chain: Chain, expiry: date, t: float, discount: float) -> float | None:
+def _forward(chain: Chain, expiry: date, discount: float) -> float | None:
     calls = {o.contract.strike: o for o in chain.by_expiry(expiry, Right.CALL)
              if o.quote.mid is not None}
     puts = {o.contract.strike: o for o in chain.by_expiry(expiry, Right.PUT)
@@ -121,13 +121,13 @@ def _forward(chain: Chain, expiry: date, t: float, discount: float) -> float | N
 def forward(chain: Chain, expiry: date) -> float | None:
     """Forward van één expiratie uit put-call-pariteit (mediaan over drie strikes rond spot)."""
     t = year_fraction(chain.asof, expiry_moment(expiry))
-    return _forward(chain, expiry, t, math.exp(-chain.carry.rate * t))
+    return _forward(chain, expiry, math.exp(-chain.carry.rate * t))
 
 
 def _smile(chain: Chain, expiry: date, min_vega: float) -> Smile | None:
     t = year_fraction(chain.asof, expiry_moment(expiry))
     discount = math.exp(-chain.carry.rate * t)
-    fwd = _forward(chain, expiry, t, discount)
+    fwd = _forward(chain, expiry, discount)
     if fwd is None or fwd <= 0:
         return None
     otm: list[PricedOption] = [

@@ -12,8 +12,10 @@ Volgorde:
 2. **Toestand**: in HALT geen order die risico toevoegt; in UNWIND alleen sluitorders. Geen
    entry na de dagverliesgrens, op een onderliggende met een reconciliatieverschil, met
    undefined risk zonder `allow_undefined_risk`, of als de PDT-teller het verbiedt.
-3. **Aantallen**: open posities en nieuwe posities vandaag.
-4. **Pro forma**: de maten van het boek na de order, tegen elke grens.
+3. **Aantallen**: open posities en nieuwe posities vandaag, elk met de lopende (nog niet
+   gevulde) entry-orders erbij (`Book.pending_entries`).
+4. **Pro forma**: de maten van het boek na de order, tegen elke grens. Ook hier tellen de
+   lopende entries mee als open positie: twee entries in één scanronde samen binnen de grens.
    - Een entry met undefined risk (`max_loss` oneindig) krijgt er één check bij,
      `undefined_stress_loss`: de som van het stressverlies (`short_vol.STRESS_MOVE`, in USD, bij
      de huidige spot) van alle open undefined-risk posities, de lopende undefined-risk entries
@@ -64,6 +66,7 @@ from ..positions import (
     Leg,
     LegIntent,
     MarketState,
+    PositionStatus,
     StrategyPosition,
     Urgency,
 )
@@ -80,6 +83,11 @@ __all__ = ["ApprovedOrder", "ApprovedStockOrder", "Decision", "GateState", "Orde
 
 _SENTINEL = object()
 
+
+
+def _live(book: Book) -> tuple[StrategyPosition, ...]:
+    """De posities in het boek die nog niet gesloten zijn."""
+    return tuple(x for x in book.positions if x.status is not PositionStatus.CLOSED)
 
 class SafetyBreach(RuntimeError):
     """Een order die nooit gemaakt had mogen worden: de engine gaat in HALT."""
@@ -307,14 +315,18 @@ class RiskGate:
     def _review_open(self, p: OrderProposal, book: Book, market: MarketState,
                      state: GateState) -> Decision:
         r, cap = self.risk, market.capital_usd
-        live = tuple(x for x in book.positions if x.status.value != "closed")
+        # De eigen lopende order (zelfde position-id) telt niet dubbel.
+        pending = tuple(x for x in book.pending_entries if x.position_id != p.position_id)
+        live = _live(book) + pending
+        today = sum(x.opened_at.date() == market.now.date() for x in pending)
         gates = [
             (state.halted, "state:halt"),
             (state.daily_loss_frac >= r.daily_loss_stop_entries_frac, "daily_loss:entries"),
             (p.underlying in state.blocked_underlyings, "reconcile:diff"),
             (math.isinf(p.max_loss) and not r.allow_undefined_risk, "undefined_risk"),
             (len(live) >= r.max_open_positions, "count:open_positions"),
-            (state.new_positions_today >= r.max_new_positions_per_day, "count:new_today"),
+            (state.new_positions_today + today >= r.max_new_positions_per_day,
+             "count:new_today"),
             (r.pdt_guard and pdt_blocks_entry(state.day_trades, market.now, state.equity,
                                               market.calendar), "pdt"),
         ]
@@ -329,8 +341,7 @@ class RiskGate:
         base = self._measure(live, book, market)
         per_unit = self._measure((unit,), Book(), market)
         undefined = math.isinf(p.max_loss)
-        pending = tuple(x for x in book.pending_undefined if x.position_id != p.position_id)
-        stress_base = self._stress_usd(live + pending, market) if undefined else 0.0
+        stress_base = self._stress_usd(live, market) if undefined else 0.0
         stress_unit = self._stress_usd((unit,), market) if undefined else 0.0
         checks: tuple[CheckResult, ...] = ()
         for q in range(p.quantity, 0, -1):
@@ -350,7 +361,7 @@ class RiskGate:
         """Het boek na een bijsturing, rol of gedeeltelijke sluiting."""
         out = []
         for x in book.positions:
-            if x.status.value == "closed":
+            if x.status is PositionStatus.CLOSED:
                 continue
             if x.position_id != p.position_id:
                 out.append(x)
@@ -371,7 +382,7 @@ class RiskGate:
     def _review_change(self, p: OrderProposal, book: Book, market: MarketState,
                        state: GateState) -> Decision:
         r, cap = self.risk, market.capital_usd
-        live = tuple(x for x in book.positions if x.status.value != "closed")
+        live = _live(book)
         before = check(self._measure(live, book, market), r, cap)
         after = check(self._measure(self._after(p, book), book, market), r, cap)
         reducing = all(
@@ -413,7 +424,7 @@ class RiskGate:
             return StockDecision(Verdict.REJECT, None, (), "quotes:missing")
         if p.symbol in state.blocked_underlyings:
             return StockDecision(Verdict.REJECT, None, (), "reconcile:diff")
-        live = tuple(x for x in book.positions if x.status.value != "closed")
+        live = _live(book)
         before = aggregate(live, book.shares, market.chains, self.beta)
         shares = dict(book.shares)
         shares[p.symbol] = shares.get(p.symbol, 0) + p.qty
