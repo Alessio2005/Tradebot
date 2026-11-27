@@ -60,6 +60,7 @@ def _mutate(path, val):
     (("iv_metrics", "low_ivr"), 50, "very_low_ivr <= low_ivr <= high_ivr"),
     (("iv_metrics", "fallback"), {"high_iv_ratio": 0.8},
      "very_low_iv_ratio <= low_iv_ratio <= high_iv_ratio"),
+    (("iv_metrics", "ivr_min_observations"), 400, "ivr_min_observations <= ivr_lookback_days"),
     (("iv_metrics", "ivr_lookback_days"), 5, "ivr_lookback_days"),
     (("strategies", "credit_spread", "dte"), [45, 30], "dte: ondergrens boven bovengrens"),
     (("strategies", "iron_condor", "unknown"), 1, "Extra inputs"),
