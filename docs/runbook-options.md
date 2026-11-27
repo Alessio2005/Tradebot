@@ -312,7 +312,15 @@ blokkeert entries op die onderliggende en alarmeert.
 
 ## Live
 
-Live kan alleen als alle vijf voorwaarden tegelijk waar zijn (`src/tradebot/options/live.py`):
-mode `live`, een bevestigingszin in de omgeving, een `LIVE_APPROVED`-bestand met de
-account-hash, een echt (geen `DU`) account en een geslaagde paper-killgate. Er is geen CLI-
-opdracht voor live, geen config met `mode: live`, en een test bewaakt dat het zo blijft.
+Live bestaat niet in het uitvoerpad. Wat er echt in zit, zijn twee hekken:
+
+1. `require_paper` (`src/tradebot/options/live.py`): `IBKRBroker.connect` en elke `submit` weigeren een
+   account dat niet met `DU` begint (`LiveRefused`).
+2. `TRADING_MODE: paper` in `infra/compose/docker-compose.yml` en geen CLI-opdracht of config met
+   `mode: live` (een test bewaakt dat).
+
+`live.gather` en `live.live_decision` (de vijf voorwaarden: mode `live`, bevestigingszin,
+`LIVE_APPROVED` met de account-hash, echt account, geslaagde paper-killgate) zijn een
+ontwerp-schakelaar die nergens wordt aangeroepen: ze zijn getest maar niet aangesloten. Een
+toekomstige live-stap moet ze eerst in het pad zetten; tot dan beschermen alleen bovenstaande twee
+hekken. Ga er dus niet van uit dat vijf hekken actief zijn.

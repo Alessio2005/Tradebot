@@ -879,3 +879,7 @@ oordeel of ledger-entry veranderd; de backtest van v6–v8 is bit-identiek.
   cadans uit de historie, tot 365 dagen) met `CashDividend.estimated`.
 - Oud #34: een dividend met ex-datum op de expiratiedag telt niet meer dubbel (zit al in de
   spot); de docstring van `pricing.engines` zegt nu waar `Use.DECISION` wel en niet gebruikt wordt.
+
+### Reviewfixes IBKR-paper-robuustheid
+
+- Oud #14: runbook en `live.py` zeggen nu eerlijk dat alleen `require_paper` (DU-hek) en `TRADING_MODE: paper` in het pad zitten; `gather`/`live_decision` zijn niet aangesloten.
