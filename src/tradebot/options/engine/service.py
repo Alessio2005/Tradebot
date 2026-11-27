@@ -392,7 +392,9 @@ class Engine:
     def book(self) -> Book:
         return Book(tuple(self.state.open_positions()), dict(self._shares),
                     dict(self.state.cost_basis), self._equity, dict(self.state.wheel),
-                    self._hedge_shares(), self._pending_undefined())
+                    self._hedge_shares(), self._pending_undefined(),
+                    {p.position_id: (p.underlying, p.shares) for p in self.state.positions
+                     if p.status is PositionStatus.CLOSED and p.shares})
 
     def _pending_undefined(self) -> tuple[StrategyPosition, ...]:
         """Lopende entry-orders met undefined risk, als positie (voor de stresscheck)."""
@@ -820,8 +822,15 @@ class Engine:
         blocked = self._blocked if self.mode is EngineMode.BLOCKED else frozenset()
         live = tuple(p for p in self.state.open_positions()
                      if p.underlying not in waiting and p.underlying not in blocked)
+        # In HALT of UNWIND alleen afbouwen: een order die de aandelen niet verkleint, komt niet
+        # eens bij de poort (die blijft de laatste controle), dus ook geen afgewezen regel.
+        reduce_only = self.halted or self.unwinding
+        held = self._hedge_shares()
         for h in hedge_orders(live, self.chains, self.cfg.account.capital_usd,
                               self.hedge_rules):
+            n = held.get(h.underlying, 0)
+            if reduce_only and abs(n + h.qty) >= abs(n):
+                continue
             pos = next(p for p in live if p.position_id == h.position_id)
             await self._send_stock(pos, h.qty, now, Purpose.HEDGE, h.delta_shares)
 

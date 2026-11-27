@@ -34,8 +34,9 @@ Een aandelenorder van de delta-hedger (`review_stock`) heeft zijn eigen, kortere
    ligt.
 2. Een order die de aandelen van een gesloten positie naar nul brengt (`closing`), wordt altijd
    goedgekeurd: zonder opties eromheen is het alleen nog delta. De poort controleert dat hij
-   echt afbouwt: tegengesteld aan de aandelen-legs op dat symbool (`Book.hedge_shares`) en
-   niet groter dan die; anders is het een `SafetyBreach`.
+   echt afbouwt: op het symbool van de gesloten positie, tegengesteld aan haar eigen
+   aandelen-leg (`Book.closing_shares`) en niet groter dan die; anders is het een
+   `SafetyBreach`.
 3. Anders: geen keten of geen volledige Greeks is weigeren; op een onderliggende met een
    reconciliatieverschil ook. In HALT of UNWIND alleen als de order de aandelen-legs op dat
    symbool in absolute waarde verkleint én de absolute beta-delta van het boek daalt.
@@ -401,10 +402,12 @@ class RiskGate:
                                    f" {chain.spot:.4f} voor {p.position_id}")
         held = book.hedge_shares.get(p.symbol, 0)
         if p.closing:
-            # Alleen afbouwen: tegengesteld aan de aandelen-legs en niet voorbij nul.
-            if held == 0 or (held > 0) == (p.qty > 0) or abs(p.qty) > abs(held):
-                raise SafetyBreach(f"sluitorder {p.qty} voor {p.position_id} past niet bij"
-                                   f" {held} aandelen in de legs op {p.symbol}")
+            # Alleen afbouwen, tegen de eigen aandelen-leg van de gesloten positie (niet het
+            # totaal van het symbool: een open positie kan het andere teken hebben).
+            und, own = book.closing_shares.get(p.position_id, (p.symbol, 0))
+            if und != p.symbol or own == 0 or (own > 0) == (p.qty > 0) or abs(p.qty) > abs(own):
+                raise SafetyBreach(f"sluitorder {p.qty} {p.symbol} voor {p.position_id} past"
+                                   f" niet bij zijn aandelen-leg ({own} {und})")
             return self._stock(p, Verdict.APPROVE, (), market, "close")
         if chain is None:
             return StockDecision(Verdict.REJECT, None, (), "quotes:missing")

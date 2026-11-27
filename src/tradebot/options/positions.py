@@ -189,6 +189,9 @@ class Book:
     # Lopende (nog niet gevulde) entries met undefined risk, als positie met `max_loss`
     # oneindig: de risicopoort telt hun stressverlies mee in `undefined_stress_loss`.
     pending_undefined: tuple[StrategyPosition, ...] = ()
+    # Per gesloten positie die nog aandelen heeft: (onderliggende, aandelen). Daartegen toetst
+    # de risicopoort een sluitorder, niet tegen het totaal van het symbool (`hedge_shares`).
+    closing_shares: Mapping[str, tuple[str, int]] = field(default_factory=dict)
 
     def open_max_loss(self, underlying: str) -> float:
         return sum(p.max_loss for p in self.positions

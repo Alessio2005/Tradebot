@@ -25,9 +25,15 @@ staat die al expireerde. De workflow `options-paper-smoke.yml` doet precies dit.
 `replay` en `sweep` weigeren een `--out` die al bestaat en niet leeg is (exit-code 2, met de
 reden op stderr): het journal wordt aangevuld, en een tweede run in dezelfde map zou elke
 telling in `summary.json`/`sweep.json` verdubbelen. Kies een nieuwe map, of geef
-`--overwrite`: die maakt de map eerst helemaal leeg, maar alleen als hij eruitziet als eerdere
-uitvoer (een `journal.jsonl` of `sweep.json` erin, of een `journal.jsonl` in een submap).
-Elke andere map blijft staan, ook met `--overwrite`.
+`--overwrite`. Die wist alleen de bekende bestanden van eerdere uitvoer en nooit een hele boom:
+
+- een replay-map: alleen `journal.jsonl`, `state.json`, `summary.json` en `heartbeat`, met
+  `mode: replay` in `state.json` (een paper-run heeft `paper` en blijft dus staan);
+- een sweep-map: `sweep.json` plus submappen die elk zo'n replay-map zijn.
+
+Staat er iets anders in, staat er een `HALT`, `UNWIND` of `halt/` in (ook een gehaltte replay),
+of is de map de markt of bevat hij die, dan wist `--overwrite` niets (exit-code 2). Ruim zo'n
+map met de hand op.
 
 ### Backteststatistiek
 

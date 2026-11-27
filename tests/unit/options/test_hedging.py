@@ -176,18 +176,34 @@ def test_hard_errors_in_a_stock_order():
             review(p)
 
 
+def closing_book(own, symbol="TST", total=None):
+    """Gesloten positie p1 met `own` aandelen; `total` = alle aandelen-legs op het symbool."""
+    return Book(hedge_shares={symbol: own if total is None else total},
+                closing_shares={"p1": (symbol, own)} if own else {})
+
+
 def test_a_closing_stock_order_is_always_approved():
-    d = review(stock(-10, closing=True), Book(hedge_shares={"TST": 10}),
-               GateState(halted=True, unwind=True))
+    d = review(stock(-10, closing=True), closing_book(10), GateState(halted=True, unwind=True))
     assert d.verdict is Verdict.APPROVE and d.reason == "close"
     assert d.approved.proposal.qty == -10
-    assert review(stock(4, closing=True), Book(hedge_shares={"TST": -10})).reason == "close"
+    assert review(stock(4, closing=True), closing_book(-10)).reason == "close"
 
 
 def test_a_closing_stock_order_must_flatten_the_share_legs():
-    for qty, held in ((-10, 0), (10, 10), (-11, 10), (-10, -10), (11, -10)):
+    for qty, own in ((-10, 0), (10, 10), (-11, 10), (-10, -10), (11, -10)):
         with pytest.raises(SafetyBreach, match="sluitorder"):
-            review(stock(qty, closing=True), Book(hedge_shares={"TST": held} if held else {}))
+            review(stock(qty, closing=True), closing_book(own))
+    with pytest.raises(SafetyBreach, match="sluitorder"):          # leg op een ander symbool
+        review(stock(-10, closing=True), closing_book(10, symbol="AAPL"))
+
+
+def test_a_closing_order_counts_only_the_closed_positions_own_shares():
+    # Gesloten p1 met +50, open positie met −80 op hetzelfde symbool: totaal −30. De
+    # sluitorder −50 van p1 is goed, hoewel hij hetzelfde teken heeft als het totaal.
+    d = review(stock(-50, closing=True), closing_book(50, total=-30), GateState(halted=True))
+    assert d.verdict is Verdict.APPROVE and d.reason == "close"
+    with pytest.raises(SafetyBreach, match="sluitorder"):
+        review(stock(30, closing=True), closing_book(50, total=-30))
 
 
 def test_the_notional_cap_on_the_share_legs():
@@ -453,9 +469,13 @@ def test_a_halted_engine_only_reduces_its_shares(tmp_path):
     r.e.paths.halt_file.touch()
     r.tick(at(D0, 10, 0, 15))
     assert r.e.mode is EngineMode.HALTED
-    (o,) = r.events("hedge_order")                    # zonder aandelen: niets af te bouwen
-    assert o["verdict"] == "reject" and o["reason"] == "state:halt"
-    assert not r.events("hedge_fill")
+    # Zonder aandelen valt er niets af te bouwen: de order komt niet eens bij de poort.
+    assert not r.events("hedge_order") and not r.events("hedge_fill")
+    r.e.paths.halt_file.unlink()
+    r.e.paths.unwind_file.touch()
+    r.e._last.pop("hedge", None)
+    r.tick(at(D0, 10, 0, 30))
+    assert not r.events("hedge_order")
 
 
 def test_a_halted_engine_trims_too_many_shares(tmp_path):

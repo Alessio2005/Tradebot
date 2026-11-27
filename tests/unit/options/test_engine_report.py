@@ -199,42 +199,108 @@ def test_the_cli_runs_a_sweep(markets, tmp_path, capsys):
     assert (tmp_path / "o" / "sweep.json").is_file()
 
 
+def _replay_dir(d, mode="replay"):
+    d.mkdir(parents=True)
+    for name in ("journal.jsonl", "summary.json", "heartbeat"):
+        (d / name).write_text("{}\n", encoding="utf-8")
+    (d / "state.json").write_text(json.dumps({"mode": mode}), encoding="utf-8")
+    return d
+
+
+def _sweep_dir(d):
+    _replay_dir(d / "m1")
+    _replay_dir(d / "m2")
+    (d / "sweep.json").write_text("{}", encoding="utf-8")
+    return d
+
+
+def _snapshot(d):
+    return sorted((str(p.relative_to(d)), p.is_dir()) for p in d.rglob("*"))
+
+
 def test_the_cli_sweep_refuses_a_used_out_unless_overwrite(markets, tmp_path, monkeypatch,
                                                            capsys):
     calls = []
     monkeypatch.setattr(cli, "run_sweep", lambda *a: calls.append(a) or {"markets": {}})
-    out = tmp_path / "o"
-    (out / "m1").mkdir(parents=True)
-    (out / "m1" / "journal.jsonl").write_text("{}\n", encoding="utf-8")   # een eerdere sweep
+    out = _sweep_dir(tmp_path / "o")
     argv = ["sweep", "--markets", str(markets[0]), "--out", str(out)]
     assert cli.main(argv) == 2 and calls == []
     assert "niet leeg" in capsys.readouterr().err
     assert cli.main([*argv, "--overwrite"]) == 0 and len(calls) == 1
-    assert not out.exists()                                     # leeggemaakt vóór de sweep
+    assert out.is_dir() and list(out.iterdir()) == []          # alleen de bekende bestanden weg
 
 
-def test_prepare_out(tmp_path):
+def test_prepare_out_on_new_empty_and_earlier_output(tmp_path):
     assert cli.prepare_out(tmp_path / "nieuw", False) is None
     empty = tmp_path / "leeg"
     empty.mkdir()
     assert cli.prepare_out(empty, False) is None and empty.is_dir()
-    for marker in ("journal.jsonl", "sweep.json"):
-        d = tmp_path / marker
-        d.mkdir()
-        (d / marker).write_text("x", encoding="utf-8")
-        (d / "sub").mkdir()
-        assert "bestaat al" in cli.prepare_out(d, False)
-        assert cli.prepare_out(d, True) is None and not d.exists()
-    # Iets anders dan eerdere uitvoer wordt nooit gewist, ook niet met --overwrite.
-    other = tmp_path / "anders"
-    other.mkdir()
-    (other / "bars.parquet").write_text("x", encoding="utf-8")
-    (other / "sub").mkdir()
-    assert "geen eerdere" in cli.prepare_out(other, True) and (other / "bars.parquet").exists()
+    replay = _replay_dir(tmp_path / "replay")
+    assert "bestaat al" in cli.prepare_out(replay, False)
+    assert cli.prepare_out(replay, True) is None and list(replay.iterdir()) == []
+    sweep = _sweep_dir(tmp_path / "sweep")
+    assert cli.prepare_out(sweep, True) is None and list(sweep.iterdir()) == []
+
+
+def test_overwrite_never_touches_anything_but_replay_output(tmp_path):
+    def refused(d, why, markets=()):
+        before = _snapshot(d)
+        assert why in cli.prepare_out(d, True, markets)
+        assert _snapshot(d) == before                           # niets gewist
+
+    # Een paper-bot met een HALT: kill switch, en zijn staat zegt "paper".
+    bot = _replay_dir(tmp_path / "bot", mode="paper")
+    (bot / "HALT").touch()
+    (bot / "halt").mkdir()
+    (bot / "halt" / "halt.json").write_text("{}", encoding="utf-8")
+    refused(bot, "HALT")
+    (bot / "HALT").unlink()
+    (bot / "halt" / "halt.json").unlink()
+    (bot / "halt").rmdir()
+    refused(bot, "niet precies")                                # mode paper
+    # Een gehaltte replay en een sweep met een gehaltte markt.
+    halted = _replay_dir(tmp_path / "halted")
+    (halted / "UNWIND").touch()
+    refused(halted, "HALT")
+    sw = _sweep_dir(tmp_path / "sw")
+    (sw / "m2" / "halt").mkdir()
+    refused(sw, "HALT")
+    # Een onbekend extra bestand, in een replay en in een sweep.
+    extra = _replay_dir(tmp_path / "extra")
+    (extra / "notes.txt").write_text("x", encoding="utf-8")
+    refused(extra, "niet precies")
+    sw2 = _sweep_dir(tmp_path / "sw2")
+    (sw2 / "notes.txt").write_text("x", encoding="utf-8")
+    refused(sw2, "niet precies")
+    (sw2 / "notes.txt").unlink()
+    (sw2 / "m1" / "notes.txt").write_text("x", encoding="utf-8")
+    refused(sw2, "niet precies")
+    # Een ouder van replay-uitvoer (zonder sweep.json) en een map zonder state.json.
+    parent = tmp_path / "parent"
+    _replay_dir(parent / "r1")
+    refused(parent, "niet precies")
+    no_state = _replay_dir(tmp_path / "nostate")
+    (no_state / "state.json").unlink()
+    refused(no_state, "niet precies")
+    for bad in ("[1]", "{kapot"):
+        odd = _replay_dir(tmp_path / f"odd{len(bad)}")
+        (odd / "state.json").write_text(bad, encoding="utf-8")
+        refused(odd, "niet precies")
+    sub_dir = _replay_dir(tmp_path / "subdir")
+    (sub_dir / "summary.json").unlink()
+    (sub_dir / "summary.json").mkdir()                          # bekende naam, maar een map
+    refused(sub_dir, "niet precies")
+    # De markt zelf, of een map met de markt erin.
+    market = tmp_path / "runs" / "M"
+    market.mkdir(parents=True)
+    (market / "bars.parquet").write_text("x", encoding="utf-8")
+    refused(market, "bevat de markt", [market])
+    refused(tmp_path / "runs", "bevat de markt", [market])
+    # Een bestand in plaats van een map.
     a_file = tmp_path / "bestand"
     a_file.write_text("x", encoding="utf-8")
     assert "bestaat al" in cli.prepare_out(a_file, False)
-    assert "geen eerdere" in cli.prepare_out(a_file, True) and a_file.exists()
+    assert "geen map" in cli.prepare_out(a_file, True) and a_file.exists()
 
 
 def test_the_cli_sweep_fails_when_a_market_halts(markets, tmp_path, monkeypatch, capsys):

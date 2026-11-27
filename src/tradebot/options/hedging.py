@@ -18,6 +18,11 @@ haar aandelen terug naar nul en hedget de volgende ronde de rest opnieuw.
 
 Zonder keten of met een optie-leg zonder Greeks is de delta onbekend: geen order.
 
+Het plafond hier telt alleen de aandelen-legs van de open groep. De risicopoort
+(`stock_notional_usd`) telt ook de aandelen van gesloten posities die nog naar nul gaan; vlak
+na een geannuleerde sluitorder kan zij een hedge dus weigeren die hier binnen het plafond lag.
+Dat is behoudend en van korte duur (de volgende ronde is de sluitorder er weer).
+
 De limiet van een aandelenorder (`stock_limit`) ligt op spot ± de halve spread
 (`paper.stock_spread_bps`), op de cent afgerond van ons af: kopen naar boven, verkopen naar
 beneden. Daar vult de paper-broker; tegen IBKR is het een limiet net door de spot.

@@ -5,15 +5,18 @@
 > docs/WAVE_LOG.md, code-annotaties (AUDIT-tags in src/).
 
 ## Options: punten uit de eindreview (2026-11-27)
-- Risicopoort, aandelen (`review_stock`): een sluitorder moet tegengesteld zijn aan de
-  aandelen-legs op dat symbool (`Book.hedge_shares`) en mag er niet groter dan zijn, anders
-  `SafetyBreach`. Nieuwe check `stock_notional_usd`: |aandelen-legs na de order| × spot ≤
+- Risicopoort, aandelen (`review_stock`): een sluitorder moet tegengesteld zijn aan de eigen
+  aandelen-leg van de gesloten positie (`Book.closing_shares`, niet het totaal van het symbool)
+  en mag er niet groter dan zijn, anders `SafetyBreach`. Nieuwe check `stock_notional_usd`: |aandelen-legs na de order| × spot ≤
   `hedging.max_notional_frac` × kapitaal (het plafond van de hedger, nu ook in de poort), tenzij
   de order de aandelen verkleint. In HALT en UNWIND alleen afbouwen: minder aandelen op die
   onderliggende én minder delta; een hedge vanaf nul gaat in HALT niet meer door (het ontwerp
-  zegt "bij een HALT alleen afbouwen").
-- `replay` en `sweep` weigeren een niet-lege `--out` (exit-code 2); `--overwrite` maakt hem eerst
-  leeg, alleen als het eerdere uitvoer is. Een tweede run in dezelfde map verdubbelde de
+  zegt "bij een HALT alleen afbouwen"). De hedger stuurt zulke orders in HALT/UNWIND niet eens
+  naar de poort, dus geen afgewezen `hedge_order` per ronde.
+- `replay` en `sweep` weigeren een niet-lege `--out` (exit-code 2); `--overwrite` wist dan
+  alleen de bekende bestanden van eerdere replay- of sweep-uitvoer (`state.json` met
+  `mode: replay`, niets onbekends erin), nooit een hele boom, en weigert een map met `HALT`,
+  `UNWIND` of `halt/` of met de markt erin. Een tweede run in dezelfde map verdubbelde de
   tellingen en de `stats`.
 - Settlement per teken: rekent de broker precies de som van de legs af, dan rekent elke positie
   haar eigen leg af naar haar eigen teken (long `exercise`, short `assignment`); anders alleen

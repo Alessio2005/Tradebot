@@ -9,8 +9,8 @@
 
 `replay` en `sweep` weigeren een `--out` die al bestaat en niet leeg is (exit-code 2): het
 journal wordt aangevuld, dus een tweede run erin zou elke telling verdubbelen. `--overwrite`
-maakt hem eerst leeg, maar alleen als hij eruitziet als eerdere uitvoer (een `journal.jsonl` of
-`sweep.json` erin, of een `journal.jsonl` in een submap); een andere map blijft staan.
+wist alleen de bekende bestanden van een eerdere replay- of sweep-uitvoer (zie `prepare_out`);
+elke andere map, een map met HALT/UNWIND/`halt/` en een map met de markt erin blijven staan.
 * `historical --out DIR --start D --end D [--config PAD]`: bouw een historische markt uit de
   koersen en de IV van IBKR (alleen lezen; dezelfde `IB_*`-omgeving, client-id 18).
 * `paper --run-dir DIR [--config PAD] [--healthcheck]`: de paper-dienst tegen IB Gateway.
@@ -25,7 +25,6 @@ import argparse
 import asyncio
 import json
 import os
-import shutil
 import signal
 import sys
 from collections.abc import Mapping, Sequence
@@ -39,7 +38,7 @@ from .calendar import NY
 from .data.historical import HistoricalSeries, HistoricalSpec, build_market, fetch_history
 from .data.store import read_market, write_market
 from .engine.paper import run_paper
-from .engine.replay import run_replay
+from .engine.replay import REPLAY_MODE, run_replay
 from .engine.sweep import run_sweep
 from .execution.ib_noise import quiet_ib
 
@@ -56,25 +55,75 @@ def healthy(run_dir: Path, now: datetime) -> bool:
     return (now - last).total_seconds() <= HEARTBEAT_MAX_AGE_SECONDS
 
 
-def _looks_like_output(out: Path) -> bool:
-    """Een eerdere replay (`journal.jsonl`) of sweep (`sweep.json`, of journals per markt)."""
-    return ((out / "journal.jsonl").is_file() or (out / "sweep.json").is_file()
-            or any((d / "journal.jsonl").is_file() for d in out.iterdir() if d.is_dir()))
+#: Wat een replay in zijn uitvoermap schrijft (zonder HALT: een gehaltte replay heeft `halt/`).
+REPLAY_OUTPUT = frozenset({"journal.jsonl", "state.json", "summary.json", "heartbeat"})
+#: Kill switches van de engine: een map met een van deze wordt nooit gewist.
+KILL_SWITCHES = ("HALT", "UNWIND", "halt")
 
 
-def prepare_out(out: Path, overwrite: bool) -> str | None:
+def _replay_files(d: Path) -> list[Path] | None:
+    """De bestanden van replay-uitvoer in `d`, of None als `d` dat niet precies is: alleen
+    bekende bestanden, en een `state.json` met mode `replay` (een paper-run heeft `paper`)."""
+    entries = sorted(d.iterdir())
+    if not entries or any(e.name not in REPLAY_OUTPUT or not e.is_file() for e in entries):
+        return None
+    try:
+        mode = json.loads((d / "state.json").read_text(encoding="utf-8")).get("mode")
+    except (OSError, ValueError, AttributeError):    # geen, onleesbare of vreemde staat
+        return None
+    return entries if mode == REPLAY_MODE else None
+
+
+def _output_files(out: Path) -> list[Path] | None:
+    """Alles wat `--overwrite` in `out` mag wissen (submappen na hun bestanden), of None.
+
+    Een replay-map (zie `_replay_files`), of een sweep-map: `sweep.json` plus submappen die elk
+    een replay-map zijn, en verder niets."""
+    replay = _replay_files(out)
+    if replay is not None:
+        return replay
+    entries = sorted(out.iterdir())
+    if not (out / "sweep.json").is_file():
+        return None
+    files: list[Path] = [out / "sweep.json"]
+    for e in entries:
+        if e.name == "sweep.json":
+            continue
+        sub = _replay_files(e) if e.is_dir() else None
+        if sub is None:
+            return None
+        files += [*sub, e]
+    return files
+
+
+def prepare_out(out: Path, overwrite: bool, markets: Sequence[Path] = ()) -> str | None:
     """Maak `--out` klaar; geeft de fout als dat niet mag, anders None.
 
     Een niet-bestaande of lege map is goed. Een niet-lege map alleen met `overwrite`, en dan
-    alleen als hij eruitziet als eerdere uitvoer: dan gaat hij eerst helemaal leeg."""
+    alleen als hij precies eerdere replay- of sweep-uitvoer is (`_output_files`), zonder kill
+    switch (`HALT`, `UNWIND`, `halt/`) erin en zonder een van de `markets` erin. Dan gaan
+    alleen die bekende bestanden en submappen weg, nooit een hele boom."""
     if not out.exists() or (out.is_dir() and not any(out.iterdir())):
         return None
     if not overwrite:
         return (f"--out {out} bestaat al en is niet leeg (het journal zou worden aangevuld);"
                 " kies een lege map of geef --overwrite")
-    if not out.is_dir() or not _looks_like_output(out):
-        return f"--overwrite: {out} is geen eerdere replay- of sweep-uitvoer; niets gewist"
-    shutil.rmtree(out)
+    if not out.is_dir():
+        return f"--overwrite: {out} is geen map; niets gewist"
+    root = out.resolve()
+    if any(m.resolve() == root or root in m.resolve().parents for m in markets):
+        return f"--overwrite: {out} bevat de markt; niets gewist"
+    if any((d / k).exists() for d in (out, *(e for e in out.iterdir() if e.is_dir()))
+           for k in KILL_SWITCHES):
+        return f"--overwrite: {out} bevat HALT, UNWIND of halt/; niets gewist"
+    files = _output_files(out)
+    if files is None:
+        return f"--overwrite: {out} is niet precies een eerdere replay- of sweep-uitvoer; niets gewist"
+    for f in files:
+        if f.is_dir():
+            f.rmdir()                     # leeg: zijn bestanden staan ervoor in de lijst
+        else:
+            f.unlink()
     return None
 
 
@@ -139,7 +188,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_market(build_market(series, spec), args.out)
         print(f"historische markt {spec.start} t/m {spec.end} geschreven naar {args.out}")
         return 0
-    error = prepare_out(args.out, args.overwrite)
+    error = prepare_out(args.out, args.overwrite,
+                        args.markets if args.command == "sweep" else [args.market])
     if error is not None:
         print(error, file=sys.stderr)
         return 2
