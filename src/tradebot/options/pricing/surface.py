@@ -13,8 +13,11 @@ Dit is KALIBRATIE AAN DE HUIDIGE MARKT, geen training op historische data (detai
   expiraties: vlakke vol van de dichtstbijzijnde expiratie.
 * Controles: kalender (w stijgt in T op een k-raster, binnen het k-bereik dat beide
   expiraties met punten dekken) en butterfly (de dichtheid uit de
-  callprijzen ≥ 0, prijzen via `ql.blackFormula`). Faalt een controle, dan is de status
-  `ARBITRAGE` en gebruikt geen strategie het oppervlak.
+  callprijzen ≥ 0, prijzen via `ql.blackFormula`). Een expiratie met butterfly-arbitrage
+  valt uit het oppervlak (in `reason`), de andere blijven; zijn ze allemaal fout, of faalt de
+  kalendercontrole op wat overblijft, dan is de status `ARBITRAGE` en gebruikt geen
+  strategie het oppervlak. (Tot 2026-11-27 legde één foute expiratie de hele keten stil; op
+  echte DoltHub-ketens was dat 83 % van de dagen.)
 """
 from __future__ import annotations
 
@@ -166,13 +169,15 @@ def build_surface(chain: Chain, min_vega: float = MIN_VEGA) -> Surface:
                    if s is not None)
     if not smiles:
         return Surface(chain.underlying, SurfaceStatus.INSUFFICIENT, (), "geen bruikbare smile")
-    if not _calendar_ok(smiles):
-        return Surface(chain.underlying, SurfaceStatus.ARBITRAGE, smiles, "kalenderarbitrage")
     bad = [s.expiry.isoformat() for s in smiles if not _butterfly_ok(s)]
-    if bad:
+    good = tuple(s for s in smiles if s.expiry.isoformat() not in bad)
+    if not good:
         return Surface(chain.underlying, SurfaceStatus.ARBITRAGE, smiles,
                        f"butterfly-arbitrage in {', '.join(bad)}")
-    return Surface(chain.underlying, SurfaceStatus.OK, smiles)
+    if not _calendar_ok(good):
+        return Surface(chain.underlying, SurfaceStatus.ARBITRAGE, good, "kalenderarbitrage")
+    return Surface(chain.underlying, SurfaceStatus.OK, good,
+                   f"weggelaten, butterfly-arbitrage in {', '.join(bad)}" if bad else "")
 
 
 def skew_25d(chain: Chain, expiry: date) -> float | None:

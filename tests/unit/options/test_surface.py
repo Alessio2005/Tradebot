@@ -82,6 +82,14 @@ def test_butterfly_arbitrage_is_refused():
     assert s.reason == f"butterfly-arbitrage in {EXPIRY.isoformat()}"
 
 
+def test_only_the_expiry_with_butterfly_arbitrage_is_dropped():
+    spike = {k: (0.90 if k == 102.5 else 0.20) for k in STRIKES}
+    s = build_surface(chain(smile_rows(spike.get) + smile_rows(lambda k: 0.22, LATER)))
+    assert s.status is SurfaceStatus.OK and [x.expiry for x in s.smiles] == [LATER]
+    assert s.reason == f"weggelaten, butterfly-arbitrage in {EXPIRY.isoformat()}"
+    assert s.atm_vol(30) == pytest.approx(0.22, rel=1e-6)
+
+
 def test_too_few_points_or_no_forward_give_no_surface():
     few = smile_rows(lambda k: 0.25, strikes=STRIKES[:2])
     assert build_surface(chain(few)).status is SurfaceStatus.INSUFFICIENT

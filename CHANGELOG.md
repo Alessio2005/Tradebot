@@ -64,6 +64,13 @@ Beperkingen van de data (keuzes van mij, die Alessio kan terugdraaien):
 - **QQQ en IWM staan niet in DoltHub.** De replay draait op SPY, AAPL en MSFT; de config blijft
   ongewijzigd en `replay_config` neemt het universum van de markt.
 - **Rente**: één vaste 3 % voor de hele periode (`--rate`), terwijl die in 2020-2021 bijna 0 was.
+- **Oppervlak op echte ketens** (`pricing/surface.py`): een expiratie met butterfly-arbitrage
+  valt nu alleen zelf uit het oppervlak (in `reason`); de rest blijft bruikbaar. Eerder legde
+  één foute expiratie de hele keten stil. Op de DoltHub-ketens van 2023 was dat 83 % van de
+  dagen, waardoor het vol-regime UNKNOWN bleef en er bijna niets opende; nu is 93 % van de
+  echte ketens bruikbaar. De kalendercontrole blijft gelden voor wat overblijft. Dit geldt
+  ook voor de IBKR-paper-dienst. Dit is de aanbevolen optie die aan Alessio is voorgelegd, en
+  hij kan hem terugdraaien.
 - **Netwerk**: de cloudomgeving moest `www.dolthub.com`, `query2.finance.yahoo.com` en
   `data.sec.gov` toelaten (met akkoord van Alessio).
 
