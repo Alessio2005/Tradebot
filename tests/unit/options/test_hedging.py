@@ -655,7 +655,9 @@ def test_booking_options_keeps_the_share_leg(tmp_path):
     assert r.pos().shares == -30 and len(r.pos().option_legs) == 1
     r.e._assignment(Execution(at(D0, 16, 30), ExecutionKind.EXERCISE, "", atm.contract,
                               "TSTB", -2, atm.contract.strike), at(D0, 16, 30))
-    assert r.pos().status is PositionStatus.CLOSED and r.pos().shares == -30
+    # De uitoefening levert aandelen; die komen bij de aandelen-leg (en worden afgebouwd).
+    sign = 1 if atm.contract.right is Right.CALL else -1
+    assert r.pos().status is PositionStatus.CLOSED and r.pos().shares == -30 + 200 * sign
     p2 = dataclasses.replace(r.pos(), position_id="h2", status=PositionStatus.OPEN,
                              legs=(Leg(atm.contract, "TSTB", 2, 1.0),
                                    Leg(other.contract, "TSTB", 1, 1.0),
@@ -663,7 +665,8 @@ def test_booking_options_keeps_the_share_leg(tmp_path):
     r.state.positions.append(p2)
     r.e._assignment(Execution(at(D0, 16, 31), ExecutionKind.EXERCISE, "", other.contract,
                               "TSTB", -1, other.contract.strike), at(D0, 16, 31))
-    assert r.pos("h2").shares == 10 and len(r.pos("h2").option_legs) == 1
+    sign2 = 1 if other.contract.right is Right.CALL else -1
+    assert r.pos("h2").shares == 10 + 100 * sign2 and len(r.pos("h2").option_legs) == 1
 
 
 def test_reconcile_allows_whole_lots_but_not_stray_shares(tmp_path):

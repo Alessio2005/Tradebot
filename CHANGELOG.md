@@ -71,6 +71,14 @@ Beperkingen van de data (keuzes van mij, die Alessio kan terugdraaien):
   echte ketens bruikbaar. De kalendercontrole blijft gelden voor wat overblijft. Dit geldt
   ook voor de IBKR-paper-dienst. Dit is de aanbevolen optie die aan Alessio is voorgelegd, en
   hij kan hem terugdraaien.
+- **Aandelen uit een assignment worden afgebouwd** (`engine/service.py`, besluit van Alessio):
+  bij een assignment of uitoefening buiten de wheel worden de geleverde aandelen een
+  aandelen-leg van de positie. Ze worden geboekt op de slotkoers waartegen `settle_usd` al
+  rekent. Is de positie dicht, dan sluit `_unwind_shares` ze de volgende ronde; anders gaan
+  ze mee als de positie sluit. Eerder bleven ze los in het boek staan. In de DoltHub-replay liet
+  een vroege assignment van een short SPY-call vóór ex-dividend daardoor −100 SPY open van 2020
+  tot 2026 (eind-equity −11.000 USD). Dit geldt ook voor IBKR-paper; het alarm
+  `options_assignment` blijft.
 - **Netwerk**: de cloudomgeving moest `www.dolthub.com`, `query2.finance.yahoo.com` en
   `data.sec.gov` toelaten (met akkoord van Alessio).
 
