@@ -22,11 +22,29 @@ from tradebot.schemas.options import load_options_config
 from tradebot.utils.failfast import DataContractError
 
 D0 = date(2026, 1, 1)
-CFG = IVRuleSettings(lookback_days=5)
+CFG = IVRuleSettings(lookback_days=15, min_observations=5)
 
 
 def history(values, start=D0) -> IVHistory:
     return IVHistory((start + timedelta(days=i), v) for i, v in enumerate(values))
+
+
+def test_ivr_window_is_selected_by_date_with_a_minimum_of_observations():
+    """N28: de laatste `lookback_days` KALENDERdagen, niet de laatste n waarnemingen."""
+    # 6 waarnemingen, om de 10 dagen: in 15 dagen vallen er maar 2 (< min 5)
+    sparse = IVHistory((D0 + timedelta(days=10 * i), 0.2 + i / 100) for i in range(6))
+    today = D0 + timedelta(days=50)
+    assert sparse.since(today, 15) == pytest.approx([0.24, 0.25])
+    assert sparse.since(today, 365) == pytest.approx([0.2 + i / 100 for i in range(6)])
+    short = IVMetrics.compute(0.3, sparse, today, 0.25, CFG)
+    assert short.status is IVRStatus.INSUFFICIENT_HISTORY
+    ok = IVMetrics.compute(0.3, sparse, today, 0.25, IVRuleSettings(365, 5))
+    assert ok.status is IVRStatus.OK
+    # oudere waarnemingen buiten het venster tellen niet mee voor IVR: min/max van het venster
+    dense = history([0.9] + [0.2, 0.3, 0.4, 0.2, 0.3], start=D0)
+    win = IVMetrics.compute(0.3, dense, D0 + timedelta(days=5), 0.25,
+                            IVRuleSettings(lookback_days=5, min_observations=5))
+    assert win.status is IVRStatus.OK and win.ivr == pytest.approx(50.0)   # 0,9 valt buiten
 
 
 def test_iv_rank_and_percentile():

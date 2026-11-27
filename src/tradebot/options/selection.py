@@ -26,6 +26,15 @@ Twee vaste regels tussen `Strategy.scan` en de risicopoort, alleen voor NIEUWE p
    Kandidaten die premie betalen (debit) gaan zonder deze poort door: hun theta is per
    constructie negatief, daar zit het rendement in de beweging.
 
+Eén correctie op het regime (N14): een earnings-variant van de long straddle (`variant ==
+"earnings"`) kan door zijn EIGEN event in STRESS komen. De IV30 bevat dan de event-variantie, de
+IV60 minder, en de termijnhelling wordt negatief (backwardation). Is het regime STRESS met
+reden `backwardation`, dan toetst `admit` voor die variant het regime opnieuw zonder
+termijnhelling (`classify(..., term_slope=None)`) en gebruikt dat. Een vol-schok (`rv_expansion`)
+blijft STRESS. Beperking: dit onderscheidt niet of STRESS van de marktonderliggende (SPY) komt
+terwijl de eigen onderliggende toevallig ook in backwardation staat; de variant is long vol met
+gedefinieerd risico, dus dat is geaccepteerd.
+
 De uitkomst komt als spoorregels in `Candidate.rule_trace`, zodat het journal per entry laat
 zien welk regime en welke dekking er golden.
 """
@@ -40,7 +49,7 @@ from datetime import date
 from ..schemas.options import OptionsConfig
 from .chain.builder import Chain
 from .positions import Candidate, position_greek
-from .vol_regime import VolRegime, VolState
+from .vol_regime import RegimeSettings, VolRegime, VolState, classify, regime_settings
 
 __all__ = ["Admission", "SelectionRules", "admit", "selection_rules", "theta_cover"]
 
@@ -52,13 +61,15 @@ class SelectionRules:
     theta_enabled: bool = True
     min_theta_gamma_cover: float = 1.0
     min_theta_per_max_loss: float = 0.0
+    regime_settings: RegimeSettings | None = None   # voor de herberekening bij earnings (N14)
 
 
 def selection_rules(cfg: OptionsConfig) -> SelectionRules:
     vr, th = cfg.vol_regime, cfg.theta_harvest
     allowed = {VolRegime(name): frozenset(names) for name, names in vr.allowed.model_dump().items()}
     return SelectionRules(vr.enabled, allowed, th.enabled, th.min_theta_gamma_cover,
-                          th.min_theta_per_max_loss)
+                          th.min_theta_per_max_loss,
+                          regime_settings(vr, cfg.iv_metrics.atm_tenor_days))
 
 
 def theta_cover(theta_day: float, gamma: float, spot: float, rv: float) -> float:
@@ -82,6 +93,11 @@ def admit(c: Candidate, chain: Chain, vol: VolState | None, regime: VolRegime,
           rules: SelectionRules, today: date) -> Admission:
     """Laat `c` toe of niet, met de spoorregels erbij."""
     trace: list[str] = []
+    if (c.variant == "earnings" and regime is VolRegime.STRESS and vol is not None
+            and vol.regime is VolRegime.STRESS and vol.reason == "backwardation"
+            and rules.regime_settings is not None):
+        regime = classify(vol.atm_iv, vol.rv, None, rules.regime_settings).regime
+        trace.append("regime:earnings_term_ignored")
     if math.isinf(c.max_loss) and regime is VolRegime.STRESS:
         return Admission(_traced(c, ["regime:stress:undefined_risk"]), False, "regime")
     if rules.regime_enabled:

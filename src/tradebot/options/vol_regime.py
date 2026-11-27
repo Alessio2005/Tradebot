@@ -9,7 +9,10 @@ Drie vragen, elk met een vaste regel (geen training, geen fit op historische dat
    venster (te weinig dagen), dan tellen de andere twee, met hun gewichten herschaald. Zonder
    het middelste venster is er geen verwachting.
 2. **Is de optiepremie aantrekkelijk?** De volatility risk premium (VRP) is de ATM-IV(30)
-   tegenover die verwachting: als verhouding (`iv / rv`) en als verschil in volpunten.
+   tegenover de verwachte RV OP DIE HORIZON, σ(30 d) = `RVForecast.at_horizon(tenor_days)`
+   (niet de blend zelf, die bij h → 0 hoort): als verhouding (`iv / σ`) en als verschil in
+   volpunten. Dezelfde σ(h) gebruiken `vrp_at` en `theta_cover`, dus regime en selectie
+   spreken elkaar niet tegen.
 3. **Welk regime is het?** `classify` loopt de regels in deze volgorde af; de eerste die geldt,
    beslist:
 
@@ -18,9 +21,9 @@ Drie vragen, elk met een vaste regel (geen training, geen fit op historische dat
    | UNKNOWN   | geen ATM-IV of geen RV-verwachting                                     |
    | STRESS    | backwardation (IV60 − IV30 ≤ `stress_term_slope`) of een vol-schok       |
    |           | (RV kort / RV middel ≥ `stress_rv_expansion`)                          |
-   | RICH      | IV / RV ≥ `rich_vrp_ratio`, IV − RV ≥ `rich_min_vrp_points`, en geen    |
+   | RICH      | IV / σ(30) ≥ `rich_vrp_ratio`, IV − σ(30) ≥ `rich_min_vrp_points`, en geen    |
    |           | inverse termijnstructuur (als die bekend is: helling ≥ `rich_min_term_slope`) |
-   | CHEAP     | IV / RV < `cheap_vrp_ratio`                                            |
+   | CHEAP     | IV / σ(30) < `cheap_vrp_ratio`                                          |
    | NORMAL    | al het andere                                                          |
 
 Welke strategieën in welk regime nieuwe posities mogen openen, staat in de config
@@ -72,13 +75,15 @@ class RegimeSettings:
     ewma_lambda: float = 0.94
     ewma_weight: float = 0.0
     mean_reversion_kappa: float = 4.0
+    tenor_days: float = 30.0           # de looptijd van de ATM-IV: σ(h) voor de VRP is op deze h
 
 
-def regime_settings(cfg: VolRegimeConfig) -> RegimeSettings:
+def regime_settings(cfg: VolRegimeConfig, tenor_days: float = 30.0) -> RegimeSettings:
+    """`tenor_days`: `iv_metrics.atm_tenor_days` (de looptijd waarop de ATM-IV is gemeten)."""
     return RegimeSettings(cfg.rv_windows, cfg.rv_weights, cfg.stress_term_slope,
                           cfg.stress_rv_expansion, cfg.rich_vrp_ratio, cfg.rich_min_vrp_points,
                           cfg.rich_min_term_slope, cfg.cheap_vrp_ratio, cfg.ewma_lambda,
-                          cfg.ewma_weight, cfg.mean_reversion_kappa)
+                          cfg.ewma_weight, cfg.mean_reversion_kappa, tenor_days)
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,15 +137,19 @@ class VolState:
     rv: RVForecast | None
     term_slope: float | None
     reason: str
+    tenor_days: float = 30.0
 
     @property
     def vrp_ratio(self) -> float | None:
-        return None if self.atm_iv is None or self.rv is None else self.atm_iv / self.rv.forecast
+        """ATM-IV / σ(`tenor_days`)."""
+        return (None if self.atm_iv is None or self.rv is None
+                else self.atm_iv / self.rv.at_horizon(self.tenor_days))
 
     @property
     def vrp_points(self) -> float | None:
-        """IV − verwachte RV, als fractie (0,03 = 3 volpunten)."""
-        return None if self.atm_iv is None or self.rv is None else self.atm_iv - self.rv.forecast
+        """IV − σ(`tenor_days`), als fractie (0,03 = 3 volpunten)."""
+        return (None if self.atm_iv is None or self.rv is None
+                else self.atm_iv - self.rv.at_horizon(self.tenor_days))
 
     def vrp_at(self, iv: float, dte_days: float) -> tuple[float, float] | None:
         """(IV / σ(h), IV − σ(h)) voor een looptijd van `dte_days` kalenderdagen; None zonder RV."""
@@ -163,7 +172,7 @@ def classify(atm_iv: float | None, rv: RVForecast | None, term_slope: float | No
              s: RegimeSettings) -> VolState:
     """Het regime volgens de tabel in de moduledocstring; de reden zegt welke regel besliste."""
     def state(regime: VolRegime, reason: str) -> VolState:
-        return VolState(regime, atm_iv, rv, term_slope, reason)
+        return VolState(regime, atm_iv, rv, term_slope, reason, s.tenor_days)
 
     if atm_iv is None or rv is None:
         return state(VolRegime.UNKNOWN, "no_iv" if atm_iv is None else "no_rv")
@@ -171,7 +180,8 @@ def classify(atm_iv: float | None, rv: RVForecast | None, term_slope: float | No
         return state(VolRegime.STRESS, "backwardation")
     if rv.expansion >= s.stress_rv_expansion:
         return state(VolRegime.STRESS, "rv_expansion")
-    ratio, points = atm_iv / rv.forecast, atm_iv - rv.forecast
+    sigma = rv.at_horizon(s.tenor_days)
+    ratio, points = atm_iv / sigma, atm_iv - sigma
     contango = term_slope is None or term_slope >= s.rich_min_term_slope
     if ratio >= s.rich_vrp_ratio and points >= s.rich_min_vrp_points and contango:
         return state(VolRegime.RICH, "vrp_rich")

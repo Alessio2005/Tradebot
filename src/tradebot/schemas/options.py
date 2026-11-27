@@ -127,7 +127,10 @@ class IVFallbackConfig(StrictModel):
 class IVMetricsConfig(StrictModel):
     """IV rank, ATM-tenor, RV-venster en de drempels van de IV-voorwaarden (detailontwerp 6.3)."""
 
-    ivr_lookback_days: Annotated[int, Field(ge=20, le=400)] = 252
+    # Kalenderdagen (niet waarnemingen): IVR/IVP over de laatste 365 dagen, met minimaal
+    # `ivr_min_observations` waarden daarin (anders de vervangende regel).
+    ivr_lookback_days: Annotated[int, Field(ge=20, le=400)] = 365
+    ivr_min_observations: Annotated[int, Field(ge=20, le=400)] = 120
     atm_tenor_days: Annotated[int, Field(ge=7, le=365)] = 30
     rv_window_days: Annotated[int, Field(ge=5, le=252)] = 20
     high_ivr: IVRLevel = 30.0
@@ -139,6 +142,8 @@ class IVMetricsConfig(StrictModel):
     def _ordered(self) -> IVMetricsConfig:
         if not self.very_low_ivr <= self.low_ivr <= self.high_ivr:
             raise ValueError("verwacht very_low_ivr <= low_ivr <= high_ivr")
+        if self.ivr_min_observations > self.ivr_lookback_days:
+            raise ValueError("verwacht ivr_min_observations <= ivr_lookback_days")
         return self
 
 
@@ -189,6 +194,8 @@ class CreditSpreadConfig(_Strategy):
 class IronCondorConfig(_Strategy):
     dte: tuple[Days, Days] = (30, 45)
     short_delta: Delta = 0.16
+    # Deltaband van de short strikes: short_delta ± dit (zoals de band van de credit spread).
+    short_delta_tolerance: Delta = 0.05
     wing_width_strikes: tuple[Annotated[int, Field(ge=1)], Annotated[int, Field(ge=1)]] = (5, 10)
     min_credit_frac_width: Fraction = 0.15          # totaal, beide kanten; zie credit spread
     iv_condition: IVConditionName = "high"
@@ -209,7 +216,8 @@ class DebitVerticalConfig(_Strategy):
     max_debit_frac_width: Fraction = 0.50
     max_width_strikes: Annotated[int, Field(ge=1, le=30)] = 10
     iv_condition: IVConditionName = "low"
-    take_profit_frac_debit: Multiple = 1.0      # winst als fractie van het debit
+    # Winst nemen bij deze fractie van de maximale winst (breedte − debit); haalbaar bij elk debit.
+    take_profit_frac_max_gain: Fraction = 0.60
     stop_loss_frac_debit: Fraction = 0.50       # sluiten als de waarde hieronder komt
     close_dte: Days = 21
 
@@ -297,6 +305,7 @@ class ShortVolConfig(_Strategy):
     enabled: bool = False
     style: Literal["straddle", "strangle"] = "strangle"
     strangle_delta: Delta = 0.16
+    strangle_delta_tolerance: Delta = 0.05    # deltaband: strangle_delta ± dit
     dte: tuple[Days, Days] = (30, 45)
     iv_condition: IVConditionName = "high"
     take_profit_frac: Fraction = 0.50

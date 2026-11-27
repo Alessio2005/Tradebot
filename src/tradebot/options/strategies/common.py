@@ -27,12 +27,14 @@ from ..positions import (
     Urgency,
     position_greek,
 )
+from ..pricing.surface import forward
 from ..risk.gamma import sigma_1d
 
-__all__ = ["Rules", "Strategy", "close", "drawdown_factor", "dte", "entry_blockers",
-           "expiry_close_due", "iv_ok", "otm_step", "parse_time", "pick_expiry",
-           "rules_from_config", "sigma_unit_1d", "size", "strike_at_delta", "strike_nearest",
-           "vrp_gate"]
+__all__ = ["Rules", "Strategy", "atm_iv", "atm_level", "close", "drawdown_factor", "dte",
+           "early_assignment_risk", "entry_blockers", "expiry_close_due", "iv_ok",
+           "natural_mark", "otm_step", "parse_time", "pick_expiry", "rules_from_config",
+           "short_call_dividend_blockers", "sigma_unit_1d", "size", "strike_at_delta",
+           "strike_nearest", "vrp_gate"]
 
 
 class Strategy(Protocol):
@@ -61,6 +63,7 @@ class Rules:
     daily_risk_frac: float | None = None              # None: geen sizing op dag-σ
     vol_of_vol_daily_points: float = 1.0
     drawdown_brake: tuple[float, float] | None = (0.05, 0.10)
+    commission_per_contract: float = 0.65             # USD; voor de kosten in de breedtekeuze
 
 
 def rules_from_config(cfg: OptionsConfig) -> Rules:
@@ -69,7 +72,8 @@ def rules_from_config(cfg: OptionsConfig) -> Rules:
                  parse_time(cfg.schedule.close_before_expiry_time),
                  cfg.filters.earnings_blackout, cfg.filters.max_calendar_data_age_days,
                  s.max_loss_frac_capital, cfg.risk.max_loss_per_underlying_frac,
-                 s.daily_risk_frac, s.vol_of_vol_daily_points, s.drawdown_brake)
+                 s.daily_risk_frac, s.vol_of_vol_daily_points, s.drawdown_brake,
+                 cfg.paper.commission_per_contract)
 
 
 def dte(expiry: date, today: date) -> int:
@@ -127,38 +131,107 @@ def iv_ok(market: MarketState, underlying: str, cond: IVCondition,
     return ok, f"iv:{cond.value}:{'fallback' if fallback else 'ivr'}:{'ok' if ok else 'no'}"
 
 
+def atm_level(chain: Chain, expiry: date) -> float:
+    """Het ATM-niveau van een expiratie: de forward uit put-call-pariteit, anders spot."""
+    f = forward(chain, expiry)
+    return f if f is not None else chain.spot
+
+
+def atm_iv(chain: Chain, expiry: date) -> float | None:
+    """ATM-IV van één expiratie: het gemiddelde van de call- en put-IV op de strike het dichtst
+    bij de forward. None zonder beide IV's."""
+    call = strike_nearest(chain, expiry, Right.CALL, atm_level(chain, expiry))
+    put = chain.find(expiry, call.contract.strike, Right.PUT) if call is not None else None
+    if call is None or put is None or call.iv is None or put.iv is None:
+        return None
+    return (call.iv + put.iv) / 2
+
+
+def natural_mark(chain: Chain, legs: Iterable[LegIntent]) -> float | None:
+    """`Σ ratio × (ask bij kopen, bid bij verkopen)` per eenheid en per aandeel: de combo tegen
+    de natuurlijke prijs, de slechtste fill die de limietwalk toelaat. Voor een debit het
+    hoogste debit. None als een leg geen bid/ask heeft."""
+    total = 0.0
+    for leg in legs:
+        c = leg.contract
+        o = chain.find(c.expiry, c.strike, c.right)
+        px = None if o is None else (o.quote.ask if leg.ratio > 0 else o.quote.bid)
+        if px is None:
+            return None
+        total += leg.ratio * px
+    return total
+
+
 def vrp_gate(market: MarketState, underlying: str, expiry: date,
-             legs: Iterable[LegIntent], min_ratio: float | None) -> tuple[bool, tuple[str, ...]]:
+             min_ratio: float | None) -> tuple[bool, tuple[str, ...]]:
     """VRP-poort per looptijd voor premie verkopen: (toegelaten, spoorregels).
 
-    Uit (`min_ratio` None): altijd toegelaten, geen spoor. Aan: de gemiddelde IV van de short
-    legs (mid-IV, alleen status OK) gedeeld door σ(h) van de volstate, h = de kalenderdagen van
-    `market.today` tot `expiry`, moet ≥ `min_ratio` zijn (spoorregel `vrp_h:<ratio>`). Een
-    ontbrekende IV, volstate of RV-verwachting weigert de kandidaat.
+    Uit (`min_ratio` None): altijd toegelaten, geen spoor. Aan: de ATM-IV van `expiry` (call en
+    put op de strike het dichtst bij de forward, `atm_iv`) gedeeld door σ(h) van de volstate,
+    h = de kalenderdagen van `market.today` tot `expiry`, moet ≥ `min_ratio` zijn (spoorregel
+    `vrp_h:<ratio>`). De ATM-IV en niet de IV van de short leg: die bevat de skew, waardoor
+    bull puts (OTM-puts, dure skew) structureel vaker door de poort kwamen dan bear calls.
+    Een ontbrekende IV, volstate of RV-verwachting weigert de kandidaat.
     """
     if min_ratio is None:
         return True, ()
     chain, vol = market.chains.get(underlying), market.vol.get(underlying)
-    ivs = []
-    for leg in legs:
-        c = leg.contract
-        o = chain.find(c.expiry, c.strike, c.right) if chain is not None and leg.ratio < 0 else None
-        if o is not None and o.iv is not None:
-            ivs.append(o.iv)
-    vrp = (vol.vrp_at(sum(ivs) / len(ivs), dte(expiry, market.today))
-           if vol is not None and ivs else None)
+    iv = atm_iv(chain, expiry) if chain is not None else None
+    vrp = vol.vrp_at(iv, dte(expiry, market.today)) if vol is not None and iv is not None else None
     if vrp is None or vrp[0] < min_ratio:
         return False, ()
     return True, (f"vrp_h:{vrp[0]:.3f}",)
 
 
 def entry_blockers(market: MarketState, underlying: str, until: date, rules: Rules) -> list[str]:
-    """Redenen om op deze onderliggende niets te openen dat tot `until` loopt (leeg: geen)."""
+    """Redenen om op deze onderliggende niets te openen dat tot `until` loopt (leeg: geen).
+
+    De earnings-blackout dekt `[vandaag, until]`: ook de earningsdag zelf telt (AAPL en MSFT
+    melden na de slotbel, dus een positie van die dag krijgt de koerssprong van de dag erna
+    volledig mee; review 2026-11-27, N1)."""
     ev = market.events.get(underlying)
     if ev is None or not ev.usable(market.today, rules.max_calendar_data_age_days):
         return ["events:stale"]
-    if rules.earnings_blackout and ev.earnings_between(market.today, until):
+    if rules.earnings_blackout and ev.earnings_within(market.today, until):
         return ["events:earnings_in_term"]
+    return []
+
+
+def early_assignment_risk(o: PricedOption, spot: float, dividend: float) -> bool:
+    """Is de extrinsieke waarde van `o` (mid − intrinsiek) kleiner dan het `dividend`?
+
+    Dan loont het de houder van een call om de nacht vóór de ex-datum uit te oefenen: de
+    short call wordt assigned. Zonder mid: False (geen oordeel)."""
+    mid = o.quote.mid
+    if dividend <= 0 or mid is None:
+        return False
+    k = o.contract.strike
+    intrinsic = max(spot - k, 0.0) if o.contract.right is Right.CALL else max(k - spot, 0.0)
+    return mid - intrinsic < dividend
+
+
+def short_call_dividend_blockers(market: MarketState, underlying: str,
+                                 legs: Iterable[LegIntent]) -> list[str]:
+    """Een short call mag niet geopend worden als er vóór zijn expiratie een ex-dividend valt
+    waarbij zijn huidige extrinsieke waarde kleiner is dan het dividend (`events:ex_dividend`).
+
+    Geldt voor elke short call buiten de covered call (bear call, condor-callkant, short
+    strangle, korte leg van de calendar, korte leg van de bull call spread). Een ex-datum van
+    vandaag telt niet meer (de assignment-nacht was gisteren); een ex-datum op de expiratie wel.
+    Eerdere assignment op een long leg is geen risico en wordt niet getoetst. De extrinsieke
+    waarde is die van NU: een benadering, want ze krimpt tot de ex-datum (review N6/#6)."""
+    ev, chain = market.events.get(underlying), market.chains.get(underlying)
+    if ev is None or chain is None:
+        return []
+    for leg in legs:
+        c = leg.contract
+        if leg.ratio >= 0 or c.right is not Right.CALL:
+            continue
+        o = chain.find(c.expiry, c.strike, c.right)
+        if o is not None and any(market.today < d.ex_date <= c.expiry
+                                 and early_assignment_risk(o, chain.spot, d.amount)
+                                 for d in ev.dividends):
+            return ["events:ex_dividend"]
     return []
 
 

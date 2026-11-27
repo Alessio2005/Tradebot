@@ -810,3 +810,41 @@ oordeel of ledger-entry veranderd; de backtest van v6–v8 is bit-identiek.
 - CPCV + purge/embargo, triple-barrier/TrendScan-labeling, HRP/RP-portfolio,
   TCA-laag, OMS + audit-log (R-8), circuit-breakers (R-7), paper-engine,
   MRM-rapportage, lookahead-testsuite, determinisme-suite (R-5).
+
+## Reviewfixes strategieën en selectie (2026-11-27, tweede ronde)
+
+Uit `review-strategieen-2026-11-27.md` (N1 t/m N28) en de eerdere review (#6, #24, #25, #26):
+
+- N1: de earnings-blackout dekt `[vandaag, expiratie]`: ook de earningsdag zelf blokkeert
+  (`Events.earnings_within`; `earnings_between` en `next_earnings` zijn ongewijzigd).
+- #6: ex-dividendcheck op elke short call buiten de covered call (bear call, callkant van de
+  condor, short strangle, korte leg van calendar en bull call spread): geen entry als er voor de
+  expiratie een ex-dividend valt met extrinsieke waarde (nu) < dividend (`events:ex_dividend`).
+  `income.py` deelt de regel (`common.early_assignment_risk`).
+- N12: calendar forward-vol-regel vergelijkt σ_f met de verwachte RV over [h1, h2], niet met σ(h2 − h1).
+- N13: `classify` toetst ATM-IV(30) tegen `at_horizon(atm_tenor_days)`; `VolState.vrp_ratio` en
+  `vrp_points` (ook in het journal) idem. Gedrag: bij mean reversion andere RICH/NORMAL-grens.
+- N14: een earnings-variant van de long straddle wordt in `selection.admit` niet geweigerd om STRESS
+  door `backwardation` (zijn eigen event in IV30): het regime wordt zonder termijnhelling herberekend.
+  Een vol-schok blijft STRESS. Let op: de event-IV kan het regime daarna RICH maken, dat de variant
+  niet toestaat; dat is niet aangepast.
+- N15: een roll van CSP/covered call toetst de nieuwe expiratie met `entry_blockers`, anders CLOSE (`dte`).
+- N16: vastgelegd in config en runbook dat de short strangle bij 25k slaapt (0 eenheden); sizing ongewijzigd.
+- N17 (strategiekant): met aandelen-legs zwijgen stop, take-profit, delta- en ITM-regels en de
+  condor-adjust op de optie-legs; expiratie en DTE blijven. De engine sluit zulke posities als `assigned`.
+- N19: `max_loss`, sizing en budget van debit-strategieën rekenen met het natural-debit (ask/bid), de
+  limiet start op de mid. Gedrag: iets minder eenheden.
+- N20: het cash van een nieuwe CSP is `Book.cash_usd` min de reservering (`strike × 100 × aantal`) van
+  open en lopende CSP's/wheel-puts; zonder nieuw `Book`-veld.
+- N21: `_covered` telt alleen short calls van `covered_call` en `wheel` (open en lopende entries).
+- N22: de VRP-poort gebruikt de ATM-IV van de expiratie (`common.atm_iv`), niet de skew-IV van de short leg.
+  `vrp_gate` heeft de parameter `legs` niet meer.
+- N28: IVR/IVP over de laatste `ivr_lookback_days` KALENDERdagen (default 365, was 252 waarnemingen),
+  minimaal `ivr_min_observations` (nieuw, 120) waarnemingen. Gedrag: bij dagelijkse data komt de IVR
+  eerder beschikbaar (120 i.p.v. 252 waarnemingen).
+- #24: de take-profit van de debit vertical is `take_profit_frac_max_gain` (0,60) van de maximale winst
+  (breedte − debit); vervangt `take_profit_frac_debit` (2 × debit was bij debit ≥ ½ breedte onbereikbaar).
+- #25: de credit spread rangschikt alle breedtes op (credit − kosten)/max verlies (kosten: commissie voor
+  openen en sluiten van beide legs, `Rules.commission_per_contract`), bij gelijke stand de smalste.
+- #26: de short strikes van iron condor (incl. adjust) en short strangle liggen binnen een deltaband:
+  `short_delta_tolerance` / `strangle_delta_tolerance` (0,05), zoals de credit spread.

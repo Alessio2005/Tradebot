@@ -10,8 +10,19 @@ Beheer, in deze volgorde (de eerste die geldt, wint):
 5. kosten ≤ (1 − `take_profit_frac`) × credit → CLOSE, NORMAL (winst genomen);
 6. DTE ≤ `close_dte` → CLOSE, NORMAL.
 
-Entry: met `min_vrp_ratio` gezet moet de gemiddelde IV van de short legs ≥ die ratio × σ(h)
-zijn (h = DTE van de gekozen expiratie; `common.vrp_gate`, spoorregel `vrp_h:<ratio>`).
+Heeft de positie aandelen-legs (na een vroege assignment), dan zeggen de optie-legs alleen niets
+meer over de waarde: de regels 2 tot en met 5 (stop, delta, ITM, winst) zwijgen dan. De engine
+sluit zo'n positie zelf met reden `assigned`; de expiratie- en DTE-regel blijven gelden.
+
+Entry: met `min_vrp_ratio` gezet moet de ATM-IV van de gekozen expiratie ≥ die ratio × σ(h)
+zijn (h = DTE van die expiratie; `common.vrp_gate`, spoorregel `vrp_h:<ratio>`). Een short
+call (bear call, callkant van de condor) opent niet als er voor zijn expiratie een ex-dividend
+valt waarbij zijn extrinsieke waarde kleiner is dan het dividend (`short_call_dividend_blockers`).
+
+De credit spread rangschikt alle breedtes in `wing_width_strikes` die het credit-criterium
+halen op (credit − kosten) / max verlies (kosten = commissie voor openen en sluiten van beide
+legs) en neemt de beste; bij gelijke stand de smalste. Short strikes van de condor liggen binnen
+`short_delta ± short_delta_tolerance`, net als de credit spread een deltaband heeft.
 
 De iron condor stuurt daarna één keer bij: heeft een short leg `|delta| > adjust_short_delta`,
 dan sluit hij de ongeteste kant en opent daar een nieuwe spread op de doel-delta, met dezelfde
@@ -45,6 +56,7 @@ from .common import (
     iv_ok,
     otm_step,
     pick_expiry,
+    short_call_dividend_blockers,
     size,
     strike_at_delta,
     vrp_gate,
@@ -60,6 +72,9 @@ def manage_credit(pos: StrategyPosition, market: MarketState, rules: Rules, take
     expiries = pos.expiries()
     if any(expiry_close_due(e, market.now, market, rules) for e in expiries):
         return [close(pos, Urgency.STOP, "expiry")]
+    if pos.shares:                      # assigned: de optie-legs alleen zeggen niets (N17)
+        return ([close(pos, Urgency.NORMAL, "dte")]
+                if dte(expiries[0], market.today) <= close_dte else [])
     chain = market.chains.get(pos.underlying)
     credit = pos.entry_credit
     m = mark(chain, pos.intents()) if chain is not None else None
@@ -87,19 +102,25 @@ def manage_credit(pos: StrategyPosition, market: MarketState, rules: Rules, take
     return []
 
 
-def _spread(chain: Chain, short: PricedOption, widths: range,
-            min_frac: float) -> tuple[tuple[LegIntent, ...], float, float] | None:
-    """De smalste spread vanaf `short` die credit ≥ `min_frac` × breedte haalt."""
+def _spread(chain: Chain, short: PricedOption, widths: range, min_frac: float,
+            cost: float = 0.0) -> tuple[tuple[LegIntent, ...], float, float] | None:
+    """De beste spread vanaf `short` over alle `widths` die credit ≥ `min_frac` × breedte
+    halen: de hoogste (credit − `cost`) / (breedte − credit), bij gelijke stand de smalste.
+    `cost` is per aandeel (commissie voor openen en sluiten)."""
+    best: tuple[float, tuple[LegIntent, ...], float, float] | None = None
     for n in widths:
         long = otm_step(chain, short, n)
         if long is None:
-            return None
+            break
         legs = (LegIntent(short.contract, -1), LegIntent(long.contract, 1))
         m = mark(chain, legs)
         width = abs(short.contract.strike - long.contract.strike)
-        if m is not None and -m >= min_frac * width:
-            return legs, -m, width
-    return None
+        if m is None or not min_frac * width <= -m < width:
+            continue
+        score = (-m - cost) / (width + m)
+        if best is None or score > best[0]:
+            best = score, legs, -m, width
+    return None if best is None else best[1:]
 
 
 class CreditSpread:
@@ -125,11 +146,13 @@ class CreditSpread:
                 continue
             found = _spread(chain, short, range(cfg.wing_width_strikes[0],
                                                 cfg.wing_width_strikes[1] + 1),
-                            cfg.min_credit_frac_width)
+                            cfg.min_credit_frac_width, 4 * self.rules.commission_per_contract / MULTIPLIER)
             if found is None:
                 continue
             legs, credit, width = found
-            vrp_ok, vrp_trace = vrp_gate(market, und, expiry, legs, cfg.min_vrp_ratio)
+            if short_call_dividend_blockers(market, und, legs):
+                continue
+            vrp_ok, vrp_trace = vrp_gate(market, und, expiry, cfg.min_vrp_ratio)
             if not vrp_ok:
                 continue
             loss_unit = (width - credit) * MULTIPLIER
@@ -157,6 +180,11 @@ class IronCondor:
     def __init__(self, cfg: IronCondorConfig, rules: Rules) -> None:
         self.cfg, self.rules = cfg, rules
 
+    def _band(self) -> tuple[float, float]:
+        """De deltaband van de short strikes: `short_delta ± short_delta_tolerance`."""
+        d, tol = self.cfg.short_delta, self.cfg.short_delta_tolerance
+        return d - tol, d + tol
+
     def _condor(self, chain: Chain, sp: PricedOption, sc: PricedOption
                 ) -> tuple[tuple[LegIntent, ...], float, float, int] | None:
         lo, hi = self.cfg.wing_width_strikes
@@ -181,15 +209,18 @@ class IronCondor:
             if expiry is None or entry_blockers(market, und, expiry, self.rules):
                 continue
             ok, iv_trace = iv_ok(market, und, IVCondition(cfg.iv_condition), self.rules)
-            sp = strike_at_delta(chain, expiry, Right.PUT, cfg.short_delta)
-            sc = strike_at_delta(chain, expiry, Right.CALL, cfg.short_delta)
+            band = self._band()
+            sp = strike_at_delta(chain, expiry, Right.PUT, cfg.short_delta, band)
+            sc = strike_at_delta(chain, expiry, Right.CALL, cfg.short_delta, band)
             if not ok or sp is None or sc is None or sp.contract.strike >= sc.contract.strike:
                 continue
             found = self._condor(chain, sp, sc)
             if found is None:
                 continue
             legs, credit, width, n = found
-            vrp_ok, vrp_trace = vrp_gate(market, und, expiry, legs, cfg.min_vrp_ratio)
+            if short_call_dividend_blockers(market, und, legs):
+                continue
+            vrp_ok, vrp_trace = vrp_gate(market, und, expiry, cfg.min_vrp_ratio)
             if not vrp_ok:
                 continue
             loss_unit = (width - credit) * MULTIPLIER
@@ -206,7 +237,7 @@ class IronCondor:
         c = self.cfg
         acts = manage_credit(pos, market, self.rules, c.take_profit_frac,
                              c.stop_loss_multiple_credit, c.close_dte)
-        if acts or pos.adjustments >= c.max_adjustments:
+        if acts or pos.adjustments >= c.max_adjustments or pos.shares:
             return acts
         adj = self._adjust(pos, market)
         return [adj] if adj is not None else []
@@ -228,7 +259,8 @@ class IronCondor:
             if old_short.strike not in strikes or old_long.strike not in strikes:
                 return None
             n = abs(strikes.index(old_short.strike) - strikes.index(old_long.strike))
-            new_short = strike_at_delta(chain, old_short.expiry, untested, self.cfg.short_delta)
+            new_short = strike_at_delta(chain, old_short.expiry, untested, self.cfg.short_delta,
+                                        self._band())
             new_long = otm_step(chain, new_short, n) if new_short is not None else None
             if new_short is None or new_long is None:
                 return None
